@@ -331,7 +331,7 @@ class BoxPreferences {
 				ui.endElement();
 				ui.row([0.5]);
 				if (ui.button(tr("Help"))) {
-					File.explorer("https://github.com/armory3d/armorpaint_docs#pen");
+					File.openInStdApp("https://github.com/armory3d/armorpaint_docs#pen");
 				}
 			}
 
@@ -532,7 +532,7 @@ plugin.drawUI = function(ui) {
 							ui.text(f, Right, ui.t.HIGHLIGHT_COL);
 							var path = Path.data() + Path.sep + "plugins" + Path.sep + f;
 							if (ui.button(tr("Edit in Text Editor"), Left)) {
-								File.start(path);
+								File.openInStdApp(path);
 							}
 							if (ui.button(tr("Edit in Script Tab"), Left)) {
 								iron.data.Data.getBlob("plugins/" + f, function(blob: kha.Blob) {

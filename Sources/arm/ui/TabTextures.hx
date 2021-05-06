@@ -139,7 +139,7 @@ class TabTextures {
 									for (b in Project.brushes) updateTexturePointers(b.canvas.nodes, i);
 								}
 								if (ui.button(tr("Open Containing Directory..."), Left)) {
-									File.explorer(asset.file.substr(0, asset.file.lastIndexOf(Path.sep)));
+									File.openInStdApp(asset.file.substr(0, asset.file.lastIndexOf(Path.sep)));
 								}
 							}, 6);
 						}

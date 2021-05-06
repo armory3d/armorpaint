@@ -349,21 +349,21 @@ class UIMenu {
 			}
 			else if (menuCategory == MenuHelp) {
 				if (menuButton(ui, tr("Manual"))) {
-					File.explorer("https://armorpaint.org/manual");
+					File.openInStdApp("https://armorpaint.org/manual");
 				}
 				if (menuButton(ui, tr("What's New"))) {
-					File.explorer("https://armorpaint.org/notes");
+					File.openInStdApp("https://armorpaint.org/notes");
 				}
 				if (menuButton(ui, tr("Issue Tracker"))) {
-					File.explorer("https://github.com/armory3d/armorpaint/issues");
+					File.openInStdApp("https://github.com/armory3d/armorpaint/issues");
 				}
 				if (menuButton(ui, tr("Report Bug"))) {
 					var url = "https://github.com/armory3d/armorpaint/issues/new?labels=bug&template=bug_report.md&body=*ArmorPaint%20" + Main.version + "-" + Main.sha + ",%20" + System.systemId + "*%0A%0A**Issue description:**%0A%0A**Steps to reproduce:**%0A%0A";
-					File.explorer(url);
+					File.openInStdApp(url);
 				}
 				if (menuButton(ui, tr("Request Feature"))) {
 					var url = "https://github.com/armory3d/armorpaint/issues/new?labels=feature%20request&template=feature_request.md&body=*ArmorPaint%20" + Main.version + "-" + Main.sha + ",%20" + System.systemId + "*%0A%0A**Feature description:**%0A%0A";
-					File.explorer(url);
+					File.openInStdApp(url);
 				}
 				menuSeparator(ui);
 
