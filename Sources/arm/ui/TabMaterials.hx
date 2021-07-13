@@ -84,19 +84,10 @@ class TabMaterials {
 					var tile = ui.SCALE() > 1 ? 100 : 50;
 					var state = Project.materials[i].previewReady ? ui.image(img) : ui.image(Res.get("icons.k"), -1, null, tile, tile, tile, tile);
 					if (state == State.Started && ui.inputY > ui._windowY) {
-						if (Context.material != Project.materials[i]) {
-							Context.selectMaterial(i);
-							if (UIHeader.inst.worktab.position == SpaceMaterial) {
-								function _init() {
-									Layers.updateFillLayers();
-								}
-								iron.App.notifyOnInit(_init);
-							}
-						}
 						var mouse = Input.getMouse();
 						App.dragOffX = -(mouse.x - uix - ui._windowX - 3);
 						App.dragOffY = -(mouse.y - uiy - ui._windowY + 1);
-						App.dragMaterial = Context.material;
+						App.dragMaterial = Project.materials[i];
 						if (Time.time() - Context.selectTime < 0.25) {
 							UISidebar.inst.showMaterialNodes();
 							App.dragMaterial = null;
@@ -104,6 +95,16 @@ class TabMaterials {
 						}
 						Context.selectTime = Time.time();
 					}
+					else if (state == State.Released && ui.inputY > ui._windowY && Context.material != Project.materials[i]) {
+						Context.selectMaterial(i);
+						if (UIHeader.inst.worktab.position == SpaceMaterial) {
+							function _init() {
+								Layers.updateFillLayers();
+							}
+							iron.App.notifyOnInit(_init);
+						}
+					}
+
 					if (ui.isHovered && ui.inputReleasedR) {
 						Context.selectMaterial(i);
 						var add = Project.materials.length > 1 ? 1 : 0;

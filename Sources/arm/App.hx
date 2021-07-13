@@ -449,6 +449,7 @@ class App {
 	static function materialDropped(inViewport: Bool, inLayers: Bool, inNodes: Bool) {
 		// Material drag and dropped onto viewport or layers tab
 		if (inViewport || inLayers) {
+			Context.setMaterial(dragMaterial);
 			var uvType = Input.getKeyboard().down("control") ? UVProject : UVMap;
 			var decalMat = uvType == UVProject ? RenderUtil.getDecalMat() : null;
 			Layers.createFillLayer(uvType, decalMat);
