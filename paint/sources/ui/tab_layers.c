@@ -705,6 +705,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 	ui_handle_t *layer_opac_handle = ui_nest(ui_handle(__ID__), l->id);
 	layer_opac_handle->f           = l->mask_opacity;
 	ui_slider(layer_opac_handle, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	layer_opac_handle->f = math_max(0.0, math_min(1.0, layer_opac_handle->f));
 	if (layer_opac_handle->changed) {
 		if (g_ui->input_started) {
 			history_layer_opacity();

@@ -76,6 +76,7 @@ void tab_swatches_draw_edit_menu() {
 	ui_handle_t *hopacity      = ui_handle(__ID__);
 	hopacity->f                = g_context->swatch->opacity;
 	g_context->swatch->opacity = ui_slider(hopacity, "Opacity", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	g_context->swatch->opacity = math_max(0.0, math_min(1.0, g_context->swatch->opacity));
 
 	if (g_config->workflow == WORKFLOW_PBR) {
 		ui_handle_t *hocclusion      = ui_handle(__ID__);
