@@ -81,7 +81,9 @@ float ui_float_input(ui_handle_t *handle, char *label, int align, float precisio
 	handle->text = tmp;
 	sprintf(handle->text, "%f", round(handle->f * precision) / precision);
 	char *text = ui_text_input(handle, label, align, true, false);
-	handle->f  = atof(text);
+	// Replace comma with dot for locale-independent parsing
+	char *text_copy = string_replace_all(text, ",", ".");
+	handle->f  = atof(text_copy);
 	return handle->f;
 }
 

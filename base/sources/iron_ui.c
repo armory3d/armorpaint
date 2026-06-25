@@ -2311,11 +2311,15 @@ float ui_slider(ui_handle_t *handle, char *text, float from, float to, bool fill
 	if (current->submit_text_handle == handle) {
 		ui_submit_text_edit();
 #ifdef WITH_EVAL
-		minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", handle->text));
+		// Replace comma with dot for locale-independent parsing
+		char *text_copy = string_replace_all(handle->text, ",", ".");
+		minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", text_copy));
 		handle->f         = minic_ctx_result(_ctx);
 		minic_ctx_free(_ctx);
 #else
-		handle->f = atof(handle->text);
+		// Replace comma with dot for locale-independent parsing
+		char *text_copy = string_replace_all(handle->text, ",", ".");
+		handle->f = atof(text_copy);
 #endif
 		handle->changed = current->changed = true;
 	}
