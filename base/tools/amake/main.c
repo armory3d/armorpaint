@@ -37,8 +37,8 @@ static JSValue js_os_exec_win(JSContext *ctx, JSValue this_val, int argc, JSValu
 	char cmd[1024];
 	cmd[0] = 0;
 	for (int i = 0; i < exec_argc; ++i) {
-		strcat(cmd, exec_argv[i]);
-		strcat(cmd, " ");
+		strcat_s(cmd, sizeof(cmd), exec_argv[i]);
+		strcat_s(cmd, sizeof(cmd), " ");
 	}
 
 	HANDLE              hReadPipe, hWritePipe;
