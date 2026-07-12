@@ -178,13 +178,13 @@ void box_projects_get_started_tab() {
 		ui_separator(UI_ELEMENT_H(), false);
 
 		if (ui_icon_button(tr("Manual"), ICON_HELP, UI_ALIGN_CENTER)) {
-			iron_load_url(string("%s/manual", manifest_url));
+			iron_load_url("https://armorpaint.org/manual");
 		}
 		if (ui_icon_button(tr("How To"), ICON_HELP, UI_ALIGN_CENTER)) {
-			iron_load_url(string("%s/howto", manifest_url));
+			iron_load_url("https://forums.armorpaint.org/c/how-to");
 		}
 		if (ui_icon_button(tr("What's New"), ICON_LINK, UI_ALIGN_CENTER)) {
-			iron_load_url(string("%s/notes", manifest_url));
+			iron_load_url("https://forums.armorpaint.org/c/releases");
 		}
 	}
 }
