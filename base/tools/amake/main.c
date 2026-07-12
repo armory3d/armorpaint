@@ -34,12 +34,19 @@ static JSValue js_os_exec_win(JSContext *ctx, JSValue this_val, int argc, JSValu
 		}
 	}
 
-	char cmd[1024];
-	cmd[0] = 0;
+	size_t cmd_len = 1;
 	for (int i = 0; i < exec_argc; ++i) {
-		strcat(cmd, exec_argv[i]);
-		strcat(cmd, " ");
+		cmd_len += strlen(exec_argv[i]) + 1;
 	}
+	char *cmd = js_mallocz(ctx, cmd_len);
+	char *p = cmd;
+	for (int i = 0; i < exec_argc; ++i) {
+		size_t arg_len = strlen(exec_argv[i]);
+		memcpy(p, exec_argv[i], arg_len);
+		p += arg_len;
+		*p++ = ' ';
+	}
+	*p = '\0';
 
 	HANDLE              hReadPipe, hWritePipe;
 	SECURITY_ATTRIBUTES saAttr;
