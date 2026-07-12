@@ -13,6 +13,24 @@ i32 sculpt_object_vertex_offset(mesh_object_t *o) {
 	return offset;
 }
 
+static void sculpt_ensure_texture_res() {
+	i32 required = 0;
+	for (i32 o = 0; o < g_project->_->paint_objects->length; ++o) {
+		required += g_project->_->paint_objects->buffer[o]->data->index_array->length;
+	}
+	bool changed = false;
+	while (config_get_texture_res_x() * config_get_texture_res_y() < required && config_get_texture_res_x() < 8192) {
+		i32 next = config_get_texture_res_x() < 2048 ? 2048 : config_get_texture_res_x() < 4096 ? 4096 : 8192;
+		i32 pos  = config_get_texture_res_pos(next);
+		config_set_texture_res(pos);
+		base_res_handle->i = pos;
+		changed            = true;
+	}
+	if (changed) {
+		layers_resize();
+	}
+}
+
 void sculpt_import_mesh_pack_to_texture(gpu_texture_t *target) {
 	// Pack positions and normals into texture
 	u32       capacity      = config_get_texture_res_x() * config_get_texture_res_y();
@@ -879,6 +897,8 @@ void sculpt_init_sculpt_texture(slot_layer_t *l) {
 }
 
 void sculpt_init_meshes() {
+	sculpt_ensure_texture_res();
+
 	mesh_object_t_array_t *objects   = g_project->_->paint_objects;
 	f32                    max_scale = 0.0;
 	for (i32 o = 0; o < objects->length; ++o) {
