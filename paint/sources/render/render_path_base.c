@@ -159,13 +159,7 @@ void render_path_base_commands(void (*draw_commands)(void)) {
 		return;
 	}
 
-	if (base_ui_enabled) {
-		util_layer_check_path_grab();
-		util_brush_update();
-	}
-
 	render_path_base_begin();
-
 	render_path_paint_begin();
 	render_path_base_draw_split(draw_commands);
 	render_path_base_draw_gbuffer();
