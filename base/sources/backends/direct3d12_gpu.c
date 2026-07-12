@@ -1434,6 +1434,7 @@ UINT create_srv_ib(gpu_buffer_t *ib, UINT num_elements, UINT element_size) {
 void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *accel) {
 	dxr_vb_count        = 0;
 	dxr_instances_count = 0;
+	memset(dxr_vb_last, 0, sizeof(dxr_vb_last));
 }
 
 void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb, gpu_buffer_t *ib, mat4_t transform) {

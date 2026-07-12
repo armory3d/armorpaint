@@ -2146,6 +2146,7 @@ void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *acce
 
 	vb_count        = 0;
 	instances_count = 0;
+	memset(vb_last, 0, sizeof(vb_last));
 }
 
 void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb, gpu_buffer_t *_ib, mat4_t _transform) {
