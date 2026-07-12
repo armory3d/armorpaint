@@ -1102,6 +1102,100 @@ void render_path_sculpt_begin() {
 	sculpt_push_undo = false;
 }
 
+void sculpt_bake_to_mesh() {
+	slot_layer_t_array_t *sculpt_layers = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (l->texpaint_sculpt != NULL && slot_layer_is_visible(l)) {
+			any_array_push(sculpt_layers, l);
+		}
+	}
+	i32 count = sculpt_layers->length;
+	if (count == 0) {
+		return;
+	}
+
+	if (g_context->merged_object == NULL) {
+		util_mesh_merge(NULL);
+	}
+	mesh_data_t *g   = g_context->merged_object->data;
+	i16_array_t *va0 = g->vertex_arrays->buffer[0]->values;
+	i16_array_t *va1 = g->vertex_arrays->buffer[1]->values;
+	u32_array_t *ia  = g->index_array;
+	i32          nv  = math_floor(va0->length / 4.0);
+
+	// The base layer stores absolute positions, higher layers store deltas from the rest pose
+	buffer_t  *base_pixels  = gpu_get_texture_pixels(sculpt_layers->buffer[0]->texpaint_sculpt);
+	buffer_t  *rest_pixels  = NULL;
+	buffer_t **layer_pixels = NULL;
+	if (count > 1) {
+		render_target_t *rest = any_map_get(render_path_render_targets, "texpaint_sculpt_base");
+		rest_pixels           = gpu_get_texture_pixels(rest->_image);
+		layer_pixels          = malloc(sizeof(buffer_t *) * count);
+		for (i32 i = 1; i < count; ++i) {
+			layer_pixels[i] = gpu_get_texture_pixels(sculpt_layers->buffer[i]->texpaint_sculpt);
+		}
+	}
+
+	f32_array_t *pos     = f32_array_create(nv * 3);
+	f32          max_abs = 1.0;
+	for (i32 v = 0; v < nv; ++v) {
+		f32 x = buffer_get_f32(base_pixels, v * 16);
+		f32 y = buffer_get_f32(base_pixels, v * 16 + 4);
+		f32 z = buffer_get_f32(base_pixels, v * 16 + 8);
+		for (i32 i = 1; i < count; ++i) {
+			x += buffer_get_f32(layer_pixels[i], v * 16) - buffer_get_f32(rest_pixels, v * 16);
+			y += buffer_get_f32(layer_pixels[i], v * 16 + 4) - buffer_get_f32(rest_pixels, v * 16 + 4);
+			z += buffer_get_f32(layer_pixels[i], v * 16 + 8) - buffer_get_f32(rest_pixels, v * 16 + 8);
+		}
+		pos->buffer[v * 3]     = x;
+		pos->buffer[v * 3 + 1] = y;
+		pos->buffer[v * 3 + 2] = z;
+		if (math_abs(x) > max_abs)
+			max_abs = math_abs(x);
+		if (math_abs(y) > max_abs)
+			max_abs = math_abs(y);
+		if (math_abs(z) > max_abs)
+			max_abs = math_abs(z);
+	}
+	if (count > 1) {
+		free(layer_pixels);
+	}
+
+	f32 inv = 1.0 / max_abs;
+	for (i32 v = 0; v < nv; ++v) {
+		va0->buffer[v * 4]     = math_floor(pos->buffer[v * 3] * inv * 32767.0);
+		va0->buffer[v * 4 + 1] = math_floor(pos->buffer[v * 3 + 1] * inv * 32767.0);
+		va0->buffer[v * 4 + 2] = math_floor(pos->buffer[v * 3 + 2] * inv * 32767.0);
+	}
+
+	for (i32 f = 0; f < math_floor(ia->length / 3.0); ++f) {
+		i32    i1               = ia->buffer[f * 3];
+		i32    i2               = ia->buffer[f * 3 + 1];
+		i32    i3               = ia->buffer[f * 3 + 2];
+		vec4_t va               = (vec4_t){pos->buffer[i1 * 3], pos->buffer[i1 * 3 + 1], pos->buffer[i1 * 3 + 2], 1.0};
+		vec4_t vb               = (vec4_t){pos->buffer[i2 * 3], pos->buffer[i2 * 3 + 1], pos->buffer[i2 * 3 + 2], 1.0};
+		vec4_t vc               = (vec4_t){pos->buffer[i3 * 3], pos->buffer[i3 * 3 + 1], pos->buffer[i3 * 3 + 2], 1.0};
+		vec4_t cb               = vec4_norm(vec4_cross(vec4_sub(vc, vb), vec4_sub(va, vb)));
+		i32    nx               = math_floor(cb.x * 32767);
+		i32    ny               = math_floor(cb.y * 32767);
+		i32    nz               = math_floor(cb.z * 32767);
+		va1->buffer[i1 * 2]     = nx;
+		va1->buffer[i1 * 2 + 1] = ny;
+		va0->buffer[i1 * 4 + 3] = nz;
+		va1->buffer[i2 * 2]     = nx;
+		va1->buffer[i2 * 2 + 1] = ny;
+		va0->buffer[i2 * 4 + 3] = nz;
+		va1->buffer[i3 * 2]     = nx;
+		va1->buffer[i3 * 2 + 1] = ny;
+		va0->buffer[i3 * 4 + 3] = nz;
+	}
+
+	g->scale_pos = max_abs;
+	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+	render_path_raytrace_ready = false;
+}
+
 void slot_layer_apply_sculpt(slot_layer_t *raw) {
 	if (raw->texpaint_sculpt == NULL) {
 		return;

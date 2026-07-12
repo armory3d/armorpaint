@@ -447,7 +447,9 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 		return;
 	}
 
-	g_context->viewport_mode = mode;
+	viewport_mode_t prev_viewport_mode = g_context->viewport_mode;
+	g_context->viewport_mode           = mode;
+
 	if (context_use_deferred()) {
 		gc_unroot(render_path_commands);
 		render_path_commands = render_path_deferred_commands;
@@ -469,6 +471,23 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 	// Bake in lit mode for now
 	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool == TOOL_TYPE_BAKE) {
 		g_context->viewport_mode = VIEWPORT_MODE_LIT;
+	}
+
+	bool has_sculpt = false;
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		if (g_project->_->layers->buffer[i]->texpaint_sculpt != NULL && slot_layer_is_visible(g_project->_->layers->buffer[i])) {
+			has_sculpt = true;
+			break;
+		}
+	}
+	if (has_sculpt) {
+		if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+			sculpt_bake_to_mesh();
+		}
+		else if (prev_viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+			// Restore un-sculpted mesh
+			util_mesh_merge(NULL);
+		}
 	}
 }
 

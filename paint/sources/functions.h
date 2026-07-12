@@ -706,6 +706,7 @@ bool                         sculpt_layer_has_visible_masks(slot_layer_t *l);
 bool                         sculpt_mask_value(node_shader_t *kong, slot_layer_t *l, char *out_var, bool attrib, slot_layer_t *skip);
 i32                          sculpt_object_vertex_offset(mesh_object_t *o);
 void                         sculpt_import_mesh_pack_to_texture(gpu_texture_t *target);
+void                         sculpt_bake_to_mesh();
 void                         sculpt_init_sculpt_texture(slot_layer_t *l);
 void                         sculpt_init_meshes();
 void                         sculpt_init();
