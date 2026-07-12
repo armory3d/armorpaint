@@ -116,11 +116,7 @@ void brush_output_node_run() {
 #endif
 	}
 
-	// First time init
-	if (g_context->last_paint_x < 0 || g_context->last_paint_y < 0) {
-		g_context->last_paint_vec_x = g_context->paint_vec.x;
-		g_context->last_paint_vec_y = g_context->paint_vec.y;
-	}
+	bool first_paint = g_context->last_paint_x < 0 || g_context->last_paint_y < 0;
 
 	// Paint bounds
 	if (g_context->paint_vec.x < left || g_context->paint_vec.x > right || g_context->paint_vec.y < top || g_context->paint_vec.y > bottom) {
@@ -187,6 +183,11 @@ void brush_output_node_run() {
 
 	if (g_context->painted == 0) {
 		brush_output_node_parse_inputs();
+	}
+
+	if (first_paint) {
+		g_context->last_paint_vec_x = g_context->paint_vec.x;
+		g_context->last_paint_vec_y = g_context->paint_vec.y;
 	}
 
 	// Path layer - add point and repaint
