@@ -3,7 +3,7 @@
 #include <backends/windows_system.h>
 #include <d3d12.h>
 #include <dxgi.h>
-#include <dxgi1_4.h>
+#include <dxgi1_6.h>
 #include <iron_global.h>
 #include <iron_gpu.h>
 #include <iron_math.h>
@@ -12,7 +12,8 @@
 #include <math.h>
 #include <stdbool.h>
 
-static ID3D12Device                *device = NULL;
+static IDXGIAdapter1               *adapter = NULL;
+static ID3D12Device                *device  = NULL;
 static ID3D12CommandQueue          *queue;
 static IDXGISwapChain              *window_swapchain;
 static ID3D12RootSignature         *root_signature = NULL;
@@ -338,7 +339,11 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	}
 #endif
 
-	D3D12CreateDevice(NULL, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, &device);
+	IDXGIFactory6 *dxgi_factory = NULL;
+	CreateDXGIFactory1(&IID_IDXGIFactory6, &dxgi_factory);
+	dxgi_factory->lpVtbl->EnumAdapterByGpuPreference(dxgi_factory, 0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, &IID_IDXGIAdapter1, &adapter);
+
+	D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, &IID_ID3D12Device, &device);
 	create_root_signature(true);
 
 	D3D12_COMMAND_QUEUE_DESC queue_desc = {
@@ -360,9 +365,8 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	    .Windowed          = true,
 	};
 
-	IDXGIFactory4 *dxgi_factory = NULL;
-	CreateDXGIFactory1(&IID_IDXGIFactory4, &dxgi_factory);
 	dxgi_factory->lpVtbl->CreateSwapChain(dxgi_factory, (IUnknown *)queue, &swapchain_desc, &window_swapchain);
+	dxgi_factory->lpVtbl->Release(dxgi_factory);
 
 	fence_value = 0;
 	fence_event = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -1204,15 +1208,9 @@ void gpu_buffer_destroy_internal(gpu_buffer_t *buffer) {
 }
 
 char *gpu_device_name() {
-	IDXGIFactory *factory;
-	CreateDXGIFactory(&IID_IDXGIFactory, (void **)&factory);
-	IDXGIAdapter *adapter;
-	factory->lpVtbl->EnumAdapters(factory, 0, &adapter);
-	DXGI_ADAPTER_DESC desc;
-	adapter->lpVtbl->GetDesc(adapter, &desc);
+	DXGI_ADAPTER_DESC1 desc;
+	adapter->lpVtbl->GetDesc1(adapter, &desc);
 	WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, device_name, sizeof(device_name), NULL, NULL);
-	adapter->lpVtbl->Release(adapter);
-	factory->lpVtbl->Release(factory);
 	return device_name;
 }
 
