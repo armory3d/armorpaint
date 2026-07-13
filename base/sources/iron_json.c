@@ -149,7 +149,7 @@ static int token_size() {
 
 static bool has_dot(char *str, uint32_t len) {
 	for (uint32_t i = 0; i < len; ++i) {
-		if (str[i] == '.') {
+		if (str[i] == '.' || str[i] == ',') {
 			return true;
 		}
 	}
@@ -179,11 +179,16 @@ static void token_write() {
 			store_ptr_abs(NULL);
 		}
 		else {
-			has_dot(source + t.start, t.end - t.start) ? store_f32(strtof(source + t.start, NULL)) :
+			// Replace comma with dot for locale-independent parsing
+			char *num_str = string_copy(source + t.start);
+			for (int i = 0; i < (t.end - t.start); i++) {
+				if (num_str[i] == ',') num_str[i] = '.';
+			}
+			has_dot(source + t.start, t.end - t.start) ? store_f32(strtof(num_str, NULL)) :
 #ifdef _WIN32
-			                                           store_i32(_strtoi64(source + t.start, NULL, 10));
+			                                           store_i32(_strtoi64(num_str, NULL, 10));
 #else
-			                                           store_i32(strtol(source + t.start, NULL, 10));
+			                                           store_i32(strtol(num_str, NULL, 10));
 #endif
 		}
 	}
@@ -469,7 +474,7 @@ static uint8_t    jenc_forced_array_type;
 
 static bool jenc_has_dot(int start, int end) {
 	for (int i = start; i < end; i++) {
-		if (jenc_src[i] == '.')
+		if (jenc_src[i] == '.' || jenc_src[i] == ',')
 			return true;
 	}
 	return false;
@@ -584,7 +589,12 @@ static void jenc_array(int count) {
 		armpack_write_u8(0xca);
 		for (int i = 0; i < count; i++) {
 			jsmntok_t t = jenc_tokens[jenc_ti++];
-			armpack_write_f32(strtof(jenc_src + t.start, NULL));
+			// Replace comma with dot for locale-independent parsing
+			char *num_str = string_copy(jenc_src + t.start);
+			for (int j = 0; j < (t.end - t.start); j++) {
+				if (num_str[j] == ',') num_str[j] = '.';
+			}
+			armpack_write_f32(strtof(num_str, NULL));
 		}
 	}
 	else if (elem_type == 0xd2) { // typed i32
@@ -654,7 +664,12 @@ static void jenc_value() {
 	}
 	else if (jenc_has_dot(t.start, t.end)) {
 		armpack_write_u8(0xca);
-		armpack_write_f32(strtof(jenc_src + t.start, NULL));
+		// Replace comma with dot for locale-independent parsing
+		char *num_str = string_copy(jenc_src + t.start);
+		for (int j = 0; j < (t.end - t.start); j++) {
+			if (num_str[j] == ',') num_str[j] = '.';
+		}
+		armpack_write_f32(strtof(num_str, NULL));
 	}
 	else {
 		armpack_write_u8(0xd2);

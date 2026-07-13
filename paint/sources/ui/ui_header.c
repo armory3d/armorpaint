@@ -275,6 +275,7 @@ void ui_header_draw_tool_properties() {
 		ui_handle_t *hopac               = ui_handle(__ID__);
 		hopac->f                         = g_context->picked_color->opacity;
 		g_context->picked_color->opacity = ui_slider(hopac, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		g_context->picked_color->opacity = math_max(0.0, math_min(1.0, g_context->picked_color->opacity));
 
 		ui_handle_t *h_select_mat         = ui_handle(__ID__);
 		h_select_mat->b                   = g_context->picker_select_material;
@@ -378,6 +379,7 @@ void ui_header_draw_tool_properties() {
 		ui_handle_t *brush_opacity_handle = ui_handle(__ID__);
 		brush_opacity_handle->f           = g_context->brush_opacity;
 		g_context->brush_opacity          = ui_slider(brush_opacity_handle, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		g_context->brush_opacity          = math_max(0.0, math_min(1.0, g_context->brush_opacity));
 		if (g_ui->is_hovered) {
 			any_map_t *vars = any_map_create();
 			any_map_set(vars, "brush_opacity", any_map_get(g_keymap, "brush_opacity"));

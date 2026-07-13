@@ -189,6 +189,18 @@ const char *test12 = " \n\
     } \n\
 ";
 
+// Test for leading-dot float literals (.3, .5f)
+const char *test13 = " \n\
+    float main() { \n\
+        float a = .3; \n\
+        float b = .5f; \n\
+        float c = 0.0; \n\
+        c = .7; \n\
+        if (a == 0.3 && b == 0.5 && c == 0.7) { return 0.0; } \n\
+        return 1.0; \n\
+    } \n\
+";
+
 #define MINIC_TEST(n, src)                                                            \
 	do {                                                                              \
 		minic_ctx_t *_c = minic_eval(src);                                            \
@@ -216,6 +228,7 @@ void minic_tests() {
 	MINIC_TEST(10, test10);
 	MINIC_TEST(11, test11);
 	MINIC_TEST(12, test12);
+	MINIC_TEST(13, test13);
 }
 
 #endif

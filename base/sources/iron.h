@@ -522,7 +522,10 @@ i32 parse_int_hex(const char *s) {
 #endif
 
 f32 parse_float(const char *s) {
-	return strtof(s, NULL);
+	// Replace comma with dot for locale-independent parsing
+	char *s_copy = string_replace_all(s, ",", ".");
+	f32 result = strtof(s_copy, NULL);
+	return result;
 }
 
 i32 color_from_floats(f32 r, f32 g, f32 b, f32 a) {
