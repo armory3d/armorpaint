@@ -2471,6 +2471,9 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 		render_path_end();
 	}
 
+	gc_unroot(_mesh_object_last_pipeline);
+	_mesh_object_last_pipeline = NULL;
+
 	if (string_equals(target, "")) { // Framebuffer
 		gc_unroot(_render_path_current_target);
 		_render_path_current_target = NULL;
@@ -2515,8 +2518,6 @@ void render_path_end(void) {
 
 void render_path_draw_meshes(char *context) {
 	any_array_t *meshes = scene_meshes;
-	gc_unroot(_mesh_object_last_pipeline);
-	_mesh_object_last_pipeline = NULL;
 	for (i32 i = 0; i < meshes->length; ++i) {
 		mesh_object_t *mesh = (mesh_object_t *)meshes->buffer[i];
 		mesh_object_render(mesh, context, _render_path_bind_params);
