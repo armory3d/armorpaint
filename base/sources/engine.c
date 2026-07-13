@@ -2517,7 +2517,9 @@ void render_path_end(void) {
 }
 
 void render_path_draw_meshes(char *context) {
-	any_array_t *meshes = scene_meshes;
+	gc_unroot(_mesh_object_last_pipeline);
+	_mesh_object_last_pipeline = NULL;
+	any_array_t *meshes        = scene_meshes;
 	for (i32 i = 0; i < meshes->length; ++i) {
 		mesh_object_t *mesh = (mesh_object_t *)meshes->buffer[i];
 		mesh_object_render(mesh, context, _render_path_bind_params);
