@@ -184,7 +184,7 @@ void box_projects_get_started_tab() {
 			iron_load_url("https://forums.armorpaint.org/c/how-to");
 		}
 		if (ui_icon_button(tr("What's New"), ICON_LINK, UI_ALIGN_CENTER)) {
-			iron_load_url("https://forums.armorpaint.org/c/releases");
+			iron_load_url("https://forums.armorpaint.org/c/news");
 		}
 	}
 }
