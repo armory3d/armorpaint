@@ -2379,6 +2379,9 @@ float ui_slider(ui_handle_t *handle, char *text, float from, float to, bool fill
 	if (current->submit_text_handle == handle) {
 		ui_submit_text_edit();
 #ifdef WITH_EVAL
+		if (handle->text[0] == '.') {
+			handle->text = string("0%s", handle->text);
+		}
 		minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", handle->text));
 		handle->f         = minic_ctx_result(_ctx);
 		minic_ctx_free(_ctx);
