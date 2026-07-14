@@ -239,7 +239,7 @@ void config_init() {
 		g_config->splash_screen = false;
 #endif
 		g_config->node_previews     = false;
-		g_config->pressure_hardness = true;
+		g_config->pressure_hardness = false;
 		g_config->pressure_angle    = false;
 		g_config->pressure_opacity  = false;
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)

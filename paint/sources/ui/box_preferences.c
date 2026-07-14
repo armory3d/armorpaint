@@ -548,13 +548,14 @@ void box_preferences_camera_tab() {
 
 void box_preferences_pen_tab() {
 	ui_text(tr("Pressure controls"), UI_ALIGN_LEFT, 0x00000000);
-	ui_handle_t *h_pressure_radius = ui_handle(__ID__);
-	h_pressure_radius->b           = g_config->pressure_radius;
-	g_config->pressure_radius      = ui_check(h_pressure_radius, tr("Brush Radius"), "");
 
 	ui_handle_t *h_pressure_sensitivity = ui_handle(__ID__);
 	h_pressure_sensitivity->f           = g_config->pressure_sensitivity;
 	g_config->pressure_sensitivity      = ui_slider(h_pressure_sensitivity, tr("Sensitivity"), 0.0, 10.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+
+	ui_handle_t *h_pressure_radius = ui_handle(__ID__);
+	h_pressure_radius->b           = g_config->pressure_radius;
+	g_config->pressure_radius      = ui_check(h_pressure_radius, tr("Brush Radius"), "");
 
 	ui_handle_t *h_pressure_hardness = ui_handle(__ID__);
 	h_pressure_hardness->b           = g_config->pressure_hardness;
