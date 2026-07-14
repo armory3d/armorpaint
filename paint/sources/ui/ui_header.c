@@ -230,6 +230,7 @@ void ui_header_draw_tool_properties() {
 		}
 		if (ui_icon_button(tr("Add Swatch"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			swatch_color_t *new_swatch = project_clone_swatch(g_context->picked_color);
+			new_swatch->base           = color_set_ab(new_swatch->base, 255);
 			g_context->swatch          = new_swatch;
 			any_array_push(g_project->swatches, new_swatch);
 			ui_base_hwnds->buffer[2]->redraws = 1;
@@ -442,11 +443,11 @@ void ui_header_draw_tool_properties() {
 		if (g_context->tool == TOOL_TYPE_BRUSH && g_config->workflow == WORKFLOW_SCULPT) {
 			ui_handle_t    *sculpt_handle = ui_handle(__ID__);
 			string_array_t *mode_combo    = any_array_create_from_raw(
-                (void *[]){
-                    tr("Draw"),
-                    tr("Grab"),
-                },
-                2);
+			    (void *[]){
+			        tr("Draw"),
+			        tr("Grab"),
+			    },
+			    2);
 			g_context->brush_sculpt = ui_combo(sculpt_handle, mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
 			if (sculpt_handle->changed) {
 				make_material_parse_paint_material(true);
