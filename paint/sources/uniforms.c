@@ -21,7 +21,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		brush_decal_mask_radius *= 2.0;
 		f32 radius = decal_mask ? brush_decal_mask_radius : g_context->brush_radius;
 		f32 val    = (radius * g_context->brush_nodes_radius) / 15.0;
-		if (g_config->pressure_radius && pen_down("tip") && !decal && !slot_layer_is_path(g_context->layer)) {
+		if (g_config->pressure_radius && (pen_down("tip") || pen_released("tip")) && !decal && !slot_layer_is_path(g_context->layer)) {
 			val *= pen_pressure * g_config->pressure_sensitivity;
 		}
 		f32 scale2d = (900 / (float)base_h()) * g_config->window_scale;
@@ -67,7 +67,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	}
 	else if (string_equals(link, "_brush_opacity")) {
 		f32 val = g_context->brush_opacity * g_context->brush_nodes_opacity;
-		if (g_config->pressure_opacity && pen_down("tip") && !slot_layer_is_path(g_context->layer)) {
+		if (g_config->pressure_opacity && (pen_down("tip") || pen_released("tip")) && !slot_layer_is_path(g_context->layer)) {
 			val *= pen_pressure * g_config->pressure_sensitivity;
 		}
 		return val;
@@ -78,7 +78,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 			return 1.0;
 		}
 		f32 val = fmaxf((g_context->brush_hardness * g_context->brush_nodes_hardness) - 0.02, 0.0);
-		if (g_config->pressure_hardness && pen_down("tip") && !slot_layer_is_path(g_context->layer)) {
+		if (g_config->pressure_hardness && (pen_down("tip") || pen_released("tip")) && !slot_layer_is_path(g_context->layer)) {
 			val *= pen_pressure * g_config->pressure_sensitivity;
 		}
 		val *= val;
@@ -190,7 +190,7 @@ vec2_t uniforms_ext_vec2_link(object_t *object, material_data_t *mat, char *link
 		f32 brush_angle = g_context->brush_angle + g_context->brush_nodes_angle;
 		f32 angle       = g_context->layer->fill_material != NULL ? g_context->layer->angle : brush_angle;
 		angle *= (math_pi() / 180.0);
-		if (g_config->pressure_angle && pen_down("tip") && !slot_layer_is_path(g_context->layer)) {
+		if (g_config->pressure_angle && (pen_down("tip") || pen_released("tip")) && !slot_layer_is_path(g_context->layer)) {
 			angle *= pen_pressure * g_config->pressure_sensitivity;
 		}
 		return (vec2_t){math_cos(-angle), math_sin(-angle)};
