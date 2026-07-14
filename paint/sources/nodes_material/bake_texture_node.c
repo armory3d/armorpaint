@@ -42,6 +42,8 @@ static void bake_texture_node_check_result(ui_node_t *node) {
 		layers_set_bits();
 	}
 
+	layers_update_fill_layers();
+
 	sys_remove_update(bake_texture_node_check_result);
 }
 
