@@ -76,6 +76,20 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 			sys_notify_on_next_frame(&box_export_tab_export_textures_on_next_frame, NULL);
 		}
 
+		if (base_res_handle->i == TEXTURE_RES_CUSTOM) {
+			static bool res_was_changed = false;
+			ui_row2();
+			ui_slider(base_res_x_handle, tr("Width"), 1, 16384, false, 1, true, UI_ALIGN_RIGHT, true);
+			ui_slider(base_res_y_handle, tr("Height"), 1, 16384, false, 1, true, UI_ALIGN_RIGHT, true);
+			if (res_was_changed && !g_ui->input_down) {
+				res_was_changed = false;
+				layers_on_resized();
+			}
+			if (base_res_x_handle->changed || base_res_y_handle->changed) {
+				res_was_changed = true;
+			}
+		}
+
 		ui_row2();
 		if (base_bits_handle->i == TEXTURE_BITS_BITS8) {
 			ui_handle_t *h               = ui_handle(__ID__);
