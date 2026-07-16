@@ -482,7 +482,6 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 	// parser_material_parse may add vertex elements
 	i32 velen = con_paint->data->vertex_elements->length;
 	// parser_material_parse_height             = true;
-	// parser_material_parse_height_as_channel  = true;
 	shader_out_t *sout                       = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
 	con_paint->data->vertex_elements->length = velen;
 	parser_material_triplanar                = false;

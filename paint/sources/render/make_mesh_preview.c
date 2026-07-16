@@ -46,10 +46,8 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 	parser_material_sample_uv_scale = string_copy(brush_scale);
 	gc_root(parser_material_sample_uv_scale);
 	parser_material_parse_height            = make_material_height_used;
-	parser_material_parse_height_as_channel = true;
 	shader_out_t *sout                      = parser_material_parse(g_context->material->canvas, con_mesh, kong, matcon);
 	parser_material_parse_height            = false;
-	parser_material_parse_height_as_channel = false;
 	parser_material_sample_keep_aspect      = false;
 	char *base                              = sout->out_basecol;
 	char *rough                             = sout->out_roughness;

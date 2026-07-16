@@ -216,7 +216,6 @@ any_map_t                *parser_material_node_values;
 any_map_t                *parser_material_node_vectors;
 any_map_t                *parser_material_custom_nodes;
 bool                      parser_material_parse_height            = false;
-bool                      parser_material_parse_height_as_channel = false;
 bool                      parser_material_parse_emission          = false;
 bool                      parser_material_parse_subsurface        = false;
 bool                      parser_material_parsing_basecolor       = false;

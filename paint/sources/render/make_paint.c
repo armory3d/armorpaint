@@ -5,6 +5,12 @@ bool make_paint_is_raytraced_bake() {
 	return g_context->bake_type == BAKE_TYPE_INIT;
 }
 
+bool make_paint_is_zero_constant(char *s) {
+	char *end;
+	f32   f = strtof(s, &end);
+	return end != s && *end == '\0' && f == 0.0;
+}
+
 string_array_t *make_paint_color_attachments() {
 	if (g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_CURSOR) {
 		string_array_t *res = any_array_create_from_raw(
@@ -319,7 +325,6 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		parser_material_parse_emission          = g_context->material->paint_emis;
 		parser_material_parse_subsurface        = g_context->material->paint_subs;
 		parser_material_parse_height            = g_context->material->paint_height;
-		parser_material_parse_height_as_channel = true;
 		uv_type_t uv_type                       = g_context->layer->fill_material != NULL ? g_context->layer->uv_type : g_context->brush_paint;
 		parser_material_triplanar               = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect      = decal;
@@ -329,7 +334,6 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		shader_out_t *sout                      = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
 		parser_material_parse_emission          = false;
 		parser_material_parse_subsurface        = false;
-		parser_material_parse_height_as_channel = false;
 		parser_material_parse_height            = false;
 		char *base                              = sout->out_basecol;
 		char *rough                             = sout->out_roughness;
@@ -365,7 +369,7 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		if (g_context->material->paint_subs) {
 			node_shader_write_frag(kong, string("var subs: float = %s;", subs));
 		}
-		if (!make_material_height_used && parse_float(height) != 0.0) {
+		if (!make_material_height_used && !make_paint_is_zero_constant(height)) {
 			make_material_height_used = true;
 			// Height used for the first time, also rebuild vertex shader
 			return make_paint_run(data, matcon);
