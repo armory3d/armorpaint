@@ -162,12 +162,23 @@ void tab_textures_draw(ui_handle_t *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create_from_raw(
-		    (f32[]){
-		        -100,
-		        -100,
-		    },
-		    2);
+		ui_handle_t *hsearch = ui_handle(__ID__);
+
+		f32_array_t *row = string_equals(hsearch->text, "") ? f32_array_create_from_raw(
+		                                                          (f32[]){
+		                                                              -100,
+		                                                              -100,
+		                                                              -200,
+		                                                          },
+		                                                          3)
+		                                                    : f32_array_create_from_raw(
+		                                                          (f32[]){
+		                                                              -100,
+		                                                              -100,
+		                                                              -200,
+		                                                              -40,
+		                                                          },
+		                                                          4);
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -180,7 +191,20 @@ void tab_textures_draw(ui_handle_t *htab) {
 			ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
 		}
 
+		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
+		if (g_ui->is_hovered) {
+			ui_tooltip(string("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
+		}
+		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
+			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
+		}
+		if (!string_equals(hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
+			hsearch->text = "";
+		}
+
 		ui_end_sticky();
+
+		char *search = to_lower_case(hsearch->text);
 
 		if (g_project->_->assets->length > 0) {
 
@@ -190,12 +214,20 @@ void tab_textures_draw(ui_handle_t *htab) {
 				return;
 			}
 
+			// Indices of the assets passing the search filter
+			i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
+			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+				if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->assets->buffer[i]->name), search) >= 0) {
+					i32_array_push(filtered, i);
+				}
+			}
+
 			bool drag_pos_set = false;
 			f32  uix          = 0.0;
 			f32  uiy          = 0.0;
 			i32  imgw_val     = math_floor(50 * UI_SCALE());
 
-			for (i32 row = 0; row < math_floor(math_ceil(g_project->_->assets->length / (float)num)); ++row) {
+			for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 				i32          mult = g_config->show_asset_names ? 2 : 1;
 				f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
 				for (i32 i = 0; i < num * mult; ++i) {
@@ -211,14 +243,15 @@ void tab_textures_draw(ui_handle_t *htab) {
 
 				for (i32 j = 0; j < num; ++j) {
 					i32 imgw = math_floor(50 * UI_SCALE());
-					i32 i    = j + row * num;
-					if (i >= g_project->_->assets->length) {
+					i32 fi   = j + row * num;
+					if (fi >= filtered->length) {
 						ui_end_element_of_size(imgw);
 						if (g_config->show_asset_names) {
 							ui_end_element_of_size(0);
 						}
 						continue;
 					}
+					i32 i = filtered->buffer[fi];
 
 					asset_t       *asset = g_project->_->assets->buffer[i];
 					gpu_texture_t *img   = project_get_image(asset);
@@ -236,7 +269,8 @@ void tab_textures_draw(ui_handle_t *htab) {
 
 					ui_state_t _state = ui_sub_image(img, 0xffffffff, slotw, 0, 0, sw, sw);
 
-					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL) {
+					// Reordering
+					if (_state == UI_STATE_HOVERED && base_drag_asset != NULL && string_equals(search, "")) {
 						tab_textures_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 						drag_pos_set          = true;
 					}
@@ -308,7 +342,7 @@ void tab_textures_draw(ui_handle_t *htab) {
 							ui_tooltip(g_project->_->assets->buffer[i]->name);
 						}
 						g_ui->_y -= slotw * 0.9;
-						if (i == g_project->_->assets->length - 1) {
+						if (fi == filtered->length - 1) {
 							g_ui->_y += j == num - 1 ? imgw : imgw + UI_ELEMENT_H() + UI_ELEMENT_OFFSET();
 						}
 					}
