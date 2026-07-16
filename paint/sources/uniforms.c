@@ -13,9 +13,8 @@ i32 uniforms_ext_i32_link(object_t *object, material_data_t *mat, char *link) {
 
 f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	if (string_equals(link, "_brush_radius")) {
-		bool decal = context_is_decal();
-		bool decal_mask =
-		    decal && operator_shortcut(string("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+		bool decal                   = context_is_decal();
+		bool decal_mask              = context_is_decal_mask_paint_pass();
 		f32  brush_decal_mask_radius = g_context->brush_decal_mask_radius;
 		bool paint2d                 = g_context->paint2d || g_context->paint2d_view;
 		brush_decal_mask_radius *= 2.0;
@@ -73,7 +72,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		return val;
 	}
 	else if (string_equals(link, "_brush_hardness")) {
-		bool decal_mask = context_is_decal_mask_paint();
+		bool decal_mask = context_is_decal_mask_paint_pass();
 		if (g_context->tool != TOOL_TYPE_BRUSH && g_context->tool != TOOL_TYPE_ERASER && g_context->tool != TOOL_TYPE_CLONE && !decal_mask) {
 			return 1.0;
 		}
@@ -299,7 +298,7 @@ vec4_t uniforms_ext_vec4_link(object_t *object, material_data_t *mat, char *link
 		return v;
 	}
 	else if (string_equals(link, "_decal_mask")) {
-		bool decal_mask = context_is_decal_mask_paint();
+		bool decal_mask = context_is_decal_mask_paint_pass();
 		f32  val        = (g_context->brush_radius * g_context->brush_nodes_radius) / 15.0;
 		f32  scale2d    = (900 / (float)base_h()) * g_config->window_scale;
 		val *= g_context->paint2d ? 0.5 * 0.5 * scale2d * ui_view2d_pan_scale : scale2d * 2.0;

@@ -437,6 +437,10 @@ bool context_is_decal_mask_paint() {
 	       operator_shortcut(string("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
 }
 
+bool context_is_decal_mask_paint_pass() {
+	return context_is_decal_mask() && (mouse_down("left") || g_context->brush_time > 0);
+}
+
 bool context_is_floating_toolbar() {
 	// Header is off -> floating toolbar
 	return g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 0 || (!base_view3d_show && ui_view2d_show);
