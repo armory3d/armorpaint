@@ -556,7 +556,9 @@ void util_layer_update_path() {
 		path_point_spheres = (object_t **)gc_realloc(path_point_spheres, vis_points * sizeof(object_t *));
 		gc_root(path_point_spheres);
 		for (i32 i = path_point_sphere_count; i < vis_points; i++) {
-			object_t *o           = scene_spawn_object(".Sphere", NULL, true);
+			object_t      *o      = scene_spawn_object(".Sphere", NULL, true);
+			mesh_object_t *mo     = o->ext;
+			mo->material          = make_particle_get_bullet_material();
 			o->visible            = true;
 			path_point_spheres[i] = o;
 		}

@@ -35,7 +35,7 @@ static node_shader_context_t *make_particle_bullet_run() {
 	node_shader_add_function(kong, str_octahedron_wrap);
 	node_shader_add_function(kong, str_pack_float_int16);
 
-	node_shader_write_frag(kong, "var basecol: float3 = float3(0.8, 0.8, 0.8);");
+	node_shader_write_frag(kong, "var basecol: float3 = float3(0.8, 0.0, 0.0);");
 	node_shader_write_frag(kong, "var roughness: float = 0.5;");
 	node_shader_write_frag(kong, "var metallic: float = 0.0;");
 	node_shader_write_frag(kong, "var occlusion: float = 1.0;");
