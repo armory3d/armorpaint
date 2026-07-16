@@ -91,13 +91,13 @@ typedef enum {
 } gpu_compare_mode_t;
 
 typedef struct gpu_texture {
-	uint32_t                  width;
-	uint32_t                  height;
-	gpu_texture_format_t      format;
-	gpu_texture_state_t       state;
-	buffer_t                 *buffer;
-	bool                      gpu_write;
-	gpu_texture_impl_t        impl;
+	uint32_t             width;
+	uint32_t             height;
+	gpu_texture_format_t format;
+	gpu_texture_state_t  state;
+	buffer_t            *buffer;
+	bool                 gpu_write;
+	gpu_texture_impl_t   impl;
 } gpu_texture_t;
 
 typedef struct gpu_buffer {
