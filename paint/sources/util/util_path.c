@@ -36,7 +36,10 @@ static f32 bezier_eval(f32 p0, f32 pc, f32 p1, f32 t) {
 }
 
 f32 util_layer_brush_screen_radius() {
-	f32  r_world = g_context->brush_radius * g_context->brush_nodes_radius / 15.0f * 2.0f;
+	// Prevent cursor jumping constantly if randomness is used in brush nodes
+	f32 brush_nodes_radius = g_context->brush_nodes_uses_random ? 1.0f : g_context->brush_nodes_radius;
+
+	f32  r_world = g_context->brush_radius * brush_nodes_radius / 15.0f * 2.0f;
 	bool on_mesh = math_abs(g_context->posx_picked) < 50.0f && math_abs(g_context->posy_picked) < 50.0f && math_abs(g_context->posz_picked) < 50.0f;
 	if (!on_mesh) {
 		return r_world;
