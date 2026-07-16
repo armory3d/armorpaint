@@ -58,3 +58,7 @@ void *color_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->value              = (vec4_t){r, g, b, a};
 	return n;
 }
+
+void color_node_init() {
+
+}

@@ -141,3 +141,82 @@ void *vector_math_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->v                  = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	return n;
 }
+
+void vector_math_node_init() {
+	ui_node_t *vector_math_node_def =
+	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	                              .name   = _tr("Vector Math"),
+	                              .type   = "vector_math_node",
+	                              .x      = 0,
+	                              .y      = 0,
+	                              .color  = 0xff4982a0,
+	                              .inputs = any_array_create_from_raw(
+	                                  (void *[]){
+	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                       .node_id       = 0,
+	                                                                       .name          = _tr("Vector"),
+	                                                                       .type          = "VECTOR",
+	                                                                       .color         = 0xff6363c7,
+	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                       .min           = 0.0,
+	                                                                       .max           = 1.0,
+	                                                                       .precision     = 100,
+	                                                                       .display       = 0}),
+	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                       .node_id       = 0,
+	                                                                       .name          = _tr("Vector"),
+	                                                                       .type          = "VECTOR",
+	                                                                       .color         = 0xff6363c7,
+	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                       .min           = 0.0,
+	                                                                       .max           = 1.0,
+	                                                                       .precision     = 100,
+	                                                                       .display       = 0}),
+	                                  },
+	                                  2),
+	                              .outputs = any_array_create_from_raw(
+	                                  (void *[]){
+	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                       .node_id       = 0,
+	                                                                       .name          = _tr("Vector"),
+	                                                                       .type          = "VECTOR",
+	                                                                       .color         = 0xff6363c7,
+	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                       .min           = 0.0,
+	                                                                       .max           = 1.0,
+	                                                                       .precision     = 100,
+	                                                                       .display       = 0}),
+	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                       .node_id       = 0,
+	                                                                       .name          = _tr("Value"),
+	                                                                       .type          = "VALUE",
+	                                                                       .color         = 0xffa1a1a1,
+	                                                                       .default_value = f32_array_create_x(0.0),
+	                                                                       .min           = 0.0,
+	                                                                       .max           = 1.0,
+	                                                                       .precision     = 100,
+	                                                                       .display       = 0}),
+	                                  },
+	                                  2),
+	                              .buttons = any_array_create_from_raw(
+	                                  (void *[]){
+	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("operation"),
+	                                                                       .type          = "ENUM",
+	                                                                       .output        = 0,
+	                                                                       .default_value = f32_array_create_x(0),
+	                                                                       .data          = u8_array_create_from_string(
+                                                                               "Add\nSubtract\nMultiply\nDivide\nAverage\nCross Product\nProject\nReflect\nDot "
+	                                                                                    "Product\nDistance\nLength\nScale\nNormalize\nAbsolute\nMinimum\nMaximum\nFloor"
+	                                                                                    "\nCeil\nFraction\nModulo\nSnap\nSine\nCosine\nTangent"),
+	                                                                       .min       = 0.0,
+	                                                                       .max       = 1.0,
+	                                                                       .precision = 100,
+	                                                                       .height    = 0}),
+	                                  },
+	                                  1),
+	                              .width = 0,
+	                              .flags = 0});
+
+	any_array_push(nodes_brush_category0, vector_math_node_def);
+	any_map_set(nodes_brush_creates, "vector_math_node", vector_math_node_create);
+}

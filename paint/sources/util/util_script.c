@@ -234,7 +234,7 @@ void plugin_material_category_add(char *category_name, any_array_t *node_list) {
 
 void plugin_brush_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_brush_categories, category_name);
-	nodes_brush_list_init();
+	nodes_brush_init();
 	any_array_push(nodes_brush_list, node_list);
 }
 

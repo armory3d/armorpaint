@@ -33,3 +33,7 @@ void *integer_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->value        = args == NULL ? 0 : args->buffer[0];
 	return n;
 }
+
+void integer_node() {
+
+}

@@ -33,3 +33,7 @@ void *string_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->value         = args == NULL ? "" : sys_buffer_to_string(args->buffer);
 	return n;
 }
+
+void string_node_init() {
+
+}

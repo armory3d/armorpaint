@@ -210,6 +210,11 @@ void *brush_output_node_create(ui_node_t *raw, f32_array_t *args) {
 	return n;
 }
 
+void brush_output_node_init() {
+	// any_array_push(nodes_brush_category0, brush_output_node_def);
+	any_map_set(nodes_brush_creates, "brush_output_node", brush_output_node_create);
+}
+
 // let brush_output_node_def: node_t = {
 // 	id: 0,
 // 	name: _tr("Brush Output"),

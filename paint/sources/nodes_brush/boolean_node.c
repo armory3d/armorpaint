@@ -33,3 +33,7 @@ void *boolean_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->value          = args == NULL ? false : args->buffer[0] > 0.0;
 	return n;
 }
+
+void boolean_node_init() {
+
+}

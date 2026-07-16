@@ -283,6 +283,7 @@ ui_handle_t              *_ui_nodes_hval0;
 ui_handle_t              *_ui_nodes_hval1;
 ui_handle_t              *_ui_nodes_hval2;
 ui_handle_t              *_ui_nodes_hval3;
+ui_node_t_array_t        *nodes_brush_category0;
 string_array_t           *nodes_brush_categories;
 node_list_t_array_t      *nodes_brush_list;
 any_map_t                *nodes_brush_creates;

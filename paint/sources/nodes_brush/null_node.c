@@ -15,3 +15,7 @@ void *null_node_create(ui_node_t *raw, f32_array_t *args) {
 	n->base->get   = float_node_get;
 	return n;
 }
+
+void null_node_init() {
+
+}
