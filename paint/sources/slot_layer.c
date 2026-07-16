@@ -233,6 +233,7 @@ void slot_layer_clear(slot_layer_t *raw, i32 base_color, gpu_texture_t *base_ima
 
 	g_context->layer_preview_dirty = true;
 	g_context->ddirty              = 3;
+	g_context->rtdirty             = 1;
 }
 
 void slot_layer_invert_mask(slot_layer_t *raw) {
@@ -248,6 +249,7 @@ void slot_layer_invert_mask(slot_layer_t *raw) {
 	raw->texpaint = rt->_image     = inverted;
 	g_context->layer_preview_dirty = true;
 	g_context->ddirty              = 3;
+	g_context->rtdirty             = 1;
 }
 
 void layers_apply_mask(slot_layer_t *l, slot_layer_t *m) {
