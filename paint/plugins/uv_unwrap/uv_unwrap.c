@@ -12,6 +12,8 @@
 #define UV_ANGLE_THRESHOLD 0.4067f
 #define UV_PACK_MARGIN     0.001f
 #define UV_PACK_EPS        1e-6f
+#define UV_OVERLAP_EPS     1e-6f
+#define UV_GRID_MAX        128
 
 // Position hash map entry for canonical vertex deduplication
 typedef struct {
@@ -31,6 +33,12 @@ typedef struct {
 typedef struct {
 	float u, v;
 } uv_pt_t;
+
+// Orthonormal axes a chart is projected onto
+typedef struct {
+	float ux, uy, uz;
+	float vx, vy, vz;
+} uv_basis_t;
 
 // Chart sort key for packing order
 typedef struct {
@@ -305,6 +313,369 @@ static bool uv_pack_run(int chart_count, const int *order, const float *chart_w,
 	return true;
 }
 
+// Orthonormal projection axes for a plane with the given normal
+static uv_basis_t uv_basis_from_normal(float nx, float ny, float nz) {
+	// Reference vector not parallel to normal
+	float rx, ry, rz;
+	if (fabsf(ny) < 0.9f) {
+		rx = 0.0f;
+		ry = 1.0f;
+		rz = 0.0f;
+	}
+	else {
+		rx = 1.0f;
+		ry = 0.0f;
+		rz = 0.0f;
+	}
+
+	// U = normalize(cross(N, ref))
+	float ux = ny * rz - nz * ry;
+	float uy = nz * rx - nx * rz;
+	float uz = nx * ry - ny * rx;
+	float ul = sqrtf(ux * ux + uy * uy + uz * uz);
+	if (ul > 1e-10f) {
+		ux /= ul;
+		uy /= ul;
+		uz /= ul;
+	}
+
+	// V = cross(N, U)
+	uv_basis_t b;
+	b.ux = ux;
+	b.uy = uy;
+	b.uz = uz;
+	b.vx = ny * uz - nz * uy;
+	b.vy = nz * ux - nx * uz;
+	b.vz = nx * uy - ny * ux;
+	return b;
+}
+
+// Average the normals of a set of faces
+static void uv_avg_normal(const float *fnormals, const int *faces, int m, float *out_n) {
+	float nx = 0.0f;
+	float ny = 0.0f;
+	float nz = 0.0f;
+	for (int i = 0; i < m; i++) {
+		nx += fnormals[faces[i] * 3];
+		ny += fnormals[faces[i] * 3 + 1];
+		nz += fnormals[faces[i] * 3 + 2];
+	}
+	float len = sqrtf(nx * nx + ny * ny + nz * nz);
+	if (len > 1e-10f) {
+		nx /= len;
+		ny /= len;
+		nz /= len;
+	}
+	out_n[0] = nx;
+	out_n[1] = ny;
+	out_n[2] = nz;
+}
+
+// Project a face set onto the plane of its average normal; tri holds 3 * m points
+static void uv_chart_project(const uint32_t *indices, const float *pa, const float *fnormals, const int *faces, int m, uv_pt_t *tri) {
+	float n[3];
+	uv_avg_normal(fnormals, faces, m, n);
+	uv_basis_t b = uv_basis_from_normal(n[0], n[1], n[2]);
+	for (int i = 0; i < m; i++) {
+		for (int k = 0; k < 3; k++) {
+			int   vi         = indices[faces[i] * 3 + k];
+			float px         = pa[vi * 3];
+			float py         = pa[vi * 3 + 1];
+			float pz         = pa[vi * 3 + 2];
+			tri[i * 3 + k].u = px * b.ux + py * b.uy + pz * b.uz;
+			tri[i * 3 + k].v = px * b.vx + py * b.vy + pz * b.vz;
+		}
+	}
+}
+
+// Separating-axis test for two triangles
+static bool uv_tri_overlap(const uv_pt_t *a, const uv_pt_t *b) {
+	for (int t = 0; t < 2; t++) {
+		const uv_pt_t *p = t == 0 ? a : b;
+		for (int e = 0; e < 3; e++) {
+			// Axis = normal of edge e
+			float ex  = p[(e + 1) % 3].u - p[e].u;
+			float ey  = p[(e + 1) % 3].v - p[e].v;
+			float axu = -ey;
+			float axv = ex;
+			float len = sqrtf(axu * axu + axv * axv);
+			if (len < 1e-20f) {
+				continue; // Degenerate edge contributes no axis
+			}
+			axu /= len;
+			axv /= len;
+			float min_a = FLT_MAX;
+			float max_a = -FLT_MAX;
+			float min_b = FLT_MAX;
+			float max_b = -FLT_MAX;
+			for (int i = 0; i < 3; i++) {
+				float da = a[i].u * axu + a[i].v * axv;
+				if (da < min_a)
+					min_a = da;
+				if (da > max_a)
+					max_a = da;
+				float db = b[i].u * axu + b[i].v * axv;
+				if (db < min_b)
+					min_b = db;
+				if (db > max_b)
+					max_b = db;
+			}
+			if (max_a <= min_b + UV_OVERLAP_EPS || max_b <= min_a + UV_OVERLAP_EPS) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+// Find any two faces of a projected chart that cover common UV area
+static bool uv_chart_find_overlap(const uv_pt_t *tri, int m, int *out_a, int *out_b) {
+	if (m < 2) {
+		return false;
+	}
+
+	float min_u = FLT_MAX;
+	float min_v = FLT_MAX;
+	float max_u = -FLT_MAX;
+	float max_v = -FLT_MAX;
+	for (int i = 0; i < m * 3; i++) {
+		if (tri[i].u < min_u)
+			min_u = tri[i].u;
+		if (tri[i].v < min_v)
+			min_v = tri[i].v;
+		if (tri[i].u > max_u)
+			max_u = tri[i].u;
+		if (tri[i].v > max_v)
+			max_v = tri[i].v;
+	}
+
+	int gn = (int)sqrtf((float)m);
+	if (gn < 1)
+		gn = 1;
+	if (gn > UV_GRID_MAX)
+		gn = UV_GRID_MAX;
+	float span_u = max_u - min_u;
+	float span_v = max_v - min_v;
+	float su     = span_u > 1e-12f ? gn / span_u : 0.0f;
+	float sv     = span_v > 1e-12f ? gn / span_v : 0.0f;
+
+	// Per-face cell range
+	int *cells = (int *)malloc(sizeof(int) * m * 4);
+	for (int i = 0; i < m; i++) {
+		float tmin_u = tri[i * 3].u, tmax_u = tri[i * 3].u;
+		float tmin_v = tri[i * 3].v, tmax_v = tri[i * 3].v;
+		for (int k = 1; k < 3; k++) {
+			if (tri[i * 3 + k].u < tmin_u)
+				tmin_u = tri[i * 3 + k].u;
+			if (tri[i * 3 + k].u > tmax_u)
+				tmax_u = tri[i * 3 + k].u;
+			if (tri[i * 3 + k].v < tmin_v)
+				tmin_v = tri[i * 3 + k].v;
+			if (tri[i * 3 + k].v > tmax_v)
+				tmax_v = tri[i * 3 + k].v;
+		}
+		int x0 = (int)((tmin_u - min_u) * su);
+		int x1 = (int)((tmax_u - min_u) * su);
+		int y0 = (int)((tmin_v - min_v) * sv);
+		int y1 = (int)((tmax_v - min_v) * sv);
+		if (x0 < 0)
+			x0 = 0;
+		if (y0 < 0)
+			y0 = 0;
+		if (x1 > gn - 1)
+			x1 = gn - 1;
+		if (y1 > gn - 1)
+			y1 = gn - 1;
+		cells[i * 4]     = x0;
+		cells[i * 4 + 1] = y0;
+		cells[i * 4 + 2] = x1;
+		cells[i * 4 + 3] = y1;
+	}
+
+	// Bucket faces into cells with a counting sort
+	int  cell_count = gn * gn;
+	int *starts     = (int *)calloc(cell_count + 1, sizeof(int));
+	for (int i = 0; i < m; i++) {
+		for (int y = cells[i * 4 + 1]; y <= cells[i * 4 + 3]; y++) {
+			for (int x = cells[i * 4]; x <= cells[i * 4 + 2]; x++) {
+				starts[y * gn + x + 1]++;
+			}
+		}
+	}
+	for (int i = 0; i < cell_count; i++) {
+		starts[i + 1] += starts[i];
+	}
+	int *items = (int *)malloc(sizeof(int) * starts[cell_count]);
+	int *fill  = (int *)malloc(sizeof(int) * cell_count);
+	memcpy(fill, starts, sizeof(int) * cell_count);
+	for (int i = 0; i < m; i++) {
+		for (int y = cells[i * 4 + 1]; y <= cells[i * 4 + 3]; y++) {
+			for (int x = cells[i * 4]; x <= cells[i * 4 + 2]; x++) {
+				items[fill[y * gn + x]++] = i;
+			}
+		}
+	}
+	free(fill);
+
+	bool found = false;
+	for (int c = 0; c < cell_count && !found; c++) {
+		for (int p = starts[c]; p < starts[c + 1] && !found; p++) {
+			for (int q = p + 1; q < starts[c + 1]; q++) {
+				int i = items[p];
+				int j = items[q];
+				// Cheap bbox reject before the exact test
+				if (cells[i * 4 + 2] < cells[j * 4] || cells[j * 4 + 2] < cells[i * 4]) {
+					continue;
+				}
+				if (uv_tri_overlap(&tri[i * 3], &tri[j * 3])) {
+					*out_a = i;
+					*out_b = j;
+					found  = true;
+					break;
+				}
+			}
+		}
+	}
+
+	free(cells);
+	free(starts);
+	free(items);
+	return found;
+}
+
+// Split a chart in two along the fold
+static void uv_chart_bisect(const int *face_adj, const int *chart_id, const int *faces, int m, int seed_a, int seed_b, int *side, int *queue) {
+	for (int i = 0; i < m; i++) {
+		side[faces[i]] = -1;
+	}
+	int cid       = chart_id[faces[0]];
+	int head      = 0;
+	int tail      = 0;
+	side[seed_a]  = 0;
+	queue[tail++] = seed_a;
+	side[seed_b]  = 1;
+	queue[tail++] = seed_b;
+
+	while (head < tail) {
+		int cf = queue[head++];
+		for (int s = 0; s < 3; s++) {
+			int nf = face_adj[cf * 3 + s];
+			if (nf == -1 || chart_id[nf] != cid || side[nf] != -1) {
+				continue;
+			}
+			side[nf]      = side[cf];
+			queue[tail++] = nf;
+		}
+	}
+	for (int i = 0; i < m; i++) {
+		if (side[faces[i]] == -1) {
+			side[faces[i]] = 0;
+		}
+	}
+}
+
+static int uv_split_folded(const uint32_t *indices, const float *pa, const float *fnormals, const int *face_adj, int face_count, int *chart_id,
+                           int chart_count) {
+	// Face lists per chart, kept as an explicit stack of pending charts so the pass
+	// never rescans the whole mesh per chart
+	int **lists = (int **)malloc(sizeof(int *) * chart_count);
+	int  *sizes = (int *)calloc(chart_count, sizeof(int));
+	int   cap   = chart_count;
+	for (int f = 0; f < face_count; f++) {
+		sizes[chart_id[f]]++;
+	}
+	for (int c = 0; c < chart_count; c++) {
+		lists[c] = (int *)malloc(sizeof(int) * (sizes[c] > 0 ? sizes[c] : 1));
+		sizes[c] = 0;
+	}
+	for (int f = 0; f < face_count; f++) {
+		lists[chart_id[f]][sizes[chart_id[f]]++] = f;
+	}
+
+	int *pending = (int *)malloc(sizeof(int) * chart_count);
+	int  sp      = 0;
+	for (int c = 0; c < chart_count; c++) {
+		pending[sp++] = c;
+	}
+	int pending_cap = chart_count;
+
+	uv_pt_t *tri   = (uv_pt_t *)malloc(sizeof(uv_pt_t) * face_count * 3);
+	int     *side  = (int *)malloc(sizeof(int) * face_count);
+	int     *queue = (int *)malloc(sizeof(int) * face_count);
+
+	while (sp > 0) {
+		int c = pending[--sp];
+		int m = sizes[c];
+		if (m < 2) {
+			continue;
+		}
+
+		uv_chart_project(indices, pa, fnormals, lists[c], m, tri);
+		int la, lb;
+		if (!uv_chart_find_overlap(tri, m, &la, &lb)) {
+			continue;
+		}
+
+		uv_chart_bisect(face_adj, chart_id, lists[c], m, lists[c][la], lists[c][lb], side, queue);
+
+		int count_b = 0;
+		for (int i = 0; i < m; i++) {
+			if (side[lists[c][i]] == 1) {
+				count_b++;
+			}
+		}
+		if (count_b == 0 || count_b == m) {
+			continue; // No progress possible, leave the chart as is
+		}
+
+		// Grow the chart tables for the new half
+		int cid_b = chart_count++;
+		if (chart_count > cap) {
+			cap   = cap * 2 + 1;
+			lists = (int **)realloc(lists, sizeof(int *) * cap);
+			sizes = (int *)realloc(sizes, sizeof(int) * cap);
+		}
+		if (sp + 2 > pending_cap) {
+			pending_cap = pending_cap * 2 + 2;
+			pending     = (int *)realloc(pending, sizeof(int) * pending_cap);
+		}
+
+		int *list_a = (int *)malloc(sizeof(int) * (m - count_b));
+		int *list_b = (int *)malloc(sizeof(int) * count_b);
+		int  na     = 0;
+		int  nb     = 0;
+		for (int i = 0; i < m; i++) {
+			int f = lists[c][i];
+			if (side[f] == 1) {
+				chart_id[f]  = cid_b;
+				list_b[nb++] = f;
+			}
+			else {
+				list_a[na++] = f;
+			}
+		}
+		free(lists[c]);
+		lists[c]     = list_a;
+		sizes[c]     = na;
+		lists[cid_b] = list_b;
+		sizes[cid_b] = nb;
+
+		pending[sp++] = c;
+		pending[sp++] = cid_b;
+	}
+
+	for (int c = 0; c < chart_count; c++) {
+		free(lists[c]);
+	}
+	free(lists);
+	free(sizes);
+	free(pending);
+	free(tri);
+	free(side);
+	free(queue);
+	return chart_count;
+}
+
 void proc_uv_unwrap(raw_mesh_t *mesh) {
 	double t = iron_time();
 
@@ -465,6 +836,9 @@ void proc_uv_unwrap(raw_mesh_t *mesh) {
 		}
 	}
 	free(stack);
+
+	// Cut apart charts whose projection folds onto itself
+	chart_count = uv_split_folded(indices, pa, fnormals, face_adj, face_count, chart_id, chart_count);
 	free(face_adj);
 
 	// Compute average normal per chart
@@ -498,41 +872,13 @@ void proc_uv_unwrap(raw_mesh_t *mesh) {
 	float *chart_vz = (float *)malloc(sizeof(float) * chart_count);
 
 	for (int c = 0; c < chart_count; c++) {
-		float nx = chart_nx[c];
-		float ny = chart_ny[c];
-		float nz = chart_nz[c];
-
-		// Reference vector not parallel to normal
-		float rx, ry, rz;
-		if (fabsf(ny) < 0.9f) {
-			rx = 0.0f;
-			ry = 1.0f;
-			rz = 0.0f;
-		}
-		else {
-			rx = 1.0f;
-			ry = 0.0f;
-			rz = 0.0f;
-		}
-
-		// U = normalize(cross(N, ref))
-		float ux = ny * rz - nz * ry;
-		float uy = nz * rx - nx * rz;
-		float uz = nx * ry - ny * rx;
-		float ul = sqrtf(ux * ux + uy * uy + uz * uz);
-		if (ul > 1e-10f) {
-			ux /= ul;
-			uy /= ul;
-			uz /= ul;
-		}
-
-		// V = cross(N, U)
-		chart_ux[c] = ux;
-		chart_uy[c] = uy;
-		chart_uz[c] = uz;
-		chart_vx[c] = ny * uz - nz * uy;
-		chart_vy[c] = nz * ux - nx * uz;
-		chart_vz[c] = nx * uy - ny * ux;
+		uv_basis_t b = uv_basis_from_normal(chart_nx[c], chart_ny[c], chart_nz[c]);
+		chart_ux[c]  = b.ux;
+		chart_uy[c]  = b.uy;
+		chart_uz[c]  = b.uz;
+		chart_vx[c]  = b.vx;
+		chart_vy[c]  = b.vy;
+		chart_vz[c]  = b.vz;
 	}
 	free(chart_nx);
 	free(chart_ny);
