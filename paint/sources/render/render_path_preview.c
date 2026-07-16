@@ -21,6 +21,9 @@ void render_path_preview_init() {
 	}
 
 	i32 size = math_floor(util_render_material_preview_size * 2.0);
+	if (size < util_render_decal_preview_size) {
+		size = util_render_decal_preview_size;
+	}
 
 	{
 		render_target_t *t = render_target_create();
@@ -101,25 +104,25 @@ void render_path_preview_commands_preview() {
 }
 
 void render_path_preview_commands_decal() {
-	render_path_set_target("gbuffer0", NULL, "main", GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0xffffffff, 1.0);
+	render_path_set_target("mgbuffer0", NULL, "mmain", GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0xffffffff, 1.0);
 	string_array_t *additional = any_array_create_from_raw(
 	    (void *[]){
-	        "gbuffer1",
+	        "mgbuffer1",
 	    },
 	    1);
-	render_path_set_target("gbuffer0", additional, "main", GPU_CLEAR_NONE, 0, 0.0);
+	render_path_set_target("mgbuffer0", additional, "mmain", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_draw_meshes("mesh");
 
 	// Deferred light
-	char *output = "gbuffer2";
+	char *output = "mtex";
 	render_path_set_target(output, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	render_path_bind_target("main", "gbufferD");
-	render_path_bind_target("gbuffer0", "gbuffer0");
-	render_path_bind_target("gbuffer1", "gbuffer1");
+	render_path_bind_target("mmain", "gbufferD");
+	render_path_bind_target("mgbuffer0", "gbuffer0");
+	render_path_bind_target("mgbuffer1", "gbuffer1");
 	render_path_bind_target("empty_white", "ssaotex");
 	render_path_draw_shader("Scene/deferred_light/deferred_light");
 
-	render_path_set_target(output, NULL, "main", GPU_CLEAR_NONE, 0, 0.0);
+	render_path_set_target(output, NULL, "mmain", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_draw_skydome("Scene/world_pass/world_pass");
 
 	char            *framebuffer = "texpreview";
