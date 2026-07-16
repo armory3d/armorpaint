@@ -209,18 +209,10 @@ static bool capslock = false;
 		NSString *base = [theEvent charactersIgnoringModifiers];
 		unichar   bc   = [base length] ? [base characterAtIndex:0] : ch;
 		if (bc == 'x') {
-			char *text = iron_internal_cut_callback();
-			if (text != NULL) {
-				NSPasteboard *board = [NSPasteboard generalPasteboard];
-				[board clearContents];
-				[board setString:[NSString stringWithUTF8String:text] forType:NSStringPboardType];
-			}
+			iron_internal_cut_callback();
 		}
 		if (bc == 'c') {
-			char *text = iron_internal_copy_callback();
-			if (text != NULL) {
-				iron_copy_to_clipboard(text);
-			}
+			iron_internal_copy_callback();
 		}
 		if (bc == 'v') {
 			NSPasteboard *board = [NSPasteboard generalPasteboard];

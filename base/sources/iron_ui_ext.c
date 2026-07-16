@@ -609,6 +609,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			current->submit_text_handle = NULL;
 			// Suppress cut / paste / select-all in ui_update_text_edit for multi-line handling
 			bool _is_cut            = ui_is_cut;
+			bool _is_copy           = ui_is_copy;
 			bool _is_paste          = ui_is_paste;
 			bool _is_a_down         = current->is_a_down;
 			int  _key_char          = current->key_char;
@@ -618,6 +619,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			bool paste_is_multiline = ui_is_paste && strchr(ui_text_to_paste, '\n') != NULL;
 			if ((text_area_selection_start != -1 && text_area_selection_start != i) || paste_is_multiline) {
 				ui_is_cut   = false;
+				ui_is_copy  = false;
 				ui_is_paste = false;
 				// Suppress editing keys for multi-line selection, keep navigation keys active
 				if (current->key_code == KEY_CODE_BACKSPACE || current->key_code == KEY_CODE_DELETE || current->key_code == KEY_CODE_RETURN ||
@@ -640,6 +642,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			if ((text_area_selection_start != -1 && text_area_selection_start != i) || paste_is_multiline) {
 				// Restore flags that were suppressed for multi-line handling
 				ui_is_cut                 = _is_cut;
+				ui_is_copy                = _is_copy;
 				ui_is_paste               = _is_paste;
 				current->key_code         = _key_code;
 				current->highlight_anchor = _highlight_anchor;
@@ -752,6 +755,8 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 					strcat(ui_text_to_copy, "\n");
 				}
 			}
+			iron_copy_to_clipboard(ui_text_to_copy);
+			ui_is_copy = false;
 		}
 		if (editable && (ui_is_cut || current->key_code == KEY_CODE_BACKSPACE || current->key_code == KEY_CODE_DELETE)) {
 			// Delete from sel_top_col on sel_top_line to sel_bot_col on sel_bot_line

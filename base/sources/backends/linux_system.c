@@ -840,15 +840,11 @@ static bool _handle_messages() {
 			}
 			else if (controlDown && (ksKey == XK_c || ksKey == XK_C)) {
 				XSetSelectionOwner(x11_ctx.display, CLIPBOARD, window, CurrentTime);
-				char *text = iron_internal_copy_callback();
-				if (text != NULL)
-					iron_copy_to_clipboard(text);
+				iron_internal_copy_callback();
 			}
 			else if (controlDown && (ksKey == XK_x || ksKey == XK_X)) {
 				XSetSelectionOwner(x11_ctx.display, CLIPBOARD, window, CurrentTime);
-				char *text = iron_internal_cut_callback();
-				if (text != NULL)
-					iron_copy_to_clipboard(text);
+				iron_internal_cut_callback();
 			}
 
 			if (event.xkey.keycode == ignoreKeycode) {

@@ -335,8 +335,8 @@ void ui_touch_down(ui_t *ui, int index, int x, int y);
 void ui_touch_up(ui_t *ui, int index, int x, int y);
 void ui_touch_move(ui_t *ui, int index, int x, int y);
 #endif
-char        *ui_copy();
-char        *ui_cut();
+void         ui_copy();
+void         ui_cut();
 void         ui_paste(char *s);
 void         ui_theme_default(ui_theme_t *t);
 ui_t        *ui_get_current();

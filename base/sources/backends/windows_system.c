@@ -623,27 +623,11 @@ LRESULT WINAPI IronWindowsMessageProcedure(HWND hWnd, UINT msg, WPARAM wParam, L
 #endif
 			else {
 				if (controlDown && keyTranslated[wParam] == KEY_CODE_X) {
-					char *text = iron_internal_cut_callback();
-					if (text != NULL) {
-						wchar_t wtext[4096];
-						MultiByteToWideChar(CP_UTF8, 0, text, -1, wtext, 4096);
-						OpenClipboard(hWnd);
-						EmptyClipboard();
-						size_t size   = (wcslen(wtext) + 1) * sizeof(wchar_t);
-						HANDLE handle = GlobalAlloc(GMEM_MOVEABLE, size);
-						void  *data   = GlobalLock(handle);
-						memcpy(data, wtext, size);
-						GlobalUnlock(handle);
-						SetClipboardData(CF_UNICODETEXT, handle);
-						CloseClipboard();
-					}
+					iron_internal_cut_callback();
 				}
 
 				if (controlDown && keyTranslated[wParam] == KEY_CODE_C) {
-					char *text = iron_internal_copy_callback();
-					if (text != NULL) {
-						iron_copy_to_clipboard(text);
-					}
+					iron_internal_copy_callback();
 				}
 
 				if (controlDown && keyTranslated[wParam] == KEY_CODE_V) {

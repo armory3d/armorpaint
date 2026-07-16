@@ -248,14 +248,12 @@ void _update() {
 	gpu_present();
 }
 
-char *_copy(void *data) {
-	strcpy(temp_string, ui_copy());
-	return temp_string;
+void _copy(void *data) {
+	ui_copy();
 }
 
-char *_cut(void *data) {
-	strcpy(temp_string, ui_cut());
-	return temp_string;
+void _cut(void *data) {
+	ui_cut();
 }
 
 void _paste(char *text, void *data) {

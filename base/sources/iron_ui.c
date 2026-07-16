@@ -1344,6 +1344,8 @@ void ui_update_text_edit(int align, bool editable, bool live_update) {
 			strncpy(ui_text_to_copy, text + current->cursor_x, len);
 			ui_text_to_copy[len] = '\0';
 		}
+		iron_copy_to_clipboard(ui_text_to_copy);
+		ui_is_copy = false;
 	}
 
 	if (editable && ui_is_cut) { // Cut
@@ -2725,14 +2727,13 @@ void ui_touch_move(ui_t *ui, int index, int x, int y) {
 }
 #endif
 
-char *ui_copy() {
+void ui_copy() {
 	ui_is_copy = true;
-	return &ui_text_to_copy[0];
 }
 
-char *ui_cut() {
+void ui_cut() {
 	ui_is_cut = true;
-	return ui_copy();
+	ui_copy();
 }
 
 void ui_paste(char *s) {

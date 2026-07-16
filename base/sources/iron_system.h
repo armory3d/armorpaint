@@ -112,8 +112,8 @@ void iron_set_pause_callback(void (*callback)(void *), void *data);
 void iron_set_background_callback(void (*callback)(void *), void *data);
 void iron_set_shutdown_callback(void (*callback)(void *), void *data);
 void iron_set_drop_files_callback(void (*callback)(char *, void *), void *data);
-void iron_set_cut_callback(char *(*callback)(void *), void *data);
-void iron_set_copy_callback(char *(*callback)(void *), void *data);
+void iron_set_cut_callback(void (*callback)(void *), void *data);
+void iron_set_copy_callback(void (*callback)(void *), void *data);
 void iron_set_paste_callback(void (*callback)(char *, void *), void *data);
 
 bool        iron_internal_frame(void);
@@ -125,8 +125,8 @@ void        iron_internal_foreground_callback(void);
 void        iron_internal_background_callback(void);
 void        iron_internal_shutdown_callback(void);
 void        iron_internal_drop_files_callback(char *);
-char       *iron_internal_cut_callback(void);
-char       *iron_internal_copy_callback(void);
+void        iron_internal_cut_callback(void);
+void        iron_internal_copy_callback(void);
 void        iron_internal_paste_callback(char *);
 
 typedef enum {
