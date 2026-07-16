@@ -34,6 +34,4 @@ void *boolean_node_create(ui_node_t *raw, f32_array_t *args) {
 	return n;
 }
 
-void boolean_node_init() {
-
-}
+void boolean_node_init() {}

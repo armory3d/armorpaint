@@ -34,6 +34,4 @@ void *integer_node_create(ui_node_t *raw, f32_array_t *args) {
 	return n;
 }
 
-void integer_node() {
-
-}
+void integer_node() {}

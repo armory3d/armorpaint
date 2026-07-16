@@ -205,8 +205,8 @@ void project_new(bool reset_layers) {
 
 	g_context->picker_paint_mask    = false;
 	g_context->picker_viewport_mask = false;
-	g_context->material          = g_project->_->materials->buffer[0];
-	ui_nodes_hwnd->redraws       = 2;
+	g_context->material             = g_project->_->materials->buffer[0];
+	ui_nodes_hwnd->redraws          = 2;
 	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
 	gc_root(ui_nodes_group_stack);

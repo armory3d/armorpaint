@@ -522,7 +522,7 @@ void base_init() {
 		draw_font_init(g_font);
 	}
 
-	ui_nodes_enum_texts  = base_combo_enum_texts;
+	ui_nodes_enum_texts    = base_combo_enum_texts;
 	ui_nodes_enum_textures = base_combo_enum_textures;
 	gc_root(ui_nodes_enum_texts);
 

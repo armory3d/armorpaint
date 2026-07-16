@@ -443,11 +443,11 @@ void ui_header_draw_tool_properties() {
 		if (g_context->tool == TOOL_TYPE_BRUSH && g_config->workflow == WORKFLOW_SCULPT) {
 			ui_handle_t    *sculpt_handle = ui_handle(__ID__);
 			string_array_t *mode_combo    = any_array_create_from_raw(
-			    (void *[]){
-			        tr("Draw"),
-			        tr("Grab"),
-			    },
-			    2);
+                (void *[]){
+                    tr("Draw"),
+                    tr("Grab"),
+                },
+                2);
 			g_context->brush_sculpt = ui_combo(sculpt_handle, mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
 			if (sculpt_handle->changed) {
 				make_material_parse_paint_material(true);

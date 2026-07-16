@@ -113,7 +113,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	node_shader_add_constant(kong, "VP: float4x4", "_view_proj_matrix");
 	kong->frag_wposition = true;
 
-	i32 texture_count     = 0;
+	i32 texture_count = 0;
 
 	node_shader_write_vert(kong, "output.pos = constants.VP * float4(output.wposition.xyz, 1.0);");
 	node_shader_write_vert(kong, "output.tex_coord = input.tex;");

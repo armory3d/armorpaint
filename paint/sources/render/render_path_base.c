@@ -61,7 +61,8 @@ void render_path_base_begin() {
 	}
 
 	// Match projection matrix jitter
-	bool skip_taa = g_context->split_view || (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool != TOOL_TYPE_COLORID) || g_context->camera_type == CAMERA_TYPE_ORTHOGRAPHIC ||
+	bool skip_taa = g_context->split_view || (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool != TOOL_TYPE_COLORID) ||
+	                g_context->camera_type == CAMERA_TYPE_ORTHOGRAPHIC ||
 	                ((g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) && g_context->pdirty > 0);
 
 	if (skip_taa || g_config->brush_live) {
@@ -146,7 +147,7 @@ void render_path_base_draw_split(void (*draw_commands)(void)) {
 
 		bool use_live_layer = g_context->tool == TOOL_TYPE_MATERIAL;
 		bool path_trace     = g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool != TOOL_TYPE_COLORID;
-		path_trace ? render_path_raytrace_draw(use_live_layer) : draw_commands();
+        path_trace ? render_path_raytrace_draw(use_live_layer) : draw_commands();
 
 		g_context->view_index = g_context->view_index == 0 ? 1 : 0;
 		transform_set_matrix(cam->base->transform, camera_views[g_context->view_index]);

@@ -51,9 +51,9 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	bool is_live = g_config->brush_live && render_path_paint_live_layer_drawn > 0 && render_path_paint_live_layer != NULL;
 	if (g_context->pdirty > 0 || g_context->rtdirty > 0 || is_live) {
 		slot_layer_t  *layer          = g_context->layer;
-		gpu_texture_t *_texpaint = layer->texpaint;
-		gpu_texture_t *_texpaint_nor      = layer->texpaint_nor;
-		gpu_texture_t *_texpaint_pack     = layer->texpaint_pack;
+		gpu_texture_t *_texpaint      = layer->texpaint;
+		gpu_texture_t *_texpaint_nor  = layer->texpaint_nor;
+		gpu_texture_t *_texpaint_pack = layer->texpaint_pack;
 		if (is_live) {
 			layer->texpaint = render_path_paint_live_layer->texpaint;
 			if (slot_layer_is_layer(layer)) {

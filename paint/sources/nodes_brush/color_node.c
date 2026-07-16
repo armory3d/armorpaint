@@ -59,6 +59,4 @@ void *color_node_create(ui_node_t *raw, f32_array_t *args) {
 	return n;
 }
 
-void color_node_init() {
-
-}
+void color_node_init() {}
