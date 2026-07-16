@@ -149,6 +149,10 @@ void tab_meshes_duplicate_next_frame(void *_) {
 	sim_duplicate();
 }
 
+void tab_meshes_merge_geometry_next_frame(void *_) {
+	util_mesh_merge_geometry();
+}
+
 void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 	transform_t *t       = o->base->transform;
 	bool         changed = false;
@@ -437,6 +441,12 @@ void tab_meshes_draw_edit() {
 		util_mesh_to_origin();
 		g_context->ddirty = 2;
 	}
+
+	g_ui->enabled = g_project->_->paint_objects->length > 1;
+	if (ui_menu_button(tr("Merge Geometry"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(&tab_meshes_merge_geometry_next_frame, NULL);
+	}
+	g_ui->enabled = true;
 
 	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
 		util_mesh_apply_displacement(g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);

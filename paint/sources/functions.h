@@ -522,6 +522,7 @@ void      tab_textures_accept_asset_drop(asset_t *asset);
 void      tab_browser_show_directory(char *directory);
 void      tab_browser_draw(ui_handle_t *htab);
 void      util_mesh_merge(mesh_object_t_array_t *paint_objects);
+void      util_mesh_merge_geometry();
 void      util_mesh_swap_axis(i32 a, i32 b);
 void      util_mesh_flip_normals();
 void      util_mesh_calc_normals(bool smooth);
