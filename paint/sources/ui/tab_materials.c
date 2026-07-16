@@ -29,7 +29,7 @@ void tab_materials_update_material() {
 	if (decal) {
 		util_render_make_decal_preview();
 	}
-	base_update_workflow();
+	base_update_workflow_nodes();
 }
 
 void tab_materials_draw_slots_duplicate(void *_) {

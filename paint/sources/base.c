@@ -957,7 +957,7 @@ void base_update_workflow_create_sculpt_layer(void *_) {
 	}
 }
 
-void base_update_workflow() {
+void base_update_workflow_nodes() {
 	// Update Material Output nodes
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 		ui_node_array_t *nodes = g_project->_->materials->buffer[i]->canvas->nodes;
@@ -968,6 +968,10 @@ void base_update_workflow() {
 			}
 		}
 	}
+}
+
+void base_update_workflow() {
+	base_update_workflow_nodes();
 
 	if (g_config->workflow == WORKFLOW_SCULPT) {
 		slot_layer_t *first_sculpt = NULL;

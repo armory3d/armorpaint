@@ -173,6 +173,7 @@ i32                       base_y();
 void                      base_on_resize();
 void                      base_resize();
 void                      base_update_workspace();
+void                      base_update_workflow_nodes();
 void                      base_update_workflow();
 void                      base_run_in_player();
 string_array_t           *base_combo_enum_texts(char *node_type);
