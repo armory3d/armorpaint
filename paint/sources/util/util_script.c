@@ -160,9 +160,12 @@ object_t *script_get_object(char *s) {
 
 extern string_array_t *_path_texture_formats;
 extern string_array_t *_path_mesh_formats;
+extern string_array_t *_path_text_formats;
 
-static any_map_t *custom_texture_importers = NULL;
-static any_map_t *custom_mesh_importers    = NULL;
+static any_map_t      *custom_texture_importers = NULL;
+static any_map_t      *custom_mesh_importers    = NULL;
+static any_map_t      *custom_text_importers    = NULL;
+static string_array_t *custom_text_formats      = NULL;
 
 gpu_texture_t *plugin_import_custom_texture(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
@@ -178,6 +181,43 @@ raw_mesh_t *plugin_import_custom_mesh(char *path) {
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_val_t r       = minic_call_fn(fn, args, 1);
 	return r.p;
+}
+
+void plugin_import_custom_text(char *path) {
+	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	void       *fn      = any_map_get(custom_text_importers, format);
+	minic_val_t args[1] = {minic_val_ptr(path)};
+	minic_call_fn(fn, args, 1);
+}
+
+void plugin_register_text(char *format, void *fn) {
+	any_map_set(import_text_importers, format, plugin_import_custom_text);
+
+	if (custom_text_formats == NULL) {
+		custom_text_formats = string_array_create(0);
+		gc_root(custom_text_formats);
+	}
+	if (string_array_index_of(path_text_formats(), format) < 0) {
+		any_array_push((any_array_t *)_path_text_formats, format);
+		string_array_push(custom_text_formats, format);
+	}
+
+	if (custom_text_importers == NULL) {
+		custom_text_importers = any_map_create();
+		gc_root(custom_text_importers);
+	}
+	any_map_set(custom_text_importers, format, fn);
+}
+
+void plugin_unregister_text(char *format) {
+	map_delete(import_text_importers, format);
+	map_delete(custom_text_importers, format);
+
+	i32 i = custom_text_formats != NULL ? string_array_index_of(custom_text_formats, format) : -1;
+	if (i >= 0) {
+		array_splice((any_array_t *)custom_text_formats, i, 1);
+		array_splice((any_array_t *)_path_text_formats, string_array_index_of(_path_text_formats, format), 1);
+	}
 }
 
 void plugin_register_texture(char *format, void *fn) {

@@ -6,9 +6,10 @@ char *ui_box_title                 = "";
 char *ui_box_text                  = "";
 void (*ui_box_commands)(void)      = NULL;
 void (*ui_box_modal_on_hide)(void) = NULL;
-i32  ui_box_draws                  = 0;
-bool ui_box_copyable               = false;
-f32  ui_box_tween_alpha            = 0.0;
+i32         ui_box_draws           = 0;
+bool        ui_box_copyable        = false;
+f32         ui_box_tween_alpha     = 0.0;
+static bool ui_box_ignore_release  = false;
 
 void ui_box_init() {
 	ui_box_hwnd->redraws = 2;
@@ -17,6 +18,7 @@ void ui_box_init() {
 	ui_box_show          = true;
 	ui_box_draws         = 0;
 	ui_box_click_to_hide = true;
+	ui_box_ignore_release = g_ui->input_down; // Box may open on mouse down
 }
 
 void ui_box_render() {
@@ -27,7 +29,12 @@ void ui_box_render() {
 	if (!ui_menu_show) {
 		bool in_use    = g_ui->combo_selected_handle != NULL;
 		bool is_escape = g_ui->is_escape_down;
-		if (ui_box_draws > 2 && (g_ui->input_released || is_escape) && !in_use && !g_ui->is_typing) {
+		bool released  = g_ui->input_released;
+		if (released && ui_box_ignore_release) {
+			ui_box_ignore_release = false;
+			released              = false;
+		}
+		if (ui_box_draws > 2 && (released || is_escape) && !in_use && !g_ui->is_typing) {
 			i32 appw   = iron_window_width();
 			i32 apph   = iron_window_height();
 			i32 mw     = math_floor(ui_box_modalw * UI_SCALE());
@@ -76,7 +83,13 @@ void ui_box_render() {
 			ui_handle_t *htext = ui_handle(__ID__);
 			htext->text        = string_copy(ui_box_text);
 			if (ui_box_copyable) {
+				draw_font_t *_font      = g_font;
+				i32          _font_size = g_ui->font_size;
+				ui_set_font(g_ui, data_get_font("font_mono.ttf"));
+				g_ui->font_size = math_floor(15 * UI_SCALE());
 				ui_text_area(htext, UI_ALIGN_LEFT, false, "", false);
+				ui_set_font(g_ui, _font);
+				g_ui->font_size = _font_size;
 			}
 			else {
 				ui_text(ui_box_text, UI_ALIGN_LEFT, 0x00000000);
@@ -167,8 +180,8 @@ void ui_box_tween_out() {
 
 void ui_box_show_message(char *title, char *text, bool copyable) {
 	ui_box_init();
-	ui_box_modalw = 400;
-	ui_box_modalh = 180;
+	ui_box_modalw = copyable ? 800 : 400;
+	ui_box_modalh = copyable ? 600 : 180;
 	gc_unroot(ui_box_title);
 	ui_box_title = string_copy(title);
 	gc_root(ui_box_title);

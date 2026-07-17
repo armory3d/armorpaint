@@ -21,6 +21,7 @@
 #include "io/import_obj.c"
 #include "io/import_plugin.c"
 #include "io/import_sound.c"
+#include "io/import_text.c"
 #include "io/import_texture.c"
 #include "io/import_theme.c"
 
@@ -280,6 +281,9 @@ void _kickstart() {
 
 	import_texture_importers = any_map_create();
 	gc_root(import_texture_importers);
+
+	import_text_importers = any_map_create();
+	gc_root(import_text_importers);
 
 	ui_files_path = ui_files_default_path;
 	gc_root(ui_files_path);

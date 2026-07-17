@@ -157,6 +157,7 @@ i32                       pipes_get_constant_location(char *type);
 void                      make_brush_run(node_shader_t *kong);
 void                      import_json_material_run(char *path);
 void                      import_texture_run(char *path, bool hdr_as_envmap);
+void                      import_text_run(char *path);
 void                      import_lut_run(const char *path);
 void                      import_lut_free();
 void                      ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files_done)(char *));

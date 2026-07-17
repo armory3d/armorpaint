@@ -65,6 +65,8 @@ void        plugin_register_texture(char *format, void *fn);
 void        plugin_unregister_texture(char *format);
 void        plugin_register_mesh(char *format, void *fn);
 void        plugin_unregister_mesh(char *format);
+void        plugin_register_text(char *format, void *fn);
+void        plugin_unregister_text(char *format);
 raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos);
 void        plugin_material_category_add(char *category_name, any_array_t *node_list);
 void        plugin_brush_category_add(char *category_name, any_array_t *node_list);
@@ -1231,6 +1233,8 @@ void minic_register_builtins() {
 	R(plugin_unregister_texture, "v(p)");
 	R(plugin_register_mesh, "v(p,p)");
 	R(plugin_unregister_mesh, "v(p)");
+	R(plugin_register_text, "v(p,p)");
+	R(plugin_unregister_text, "v(p)");
 	R(plugin_make_raw_mesh, "p(p,p,p,p,f)");
 	R(plugin_material_category_add, "v(p,p)");
 	R(plugin_brush_category_add, "v(p,p)");
