@@ -1,10 +1,11 @@
 
 #include "../global.h"
 
-bool import_mesh_clear_layers = true;
-bool import_mesh_needs_unwrap = false;
-bool import_mesh_no_reset     = false;
-bool import_mesh_no_scale     = false;
+bool import_mesh_clear_layers  = true;
+bool import_mesh_needs_unwrap  = false;
+bool import_mesh_no_reset      = false;
+bool import_mesh_no_scale      = false;
+bool import_mesh_keep_timeline = false;
 
 void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool keep_camera) {
 	if (!path_is_mesh(path)) {
@@ -193,7 +194,9 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	md->_->handle = string_copy(raw->name);
 	any_map_set(data_cached_meshes, md->_->handle, md);
 
-	tab_timeline_reset();
+	if (!import_mesh_keep_timeline) {
+		tab_timeline_reset();
+	}
 
 	g_context->ddirty = 4;
 

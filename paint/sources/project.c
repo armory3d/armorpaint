@@ -378,12 +378,15 @@ void project_reimport_mesh() {
 
 void project_reimport_mesh_skinned(int frame) {
 	extern bool import_mesh_no_scale;
+	extern bool import_mesh_keep_timeline;
 	extern int  plugins_skinning_frame;
 	if (g_project->mesh_assets != NULL && g_project->mesh_assets->length > 0 && iron_file_exists(g_project->mesh_assets->buffer[0])) {
-		plugins_skinning_frame = frame;
-		import_mesh_no_scale   = true;
+		plugins_skinning_frame    = frame;
+		import_mesh_no_scale      = true;
+		import_mesh_keep_timeline = true;
 		import_mesh_run(g_project->mesh_assets->buffer[0], false, true, true);
-		plugins_skinning_frame = -1;
+		import_mesh_keep_timeline = false;
+		plugins_skinning_frame    = -1;
 	}
 }
 
