@@ -9,7 +9,6 @@
 #include "io/export_texture.c"
 #include "io/import_arm.c"
 #include "io/import_asset.c"
-#include "io/import_blend_material.c"
 #include "io/import_blend_mesh.c"
 #include "io/import_envmap.c"
 #include "io/import_folder.c"
