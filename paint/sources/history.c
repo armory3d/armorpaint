@@ -66,12 +66,26 @@ void history_undo_delete_layer_group(void *_) {
 	i32 active = history_steps->length - 1 - history_redos;
 	// 1. Undo deleting group masks
 	i32 n = 1;
-	while (history_steps->buffer[active - n]->layer_type == LAYER_SLOT_TYPE_MASK) {
+	while (active - n >= 0 && history_steps->buffer[active - n]->layer_type == LAYER_SLOT_TYPE_MASK) {
 		history_undo();
 		++n;
 	}
 	// 2. Undo a mask to have a non empty group
 	history_undo();
+}
+
+void history_undo_delete_layer_masks(void *_) {
+	while (true) {
+		i32 active = history_steps->length - 1 - history_redos;
+		if (active < 0) {
+			return;
+		}
+		history_step_t *step = history_steps->buffer[active];
+		if (step->action != HISTORY_ACTION_DELETE_LAYER || step->layer_type != LAYER_SLOT_TYPE_MASK) {
+			return;
+		}
+		history_undo();
+	}
 }
 
 ui_node_canvas_t *history_get_canvas(history_step_t *step) {
@@ -150,6 +164,11 @@ void history_undo() {
 			// Undo at least second time in order to avoid empty groups
 			if (step->layer_type == LAYER_SLOT_TYPE_GROUP) {
 				sys_notify_on_next_frame(&history_undo_delete_layer_group, NULL);
+			}
+			else if (step->layer_type == LAYER_SLOT_TYPE_LAYER && active > 0 &&
+			         history_steps->buffer[active - 1]->action == HISTORY_ACTION_DELETE_LAYER &&
+			         history_steps->buffer[active - 1]->layer_type == LAYER_SLOT_TYPE_MASK) {
+				sys_notify_on_next_frame(&history_undo_delete_layer_masks, NULL);
 			}
 		}
 		else if (step->action == HISTORY_ACTION_CLEAR_LAYER) {
@@ -409,7 +428,7 @@ void history_redo_duplicate_layer(void *_) {
 void history_redo_delete_layer(void *_) {
 	i32 active = history_steps->length - history_redos;
 	i32 n      = 1;
-	while (history_steps->buffer[active + n]->layer_type == LAYER_SLOT_TYPE_MASK) {
+	while (active + n < history_steps->length && history_steps->buffer[active + n]->layer_type == LAYER_SLOT_TYPE_MASK) {
 		++n;
 	}
 	for (i32 i = 0; i < n; ++i) {

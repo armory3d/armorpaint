@@ -475,6 +475,9 @@ void slot_layer_to_fill_layer_on_next_frame(void *_) {
 }
 
 void slot_layer_to_fill_layer(slot_layer_t *raw) {
+	if (raw == NULL || g_context->material == NULL) {
+		return;
+	}
 	context_set_layer(raw);
 	raw->fill_material = g_context->material;
 	layers_update_fill_layer(true);

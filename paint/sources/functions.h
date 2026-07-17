@@ -96,6 +96,7 @@ void                      render_envsphere();
 void                      render_pathsphere();
 void                      config_load();
 void                      config_save();
+f32                       config_validate_window_scale(f32 scale);
 void                      config_init();
 void                      config_init_layout();
 char                     *config_get_sha();
@@ -290,7 +291,7 @@ void                      export_arm_run_mesh(char *path, mesh_object_t_array_t 
 void                      export_arm_run_project();
 void                      export_arm_run_material(char *path);
 void                      export_arm_run_brush(char *path);
-void                      export_arm_pack_assets(project_t *raw, asset_t_array_t *assets);
+bool                      export_arm_pack_assets(project_t *raw, asset_t_array_t *assets);
 void                      export_arm_run_swatches(char *path);
 void                      import_asset_run(char *path, f32 drop_x, f32 drop_y, bool show_box, bool hdr_as_envmap, void (*done)(void));
 void                      make_particle_mask(node_shader_t *kong);

@@ -225,22 +225,24 @@ void ui_view2d_update(void *_) {
 			if (g_config->touch_ui) {
 				// Paint only when clicking on the layer rect
 				slot_layer_t  *layer   = g_context->layer;
-				gpu_texture_t *tex     = layer->texpaint;
-				f32            ratio   = tex->height / (float)tex->width;
-				f32            wm      = fmin(ui_view2d_ww, ui_view2d_wh);
-				f32            tw      = wm * 0.9 * ui_view2d_pan_scale;
-				f32            th      = tw * ratio;
-				f32            tx      = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
-				i32            headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
-				i32            apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
-				f32            ty      = apph / 2.0 - th / 2.0 + ui_view2d_pan_y;
-				f32            mx      = mouse_x - ui_view2d_wx;
-				f32            my      = mouse_y - ui_view2d_wy;
-				if (mx > tx && mx < tx + tw && my > ty && my < ty + th) {
-					ui_view2d_layer_touched = true;
-				}
-				if (ui_view2d_layer_touched) {
-					g_context->paint2d = true;
+				gpu_texture_t *tex     = layer == NULL ? NULL : layer->texpaint;
+				if (tex != NULL) {
+					f32 ratio   = tex->height / (float)tex->width;
+					f32 wm      = fmin(ui_view2d_ww, ui_view2d_wh);
+					f32 tw      = wm * 0.9 * ui_view2d_pan_scale;
+					f32 th      = tw * ratio;
+					f32 tx      = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
+					i32 headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
+					i32 apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
+					f32 ty      = apph / 2.0 - th / 2.0 + ui_view2d_pan_y;
+					f32 mx      = mouse_x - ui_view2d_wx;
+					f32 my      = mouse_y - ui_view2d_wy;
+					if (mx > tx && mx < tx + tw && my > ty && my < ty + th) {
+						ui_view2d_layer_touched = true;
+					}
+					if (ui_view2d_layer_touched) {
+						g_context->paint2d = true;
+					}
 				}
 			}
 			else {

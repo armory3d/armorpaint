@@ -277,13 +277,35 @@ void box_export_tab_presets_new_box() {
 	}
 }
 
+void box_export_set_generic_preset() {
+	char *fallback = "{\"textures\":[{\"name\":\"base\",\"channels\":[\"base_r\",\"base_g\",\"base_b\",\"1.0\"],\"color_space\":\"linear\"}]}";
+	gc_unroot(box_export_preset);
+	box_export_preset = json_parse(fallback);
+	gc_root(box_export_preset);
+}
+
 void box_export_parse_preset() {
+	if (box_export_files == NULL || box_export_hpreset == NULL || box_export_files->length == 0 || box_export_hpreset->i < 0 ||
+	    box_export_hpreset->i >= box_export_files->length) {
+		console_error(tr("Error: No valid export preset found"));
+		box_export_set_generic_preset();
+		return;
+	}
 	char     *file = string("export_presets/%s.json", box_export_files->buffer[box_export_hpreset->i]);
 	buffer_t *blob = data_get_blob(file);
+	if (blob == NULL) {
+		console_error(tr("Error: Could not read export preset"));
+		box_export_set_generic_preset();
+		return;
+	}
 	gc_unroot(box_export_preset);
 	box_export_preset = json_parse(sys_buffer_to_string(blob));
 	gc_root(box_export_preset);
 	data_delete_blob(file);
+	if (box_export_preset == NULL || box_export_preset->textures == NULL) {
+		console_error(tr("Error: Invalid export preset"));
+		box_export_set_generic_preset();
+	}
 }
 
 void box_export_tab_presets() {

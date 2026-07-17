@@ -8,6 +8,15 @@ typedef struct version {
 
 bool config_loaded = false;
 
+f32 config_validate_window_scale(f32 scale) {
+	// The UI slider accepts values from 1 to 4. Keep malformed values from
+	// entering layout calculations when a config file was edited externally.
+	if (!(scale >= 1.0 && scale <= 4.0)) {
+		return 1.0;
+	}
+	return scale;
+}
+
 void config_load() {
 	char *path = "";
 	if (path_is_protected()) {
@@ -36,6 +45,7 @@ void config_load() {
 			gc_unroot(g_config);
 			g_config = json_parse(config_string);
 			gc_root(g_config);
+			g_config->window_scale = config_validate_window_scale(g_config->window_scale);
 		}
 	}
 }
@@ -44,6 +54,7 @@ void config_save() {
 	if (g_config->workspace == WORKSPACE_PLAYER) {
 		return;
 	}
+	g_config->window_scale = config_validate_window_scale(g_config->window_scale);
 
 	// Use system application data folder
 	// when running from protected path like "Program Files"
@@ -395,6 +406,7 @@ void config_import_from(config_t *from) {
 	gc_root(g_config);
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
+	g_config->window_scale = config_validate_window_scale(g_config->window_scale);
 	gc_unroot(ui_children);
 	ui_children = any_map_create(); // Reset ui handles
 	gc_root(ui_children);
