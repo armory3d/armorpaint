@@ -1756,6 +1756,7 @@ void ui_end_window() {
 
 			if (handle->text != NULL) { // Window title
 				draw_set_color(theme->TEXT_COL);
+				draw_set_font(current->ops->font, current->font_size);
 				draw_string(handle->text, current->_window_w / 2 - draw_string_width(current->ops->font, current->font_size, handle->text) / 2,
 				            10 * UI_SCALE());
 			}
