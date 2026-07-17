@@ -1175,7 +1175,6 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 
 	// Merge height map into normal map
 	if (height_to_normal && make_material_height_used) {
-
 		draw_begin(layers_temp_image, false, 0);
 		draw_set_pipeline(pipes_copy);
 		draw_image(l0->texpaint_nor, 0, 0);

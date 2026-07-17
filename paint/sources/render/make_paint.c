@@ -250,10 +250,9 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 			depth_reject = false;
 		}
 
-		// TODO: sp.z needs to take height channel into account
 		bool particle = g_context->tool == TOOL_TYPE_PARTICLE;
 		if (!decal && !particle) {
-			if (make_material_height_used || g_context->sym_x || g_context->sym_y || g_context->sym_z) {
+			if (g_context->sym_x || g_context->sym_y || g_context->sym_z) {
 				depth_reject = false;
 			}
 		}
@@ -371,8 +370,6 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		}
 		if (!make_material_height_used && !make_paint_is_zero_constant(height)) {
 			make_material_height_used = true;
-			// Height used for the first time, also rebuild vertex shader
-			return make_paint_run(data, matcon);
 		}
 		make_material_emis_used = parse_float(emis) != 0.0;
 		make_material_subs_used = parse_float(subs) != 0.0;

@@ -45,6 +45,11 @@ void parser_material_init() {
 	parser_material_parsing_basecolor = false;
 }
 
+bool parser_material_is_default_normal(char *s) {
+	// Enable height socket when normal map socket is not connected for now
+	return string_equals(s, "float3(0.500000, 0.500000, 1.000000)");
+}
+
 void parse_normal_map_color_input(ui_node_socket_t *inp) {
 	parser_material_kong->frag_write_normal++;
 	gc_unroot(parser_material_out_normaltan);
@@ -90,7 +95,7 @@ shader_out_t *parser_material_parse_shader(ui_node_t *node, ui_node_socket_t *so
 		// Opacity
 		sout->out_opacity = string_copy(parser_material_parse_value_input(node->inputs->buffer[1], false));
 		// Height
-		if (parser_material_parse_height) {
+		if (parser_material_parse_height && parser_material_is_default_normal(parser_material_out_normaltan)) {
 			sout->out_height = string_copy(parser_material_parse_value_input(node->inputs->buffer[7], false));
 		}
 	}
