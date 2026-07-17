@@ -14,6 +14,7 @@
 #include "io/import_envmap.c"
 #include "io/import_folder.c"
 #include "io/import_font.c"
+#include "io/import_json_material.c"
 #include "io/import_keymap.c"
 #include "io/import_legacy.c"
 #include "io/import_lut.c"

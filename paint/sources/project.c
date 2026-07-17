@@ -286,11 +286,19 @@ void project_set_default_envmap() {
 }
 
 void project_import_material_on_file_picked(char *path) {
-	ends_with(path, ".blend") ? import_blend_material_run(path) : import_arm_run_material(path);
+	if (ends_with(path, ".blend")) {
+		import_blend_material_run(path);
+	}
+	else if (ends_with(path, ".json")) {
+		import_json_material_run(path);
+	}
+	else {
+		import_arm_run_material(path);
+	}
 }
 
 void project_import_material() {
-	ui_files_show("arm,blend", false, true, &project_import_material_on_file_picked);
+	ui_files_show("arm,blend,json", false, true, &project_import_material_on_file_picked);
 }
 
 ui_node_link_t *project_create_node_link(ui_node_link_t_array_t *links, i32 from_id, i32 from_socket, i32 to_id, i32 to_socket) {
