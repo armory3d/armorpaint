@@ -39,6 +39,15 @@ void ui_view2d_capture_output(void *_) {
 	util_texture_capture_output(ui_view2d_tex, "tex_capture", false);
 }
 
+ui_node_t *ui_view2d_get_selected_node() {
+	ui_nodes_t *nodes = ui_nodes_get_nodes();
+	if (nodes->nodes_selected_id->length == 0) {
+		return NULL;
+	}
+	ui_node_canvas_t *c = ui_nodes_get_canvas(true);
+	return ui_get_node(c->nodes, nodes->nodes_selected_id->buffer[0]);
+}
+
 void ui_view2d_draw_edit() {
 	if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 		ui_handle_t *h_uvmap_show = ui_handle(__ID__);
@@ -129,6 +138,13 @@ void ui_view2d_draw_edit() {
 	                  : ui_view2d_type == VIEW_2D_TYPE_FONT  ? tr("Font")
 	                  : ui_view2d_type == VIEW_2D_TYPE_UVMAP ? tr("UVMap")
 	                                                         : tr("Layer");
+
+	if (ui_view2d_type == VIEW_2D_TYPE_NODE) {
+		ui_node_t *sel = ui_view2d_get_selected_node();
+		if (sel != NULL) {
+			view_type = string("%s %s", sel->type, view_type);
+		}
+	}
 
 	g_ui->enabled = false;
 	ui_text(view_type, UI_ALIGN_LEFT, 0x00000000);
@@ -396,13 +412,11 @@ void ui_view2d_update(void *_) {
 			tex = project_get_image(g_context->texture);
 		}
 		else if (ui_view2d_type == VIEW_2D_TYPE_NODE) {
-			ui_nodes_t       *nodes = ui_nodes_get_nodes();
-			ui_node_canvas_t *c     = ui_nodes_get_canvas(true);
-			if (nodes->nodes_selected_id->length > 0) {
-				ui_node_t     *sel = ui_get_node(c->nodes, nodes->nodes_selected_id->buffer[0]);
+			ui_node_t *sel = ui_view2d_get_selected_node();
+			if (sel != NULL) {
 				gpu_texture_t *img = ui_nodes_get_node_preview_image(sel);
 				if (img != NULL) {
-					tex = ui_nodes_get_node_preview_image(sel);
+					tex = img;
 				}
 			}
 		}
@@ -568,7 +582,16 @@ void ui_view2d_update(void *_) {
 				}
 			}
 			else if (ui_view2d_type == VIEW_2D_TYPE_NODE) {
-				ui_text(g_context->node_preview_name, UI_ALIGN_LEFT, 0x00000000);
+				ui_node_t *sel = ui_view2d_get_selected_node();
+				if (sel != NULL && !string_equals(sel->type, "GROUP")) {
+					h->text                      = string_copy(sel->name);
+					sel->name                    = string_copy(ui_text_input(h, "", UI_ALIGN_LEFT, true, false));
+					g_context->node_preview_name = string_copy(sel->name);
+					ui_view2d_text_input_hover   = g_ui->is_hovered;
+				}
+				else {
+					ui_text(g_context->node_preview_name, UI_ALIGN_LEFT, 0x00000000);
+				}
 			}
 			else if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 				h->text        = string_copy(l->name);
