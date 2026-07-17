@@ -228,7 +228,6 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 
 		g_context->tool      = _tool;
 		g_context->bake_type = _bake_type;
-		make_material_parse_paint_material(false);
 
 		any_map_t       *rts           = render_path_render_targets;
 		render_target_t *texpaint_live = any_map_get(rts, "texpaint_live");
