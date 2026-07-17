@@ -75,7 +75,7 @@ fun layer_merge_frag(input: vert_out): float4 {
 	}
 	if (constants.blending == 103) { // Merging _pack with height blending
 		var col1: float4 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
-		return float4(lerp3(cola.rgb, col1.rgb, str), cola.a + col1.a);
+		return float4(lerp3(cola.rgb, col1.rgb, str), cola.a + col1.a * str);
 	}
 	if (constants.blending == 104) { // Merge _pack.height into _nor
 		var tex_step: float = 1.0 / constants.tex1w;
