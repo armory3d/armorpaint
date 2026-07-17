@@ -17,8 +17,8 @@ static ui_theme_t  *theme;
 static bool         ui_key_repeat         = true; // Emulate key repeat for non-character keys
 static bool         ui_dynamic_glyph_load = true; // Allow text input fields to push new glyphs into the font atlas
 static float        ui_key_repeat_time    = 0.0;
-char                ui_text_to_paste[8192];
-char                ui_text_to_copy[8192];
+char                ui_text_to_paste[UI_TEXT_MAX];
+char                ui_text_to_copy[UI_TEXT_MAX];
 static bool         ui_combo_first         = true;
 static ui_handle_t *ui_combo_search_handle = NULL;
 static int          touch_hold_x           = -1;
@@ -323,9 +323,13 @@ void ui_draw_string(char *text, float x_offset, float y_offset, int align, bool 
 		return;
 	}
 	if (truncation) {
-		assert(strlen(text) < 1024 - 2);
 		char *full_text = text;
-		strcpy(truncated, text);
+		size_t len = strlen(text);
+		if (len > sizeof(truncated) - 3) {
+			len = sizeof(truncated) - 3;
+		}
+		memcpy(truncated, text, len);
+		truncated[len] = '\0';
 		text = &truncated[0];
 		while (strlen(text) > 0 && draw_string_width(current->ops->font, current->font_size, text) > current->_w - 6.0 * UI_SCALE()) {
 			text[strlen(text) - 1] = 0;
@@ -1128,6 +1132,20 @@ void ui_insert_chars_at(char *str, int at, char *cs) {
 	}
 }
 
+int ui_insert_chars_at_capped(char *str, int at, char *cs, int cap) {
+	int len   = strlen(str);
+	int count = strlen(cs);
+	if (len + count > cap - 1) {
+		count = cap - 1 - len;
+	}
+	if (count <= 0) {
+		return 0;
+	}
+	memmove(str + at + count, str + at, len - at + 1);
+	memcpy(str + at, cs, count);
+	return count;
+}
+
 // Number of leading spaces to step over when moving/removing a tab backwards
 static int ui_tab_dedent_count(char *str, int cursor_x) {
 	int n = cursor_x % 4;
@@ -1160,7 +1178,7 @@ static int ui_tab_indent_count(char *str, int cursor_x, int len) {
 }
 
 void ui_update_text_edit(int align, bool editable, bool live_update) {
-	char text[1024];
+	char text[UI_TEXT_MAX];
 	strcpy(text, current->text_selected);
 	if (current->is_key_pressed) {                // Process input
 		if (current->key_code == KEY_CODE_LEFT) { // Move cursor
@@ -1318,8 +1336,8 @@ void ui_update_text_edit(int align, bool editable, bool live_update) {
 
 	if (editable && ui_is_paste) { // Process cut copy paste
 		ui_remove_chars_at(text, current->highlight_anchor, current->cursor_x - current->highlight_anchor);
-		ui_insert_chars_at(text, current->highlight_anchor, ui_text_to_paste);
-		current->cursor_x += strlen(ui_text_to_paste);
+		current->cursor_x = current->highlight_anchor;
+		current->cursor_x += ui_insert_chars_at_capped(text, current->highlight_anchor, ui_text_to_paste, UI_TEXT_MAX);
 		current->highlight_anchor = current->cursor_x;
 		ui_text_to_paste[0]       = 0;
 		ui_is_paste               = false;
@@ -1327,20 +1345,20 @@ void ui_update_text_edit(int align, bool editable, bool live_update) {
 
 	if (ui_is_copy) {
 		if (current->highlight_anchor == current->cursor_x) {
-			strncpy(ui_text_to_copy, text, 8191); // Copy
-			ui_text_to_copy[8191] = '\0';
+			strncpy(ui_text_to_copy, text, UI_TEXT_MAX - 1); // Copy
+			ui_text_to_copy[UI_TEXT_MAX - 1] = '\0';
 		}
 		else if (current->highlight_anchor < current->cursor_x) {
 			int len = current->cursor_x - current->highlight_anchor;
-			if (len > 8191)
-				len = 8191;
+			if (len > UI_TEXT_MAX - 1)
+				len = UI_TEXT_MAX - 1;
 			strncpy(ui_text_to_copy, text + current->highlight_anchor, len);
 			ui_text_to_copy[len] = '\0';
 		}
 		else {
 			int len = current->highlight_anchor - current->cursor_x;
-			if (len > 8191)
-				len = 8191;
+			if (len > UI_TEXT_MAX - 1)
+				len = UI_TEXT_MAX - 1;
 			strncpy(ui_text_to_copy, text + current->cursor_x, len);
 			ui_text_to_copy[len] = '\0';
 		}
@@ -2426,8 +2444,12 @@ void ui_separator(int h, bool fill) {
 }
 
 void ui_tooltip(char *text) {
-	assert(strlen(text) < 512);
-	strcpy(current->tooltip_text, text);
+	size_t len = strlen(text);
+	if (len > sizeof(current->tooltip_text) - 1) {
+		len = sizeof(current->tooltip_text) - 1;
+	}
+	memcpy(current->tooltip_text, text, len);
+	current->tooltip_text[len] = '\0';
 	current->tooltip_y = current->_y + current->_window_y;
 }
 
@@ -2739,8 +2761,8 @@ void ui_cut() {
 
 void ui_paste(char *s) {
 	ui_is_paste = true;
-	strncpy(ui_text_to_paste, s, 8192);
-	ui_text_to_paste[8191] = 0;
+	strncpy(ui_text_to_paste, s, UI_TEXT_MAX - 1);
+	ui_text_to_paste[UI_TEXT_MAX - 1] = 0;
 }
 
 void ui_theme_default(ui_theme_t *t) {

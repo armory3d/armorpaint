@@ -466,6 +466,19 @@ static int ui_line_pos(char *str, int line) {
 static char *lines_buffer = NULL;
 static int   lines_size   = 0;
 
+static void ui_append_capped(char *dst, char *src, int cap) {
+	int len   = strlen(dst);
+	int count = strlen(src);
+	if (len + count > cap - 1) {
+		count = cap - 1 - len;
+	}
+	if (count <= 0) {
+		return;
+	}
+	memcpy(dst + len, src, count);
+	dst[len + count] = '\0';
+}
+
 void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 	ui_t *current    = ui_get_current();
 	bool  cursor_set = false;
@@ -479,9 +492,9 @@ void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 		anchor_pos += strlen(ui_extract_line(lines, i)) + 1;
 	}
 	int  word_count = ui_word_count(lines);
-	char line[1024];
+	char line[UI_TEXT_MAX];
 	line[0] = '\0';
-	char new_lines[4096];
+	char new_lines[UI_TEXT_MAX];
 	new_lines[0] = '\0';
 
 	for (int i = 0; i < word_count; ++i) {
@@ -491,18 +504,18 @@ void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 		float linew  = wordw + draw_string_width(current->ops->font, current->font_size, line);
 		if (linew > current->_w - 10 && linew > wordw) {
 			if (new_lines[0] != '\0') {
-				strcat(new_lines, "\n");
+				ui_append_capped(new_lines, "\n", UI_TEXT_MAX);
 			}
-			strcat(new_lines, line);
+			ui_append_capped(new_lines, line, UI_TEXT_MAX);
 			line[0] = '\0';
 		}
 
 		if (line[0] == '\0') {
-			strcpy(line, w);
+			ui_append_capped(line, w, UI_TEXT_MAX);
 		}
 		else {
-			strcat(line, " ");
-			strcat(line, w);
+			ui_append_capped(line, " ", UI_TEXT_MAX);
+			ui_append_capped(line, w, UI_TEXT_MAX);
 		}
 
 		int new_line_count = new_lines[0] == '\0' ? 0 : ui_line_count(new_lines);
@@ -522,11 +535,11 @@ void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 		}
 	}
 	if (new_lines[0] != '\0') {
-		strcat(new_lines, "\n");
+		ui_append_capped(new_lines, "\n", UI_TEXT_MAX);
 	}
-	strcat(new_lines, line);
+	ui_append_capped(new_lines, line, UI_TEXT_MAX);
 	if (selected) {
-		strcpy(handle->text, ui_extract_line(new_lines, handle->i));
+		handle->text = string_copy(ui_extract_line(new_lines, handle->i));
 		strcpy(current->text_selected, handle->text);
 	}
 	strcpy(lines, new_lines);
@@ -558,7 +571,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 	handle->text  = string_replace_all(handle->text, "\t", "    ");
 	bool selected = current->text_selected_handle == handle; // Text being edited
 
-	int text_size = strlen(handle->text) + 1 + 1024;
+	int text_size = strlen(handle->text) + 1 + UI_TEXT_MAX;
 	if (lines_size < text_size) {
 		if (lines_buffer != NULL) {
 			free(lines_buffer);
@@ -598,7 +611,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 	int  lines_off         = 0;
 	int  edit_line_pos     = -1;
 	int  edit_line_old_len = 0;
-	char edit_new_text[1024];
+	char edit_new_text[UI_TEXT_MAX];
 	edit_new_text[0] = '\0';
 	for (int i = 0; i < line_count; ++i) { // Draw lines
 		char *line = ui_extract_line_off(lines, 0, &lines_off);
@@ -720,7 +733,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 		ui_text_to_paste[0]                           = '\0';
 		ui_is_paste                                   = false;
 		strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-		strcpy(handle->text, current->text_selected);
+		handle->text = string_copy(current->text_selected);
 	}
 
 	// Multi-line copy/cut/paste
@@ -767,7 +780,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			current->cursor_x = current->highlight_anchor = sel_top_col;
 			text_area_selection_start                     = -1;
 			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			strcpy(handle->text, current->text_selected);
+			handle->text = string_copy(current->text_selected);
 		}
 		if (editable && ui_is_paste) {
 			// Delete selected range then insert clipboard
@@ -784,7 +797,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			ui_text_to_paste[0]                           = '\0';
 			ui_is_paste                                   = false;
 			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			strcpy(handle->text, current->text_selected);
+			handle->text = string_copy(current->text_selected);
 		}
 	}
 
@@ -823,7 +836,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			current->highlight_anchor = 0;
 			current->cursor_sticky_x  = 0;
 			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			strcpy(handle->text, current->text_selected);
+			handle->text = string_copy(current->text_selected);
 			scroll_align(current, handle);
 		}
 		else if (current->key_code == KEY_CODE_LEFT && cursor_start_x == 0 && handle->i > 0 && !current->is_ctrl_down) {
@@ -834,7 +847,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			current->highlight_anchor = prev_len;
 			current->cursor_sticky_x  = prev_len;
 			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			strcpy(handle->text, current->text_selected);
+			handle->text = string_copy(current->text_selected);
 			scroll_align(current, handle);
 		}
 		else if (current->key_code == KEY_CODE_HOME || current->key_code == KEY_CODE_END) {
@@ -848,7 +861,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			current->cursor_x             = (int)strlen(ui_extract_line(lines, handle->i));
 			current->cursor_sticky_x      = current->cursor_x;
 			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			strcpy(handle->text, current->text_selected);
+			handle->text = string_copy(current->text_selected);
 			scroll_align(current, handle);
 		}
 		else {

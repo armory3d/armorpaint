@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define UI_TEXT_MAX 8192
+
 // #define UI_HANDLE(name)                                                                       \
 // 	ui_handle_t  _##name##_h = {.redraws = 2, .color = 0xffffffff, .text = "", .init = true}; \
 // 	ui_handle_t *name        = &_##name##_h
@@ -242,9 +244,9 @@ typedef struct ui {
 	float        restore_y;
 
 	ui_handle_t    *text_selected_handle;
-	char            text_selected[1024];
+	char            text_selected[UI_TEXT_MAX];
 	ui_handle_t    *submit_text_handle;
-	char            text_to_submit[1024];
+	char            text_to_submit[UI_TEXT_MAX];
 	bool            tab_pressed;
 	ui_handle_t    *tab_pressed_handle;
 	ui_handle_t    *combo_selected_handle;
@@ -368,6 +370,7 @@ void  ui_remove_char_at(char *str, int at);
 void  ui_remove_chars_at(char *str, int at, int count);
 void  ui_insert_char_at(char *str, int at, char c);
 void  ui_insert_chars_at(char *str, int at, char *cs);
+int   ui_insert_chars_at_capped(char *str, int at, char *cs, int cap);
 
 float UI_SCALE();
 float UI_ELEMENT_W();
@@ -389,8 +392,8 @@ extern float ui_touch_speed;
 extern bool  ui_is_cut;
 extern bool  ui_is_copy;
 extern bool  ui_is_paste;
-extern char  ui_text_to_paste[8192];
-extern char  ui_text_to_copy[8192];
+extern char  ui_text_to_paste[UI_TEXT_MAX];
+extern char  ui_text_to_copy[UI_TEXT_MAX];
 extern void (*ui_on_border_hover)(ui_handle_t *, int);
 extern void (*ui_on_tab_drop)(ui_handle_t *, int, ui_handle_t *, int);
 extern bool (*ui_picker_button)(void);
