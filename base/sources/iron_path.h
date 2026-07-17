@@ -17,6 +17,7 @@ extern bool path_is_protected_linux;
 
 string_array_t *path_mesh_formats(void);
 string_array_t *path_texture_formats(void);
+string_array_t *path_text_formats(void);
 
 char *path_data(void);
 char *path_to_relative(char *from, char *to);

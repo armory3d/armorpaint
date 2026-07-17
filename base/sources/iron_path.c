@@ -15,6 +15,7 @@ bool path_is_protected_linux = false;
 string_array_t        *_path_mesh_formats     = NULL;
 string_array_t        *_path_texture_formats  = NULL;
 string_array_t        *_path_sound_formats    = NULL;
+string_array_t        *_path_text_formats     = NULL;
 static string_array_t *_path_base_color_ext   = NULL;
 static string_array_t *_path_opacity_ext      = NULL;
 static string_array_t *_path_normal_map_ext   = NULL;
@@ -58,6 +59,16 @@ string_array_t *path_sound_formats(void) {
 		string_array_push(_path_sound_formats, "ogg");
 	}
 	return _path_sound_formats;
+}
+
+string_array_t *path_text_formats(void) {
+	if (_path_text_formats == NULL) {
+		_path_text_formats = string_array_create(0);
+		gc_root(_path_text_formats);
+		string_array_push(_path_text_formats, "txt");
+		string_array_push(_path_text_formats, "json");
+	}
+	return _path_text_formats;
 }
 
 string_array_t *path_base_color_ext(void) {
@@ -288,8 +299,16 @@ bool path_is_json(char *path) {
 }
 
 bool path_is_text(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".txt");
+	char           *p       = to_lower_case(path);
+	string_array_t *formats = path_text_formats();
+	for (uint32_t i = 0; i < formats->length; ++i) {
+		char *s   = formats->buffer[i];
+		char *ext = string(".%s", s);
+		if (ends_with(p, ext)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 bool path_is_ext_format(char *path) {
