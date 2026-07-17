@@ -17,18 +17,18 @@
 
 ## Tasks
 
-- [ ] Add failing source-regression checks for configuration validation, opacity clamping, import/export null guards, 2D texture safety, layer creation limits, and bounded history traversal.
-- [ ] Harden UI-scale loading/saving/application so malformed or negative persisted values cannot prevent startup.
-- [ ] Clamp brush opacity after pressure/node multipliers before it reaches paint and cursor rendering.
-- [ ] Make Blender import use a writable temporary path and stop cleanly when Blender does not produce the OBJ.
-- [ ] Make packed-project/export paths reject missing assets/presets instead of dereferencing null data.
-- [ ] Make 2D view tolerate layers without initialized paint textures and make layer creation failure-safe at the maximum layer count.
-- [ ] Group layer-mask undo restoration for a delete operation and bound redo history scanning to prevent out-of-range access.
-- [ ] Run regression checks, regenerate the ArmorPaint project, inspect the diff, commit the focused changes, push the branch, and open a draft PR.
+- [x] Add failing source-regression checks for configuration validation, opacity clamping, import/export null guards, 2D texture safety, layer creation limits, and bounded history traversal.
+- [x] Harden UI-scale loading/saving/application so malformed or negative persisted values cannot prevent startup.
+- [x] Clamp brush opacity after pressure/node multipliers before it reaches paint and cursor rendering.
+- [x] Make Blender import use a writable temporary path and stop cleanly when Blender does not produce the OBJ.
+- [x] Make packed-project/export paths reject missing assets/presets instead of dereferencing null data.
+- [x] Make 2D view tolerate layers without initialized paint textures and make layer creation failure-safe at the maximum layer count.
+- [x] Group layer-mask undo restoration for a delete operation and bound redo history scanning to prevent out-of-range access.
+- [x] Run regression checks, regenerate the ArmorPaint project, inspect the diff, commit the focused changes, push the branch, and open a draft PR.
 
 ## Verification Checklist
 
-- [ ] Regression checks pass after the fixes.
-- [ ] `base/make.bat --help` (project generation path used by this checkout) completes successfully.
-- [ ] Native compilation or launch is attempted; any unavailable compiler/runtime limitation is recorded in the PR.
-- [ ] Branch status, commit, remote branch, and draft PR are all verified directly.
+- [x] Regression checks pass after the fixes.
+- [x] `base/make.bat --help` (project generation path used by this checkout) completes successfully.
+- [x] Native compilation or launch is attempted; any unavailable compiler/runtime limitation is recorded in the PR.
+- [x] Branch status, commit, remote branch, and draft PR are all verified directly.
