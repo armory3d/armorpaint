@@ -202,7 +202,7 @@ void asim_world_update(float time_step) {
 	for (int step = 0; step < sub_steps; step++) {
 		// Sphere-mesh collision
 		for (int s = 0; s < MAX_SPHERES; s++) {
-			if (!spheres[s].active) {
+			if (!spheres[s].active || spheres[s].mass == 0.0f) {
 				continue;
 			}
 			ppair_best_dist = spheres[s].radius;
@@ -228,17 +228,23 @@ void asim_world_update(float time_step) {
 				if (dist >= min_dist || dist < 0.0001f) {
 					continue;
 				}
+				float inv_i   = spheres[i].mass > 0.0f ? 1.0f / spheres[i].mass : 0.0f;
+				float inv_j   = spheres[j].mass > 0.0f ? 1.0f / spheres[j].mass : 0.0f;
+				float inv_sum = inv_i + inv_j;
+				if (inv_sum <= 0.0f) { // Both static
+					continue;
+				}
 				vec4_t n            = vec4_mult(delta, 1.0f / dist);
-				float  overlap      = (min_dist - dist) * 0.5f;
-				spheres[i].position = vec4_add(spheres[i].position, vec4_mult(n, overlap));
-				spheres[j].position = vec4_sub(spheres[j].position, vec4_mult(n, overlap));
+				float  overlap      = min_dist - dist;
+				spheres[i].position = vec4_add(spheres[i].position, vec4_mult(n, overlap * inv_i / inv_sum));
+				spheres[j].position = vec4_sub(spheres[j].position, vec4_mult(n, overlap * inv_j / inv_sum));
 				float vi_n          = vec4_dot(spheres[i].velocity, n);
 				float vj_n          = vec4_dot(spheres[j].velocity, n);
 				if (vi_n - vj_n < 0.0f) {
 					float restitution   = 0.3f;
-					float impulse       = (1.0f + restitution) * (vi_n - vj_n) * 0.5f;
-					spheres[i].velocity = vec4_sub(spheres[i].velocity, vec4_mult(n, impulse));
-					spheres[j].velocity = vec4_add(spheres[j].velocity, vec4_mult(n, impulse));
+					float impulse       = -(1.0f + restitution) * (vi_n - vj_n) / inv_sum;
+					spheres[i].velocity = vec4_add(spheres[i].velocity, vec4_mult(n, impulse * inv_i));
+					spheres[j].velocity = vec4_sub(spheres[j].velocity, vec4_mult(n, impulse * inv_j));
 				}
 			}
 		}
@@ -271,6 +277,7 @@ void *asim_body_create(int shape, float mass, float dimx, float dimy, float dimz
 		spheres[slot].velocity.y = 0;
 		spheres[slot].velocity.z = 0;
 		spheres[slot].radius     = dimx / 2.0f;
+		spheres[slot].mass       = mass;
 		spheres[slot].active     = 1;
 
 		return (void *)(uintptr_t)slot;
@@ -304,6 +311,11 @@ void *asim_body_create(int shape, float mass, float dimx, float dimy, float dimz
 	free(tris);
 
 	return NULL;
+}
+
+void asim_body_set_mass(void *body, float mass) {
+	int slot           = (int)(uintptr_t)body;
+	spheres[slot].mass = mass;
 }
 
 void asim_body_apply_impulse(void *body, float x, float y, float z) {

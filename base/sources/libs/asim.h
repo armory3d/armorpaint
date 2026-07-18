@@ -18,6 +18,7 @@ void            asim_world_update(float time_step);
 physics_pair_t *asim_world_get_contact(void *body);
 
 void *asim_body_create(int shape, float mass, float dimx, float dimy, float dimz, float x, float y, float z, void *posa, void *inda, float scale_pos);
+void  asim_body_set_mass(void *body, float mass);
 void  asim_body_apply_impulse(void *body, float x, float y, float z);
 void  asim_body_get_pos(void *body, vec4_t *pos);
 void  asim_body_get_rot(void *body, quat_t *rot);
