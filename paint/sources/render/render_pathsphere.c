@@ -57,8 +57,8 @@ static node_shader_context_t *make_pathsphere_shader(char *name) {
 	node_shader_add_function(kong, str_envmap_sample);
 	node_shader_add_function(kong, str_env_brdf_approx);
 
-	node_shader_write_frag(kong, "var basecol: float3 = float3(0.1, 0.1, 0.1);");
-	node_shader_write_frag(kong, "var roughness: float = 0.3;");
+	node_shader_write_frag(kong, "var basecol: float3 = float3(0.4, 0.0, 0.0);");
+	node_shader_write_frag(kong, "var roughness: float = 0.5;");
 	node_shader_write_frag(kong, "var metallic: float = 0.0;");
 
 	// Indirect lighting

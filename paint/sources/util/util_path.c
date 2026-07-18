@@ -86,13 +86,13 @@ static void path_set_camera(f32_array_t *points_camera, i32 num_camera, i32 ci) 
 	}
 }
 
-static void path_paint(f32 px, f32 py, f32 *prev_px, f32 *prev_py) {
+static void path_paint(f32 px, f32 py, f32 *prev_px, f32 *prev_py, bool sphere_mode) {
 	g_context->decal_x          = px;
 	g_context->decal_y          = py;
 	g_context->paint_vec.x      = px;
 	g_context->paint_vec.y      = py;
-	g_context->last_paint_vec_x = *prev_px;
-	g_context->last_paint_vec_y = *prev_py;
+	g_context->last_paint_vec_x = sphere_mode ? px : *prev_px;
+	g_context->last_paint_vec_y = sphere_mode ? py : *prev_py;
 	g_context->pdirty           = 1;
 	render_path_paint_commands_paint(false);
 	*prev_px = px;
@@ -112,7 +112,7 @@ static void path_paint_curved(f32_array_t *points, f32_array_t *points_world, f3
 	prev_py                     = pt0y;
 	g_context->prev_paint_vec_x = pt0x;
 	g_context->prev_paint_vec_y = pt0y;
-	path_paint(pt0x, pt0y, &prev_px, &prev_py);
+	path_paint(pt0x, pt0y, &prev_px, &prev_py, sphere_mode);
 
 	// Paint curve - anchor[p], control[j-1], anchor[j]
 	for (i32 j = 2; j < num_world; j += 2) {
@@ -180,7 +180,7 @@ static void path_paint_curved(f32_array_t *points, f32_array_t *points_world, f3
 				}
 				f32 bx = ax1, by = ay1;
 				project_to_screen((vec4_t){bwx, bwy, bwz, 1.0f}, &bx, &by);
-				path_paint(bx, by, &prev_px, &prev_py);
+				path_paint(bx, by, &prev_px, &prev_py, sphere_mode);
 				prev_bwx = bwx;
 				prev_bwy = bwy;
 				prev_bwz = bwz;
@@ -202,7 +202,7 @@ static void path_paint_curved(f32_array_t *points, f32_array_t *points_world, f3
 				}
 				f32 bx = ax1, by = ay1;
 				project_to_screen((vec4_t){bwx, bwy, bwz, 1.0f}, &bx, &by);
-				path_paint(bx, by, &prev_px, &prev_py);
+				path_paint(bx, by, &prev_px, &prev_py, sphere_mode);
 				prev_bwx = bwx;
 				prev_bwy = bwy;
 				prev_bwz = bwz;
@@ -254,7 +254,7 @@ static void path_paint_straight(f32_array_t *points, f32_array_t *points_world, 
 				f32 iwz = pwz + t * (cwz - pwz);
 				f32 ix = 0.0f, iy = 0.0f;
 				if (project_to_screen((vec4_t){iwx, iwy, iwz, 1.0f}, &ix, &iy)) {
-					path_paint(ix, iy, &prev_px, &prev_py);
+					path_paint(ix, iy, &prev_px, &prev_py, sphere_mode);
 				}
 			}
 		}
@@ -265,7 +265,7 @@ static void path_paint_straight(f32_array_t *points, f32_array_t *points_world, 
 				f32 pwz = points_world->buffer[parent * 3 + 2];
 				project_to_screen((vec4_t){pwx, pwy, pwz, 1.0f}, &prev_px, &prev_py);
 			}
-			path_paint(cur_px, cur_py, &prev_px, &prev_py);
+			path_paint(cur_px, cur_py, &prev_px, &prev_py, sphere_mode);
 		}
 	}
 
@@ -477,7 +477,7 @@ void util_layer_check_path_grab() {
 	}
 
 	slot_layer_t *l = g_context->layer;
-	if (!slot_layer_is_path(l)) {
+	if (!slot_layer_is_path(l) || !slot_layer_is_visible(l)) {
 		return;
 	}
 
@@ -520,7 +520,7 @@ void util_layer_update_path() {
 	}
 
 	slot_layer_t *l       = g_context->layer;
-	bool          is_path = slot_layer_is_path(l);
+	bool          is_path = slot_layer_is_path(l) && slot_layer_is_visible(l);
 
 	// Clear spheres when switching away from path layer
 	if (path_layer_current != l || !is_path) {

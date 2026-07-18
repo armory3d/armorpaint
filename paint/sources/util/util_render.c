@@ -360,12 +360,44 @@ void util_render_make_brush_preview() {
 	        0.7 + 0.05,
 	    },
 	    10);
+
+	bool sphere_mode = g_context->brush_lazy_radius > 0 && g_context->brush_lazy_step > 0;
+	f32  dot_spacing = 0.0;
+	if (sphere_mode) {
+		f32 _posx              = g_context->posx_picked;
+		f32 _posy              = g_context->posy_picked;
+		f32 _posz              = g_context->posz_picked;
+		g_context->posx_picked = planeo->base->transform->loc.x;
+		g_context->posy_picked = planeo->base->transform->loc.y;
+		g_context->posz_picked = planeo->base->transform->loc.z;
+		dot_spacing            = g_context->brush_lazy_radius * g_context->brush_lazy_step * util_layer_brush_screen_radius() * 3.0;
+		g_context->posx_picked = _posx;
+		g_context->posy_picked = _posy;
+		g_context->posz_picked = _posz;
+	}
+
+	f32 aspect = sys_w() / (f32)sys_h();
 	for (i32 i = 1; i < points_x->length; ++i) {
-		g_context->last_paint_vec_x = points_x->buffer[i - 1];
-		g_context->last_paint_vec_y = points_y->buffer[i - 1];
-		g_context->paint_vec.x      = points_x->buffer[i];
-		g_context->paint_vec.y      = points_y->buffer[i];
-		render_path_paint_commands_paint(false);
+		f32 x0 = points_x->buffer[i - 1];
+		f32 y0 = points_y->buffer[i - 1];
+		f32 x1 = points_x->buffer[i];
+		f32 y1 = points_y->buffer[i];
+		i32 n  = 1;
+		if (dot_spacing > 0.0) {
+			f32 len = vec4_dist((vec4_t){x0 * aspect, y0, 0.0, 1.0}, (vec4_t){x1 * aspect, y1, 0.0, 1.0});
+			n       = ceilf(len / dot_spacing);
+			n       = n < 1 ? 1 : n > 16 ? 16 : n;
+		}
+		for (i32 s = 1; s <= n; ++s) {
+			f32 t                       = s / (f32)n;
+			f32 px                      = x0 + (x1 - x0) * t;
+			f32 py                      = y0 + (y1 - y0) * t;
+			g_context->last_paint_vec_x = sphere_mode ? px : x0;
+			g_context->last_paint_vec_y = sphere_mode ? py : y0;
+			g_context->paint_vec.x      = px;
+			g_context->paint_vec.y      = py;
+			render_path_paint_commands_paint(false);
+		}
 	}
 
 	g_context->brush_radius     = _brush_radius;
