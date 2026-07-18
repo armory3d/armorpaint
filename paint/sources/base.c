@@ -408,10 +408,15 @@ void base_update(void *_) {
 	ui_base_update(NULL);
 	camera_update(NULL);
 
-	// Render
-	if (g_context->tool == TOOL_TYPE_CURSOR) {
+	if (g_config->workspace == WORKSPACE_PLAYER) {
 		sim_init();
+		if (!sim_running) {
+			sim_play();
+		}
 		sim_update();
+	}
+	else if (sim_running) {
+		sim_stop();
 	}
 
 	if (g_context->frame == 2) {

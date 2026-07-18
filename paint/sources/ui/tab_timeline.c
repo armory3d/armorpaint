@@ -775,7 +775,7 @@ static bool tab_timeline_has_script(i32 row, i32 frame) {
 	return string_array_index_of(g_project->script_names, tab_timeline_script_name(row, frame)) >= 0;
 }
 
-static void tab_timeline_edit_script(i32 row, i32 frame) {
+void tab_timeline_edit_script(i32 row, i32 frame) {
 	tab_scripts_create(tab_timeline_script_name(row, frame));
 	ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]->i       = 2; // Scripts tab
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;

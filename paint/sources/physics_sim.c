@@ -82,6 +82,7 @@ void sim_stop() {
 }
 
 void sim_add_body(object_t *o, physics_shape_t shape, f32 mass) {
+	sim_init();
 	physics_body_t *body = physics_body_create();
 	body->shape          = shape;
 	body->mass           = mass;

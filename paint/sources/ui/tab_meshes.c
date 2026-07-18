@@ -279,6 +279,10 @@ void tab_meshes_draw_context_menu() {
 		sim_duplicate();
 		return;
 	}
+	if (ui_menu_button(tr("Edit Script"), "", ICON_EDIT)) {
+		tab_timeline_edit_script(g_project->_->layers->length + i, 0);
+		return;
+	}
 
 #ifdef WITH_PLUGINS
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
@@ -337,32 +341,6 @@ void tab_meshes_draw_context_menu() {
 		transform_compute_dim(t);
 	}
 
-	// physics_body_t *pb          = any_imap_get(physics_body_object_map, g_context->selected_object->uid);
-	// ui_handle_t    *hshape      = ui_handle(__ID__);
-	// string_array_t *shape_combo = any_array_create_from_raw(
-	//     (void *[]){
-	//         tr("None"),
-	//         tr("Box"),
-	//         tr("Sphere"),
-	//         tr("Convex Hull"),
-	//         tr("Terrain"),
-	//         tr("Mesh"),
-	//     },
-	//     6);
-	// hshape->i = pb != NULL ? pb->shape + 1 : 0;
-	// ui_combo(hshape, shape_combo, tr("Shape"), true, UI_ALIGN_LEFT, true);
-
-	// ui_handle_t *hdynamic = ui_handle(__ID__);
-	// hdynamic->b           = pb != NULL ? pb->mass > 0 : false;
-	// ui_check(hdynamic, "Dynamic", "");
-
-	// if (hshape->changed || hdynamic->changed) {
-	// 	sim_remove_body(g_context->selected_object->uid);
-	// 	if (hshape->i > 0) {
-	// 		sim_add_body(g_context->selected_object, hshape->i - 1, hdynamic->b ? 1.0 : 0.0);
-	// 	}
-	// }
-
 	// Material override
 	string_array_t *mat_combo = string_array_create(0);
 	string_array_push(mat_combo, ""); // Empty = use painted layers
@@ -398,6 +376,39 @@ void tab_meshes_draw_context_menu() {
 		object_t *new_parent = hparent->i == 0 ? NULL : g_project->_->paint_objects->buffer[hparent->i - 1]->base;
 		object_set_parent(o->base, new_parent);
 		g_project->mesh_parents = i32_array_create(0);
+	}
+
+	// Physics
+	if (g_config->experimental) {
+		physics_body_t *pb         = any_imap_get(physics_body_object_map, o->base->uid);
+		string_array_t *phys_combo = string_array_create(0);
+		string_array_push(phys_combo, ""); // Empty = no physics
+		string_array_push(phys_combo, tr("Sphere"));
+		string_array_push(phys_combo, tr("Mesh"));
+
+		ui_handle_t *hphys = ui_handle(__ID__);
+		hphys->i           = pb == NULL ? 0 : (pb->shape == PHYSICS_SHAPE_SPHERE ? 1 : 2);
+		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
+		if (hphys->changed) {
+			if (pb != NULL) {
+				sim_remove_body(pb);
+				pb = NULL;
+			}
+			if (hphys->i > 0) {
+				sim_add_body(o->base, hphys->i == 1 ? PHYSICS_SHAPE_SPHERE : PHYSICS_SHAPE_MESH, hphys->i == 1 ? 1.0 : 0.0);
+				pb = any_imap_get(physics_body_object_map, o->base->uid);
+			}
+		}
+
+		if (pb != NULL) {
+			ui_handle_t *hmass = ui_handle(__ID__);
+			hmass->f           = pb->mass;
+			ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
+			if (hmass->changed) {
+				physics_body_set_mass(pb, hmass->f); // Zero mass = static
+				ui_menu_keep_open = true;
+			}
+		}
 	}
 
 	if (g_ui->changed || g_ui->is_typing) {

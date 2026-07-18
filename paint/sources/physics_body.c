@@ -53,6 +53,13 @@ void physics_body_remove(physics_body_t *body) {
 	asim_body_remove(body->_body);
 }
 
+void physics_body_set_mass(physics_body_t *body, f32 mass) {
+	body->mass = mass;
+	if (body->shape == PHYSICS_SHAPE_SPHERE) {
+		asim_body_set_mass(body->_body, mass);
+	}
+}
+
 void physics_body_apply_impulse(physics_body_t *body, vec4_t dir) {
 	asim_body_apply_impulse(body->_body, dir.x, dir.y, dir.z);
 }
