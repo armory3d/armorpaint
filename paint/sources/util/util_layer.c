@@ -557,14 +557,7 @@ void tab_layers_apply_filter(i32 filter) {
 		util_mesh_merge(NULL);
 	}
 	else if (filter > g_project->_->paint_objects->length) {
-		mesh_object_t_array_t *visibles = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-			if (p->base->visible) {
-				any_array_push(visibles, p);
-			}
-		}
-		util_mesh_merge(visibles);
+		util_mesh_merge(util_mesh_get_visible());
 	}
 	layers_set_object_mask();
 	util_uv_uvmap_cached       = false;

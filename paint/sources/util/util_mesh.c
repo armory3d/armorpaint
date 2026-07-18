@@ -34,6 +34,17 @@ mesh_object_t_array_t *util_mesh_get_unique() {
 	return ar;
 }
 
+mesh_object_t_array_t *util_mesh_get_visible() {
+	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p->base->visible) {
+			any_array_push(ar, p);
+		}
+	}
+	return ar;
+}
+
 static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_objects, char *name) {
 	i32 vlen      = 0;
 	i32 ilen      = 0;

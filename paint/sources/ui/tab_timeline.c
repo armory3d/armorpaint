@@ -1244,15 +1244,11 @@ void tab_timeline_draw(ui_handle_t *htab) {
 			if (eye_hover && g_ui->input_released) {
 				mesh->base->visible = !mesh->base->visible;
 
-				mesh_object_t_array_t *visibles = any_array_create_from_raw((void *[]){}, 0);
-				for (i32 k = 0; k < g_project->_->paint_objects->length; k++) {
-					mesh_object_t *p = g_project->_->paint_objects->buffer[k];
-					if (p->base->visible) {
-						any_array_push(visibles, p);
-					}
-				}
-				util_mesh_merge(visibles);
-				g_context->ddirty = 2;
+				util_mesh_merge(util_mesh_get_visible());
+				util_uv_uvmap_cached       = false;
+				util_uv_trianglemap_cached = false;
+				util_uv_dilatemap_cached   = false;
+				g_context->ddirty          = 2;
 			}
 
 			rect_t *rect = resource_tile50(icons, ICON_CUBE);

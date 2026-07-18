@@ -104,7 +104,6 @@ void edit_uvmap_update() {
 			texa->buffer[vi * 2]     = (i16)math_min(math_max(new_x, -32767), 32767);
 			texa->buffer[vi * 2 + 1] = (i16)math_min(math_max(new_y, -32767), 32767);
 		}
-		util_uv_uvmap_cached    = false;
 		ui_view2d_hwnd->redraws = 2;
 	}
 
@@ -119,8 +118,14 @@ void edit_uvmap_update() {
 			_is_dragging     = false;
 			mesh_object_t *o = g_context->paint_object;
 			mesh_data_build_vertices(o->data->_->vertex_buffer, o->data->vertex_arrays);
+
+			if (g_context->merged_object != NULL) {
+				util_mesh_merge(util_mesh_get_visible());
+			}
 			util_uv_uvmap_cached       = false;
 			util_uv_trianglemap_cached = false;
+			util_uv_dilatemap_cached   = false;
+			ui_view2d_hwnd->redraws    = 2;
 		}
 		if (_is_box_sel) {
 			_is_box_sel             = false;
