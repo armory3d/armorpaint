@@ -521,7 +521,7 @@ void ui_view2d_update(void *_) {
 		}
 
 		// Pixel grid
-		if (g_config->view2d_grid_show && ui_view2d_type == VIEW_2D_TYPE_LAYER && tex != NULL) {
+		if (g_config->view2d_grid_show && tex != NULL) {
 			i32 cell  = g_config->view2d_grid_cell;
 			f32 stepx = cell / (float)tex->width * tw;
 			f32 stepy = cell / (float)tex->height * th;
