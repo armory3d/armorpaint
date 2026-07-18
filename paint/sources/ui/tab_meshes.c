@@ -537,6 +537,7 @@ void tab_meshes_append_shape(char *mesh_name) {
 	mo->base->raw = o;
 	any_map_set(data_cached_meshes, md->_->handle, md);
 	any_array_push(g_project->_->paint_objects, mo);
+	g_context->paint_object = mo;
 }
 
 static icon_t tab_meshes_mesh_name_to_icon(char *s) {
