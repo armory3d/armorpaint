@@ -427,6 +427,10 @@ void layers_update_path_layers() {
 	}
 }
 
+bool layers_tool_paints_fill_layer(tool_type_t tool) {
+	return tool == TOOL_TYPE_BAKE || tool == TOOL_TYPE_PICKER || tool == TOOL_TYPE_MATERIAL || tool == TOOL_TYPE_COLORID;
+}
+
 void layers_update_fill_layer(bool parse_paint) {
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
@@ -463,6 +467,9 @@ void layers_update_fill_layer(bool parse_paint) {
 	g_context->rdirty    = 2;
 	g_context->tool      = _tool;
 	g_context->fill_type = _fill_type;
+	if (parse_paint && layers_tool_paints_fill_layer(_tool)) {
+		make_material_parse_paint_material(false);
+	}
 	if (in_use)
 		draw_begin(current, false, 0);
 }
