@@ -49,14 +49,14 @@ void box_preferences_interface_tab_restore_menu_import(char *path) {
 
 void box_preferences_interface_tab_restore_menu_confirm(void *_) {
 	g_theme->ELEMENT_H = base_default_element_h;
-	config_restore();
-	box_preferences_set_scale();
 	if (g_config->plugins != NULL) {
 		for (i32 i = 0; i < g_config->plugins->length; ++i) {
 			char *f = g_config->plugins->buffer[i];
 			plugin_stop(f);
 		}
 	}
+	config_restore();
+	box_preferences_set_scale();
 	gc_unroot(box_preferences_files_plugin);
 	box_preferences_files_plugin = NULL;
 	gc_unroot(box_preferences_files_keymap);
