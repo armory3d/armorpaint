@@ -19,6 +19,12 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 	import_mesh_no_reset     = keep_camera;
 	g_context->layer_filter  = 0;
 
+#ifdef WITH_PLUGINS
+	if (replace_existing) {
+		plugins_skin_data_clear();
+	}
+#endif
+
 	char *p = to_lower_case(path);
 	if (ends_with(p, ".obj")) {
 		import_obj_run(path, replace_existing);

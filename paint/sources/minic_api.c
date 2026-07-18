@@ -44,7 +44,7 @@ void           project_save(bool save_and_quit);
 char          *project_filepath_get();
 char          *project_basepath_get();
 void           project_filepath_set(char *s);
-void           project_reimport_mesh_skinned(i32 frame);
+bool           project_reskin_mesh(int frame);
 void           context_set_viewport_shader(void *viewport_shader);
 void           context_set_viewport_mode(int mode);
 void           context_set_camera_controls(int i);
@@ -1252,7 +1252,7 @@ void minic_register_builtins() {
 	R(gpu_create_render_target, "p(i,i,i)");
 	R(viewport_capture_screenshot_to, "v(p,f,f,f,f)");
 	R(viewport_save_texture, "v(p)");
-	R(project_reimport_mesh_skinned, "v(i)");
+	R(project_reskin_mesh, "b(i)");
 	R(iron_delay_idle_sleep, "v()");
 
 	// json

@@ -4,7 +4,9 @@
 #include "engine.h"
 #include "iron_array.h"
 #include "iron_map.h"
+#include "iron_obj.h"
 #include "iron_ui.h"
+#include <stdlib.h>
 
 void *io_svg_parse(char *buf);
 void *io_exr_parse(char *buf, size_t len);
@@ -79,6 +81,57 @@ static void *import_svg(char *path) {
 	return io_svg_parse((char *)b->buffer);
 }
 
+static buffer_t *plugins_skin_blob = NULL;
+
+void plugins_skin_data_clear() {
+	gc_unroot(plugins_skin_blob);
+	plugins_skin_blob = NULL;
+}
+
+static void plugins_skin_data_set(buffer_t *b) {
+	plugins_skin_data_clear();
+	plugins_skin_blob = b;
+	gc_root(plugins_skin_blob);
+}
+
+bool plugins_skin_data_exists() {
+	return plugins_skin_blob != NULL;
+}
+
+static void plugins_free_raw_mesh(raw_mesh_t *raw) {
+	i16_array_t *arrays[] = {raw->posa, raw->nora, raw->texa, raw->texa1, raw->cola};
+	for (int i = 0; i < 5; ++i) {
+		if (arrays[i] != NULL) {
+			free(arrays[i]->buffer);
+			free(arrays[i]);
+		}
+	}
+	if (raw->inda != NULL) {
+		free(raw->inda->buffer);
+		free(raw->inda);
+	}
+	free(raw->name);
+	free(raw);
+}
+
+bool plugins_skin_data_apply(int frame, i16_array_t *posa, i16_array_t *nora, float *scale_pos) {
+	if (plugins_skin_blob == NULL) {
+		return false;
+	}
+
+	raw_mesh_t *raw = io_gltf_parse_skinned((char *)plugins_skin_blob->buffer, plugins_skin_blob->length, NULL, frame);
+	if (raw == NULL) {
+		return false;
+	}
+
+	memcpy(posa->buffer, raw->posa->buffer, posa->length * sizeof(int16_t));
+	memcpy(nora->buffer, raw->nora->buffer, nora->length * sizeof(int16_t));
+	*scale_pos = raw->scale_pos;
+
+	plugins_free_raw_mesh(raw);
+	return true;
+}
+
 static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
 	data_delete_blob(path);
@@ -86,6 +139,7 @@ static void *import_gltf_glb(char *path) {
 		return io_gltf_parse((char *)b->buffer, b->length, path);
 	}
 	else {
+		plugins_skin_data_set(b);
 		return io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
 	}
 }

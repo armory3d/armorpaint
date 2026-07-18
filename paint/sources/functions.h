@@ -441,7 +441,7 @@ void                      project_import_mesh(bool replace_existing, void (*done
 void                      project_append_mesh();
 void                      project_import_mesh_box(char *path, bool replace_existing, bool clear_layers, bool keep_camera, void (*done)(void));
 void                      project_reimport_mesh();
-void                      project_reimport_mesh_skinned(int frame);
+bool                      project_reskin_mesh(int frame);
 void                      project_unwrap_mesh_box();
 void                      project_import_asset(char *filters, bool hdr_as_envmap);
 void                      project_import_swatches(bool replace_existing);
@@ -612,6 +612,9 @@ void                         import_keymap_run(char *path);
 void                         tab_plugins_draw(ui_handle_t *htab);
 void                         plugin_uv_unwrap_button();
 void                         plugin_uv_unwrap_per_object_button(mesh_object_t *mo);
+void                         plugins_skin_data_clear();
+bool                         plugins_skin_data_exists();
+bool                         plugins_skin_data_apply(int frame, i16_array_t *posa, i16_array_t *nora, float *scale_pos);
 void                         make_discard_color_id(node_shader_t *kong, char *tex_coord);
 void                         make_discard_face(node_shader_t *kong);
 void                         make_discard_uv_island(node_shader_t *kong);

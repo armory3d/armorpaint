@@ -376,18 +376,30 @@ void project_reimport_mesh() {
 	}
 }
 
-void project_reimport_mesh_skinned(int frame) {
-	extern bool import_mesh_no_scale;
-	extern bool import_mesh_keep_timeline;
-	extern int  plugins_skinning_frame;
-	if (g_project->mesh_assets != NULL && g_project->mesh_assets->length > 0 && iron_file_exists(g_project->mesh_assets->buffer[0])) {
-		plugins_skinning_frame    = frame;
-		import_mesh_no_scale      = true;
-		import_mesh_keep_timeline = true;
-		import_mesh_run(g_project->mesh_assets->buffer[0], false, true, true);
-		import_mesh_keep_timeline = false;
-		plugins_skinning_frame    = -1;
+bool project_reskin_mesh(int frame) {
+#ifdef WITH_PLUGINS
+	if (!plugins_skin_data_exists()) {
+		return false;
 	}
+
+	mesh_data_t    *md  = context_main_object()->data;
+	vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
+	vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
+	if (!plugins_skin_data_apply(frame, pos->values, nor->values, &md->scale_pos)) {
+		return false;
+	}
+
+	mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+
+	if (g_context->merged_object != NULL) {
+		util_mesh_merge(NULL);
+	}
+	g_context->ddirty          = 4;
+	render_path_raytrace_ready = false;
+	return true;
+#else
+	return false;
+#endif
 }
 
 void project_unwrap_mesh(raw_mesh_t *mesh, void (*done)(raw_mesh_t *)) {

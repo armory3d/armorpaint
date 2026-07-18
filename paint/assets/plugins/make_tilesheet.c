@@ -5,7 +5,6 @@ ui_handle_t *h0;
 ui_handle_t *h1;
 ui_handle_t *h2;
 ui_handle_t *h3;
-ui_handle_t *h4;
 
 void *tilesheet;
 int   baking;
@@ -17,8 +16,7 @@ int frame;
 int col;
 int row;
 int wait;
-int skinning;
-int reimported;
+int reskinned;
 
 void on_update() {
 	if (!baking) {
@@ -28,11 +26,13 @@ void on_update() {
 	iron_delay_idle_sleep();
 
 	if (frame < frames) {
-		if (skinning && !reimported) {
-			project_reimport_mesh_skinned(frame);
-			reimported = 1;
-			wait       = 2; // Wait for re-import and re-render
-			return;
+		if (!reskinned) {
+			reskinned = 1;
+			// Pose the mesh at this frame, only meshes imported with skinning applied
+			if (project_reskin_mesh(frame)) {
+				wait = 2; // Wait for re-render
+				return;
+			}
 		}
 
 		if (wait > 0) {
@@ -50,7 +50,7 @@ void on_update() {
 			col = 0;
 			row = row + 1;
 		}
-		reimported = 0;
+		reskinned = 0;
 	}
 	else {
 		viewport_save_texture(tilesheet);
@@ -69,13 +69,11 @@ void on_ui() {
 		ui_slider(h1, "Tile Size", 0, 512, true, 1, true, UI_ALIGN_LEFT, true);
 		ui_slider(h2, "Columns", 0, 64, true, 1, true, UI_ALIGN_LEFT, true);
 		ui_slider(h3, "Frames", 0, 1024, true, 1, true, UI_ALIGN_LEFT, true);
-		ui_check(h4, "Skinning", "");
 
 		if (ui_button("Bake", UI_ALIGN_CENTER, "") && !baking) {
 			tile_size = h1->f;
 			columns   = h2->f;
 			frames    = h3->f;
-			skinning  = h4->b;
 
 			// Square atlas
 			int size  = tile_size * columns;
@@ -86,7 +84,7 @@ void on_ui() {
 			col                     = 0;
 			row                     = 0;
 			wait                    = 2;
-			reimported              = 0;
+			reskinned               = 0;
 			baking                  = 1;
 			context_t *c            = script_get_context();
 			c->capturing_screenshot = true;
@@ -104,8 +102,6 @@ void main() {
 	h2->f     = 8;
 	h3        = ui_handle_create();
 	h3->f     = 64;
-	h4        = ui_handle_create();
-	h4->b     = 0;
 	tilesheet = NULL;
 	baking    = 0;
 	gc_root(plugin);
@@ -113,7 +109,6 @@ void main() {
 	gc_root(h1);
 	gc_root(h2);
 	gc_root(h3);
-	gc_root(h4);
 	plugin_notify_on_ui(plugin, on_ui);
 	plugin_notify_on_update(plugin, on_update);
 }
