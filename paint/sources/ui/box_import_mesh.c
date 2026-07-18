@@ -10,6 +10,19 @@ void (*_project_import_mesh_box_done)(void);
 extern int plugins_skinning_frame;
 extern int plugins_split_by;
 
+void project_import_mesh_box_menu() {
+	if (ui_menu_button(tr("Append"), "", ICON_CHECK)) {
+		ui_box_hide();
+		import_mesh_run(_project_import_mesh_box_path, _project_import_mesh_box_clear_layers, false, _project_import_mesh_box_keep_camera);
+		if (_project_import_mesh_box_done != NULL) {
+			_project_import_mesh_box_done();
+		}
+	}
+	if (ui_menu_button(tr("Help"), "", ICON_HELP)) {
+		iron_load_url("https://github.com/armory3d/armorpaint_web/blob/main/manual.md#faq");
+	}
+}
+
 void project_import_mesh_box_draw() {
 	char *path             = _project_import_mesh_box_path;
 	bool  replace_existing = _project_import_mesh_box_replace_existing;
@@ -57,10 +70,10 @@ void project_import_mesh_box_draw() {
 
 	ui_end_element();
 	ui_row(row);
-	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
+	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER) && !ui_menu_show) {
 		ui_box_hide();
 	}
-	if (ui_icon_button(tr("Import"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) {
+	if ((ui_icon_button(tr("Import"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) && !ui_menu_show) {
 		ui_box_hide();
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
@@ -72,8 +85,8 @@ void project_import_mesh_box_draw() {
 			done();
 		}
 	}
-	if (ui_button(tr("?"), UI_ALIGN_CENTER, "")) {
-		iron_load_url("https://github.com/armory3d/armorpaint_web/blob/main/manual.md#faq");
+	if (ui_icon_button("", ICON_CHEVRON_DOWN, UI_ALIGN_CENTER)) {
+		ui_menu_draw(&project_import_mesh_box_menu, -1, -1);
 	}
 }
 
