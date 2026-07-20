@@ -31,9 +31,10 @@ static bool camera_wrap_mouse() {
 	return true;
 }
 
-static void camera_orbit_action(bool modif, bool default_keymap) {
+static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
+	f32              move_y = ruler ? 0.0 : mouse_movement_y;
 
 	if (g_context->camera_pivot == CAMERA_PIVOT_CURSOR) {
 		static f32  pivot_x     = 0;
@@ -55,7 +56,7 @@ static void camera_orbit_action(bool modif, bool default_keymap) {
 
 		if (pivot_valid) {
 			f32 angle_x = -mouse_movement_x / 100.0 * g_config->camera_rotation_speed;
-			f32 angle_y = -mouse_movement_y / 100.0 * g_config->camera_rotation_speed;
+			f32 angle_y = -move_y / 100.0 * g_config->camera_rotation_speed;
 
 			transform_rotate(camera->base->transform, vec4_z_axis(), angle_x);
 			vec4_t right = camera_object_right_world(camera);
@@ -83,19 +84,20 @@ static void camera_orbit_action(bool modif, bool default_keymap) {
 	f32 dist = camera_distance();
 	transform_move(camera->base->transform, camera_object_look_world(camera), dist);
 	transform_rotate(camera->base->transform, vec4_z_axis(), -mouse_movement_x / 100.0 * g_config->camera_rotation_speed);
-	transform_rotate(camera->base->transform, camera_object_right_world(camera), -mouse_movement_y / 100.0 * g_config->camera_rotation_speed);
+	transform_rotate(camera->base->transform, camera_object_right_world(camera), -move_y / 100.0 * g_config->camera_rotation_speed);
 	vec4_t up_world = camera_object_up_world(camera);
 	if (up_world.z < 0 && !g_config->camera_upside_down) {
-		transform_rotate(camera->base->transform, camera_object_right_world(camera), mouse_movement_y / 100.0 * g_config->camera_rotation_speed);
+		transform_rotate(camera->base->transform, camera_object_right_world(camera), move_y / 100.0 * g_config->camera_rotation_speed);
 	}
 	transform_move(camera->base->transform, camera_object_look_world(camera), -dist);
 }
 
-static void camera_rotate_action(bool modif, bool default_keymap) {
+static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
-	transform_t *t          = context_main_object()->base->transform;
-	vec4_t       up         = transform_up(t);
+	f32              move_y = ruler ? 0.0 : mouse_movement_y;
+	transform_t     *t      = context_main_object()->base->transform;
+	vec4_t           up     = transform_up(t);
 
 	if (g_context->camera_pivot == CAMERA_PIVOT_CURSOR) {
 		static f32  pivot_x     = 0;
@@ -117,7 +119,7 @@ static void camera_rotate_action(bool modif, bool default_keymap) {
 
 		if (pivot_valid) {
 			f32    angle_x = (mouse_movement_x / 120.0) * g_config->camera_rotation_speed;
-			f32    angle_y = (mouse_movement_y / 120.0) * g_config->camera_rotation_speed;
+			f32    angle_y = (move_y / 120.0) * g_config->camera_rotation_speed;
 			vec4_t right   = camera_object_right_world(camera);
 
 			transform_rotate(t, up, angle_x);
@@ -144,11 +146,11 @@ static void camera_rotate_action(bool modif, bool default_keymap) {
 
 	transform_rotate(t, up, (mouse_movement_x / 120.0) * g_config->camera_rotation_speed);
 	vec4_t right = camera_object_right_world(camera);
-	transform_rotate(t, right, (mouse_movement_y / 120.0) * g_config->camera_rotation_speed);
+	transform_rotate(t, right, (move_y / 120.0) * g_config->camera_rotation_speed);
 	transform_build_matrix(t);
 	vec4_t tup = transform_up(t);
 	if (tup.z < 0 && !g_config->camera_upside_down) {
-		transform_rotate(t, right, -(mouse_movement_y / 120.0) * g_config->camera_rotation_speed);
+		transform_rotate(t, right, -(move_y / 120.0) * g_config->camera_rotation_speed);
 	}
 }
 
@@ -301,11 +303,13 @@ void camera_update(void *_) {
 	bool modif_key      = keyboard_down("alt") || keyboard_down("shift") || keyboard_down("control");
 	bool modif          = modif_key || string_equals(any_map_get(g_keymap, "action_rotate"), "middle");
 	bool default_keymap = string_equals(g_config->keymap, "default.json");
+	// Restrict the rotation to the horizontal axis
+	bool ruler = keyboard_down(any_map_get(g_keymap, "brush_ruler"));
 
 	if (operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) ||
 	    operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) ||
 	    operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
-	    operator_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif) ||
+	    operator_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && (!modif || ruler)) ||
 	    (mouse_started("middle") && !modif) || (mouse_wheel_delta != 0 && !modif_key)) {
 		camera_controls_down = true;
 	}
@@ -323,13 +327,14 @@ void camera_update(void *_) {
 
 	camera_controls_t controls = g_context->camera_controls;
 
-	if (controls == CAMERA_CONTROLS_ORBIT &&
-	    (operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && !modif && default_keymap))) {
-		camera_orbit_action(modif, default_keymap);
+	bool rotate_down =
+	    operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && (!modif || ruler) && default_keymap);
+
+	if (controls == CAMERA_CONTROLS_ORBIT && rotate_down) {
+		camera_orbit_action(modif, default_keymap, ruler);
 	}
-	else if (controls == CAMERA_CONTROLS_ROTATE &&
-	         (operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && !modif && default_keymap))) {
-		camera_rotate_action(modif, default_keymap);
+	else if (controls == CAMERA_CONTROLS_ROTATE && rotate_down) {
+		camera_rotate_action(modif, default_keymap, ruler);
 	}
 
 	if (controls == CAMERA_CONTROLS_ROTATE || controls == CAMERA_CONTROLS_ORBIT) {
