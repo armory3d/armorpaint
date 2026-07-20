@@ -290,6 +290,9 @@ void ui_nodes_recompile() {
 		if (ui_nodes_canvas_type == CANVAS_TYPE_BRUSH) {
 			make_material_parse_brush();
 			util_render_make_brush_preview();
+			if (slot_layer_is_path(g_context->layer)) {
+				util_layer_repaint_path(g_context->layer);
+			}
 			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 		}
 		else {
