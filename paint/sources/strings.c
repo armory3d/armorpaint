@@ -17,6 +17,10 @@ char *strings_failed_to_read_mesh_data() {
 	return tr("Error: Failed to read mesh data");
 }
 
+char *strings_udim_face_spans_tiles() {
+	return tr("Error: A face spans multiple UDIM tiles");
+}
+
 char *strings_check_internet_connection() {
 	return tr("Error: Check internet connection to access the cloud");
 }
