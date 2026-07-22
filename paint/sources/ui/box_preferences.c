@@ -9,7 +9,8 @@ ui_handle_t    *_box_preferences_h;
 i32             _box_preferences_i;
 
 void box_preferences_set_scale() {
-	f32 scale = g_config->window_scale;
+	g_config->window_scale = config_validate_window_scale(g_config->window_scale);
+	f32 scale             = g_config->window_scale;
 	ui_set_scale(scale);
 	ui_header_h                                    = math_floor(ui_header_default_h * scale);
 	g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] = math_floor(ui_statusbar_default_h * scale);
