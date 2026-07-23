@@ -815,7 +815,7 @@ static void write_functions(char *code, size_t *offset) {
 }
 
 static char *metal_export_everything(char *directory) {
-	char         *metal   = (char *)calloc(1024 * 1024, 1);
+	char         *metal   = (char *)calloc(1024 * 1024 * 8, 1);
 	debug_context context = {0};
 	check(metal != NULL, context, "Could not allocate Metal string");
 	size_t offset = 0;

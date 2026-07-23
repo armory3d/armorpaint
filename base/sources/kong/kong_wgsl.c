@@ -1054,7 +1054,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 }
 
 static char *wgsl_export_vertex2(function *main) {
-	char         *wgsl    = (char *)calloc(1024 * 1024, 1);
+	char         *wgsl    = (char *)calloc(1024 * 1024 * 8, 1);
 	debug_context context = {0};
 	check(wgsl != NULL, context, "Could not allocate the wgsl string");
 
@@ -1087,7 +1087,7 @@ static char *wgsl_export_vertex2(function *main) {
 }
 
 static char *wgsl_export_fragment2(function *main) {
-	char         *wgsl    = (char *)calloc(1024 * 1024, 1);
+	char         *wgsl    = (char *)calloc(1024 * 1024 * 8, 1);
 	debug_context context = {0};
 	check(wgsl != NULL, context, "Could not allocate the wgsl string");
 

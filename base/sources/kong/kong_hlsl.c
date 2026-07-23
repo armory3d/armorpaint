@@ -1236,7 +1236,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 }
 
 static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
-	static char _buffer[1024 * 1024];
+	static char _buffer[1024 * 1024 * 8];
 	char       *hlsl   = &_buffer[0];
 	size_t      offset = 0;
 
@@ -1258,7 +1258,7 @@ static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
 }
 
 static char *hlsl_export_fragment2(api_kind d3d, function *main, bool debug) {
-	static char _buffer[1024 * 1024];
+	static char _buffer[1024 * 1024 * 8];
 	char       *hlsl   = &_buffer[0];
 	size_t      offset = 0;
 
