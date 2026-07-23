@@ -367,8 +367,8 @@ typedef struct opcode {
 } opcode;
 
 typedef struct opcodes {
-	uint8_t o[OPCODES_SIZE];
-	size_t  size;
+	uint8_t *o;
+	size_t   size;
 } opcodes;
 
 struct statement;
@@ -705,7 +705,39 @@ static inline struct hash_map *hash_map_create(void) {
 	return map;
 }
 
-static inline void hash_map_destroy(struct hash_map *map) {}
+static inline void hash_map_free_bucket_chain(struct bucket *bucket) {
+	for (uint32_t index = 0; index < 6; ++index) {
+		if ((bucket->meta.presence >> index) & 1) {
+			free(bucket->entries[index]);
+		}
+	}
+	if (bucket->meta.c) {
+		struct bucket *overflow = (struct bucket *)bucket->entries[6];
+		hash_map_free_bucket_chain(overflow);
+#ifdef _WIN32
+		_aligned_free(overflow);
+#else
+		free(overflow);
+#endif
+	}
+	else if ((bucket->meta.presence >> 6) & 1) {
+		free(bucket->entries[6]);
+	}
+}
+
+static inline void hash_map_destroy(struct hash_map *map) {
+	if (map == NULL) {
+		return;
+	}
+	for (uint32_t i = 0; i < HASH_MAP_SIZE; ++i) {
+		hash_map_free_bucket_chain(&map->buckets[i]);
+	}
+#ifdef _WIN32
+	_aligned_free(map);
+#else
+	free(map);
+#endif
+}
 
 static inline void hash_map_add_to_bucket(struct bucket *bucket, struct container *value, uint8_t secondary_hash) {
 	for (uint32_t index = 0; index < 7; ++index) {
