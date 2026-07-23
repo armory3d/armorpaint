@@ -17,7 +17,7 @@ fun get_nor_from_depth(p0: float3, uv: float2, invVP: float4x4, tex_step: float2
 
 void make_picking_run(node_shader_t *kong) {
 	// Mangle vertices to form full screen triangle
-	node_shader_write_vert(kong, "output.pos = float4(-1.0 + float((vertex_id() & 1) << 2), -1.0 + float((vertex_id() & 2) << 1), 0.0, 1.0);");
+	node_shader_write_vert(kong, "output.pos = float4(-1.0 + float((vertex_id() & 1) << uint(2)), -1.0 + float((vertex_id() & 2) << uint(1)), 0.0, 1.0);");
 
 	node_shader_add_texture(kong, "gbuffer2", NULL);
 	node_shader_add_constant(kong, "gbuffer_size: float2", "_gbuffer_size");
