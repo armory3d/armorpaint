@@ -2666,7 +2666,6 @@ function_id add_function(name_id name) {
 	functions[f].parameters_size = 0;
 	memset(functions[f].parameter_attributes, 0, sizeof(functions[f].parameter_attributes));
 	functions[f].block = NULL;
-	memset(functions[f].code.o, 0, sizeof(functions[f].code.o));
 	functions[f].code.size                  = 0;
 	functions[f].descriptor_set_group_index = UINT32_MAX;
 	functions[f].used_builtins              = (builtins){0};
