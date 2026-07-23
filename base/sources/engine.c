@@ -1,5 +1,6 @@
 #include "engine.h"
 #include <limits.h>
+#include <stdlib.h>
 
 i32 _object_uid_counter = 0;
 
@@ -591,6 +592,13 @@ void shader_context_compile(shader_context_t *raw) {
 		iron_thread_wait_and_destroy(&vs_thread);
 		raw->_->pipe->vertex_shader   = vs_job.result;
 		raw->_->pipe->fragment_shader = fs_job.result;
+#endif
+
+#ifdef IRON_WASM
+		free(raw->vertex_shader);
+		raw->vertex_shader = NULL;
+		free(raw->fragment_shader);
+		raw->fragment_shader = NULL;
 #endif
 
 		if (raw->_->pipe->vertex_shader == NULL || raw->_->pipe->fragment_shader == NULL) {
