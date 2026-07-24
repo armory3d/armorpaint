@@ -105,13 +105,6 @@ void ui_view2d_draw_edit() {
 		ui_view2d_pan_scale     = 1.0;
 		ui_view2d_hwnd->redraws = 2;
 	}
-	if (ui_menu_button(tr("Zoom to 100%"), "", ICON_NONE)) {
-		if (ui_view2d_tex != NULL) {
-			f32 wm              = fmin(ui_view2d_ww, ui_view2d_wh);
-			ui_view2d_pan_scale = ui_view2d_tex->width / (wm * 0.9);
-		}
-		ui_view2d_hwnd->redraws = 2;
-	}
 
 	g_ui->enabled = ui_view2d_tex != NULL;
 	if (ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
