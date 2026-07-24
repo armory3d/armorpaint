@@ -120,11 +120,15 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool gc_
 #else
 		pa->name = string_copy(string_replace_all(pa->name, "\\", "/"));
 #endif
-		pa->name = string_copy(path_normalize(pa->name));
-		if (string_equals(pa->name, file)) {
-			pa->name = string_copy(abs); // From relative to absolute
+		pa->name     = string_copy(path_normalize(pa->name));
+		bool matches = string_equals(pa->name, file) || string_equals(pa->name, abs);
+		if (!matches) {
+			char *pa_name   = substring(pa->name, string_last_index_of(pa->name, PATH_SEP) + 1, string_length(pa->name));
+			char *file_name = substring(file, string_last_index_of(file, PATH_SEP) + 1, string_length(file));
+			matches         = string_equals(pa_name, file_name);
 		}
-		if (string_equals(pa->name, abs)) {
+		if (matches) {
+			pa->name = string_copy(abs);
 			if (!project_packed_asset_exists(g_project->packed_assets, pa->name)) {
 
 				if (gc_copy) {
