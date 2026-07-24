@@ -472,6 +472,11 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 	}
 }
 
+static void tab_timeline_save_current(i32 frame) {
+	frame == 0 ? tab_timeline_save_origins() : tab_timeline_save_to_keyframes(frame);
+	frame == 0 ? tab_timeline_save_mesh_origins() : tab_timeline_save_mesh_to_keyframes(frame);
+}
+
 static void tab_timeline_frame_change_on_next_frame(void *_) {
 	i32 from                  = tab_timeline_pending_from;
 	i32 to                    = tab_timeline_pending_to;
@@ -479,16 +484,21 @@ static void tab_timeline_frame_change_on_next_frame(void *_) {
 	tab_timeline_pending_to   = -1;
 
 	if (!tab_timeline_playing) {
-		from == 0 ? tab_timeline_save_origins() : tab_timeline_save_to_keyframes(from);
+		tab_timeline_save_current(from);
 	}
 	to == 0 ? tab_timeline_load_origins() : tab_timeline_load_from_keyframes(to);
 	tab_timeline_tween_from_keyframes((f32)to);
 	if (!tab_timeline_playing) {
-		from == 0 ? tab_timeline_save_mesh_origins() : tab_timeline_save_mesh_to_keyframes(from);
 		to == 0 ? tab_timeline_load_mesh_origins() : tab_timeline_load_mesh_from_keyframes((float)to);
 	}
 
 	project_reskin_mesh(to);
+}
+
+static void tab_timeline_play_on_next_frame(void *_) {
+	tab_timeline_save_current(tab_timeline_selected_frame);
+	tab_timeline_playing   = true;
+	tab_timeline_play_time = sys_time() - (f64)tab_timeline_selected_frame / tab_timeline_frame_rate;
 }
 
 static void tab_timeline_add_keyframe_on_next_frame(void *_) {
@@ -1063,8 +1073,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 		}
 		else {
 			if (ui_icon_button(tr("Play"), ICON_PLAY, UI_ALIGN_CENTER)) {
-				tab_timeline_playing   = true;
-				tab_timeline_play_time = sys_time() - (f64)tab_timeline_selected_frame / tab_timeline_frame_rate;
+				sys_notify_on_next_frame(&tab_timeline_play_on_next_frame, NULL);
 			}
 		}
 		if (ui_icon_button(tr("Stop"), ICON_STOP, UI_ALIGN_CENTER)) {
