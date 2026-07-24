@@ -85,6 +85,7 @@ context_t *script_get_context();
 config_t  *script_get_config();
 project_t *script_get_project();
 void       script_set_stage(char *name);
+void       script_show_envmap(bool b);
 void       script_fade_to_stage(char *stage);
 void       script_timer(f32 delay, void *fn);
 char      *script_get_stage();
@@ -1220,6 +1221,7 @@ void minic_register_builtins() {
 	R(script_get_project, "p()");
 	R(script_get_object, "p(p)");
 	R(script_set_stage, "v(p)");
+	R(script_show_envmap, "v(i)");
 	R(script_fade_to_stage, "v(p)");
 	R(script_timer, "v(f,p)");
 	R(script_get_stage, "p()");

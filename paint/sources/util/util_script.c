@@ -15,6 +15,12 @@ void script_set_stage(char *name) {
 	}
 }
 
+void script_show_envmap(bool b) {
+	g_context->show_envmap = b;
+	context_load_envmap();
+	g_context->ddirty = 2;
+}
+
 char *script_get_stage() {
 	stage_t *s = tab_stages_get_stage();
 	return s != NULL ? s->name : NULL;

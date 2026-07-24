@@ -119,7 +119,7 @@ void tab_scripts_draw_edit() {
 		ui_files_show("c", true, false, &tab_scripts_draw_export);
 	}
 	if (ui_menu_sub_button(ui_handle(__ID__), tr("Templates"))) {
-		ui_menu_sub_begin(2);
+		ui_menu_sub_begin(3);
 		if (ui_menu_button("hello.c", "", ICON_DRAFT)) {
 			tab_scripts_set("\
 void main() {\n\
@@ -136,6 +136,23 @@ void on_update() {\n\
 	c->ddirty = 2;\n\
 }\n\
 void main() {\n\
+	script_notify_on_update(on_update);\n\
+}\n\
+");
+		}
+		if (ui_menu_button("turntable.c", "", ICON_DRAFT)) {
+			tab_scripts_set("\
+void on_update() {\n\
+	mesh_object_t *o = context_main_object();\n\
+	if (!mouse_down(\"right\")) {\n\
+		transform_rotate(o->base->transform, vec4_z_axis(), 0.003);\n\
+	}\n\
+	context_t *c = script_get_context();\n\
+	c->ddirty = 2;\n\
+}\n\
+void main() {\n\
+	context_set_viewport_mode(1); // base\n\
+	script_show_envmap(true);\n\
 	script_notify_on_update(on_update);\n\
 }\n\
 ");
