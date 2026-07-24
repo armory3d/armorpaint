@@ -706,6 +706,11 @@ gpu_shader_t *gpu_create_shader(buffer_t *data, i32 shader_type) {
 	return shader;
 }
 
+void gpu_delete_shader(gpu_shader_t *shader) {
+	gpu_shader_destroy(shader);
+	free(shader);
+}
+
 #ifdef WITH_KONG
 void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size, int *fs_size);
 #endif
@@ -718,8 +723,8 @@ gpu_shader_t *gpu_create_shader_from_source(char *source, int source_size, gpu_s
 
 	strcpy(temp_string_s, source);
 
-	ID3DBlob *error_message;
-	ID3DBlob *shader_buffer;
+	ID3DBlob *error_message = NULL;
+	ID3DBlob *shader_buffer = NULL;
 	UINT      flags = D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_SKIP_VALIDATION;
 	HRESULT hr = D3DCompile(temp_string_s, strlen(source) + 1, NULL, NULL, NULL, "main", shader_type == GPU_SHADER_TYPE_VERTEX ? "vs_5_0" : "ps_5_0", flags, 0,
 	                        &shader_buffer, &error_message);

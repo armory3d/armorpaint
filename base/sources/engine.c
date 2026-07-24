@@ -19,6 +19,7 @@ void            gpu_delete_buffer(gpu_buffer_t *buffer);
 f32             math_floor(f32 x);
 gpu_shader_t   *gpu_create_shader(buffer_t *data, i32 shader_type);
 gpu_shader_t   *gpu_create_shader_from_source(char *source, int source_size, gpu_shader_type_t shader_type);
+void            gpu_delete_shader(gpu_shader_t *shader);
 gpu_pipeline_t *gpu_create_pipeline();
 
 typedef struct {
@@ -525,10 +526,23 @@ void shader_context_load(shader_context_t *raw) {
 	shader_context_compile(raw);
 }
 
-void shader_context_compile(shader_context_t *raw) {
-	if (raw->_->pipe != NULL) {
-		gpu_delete_pipeline(raw->_->pipe);
+static void shader_context_delete_shaders(shader_context_t *raw) {
+#ifdef arm_embed
+	if (!raw->shader_from_source) {
+		return; // Owned by sys_get_shader
 	}
+#endif
+	if (raw->_->pipe->fragment_shader != NULL) {
+		gpu_delete_shader(raw->_->pipe->fragment_shader);
+		raw->_->pipe->fragment_shader = NULL;
+	}
+	if (raw->_->pipe->vertex_shader != NULL) {
+		gpu_delete_shader(raw->_->pipe->vertex_shader);
+		raw->_->pipe->vertex_shader = NULL;
+	}
+}
+
+void shader_context_compile(shader_context_t *raw) {
 	raw->_->pipe               = gpu_create_pipeline();
 	raw->_->constants          = i32_array_create(0);
 	raw->_->tex_units          = i32_array_create(0);
@@ -707,12 +721,7 @@ void shader_context_parse_vertex_struct(shader_context_t *raw) {
 }
 
 void shader_context_delete(shader_context_t *raw) {
-	if (raw->_->pipe->fragment_shader != NULL) {
-		gpu_shader_destroy(raw->_->pipe->fragment_shader);
-	}
-	if (raw->_->pipe->vertex_shader != NULL) {
-		gpu_shader_destroy(raw->_->pipe->vertex_shader);
-	}
+	shader_context_delete_shaders(raw);
 	gpu_delete_pipeline(raw->_->pipe);
 }
 

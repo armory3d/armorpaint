@@ -290,8 +290,8 @@ void gpu_render_target_init2(gpu_texture_t *render_target, uint32_t width, uint3
 }
 
 void create_root_signature(bool linear_sampling) {
-	ID3DBlob              *root_blob;
-	ID3DBlob              *error_blob;
+	ID3DBlob              *root_blob  = NULL;
+	ID3DBlob              *error_blob = NULL;
 	D3D12_ROOT_PARAMETER   parameters[3] = {0};
 	D3D12_DESCRIPTOR_RANGE range         = {
 	            .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
@@ -328,6 +328,7 @@ void create_root_signature(bool linear_sampling) {
 	D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &root_blob, &error_blob);
 	device->lpVtbl->CreateRootSignature(device, 0, root_blob->lpVtbl->GetBufferPointer(root_blob), root_blob->lpVtbl->GetBufferSize(root_blob),
 	                                    &IID_ID3D12RootSignature, &root_signature);
+	root_blob->lpVtbl->Release(root_blob);
 }
 
 void gpu_init_internal(int depth_buffer_bits, bool vsync) {
@@ -1342,6 +1343,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 	}
 	device->lpVtbl->CreateRootSignature(device, 1, blob->lpVtbl->GetBufferPointer(blob), blob->lpVtbl->GetBufferSize(blob), &IID_ID3D12RootSignature,
 	                                    &dxr_root_signature);
+	blob->lpVtbl->Release(blob);
 
 	D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc = {
 	    .pRootSignature     = dxr_root_signature,
