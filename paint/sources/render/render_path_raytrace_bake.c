@@ -95,7 +95,9 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 	gpu_texture_t *saved_envmap = g_context->show_envmap_blur ? probe->_->radiance_mipmaps->buffer[0] : g_context->saved_envmap;
 
 	if (render_path_raytrace_last_envmap != saved_envmap || render_path_raytrace_bake_last_layer != g_context->layer->texpaint ||
-	    render_path_raytrace_bake_last_bake_type2 != g_context->bake_type) {
+	    render_path_raytrace_bake_last_bake_type2 != g_context->bake_type || g_context->rtdirty > 0) {
+
+		g_context->rtdirty = 0;
 
 		gc_unroot(render_path_raytrace_last_envmap);
 		render_path_raytrace_last_envmap = saved_envmap;

@@ -102,6 +102,7 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 	g_context->layer->texpaint               = rt->_image;
 	g_context->pdirty                        = rt_bake ? g_context->bake_samples : 1;
 	g_context->rdirty                        = 3;
+	g_context->rtdirty                       = 1;
 	render_path_raytrace_bake_current_sample = 0;
 	render_path_raytrace_frame               = 0;
 	bake_texture_node_baking                 = true;
