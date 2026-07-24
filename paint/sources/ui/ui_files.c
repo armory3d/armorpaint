@@ -347,6 +347,9 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					if (dot > -1) {
 						string_array_t *files_all = file_read_directory(handle->text);
 						char           *icon_file = string("%s_icon.jpg", substring(f, 0, dot));
+						if (string_array_index_of(files_all, icon_file) < 0) {
+							icon_file = string("%s_icon.png", substring(f, 0, dot));
+						}
 						if (string_array_index_of(files_all, icon_file) >= 0) {
 							any_map_set(ui_files_icon_map, string("%s%s%s", handle->text, PATH_SEP, f), icons);
 
