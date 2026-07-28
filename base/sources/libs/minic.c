@@ -1223,20 +1223,27 @@ static void minic_parse_stmt(minic_env_t *e) {
 			return;
 		}
 
-		minic_expect(e, TOK_ASSIGN);
-		minic_val_t v = minic_parse_cond(e);
+		// Optional initializer: default to 0 / NULL when omitted
+		minic_val_t v = is_ptr ? minic_val_ptr(NULL) : minic_val_coerce(0.0, dtype);
 		if (is_ptr) {
-			v.type = MINIC_T_PTR;
-			if (v.p == NULL) {
-				// NULL literal passed as integer 0 — convert
-				uintptr_t ua = (uintptr_t)(uint64_t)minic_val_to_d(v);
-				v.p          = (ua == 0) ? NULL : (void *)ua;
-			}
-			// Only stamp the declared element type for native C pointers.
-			// Pointers into the active arena (e.g. from &var) use the MINIC_T_PTR sentinel
-			// to signal that dereferencing reads a full minic_val_t.
-			if (!minic_in_arena(v.p)) {
-				v.deref_type = base_type;
+			v.deref_type = base_type;
+		}
+		if (e->lex.cur.type == TOK_ASSIGN) {
+			minic_lex_next(&e->lex);
+			v = minic_parse_cond(e);
+			if (is_ptr) {
+				v.type = MINIC_T_PTR;
+				if (v.p == NULL) {
+					// NULL literal passed as integer 0 — convert
+					uintptr_t ua = (uintptr_t)(uint64_t)minic_val_to_d(v);
+					v.p          = (ua == 0) ? NULL : (void *)ua;
+				}
+				// Only stamp the declared element type for native C pointers.
+				// Pointers into the active arena (e.g. from &var) use the MINIC_T_PTR sentinel
+				// to signal that dereferencing reads a full minic_val_t.
+				if (!minic_in_arena(v.p)) {
+					v.deref_type = base_type;
+				}
 			}
 		}
 		minic_var_decl(e, name, dtype, v);
@@ -2108,6 +2115,7 @@ static minic_ext_func_t *minic_ext_func_add(const char *name) {
 	minic_ext_func_t *ef = minic_ext_func_get(name);
 	if (ef == NULL && minic_ext_func_count < MINIC_MAX_EXTFUNS) {
 		ef = &minic_ext_funcs[minic_ext_func_count++];
+		memset(ef, 0, sizeof(*ef));
 		strncpy(ef->name, name, MINIC_MAX_NAME - 1);
 	}
 	return ef;
@@ -2147,12 +2155,32 @@ const char *minic_ext_func_name_at(int i) {
 	return minic_ext_funcs[i].name;
 }
 
+const char *minic_ext_func_sig_at(int i) {
+	return minic_ext_funcs[i].sig;
+}
+
 int minic_global_count_get(void) {
 	return minic_global_count;
 }
 
 const char *minic_global_name_at(int i) {
 	return minic_globals[i].name;
+}
+
+minic_type_t minic_global_type_at(int i) {
+	return minic_globals[i].type;
+}
+
+int minic_enum_const_count_get(void) {
+	return minic_enum_const_count;
+}
+
+const char *minic_enum_const_name_at(int i) {
+	return minic_enum_consts[i].name;
+}
+
+int minic_enum_const_value_at(int i) {
+	return minic_enum_consts[i].value;
 }
 
 // ██████╗ ██╗███████╗██████╗  █████╗ ████████╗ ██████╗██╗  ██╗
@@ -2360,6 +2388,7 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D1(VOID, f);
 	D1(VOID, i);
 	D1(VOID, p);
+	D2(VOID, f, f);
 	D2(VOID, f, p);
 	D2(VOID, i, i);
 	D2(VOID, p, f);
@@ -2383,6 +2412,7 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D4(VOID, p, i, i, f);
 	D4(VOID, p, i, i, i);
 	D4(VOID, p, i, i, p);
+	D4(VOID, p, i, p, i);
 	D4(VOID, p, p, i, f);
 	D4(VOID, p, p, i, i);
 	D4(VOID, p, p, i, p);
@@ -2399,9 +2429,11 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D6(VOID, f, f, f, f, f, f);
 	D6(VOID, f, f, f, f, i, f);
 	D6(VOID, i, i, i, i, i, i);
+	D6(VOID, p, i, i, f, f, f);
 	D6(VOID, p, p, p, i, i, f);
 	D7(VOID, p, f, f, f, f, f, f);
 	D7(VOID, p, f, f, f, f, i, i);
+	D7(VOID, p, i, i, f, f, f, f);
 	D9(VOID, p, f, f, f, f, f, f, f, f);
 	D10(VOID, p, p, p, p, p, p, p, p, p, p);
 
@@ -2415,6 +2447,7 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D2(PTR, p, p);
 	D3(PTR, f, f, f);
 	D3(PTR, i, i, i);
+	D3(PTR, p, f, f);
 	D3(PTR, p, i, i);
 	D3(PTR, p, p, i);
 	D3(PTR, p, p, p);
