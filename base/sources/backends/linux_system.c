@@ -1555,7 +1555,7 @@ void iron_exec_async(const char *path, char *argv[]) {
 			dup2(fd, STDOUT_FILENO);
 			close(fd);
 		}
-		execve(path, argv, NULL);
+		execvp(path, argv);
 		exit(1);
 	}
 	else {
