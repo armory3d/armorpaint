@@ -578,6 +578,11 @@ void base_init() {
 
 	// Startup project
 	char *start_arm = string("%s/start.arm", iron_internal_files_location());
+
+#ifdef IRON_WASM
+	start_arm = "./start.arm";
+#endif
+
 	if (iron_file_exists(start_arm)) {
 		g_project->_->filepath = start_arm;
 		base_start_arm_found   = true;
