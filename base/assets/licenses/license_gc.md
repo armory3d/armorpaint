@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2023 leejet
+Copyright (c) 2019 Marc Kirchner
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,4 +20,4 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/leejet/stable-diffusion.cpp
+https://github.com/mkirchner/gc
