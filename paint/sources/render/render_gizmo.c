@@ -89,9 +89,9 @@ void render_gizmo_update() {
 
 			transform_build_matrix(paint_object->transform);
 
-			physics_body_t *pb = any_imap_get(physics_body_object_map, paint_object->uid);
+			asim_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {
-				physics_body_sync_transform(pb);
+				asim_body_sync_transform(pb);
 			}
 		}
 	}

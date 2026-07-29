@@ -45,6 +45,26 @@ mesh_object_t_array_t *util_mesh_get_visible() {
 	return ar;
 }
 
+mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
+	mesh_data_t *raw = gc_alloc(sizeof(mesh_data_t));
+	raw->name        = string_copy(source->name);
+	raw->scale_pos   = source->scale_pos;
+	raw->scale_tex   = source->scale_tex;
+
+	raw->vertex_arrays = (vertex_array_t_array_t *)any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < source->vertex_arrays->length; ++i) {
+		vertex_array_t *src = source->vertex_arrays->buffer[i];
+		vertex_array_t *va =
+		    GC_ALLOC_INIT(vertex_array_t,
+		                  {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
+		any_array_push(raw->vertex_arrays, va);
+	}
+
+	raw->index_array = u32_array_create_from_array(source->index_array);
+
+	return mesh_data_create(raw);
+}
+
 static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_objects, char *name) {
 	i32 vlen      = 0;
 	i32 ilen      = 0;

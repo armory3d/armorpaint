@@ -380,23 +380,23 @@ void tab_meshes_draw_context_menu() {
 
 	// Physics
 	if (g_config->experimental) {
-		physics_body_t *pb         = any_imap_get(physics_body_object_map, o->base->uid);
+		asim_body_t    *pb         = o->base->_->body;
 		string_array_t *phys_combo = string_array_create(0);
 		string_array_push(phys_combo, ""); // Empty = no physics
 		string_array_push(phys_combo, tr("Sphere"));
 		string_array_push(phys_combo, tr("Mesh"));
 
 		ui_handle_t *hphys = ui_handle(__ID__);
-		hphys->i           = pb == NULL ? 0 : (pb->shape == PHYSICS_SHAPE_SPHERE ? 1 : 2);
+		hphys->i           = pb == NULL ? 0 : (pb->shape == ASIM_SHAPE_SPHERE ? 1 : 2);
 		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
 		if (hphys->changed) {
 			if (pb != NULL) {
-				sim_remove_body(pb);
+				asim_body_remove(pb);
 				pb = NULL;
 			}
 			if (hphys->i > 0) {
-				sim_add_body(o->base, hphys->i == 1 ? PHYSICS_SHAPE_SPHERE : PHYSICS_SHAPE_MESH, hphys->i == 1 ? 1.0 : 0.0);
-				pb = any_imap_get(physics_body_object_map, o->base->uid);
+				sim_add_body(o->base, hphys->i == 1 ? ASIM_SHAPE_SPHERE : ASIM_SHAPE_MESH, hphys->i == 1 ? 1.0 : 0.0);
+				pb = o->base->_->body;
 			}
 		}
 
@@ -405,7 +405,7 @@ void tab_meshes_draw_context_menu() {
 			hmass->f           = pb->mass;
 			ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
 			if (hmass->changed) {
-				physics_body_set_mass(pb, hmass->f); // Zero mass = static
+				asim_body_set_mass(pb, hmass->f); // Zero mass = static
 				ui_menu_keep_open = true;
 			}
 		}

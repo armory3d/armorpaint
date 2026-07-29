@@ -8,24 +8,16 @@ void sim_init() {
 	if (sim_initialized) {
 		return;
 	}
-	physics_world_create();
+	asim_world_create();
 	sim_initialized = true;
 }
 
 void sim_update() {
-
 	render_path_raytrace_ready = false;
 
 	if (sim_running) {
-		// if (render_path_raytrace_frame != 1) {
-		// return;
-		// }
-
-		physics_world_t *world = physics_world_active;
-		physics_world_update(world);
-
+		asim_world_update();
 		iron_delay_idle_sleep();
-
 		if (sim_record) {
 			render_target_t *rt     = any_map_get(render_path_render_targets, "last");
 			buffer_t        *pixels = gpu_get_texture_pixels(rt->_image);
@@ -74,43 +66,16 @@ void sim_stop() {
 	mesh_object_t_array_t *pos = g_project->_->paint_objects;
 	for (i32 i = 0; i < pos->length; ++i) {
 		transform_set_matrix(pos->buffer[i]->base->transform, *(mat4_t *)sim_transforms->buffer[i]);
-		physics_body_t *pb = any_imap_get(physics_body_object_map, pos->buffer[i]->base->uid);
+		asim_body_t *pb = pos->buffer[i]->base->_->body;
 		if (pb != NULL) {
-			physics_body_sync_transform(pb);
+			asim_body_sync_transform(pb);
 		}
 	}
 }
 
-void sim_add_body(object_t *o, physics_shape_t shape, f32 mass) {
+void sim_add_body(object_t *o, asim_shape_t shape, f32 mass) {
 	sim_init();
-	physics_body_t *body = physics_body_create();
-	body->shape          = shape;
-	body->mass           = mass;
-	physics_body_init(body, o);
-}
-
-void sim_remove_body(physics_body_t *pb) {
-	physics_body_remove(pb);
-}
-
-mesh_data_t *mesh_data_duplicate(mesh_data_t *source) {
-	mesh_data_t *raw = gc_alloc(sizeof(mesh_data_t));
-	raw->name        = string_copy(source->name);
-	raw->scale_pos   = source->scale_pos;
-	raw->scale_tex   = source->scale_tex;
-
-	raw->vertex_arrays = (vertex_array_t_array_t *)any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < source->vertex_arrays->length; ++i) {
-		vertex_array_t *src = source->vertex_arrays->buffer[i];
-		vertex_array_t *va =
-		    GC_ALLOC_INIT(vertex_array_t,
-		                  {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
-		any_array_push(raw->vertex_arrays, va);
-	}
-
-	raw->index_array = u32_array_create_from_array(source->index_array);
-
-	return mesh_data_create(raw);
+	asim_body_create(o, shape, mass);
 }
 
 void sim_duplicate() {
@@ -120,7 +85,7 @@ void sim_duplicate() {
 		return;
 	}
 
-	mesh_data_t   *data = mesh_data_duplicate(so->data);
+	mesh_data_t   *data = util_mesh_data_duplicate(so->data);
 	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
 	transform_set_matrix(dup->base->transform, so->base->transform->local);
 	any_array_push(g_project->_->paint_objects, dup);
@@ -136,12 +101,9 @@ void sim_duplicate() {
 	dup->data->name = dup->base->name;
 
 	// Physics
-	physics_body_t *pb = any_imap_get(physics_body_object_map, so->base->uid);
+	asim_body_t *pb = so->base->_->body;
 	if (pb != NULL) {
-		physics_body_t *pbdup = physics_body_create();
-		pbdup->shape          = pb->shape;
-		pbdup->mass           = pb->mass;
-		physics_body_init(pbdup, dup->base);
+		asim_body_create(dup->base, pb->shape, pb->mass);
 	}
 }
 
@@ -149,6 +111,5 @@ void sim_delete() {
 	mesh_object_t *so = g_context->paint_object;
 	array_remove(g_project->_->paint_objects, so);
 	mesh_object_remove(so);
-	physics_body_t *pb = any_imap_get(physics_body_object_map, so->base->uid);
-	sim_remove_body(pb);
+	asim_body_remove(so->base->_->body);
 }

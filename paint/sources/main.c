@@ -213,14 +213,12 @@
 #include "operator.c"
 #include "parser_logic.c"
 #include "parser_material.c"
-#include "physics_body.c"
-#include "physics_sim.c"
-#include "physics_world.c"
 #include "pipes.c"
 #include "player.c"
 #include "plugin.c"
 #include "project.c"
 #include "resource.c"
+#include "sim.c"
 #include "slot_brush.c"
 #include "slot_font.c"
 #include "slot_layer.c"
@@ -247,9 +245,6 @@ void _kickstart() {
 
 	g_operators = any_map_create();
 	gc_root(g_operators);
-
-	physics_body_object_map = any_imap_create();
-	gc_root(physics_body_object_map);
 
 	box_export_htab = ui_handle_create();
 	gc_root(box_export_htab);
