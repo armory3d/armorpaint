@@ -54,6 +54,7 @@ object_t *object_create(bool is_empty) {
 	raw->uid       = _object_uid_counter++;
 	raw->transform = transform_create(raw);
 	raw->is_empty  = is_empty;
+	raw->_         = gc_alloc(sizeof(object_runtime_t));
 	if (raw->is_empty) {
 		any_array_push(scene_empties, raw);
 	}

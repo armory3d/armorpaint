@@ -1,10 +1,10 @@
 // ../../make --run
 
-#include "../../sources/libs/asim.h"
+#include "../../sources/iron_physics.h"
 #include "camera.c"
 #include <iron.h>
 
-void *body;
+asim_body_t *body;
 
 void render_commands() {
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0xff6495ed, 1.0);
@@ -12,17 +12,15 @@ void render_commands() {
 }
 
 void scene_update(void *_) {
-	asim_world_update(sys_delta());
+	asim_world_update();
 	camera_update();
 
 	if (keyboard_started("space")) {
-		asim_body_sync_transform(body, (vec4_t){0, 0, 5, 1.0}, (quat_t){0, 0, 0, 1});
+		transform_t *t = body->obj->transform;
+		t->loc         = (vec4_t){0, 0, 5, 1.0};
+		t->rot         = (quat_t){0, 0, 0, 1};
+		asim_body_sync_transform(body);
 	}
-
-	object_t    *sphere = scene_get_child("Sphere");
-	transform_t *t      = sphere->transform;
-	asim_body_get_pos(body, &t->loc);
-	transform_build_matrix(t);
 }
 
 void scene_ready() {
@@ -34,16 +32,16 @@ void scene_ready() {
 
 	sys_notify_on_update(scene_update, NULL);
 
-	object_t      *cube = scene_get_child("Cube");
-	mesh_object_t *mesh = cube->ext;
+	object_t *cube = scene_get_child("Cube");
 
 	asim_world_create();
 
-	gc_unroot(body);
-	body = asim_body_create(1, 1, 1, 1, 1, 0, 0, 5, NULL, NULL, 1);
-	gc_root(body);
+	object_t *sphere       = scene_get_child("Sphere");
+	sphere->transform->loc = (vec4_t){0, 0, 5, 1.0};
+	transform_build_matrix(sphere->transform);
+	body = asim_body_create(sphere, ASIM_SHAPE_SPHERE, 1);
 
-	asim_body_create(0, 1, 1, 1, 1, 0, 0, 0, mesh->data->vertex_arrays->buffer[0]->values, mesh->data->index_array, mesh->data->scale_pos);
+	asim_body_create(cube, ASIM_SHAPE_MESH, 1);
 }
 
 void ready() {
@@ -90,37 +88,38 @@ void ready() {
 	         1),
 	     .shader_datas = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(shader_data_t, {.name     = "MyShader",
-	                                           .contexts = any_array_create_from_raw(
-	                                               (void *[]){
-	                                                   GC_ALLOC_INIT(shader_context_t,
-	                                                                 {.name            = "mesh",
-	                                                                  .vertex_shader   = "mesh.vert",
-	                                                                  .fragment_shader = "mesh.frag",
-	                                                                  .compare_mode    = "less",
-	                                                                  .cull_mode       = "clockwise",
-	                                                                  .depth_write     = true,
-	                                                                  .vertex_elements = any_array_create_from_raw(
-	                                                                      (void *[]){
-	                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-	                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-	                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-	                                                                      },
-	                                                                      3),
-	                                                                  .constants = any_array_create_from_raw(
-	                                                                      (void *[]){
-	                                                                          GC_ALLOC_INIT(shader_const_t,
-	                                                                                        {.name = "WVP", .type = "float4x4", .link = "_world_view_proj_matrix"}),
-	                                                                      },
-	                                                                      1),
-	                                                                  .texture_units = any_array_create_from_raw(
-	                                                                      (void *[]){
-	                                                                          GC_ALLOC_INIT(tex_unit_t, {.name = "my_texture"}),
-	                                                                      },
-	                                                                      1),
-	                                                                  .depth_attachment = "D32"}),
-	                                               },
-	                                               1)}),
+	             GC_ALLOC_INIT(
+	                 shader_data_t,
+	                 {.name     = "MyShader",
+	                  .contexts = any_array_create_from_raw(
+	                      (void *[]){
+	                          GC_ALLOC_INIT(shader_context_t,
+	                                        {.name            = "mesh",
+	                                         .vertex_shader   = "mesh.vert",
+	                                         .fragment_shader = "mesh.frag",
+	                                         .compare_mode    = "less",
+	                                         .cull_mode       = "clockwise",
+	                                         .depth_write     = true,
+	                                         .vertex_elements = any_array_create_from_raw(
+	                                             (void *[]){
+	                                                 GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                 GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                 GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                             },
+	                                             3),
+	                                         .constants = any_array_create_from_raw(
+	                                             (void *[]){
+	                                                 GC_ALLOC_INIT(shader_const_t, {.name = "WVP", .type = "float4x4", .link = "_world_view_proj_matrix"}),
+	                                             },
+	                                             1),
+	                                         .texture_units = any_array_create_from_raw(
+	                                             (void *[]){
+	                                                 GC_ALLOC_INIT(tex_unit_t, {.name = "my_texture"}),
+	                                             },
+	                                             1),
+	                                         .depth_attachment = "D32"}),
+	                      },
+	                      1)}),
 	         },
 	         1)});
 

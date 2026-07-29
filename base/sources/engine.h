@@ -15,6 +15,9 @@
 #include "iron_thread.h"
 #include <math.h>
 #include <string.h>
+#ifdef WITH_PHYSICS
+#include "iron_physics.h"
+#endif
 
 typedef struct object object_t;
 
@@ -306,19 +309,27 @@ typedef struct transform {
 	float     radius;
 } transform_t;
 
+typedef struct {
+	int empty;
+#ifdef WITH_PHYSICS
+	asim_body_t *body;
+#endif
+} object_runtime_t;
+
 typedef struct object {
-	i32          uid;
-	float        urandom;
-	obj_t       *raw;
-	char        *name;
-	transform_t *transform;
-	object_t    *parent;
-	any_array_t *children;
-	bool         visible;
-	bool         culled;
-	bool         is_empty;
-	void        *ext;
-	char        *ext_type;
+	i32               uid;
+	float             urandom;
+	obj_t            *raw;
+	char             *name;
+	transform_t      *transform;
+	object_t         *parent;
+	any_array_t      *children;
+	bool              visible;
+	bool              culled;
+	bool              is_empty;
+	void             *ext;
+	char             *ext_type;
+	object_runtime_t *_;
 } object_t;
 
 //  ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
