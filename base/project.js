@@ -18,10 +18,6 @@ project.add_assets("assets/*", {destination : "data/{name}"});
 project.add_assets("assets/licenses/**", {destination : "data/licenses/{name}"});
 project.add_assets("assets/themes/*.json", {destination : "data/themes/{name}"});
 project.add_cfiles("sources/*.c");
-if (platform != "wasm") {
-	project.add_cfiles("sources/libs/gc.c");
-}
-
 project.add_cfiles("sources/kong/dir.c");
 project.add_define("EMBED_H_PATH=\"" + os_cwd() + "/build/embed.h" +
                    "\"");
@@ -162,7 +158,6 @@ else {
 
 if (flags.with_physics) {
 	project.add_define("WITH_PHYSICS");
-	project.add_cfiles("sources/libs/asim.c");
 }
 
 if (flags.with_raytrace) {
