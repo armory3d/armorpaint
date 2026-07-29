@@ -930,8 +930,8 @@ void base_update_workspace() {
 		ui_view2d_show    = false;
 		ui_nodes_show     = false;
 
-		ui_base_htabs->buffer[TAB_AREA_STATUS]->i        = 5; // Console
-		g_config->layout_tabs->buffer[TAB_AREA_STATUS]   = 5;
+		ui_base_htabs->buffer[TAB_AREA_STATUS]->i        = 6; // Console
+		g_config->layout_tabs->buffer[TAB_AREA_STATUS]   = 6;
 		ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]->i      = 2; // Script
 		g_config->layout_tabs->buffer[TAB_AREA_SIDEBAR0] = 2;
 
