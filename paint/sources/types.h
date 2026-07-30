@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "iron_physics.h"
 #include "enums.h"
 #include "minic.h"
 
@@ -142,6 +143,7 @@ typedef struct config {
 	bool                 grid_snap;
 	bool                 experimental;
 	i32                  neural_res;
+	i32                  console_model;
 	render_mode_t        render_mode;
 	workspace_t          workspace;
 	workflow_t           workflow;
@@ -149,16 +151,6 @@ typedef struct config {
 	i32                  view2d_grid_cell;
 	bool                 view2d_grid_snap;
 } config_t;
-
-typedef struct physics_body {
-	void           *_body;
-	physics_shape_t shape;
-	f32             mass;
-	f32             dimx;
-	f32             dimy;
-	f32             dimz;
-	struct object  *obj;
-} physics_body_t;
 
 typedef struct slot_material {
 	struct ui_nodes       *nodes;
@@ -404,21 +396,21 @@ typedef struct context {
 	f32                         last_particle_hit_x;
 	f32                         last_particle_hit_y;
 	f32                         last_particle_hit_z;
-	struct physics_body        *paint_body;
+	struct asim_body           *paint_body;
 	struct {
-		f32                  hit_x;
-		f32                  hit_y;
-		f32                  hit_z;
-		f32                  hit_last_x;
-		f32                  hit_last_y;
-		f32                  hit_last_z;
-		f32                  hit_nor_x;
-		f32                  hit_nor_y;
-		f32                  hit_nor_z;
-		f32                  contact_time;
-		struct tween_anim   *timer;
-		struct physics_body *body;
-		struct object       *bullet;
+		f32                hit_x;
+		f32                hit_y;
+		f32                hit_z;
+		f32                hit_last_x;
+		f32                hit_last_y;
+		f32                hit_last_z;
+		f32                hit_nor_x;
+		f32                hit_nor_y;
+		f32                hit_nor_z;
+		f32                contact_time;
+		struct tween_anim *timer;
+		struct asim_body  *body;
+		struct object     *bullet;
 	} particles[32];
 	i32             particle_index;
 	f32             particle_friction;
@@ -524,10 +516,6 @@ typedef struct logic_node_input {
 	struct logic_node_ext *node;
 	i32                    from; // Socket index
 } logic_node_input_t;
-
-typedef struct physics_world {
-	i32 empty;
-} physics_world_t;
 
 typedef struct node_group {
 	struct ui_nodes       *nodes;
@@ -826,15 +814,6 @@ typedef struct gpu_texture_t_array {
 	int             length;
 	int             capacity;
 } gpu_texture_t_array_t;
-
-#ifdef WITH_PHYSICS
-#include "../libs/asim.h"
-typedef struct physics_pair_t_array {
-	physics_pair_t **buffer;
-	int              length;
-	int              capacity;
-} physics_pair_t_array_t;
-#endif
 
 typedef struct ui_node_socket_t_array {
 	ui_node_socket_t **buffer;

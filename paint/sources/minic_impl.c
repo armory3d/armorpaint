@@ -1,5 +1,5 @@
 
-#include "../global.h"
+#include "global.h"
 
 void script_set_stage(char *name) {
 	if (g_project->stages == NULL) {
@@ -162,6 +162,398 @@ object_t *script_get_object(char *s) {
 		}
 	}
 	return NULL;
+}
+
+static bool script_paint_active = false;
+static bool script_paint_first  = true;
+
+static bool script_paint_allowed(void) {
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+		return false;
+	}
+	if (slot_layer_is_group(g_context->layer)) {
+		return false;
+	}
+	if (g_context->layer->fill_material != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_MATERIAL &&
+	    g_context->tool != TOOL_TYPE_COLORID) {
+		return false;
+	}
+	return true;
+}
+
+static void script_paint_begin_stroke(void) {
+	if (script_paint_active) {
+		return;
+	}
+	make_material_parse_paint_material(false);
+	render_path_base_draw_gbuffer();
+
+	history_push_undo = true;
+	sculpt_push_undo  = true;
+	if (history_undo_layers != NULL) {
+		history_paint();
+	}
+
+	script_paint_active        = true;
+	script_paint_first         = true;
+	g_context->brush_time      = sys_delta();
+	g_context->prev_paint_vec_x = -1.0f;
+	g_context->prev_paint_vec_y = -1.0f;
+}
+
+static void script_paint_at(f32 x, f32 y) {
+	if (!script_paint_allowed()) {
+		return;
+	}
+
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use) {
+		draw_end();
+	}
+
+	script_paint_begin_stroke();
+
+	f32 prev_x = script_paint_first ? x : g_context->paint_vec.x;
+	f32 prev_y = script_paint_first ? y : g_context->paint_vec.y;
+
+	g_context->decal_x          = x;
+	g_context->decal_y          = y;
+	g_context->paint_vec.x      = x;
+	g_context->paint_vec.y      = y;
+	g_context->last_paint_vec_x = prev_x;
+	g_context->last_paint_vec_y = prev_y;
+	g_context->prev_paint_vec_x = prev_x;
+	g_context->prev_paint_vec_y = prev_y;
+	g_context->pdirty           = 1;
+
+	render_path_paint_commands_paint(false);
+
+	script_paint_first = false;
+
+	if (in_use) {
+		draw_begin(current, false, 0);
+	}
+}
+
+void script_paint(f32 x, f32 y) {
+	script_paint_at(x, y);
+}
+
+void script_paint_world(f32 x, f32 y, f32 z) {
+	vec4_t clip = vec4_apply_mat4((vec4_t){x, y, z, 1.0f}, scene_camera->vp);
+	if (clip.w <= 0.0f) {
+		return;
+	}
+	f32 sx = (clip.x / clip.w + 1.0f) * 0.5f;
+	f32 sy = (-clip.y / clip.w + 1.0f) * 0.5f;
+	script_paint_at(sx, sy);
+}
+
+void script_paint_end(void) {
+	if (!script_paint_active) {
+		return;
+	}
+
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use) {
+		draw_end();
+	}
+
+	render_path_paint_dilate(true, true);
+	layers_update_linked_layers();
+
+	g_context->pdirty              = 0;
+	g_context->rtdirty             = 1;
+	g_context->rdirty              = 2;
+	g_context->ddirty              = 2;
+	g_context->brush_time          = 0.0f;
+	g_context->brush_blend_dirty   = true;
+	g_context->layer_preview_dirty = true;
+	g_context->prev_paint_vec_x    = -1.0f;
+	g_context->prev_paint_vec_y    = -1.0f;
+
+	script_paint_active = false;
+	script_paint_first  = true;
+
+	if (in_use) {
+		draw_begin(current, false, 0);
+	}
+}
+
+void script_fill_layer(void) {
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+		return;
+	}
+	if (slot_layer_is_group(g_context->layer)) {
+		return;
+	}
+
+	history_push_undo = true;
+	if (history_undo_layers != NULL) {
+		history_paint();
+	}
+	layers_update_fill_layer(true);
+	g_context->layer_preview_dirty = true;
+	g_context->rtdirty             = 1;
+	g_context->rdirty              = 2;
+	g_context->ddirty              = 2;
+}
+
+static ui_node_canvas_t *script_material_canvas(void) {
+	if (g_context == NULL || g_context->material == NULL) {
+		return NULL;
+	}
+	return g_context->material->canvas;
+}
+
+static void script_material_gpu_begin(gpu_texture_t **out_current, bool *out_in_use) {
+	*out_current = _draw_current;
+	*out_in_use  = gpu_in_use;
+	if (*out_in_use) {
+		draw_end();
+	}
+}
+
+static void script_material_gpu_end(gpu_texture_t *current, bool in_use) {
+	if (in_use) {
+		draw_begin(current, false, 0);
+	}
+}
+
+slot_material_t *script_material_create(char *name) {
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL || g_project->_->materials->length == 0) {
+		return NULL;
+	}
+	material_data_t *data = g_project->_->materials->buffer[0]->data;
+	slot_material_t *m    = slot_material_create(data, NULL);
+	if (name != NULL && name[0] != '\0') {
+		m->canvas->name = string_copy(name);
+	}
+	any_array_push(g_project->_->materials, m);
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_material_gpu_begin(&current, &in_use);
+	context_set_material(m);
+	util_render_make_material_preview();
+	script_material_gpu_end(current, in_use);
+
+	history_new_material();
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
+		ui_base_hwnds->buffer[1]->redraws = 2;
+	}
+	return m;
+}
+
+void script_material_set(slot_material_t *m) {
+	if (m == NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_material_gpu_begin(&current, &in_use);
+	context_set_material(m);
+	util_render_make_material_preview();
+	script_material_gpu_end(current, in_use);
+}
+
+void script_material_delete(slot_material_t *m) {
+	if (m == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL) {
+		return;
+	}
+	if (g_project->_->materials->length <= 1) {
+		return;
+	}
+	if (array_index_of(g_project->_->materials, m) < 0) {
+		return;
+	}
+	tab_materials_delete_material(m);
+}
+
+ui_node_t *script_material_create_node(char *type) {
+	if (type == NULL || g_context == NULL || g_context->material == NULL) {
+		return NULL;
+	}
+	nodes_material_init();
+	ui_node_t *node = nodes_material_create_node(type, NULL);
+	if (node != NULL && ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+	return node;
+}
+
+ui_node_t *script_material_create_node_at(char *type, f32 x, f32 y) {
+	ui_node_t *node = script_material_create_node(type);
+	if (node != NULL) {
+		node->x = x;
+		node->y = y;
+	}
+	return node;
+}
+
+ui_node_t *script_material_get_node(char *type) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || type == NULL) {
+		return NULL;
+	}
+	for (i32 i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (string_equals(n->type, type)) {
+			return n;
+		}
+	}
+	return NULL;
+}
+
+ui_node_t *script_material_get_node_id(i32 id) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL) {
+		return NULL;
+	}
+	return ui_get_node(canvas->nodes, id);
+}
+
+static void script_material_remove_links_to(ui_node_canvas_t *canvas, i32 to_id, i32 to_socket) {
+	i32 i = 0;
+	while (i < canvas->links->length) {
+		ui_node_link_t *l = canvas->links->buffer[i];
+		if (l->to_id == to_id && l->to_socket == to_socket) {
+			for (i32 j = i; j < canvas->links->length - 1; ++j) {
+				canvas->links->buffer[j] = canvas->links->buffer[j + 1];
+			}
+			canvas->links->length--;
+		}
+		else {
+			i++;
+		}
+	}
+}
+
+void script_material_connect(ui_node_t *from, i32 from_socket, ui_node_t *to, i32 to_socket) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || from == NULL || to == NULL) {
+		return;
+	}
+	if (from_socket < 0 || from_socket >= from->outputs->length) {
+		return;
+	}
+	if (to_socket < 0 || to_socket >= to->inputs->length) {
+		return;
+	}
+
+	script_material_remove_links_to(canvas, to->id, to_socket);
+
+	ui_node_link_t *link = project_create_node_link(canvas->links, from->id, from_socket, to->id, to_socket);
+	any_array_push(canvas->links, link);
+
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
+void script_material_disconnect(ui_node_t *to, i32 to_socket) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || to == NULL) {
+		return;
+	}
+	script_material_remove_links_to(canvas, to->id, to_socket);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
+void script_material_remove_node(ui_node_t *node) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || node == NULL) {
+		return;
+	}
+	if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+		return;
+	}
+	ui_remove_node(node, canvas);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
+static ui_node_socket_t *script_material_socket(ui_node_t *node, bool is_input, i32 socket) {
+	if (node == NULL) {
+		return NULL;
+	}
+	if (is_input) {
+		if (socket < 0 || socket >= node->inputs->length) {
+			return NULL;
+		}
+		return node->inputs->buffer[socket];
+	}
+	if (socket < 0 || socket >= node->outputs->length) {
+		return NULL;
+	}
+	return node->outputs->buffer[socket];
+}
+
+void script_material_set_float(ui_node_t *node, i32 is_input, i32 socket, f32 value) {
+	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
+	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 1) {
+		return;
+	}
+	soc->default_value->buffer[0] = value;
+}
+
+void script_material_set_color(ui_node_t *node, i32 is_input, i32 socket, f32 r, f32 g, f32 b, f32 a) {
+	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
+	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 3) {
+		return;
+	}
+	soc->default_value->buffer[0] = r;
+	soc->default_value->buffer[1] = g;
+	soc->default_value->buffer[2] = b;
+	if (soc->default_value->length >= 4) {
+		soc->default_value->buffer[3] = a;
+	}
+}
+
+void script_material_set_vector(ui_node_t *node, i32 is_input, i32 socket, f32 x, f32 y, f32 z) {
+	ui_node_socket_t *soc = script_material_socket(node, is_input != 0, socket);
+	if (soc == NULL || soc->default_value == NULL || soc->default_value->length < 3) {
+		return;
+	}
+	soc->default_value->buffer[0] = x;
+	soc->default_value->buffer[1] = y;
+	soc->default_value->buffer[2] = z;
+}
+
+void script_material_update(void) {
+	if (g_context == NULL || g_context->material == NULL) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_material_gpu_begin(&current, &in_use);
+
+	make_material_parse_paint_material(true);
+	util_render_make_material_preview();
+	if (context_is_decal()) {
+		util_render_make_decal_preview();
+	}
+	base_update_workflow_nodes();
+
+	script_material_gpu_end(current, in_use);
+
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+	if (ui_header_handle != NULL) {
+		ui_header_handle->redraws = 2;
+	}
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
+		ui_base_hwnds->buffer[1]->redraws = 2;
+	}
+	g_context->ddirty  = 2;
+	g_context->rtdirty = 1;
 }
 
 extern string_array_t *_path_texture_formats;

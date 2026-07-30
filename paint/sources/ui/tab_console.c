@@ -1,8 +1,6 @@
 
 #include "../global.h"
 
-bool tab_console_prompt_entered = false;
-
 void tab_console_draw_export_on_file_picked(char *path) {
 	char *str = string_array_join(console_last_traces, "\n");
 	char *f   = ui_files_filename;
@@ -22,17 +20,12 @@ void tab_console_run_done(char *s) {
 	if (starts_with(s, "```c")) {
 		s = substring(s, 5, string_length(s) - 4);
 	}
+
+	tab_scripts_get();
 	g_project->script_datas->buffer[0] = string_copy(s);
+	tab_scripts_minimap_dirty          = true;
 
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-
-	// any_array_t *parts = string_split(s, "\n\n");
-	// for (i32 i = 0; i < parts->length; ++i) {
-	// 	console_log(parts->buffer[i]);
-	// 	if (i < parts->length - 1) {
-	// 		console_log(""); // new-line
-	// 	}
-	// }
 }
 
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
@@ -43,9 +36,13 @@ void tab_console_run_button_on_next_frame(void *_) {
 }
 
 bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
-	char *url       = box_preferneces_model_url_from_name("Qwen");
-	char *file_name = box_preferences_file_name_from_url(url);
-	bool  found     = box_preferences_model_exists(file_name);
+	bool use_cli = g_config->console_model != CONSOLE_MODEL_QWEN;
+	bool found   = true;
+	if (!use_cli) {
+		char *url       = box_preferneces_model_url_from_name("Qwen");
+		char *file_name = box_preferences_file_name_from_url(url);
+		found           = box_preferences_model_exists(file_name);
+	}
 
 	if (iron_exec_async_done == 0) {
 		ui_icon_button(tr("Processing..."), ICON_STOP, UI_ALIGN_CENTER);
@@ -55,20 +52,8 @@ bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
 	}
 	else if (found && (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run)) {
 
-		char *prompt = h_input->text;
-
-		if (!tab_console_prompt_entered) {
-			tab_console_prompt_entered = true;
-			text_to_text_node_clear();
-
-			buffer_t *api_blob = data_get_blob("api.h"); // TODO: Generate dynamically
-			char     *api      = sys_buffer_to_string(api_blob);
-			char     *guide    = "Write C code only. Do not chain statements - declare intermediary variables. Place the code inside 'void main()' function.";
-			prompt             = string("%s\n%s\n%s", api, guide, prompt);
-		}
-
 		console_log(string(">%s", h_input->text));
-		text_to_text_node_run(prompt, tab_console_run_done);
+		text_to_text_node_run(h_input->text, tab_console_run_done);
 		h_input->text = "";
 
 		return true;
@@ -109,8 +94,8 @@ void tab_console_draw(ui_handle_t *htab) {
 			gc_unroot(console_last_traces);
 			console_last_traces = any_array_create_from_raw((void *[]){}, 0);
 			gc_root(console_last_traces);
-			h_input->text              = "";
-			tab_console_prompt_entered = false;
+			h_input->text = "";
+			text_to_text_node_clear();
 		}
 		if (ui_icon_button(tr("Export"), ICON_EXPORT, UI_ALIGN_CENTER)) {
 			ui_files_show("txt", true, false, &tab_console_draw_export_on_file_picked);

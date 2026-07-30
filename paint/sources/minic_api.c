@@ -24,74 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "types.h"
+#include "functions.h"
 
-typedef struct raw_mesh raw_mesh_t;
-extern context_t       *g_context;
-extern config_t        *g_config;
-extern project_t       *g_project;
-
-void   console_log(char *s);
-void   console_info(char *s);
-void   console_error(char *s);
-bool   point_in_aabb(object_t *object, vec4_t point);
-vec4_t raycast_aabb_mouse(object_t *object);
-void   iron_delay_idle_sleep();
-
-void           ui_box_show_message(char *title, char *text, bool copyable);
-void           ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files_done);
-void           project_save(bool save_and_quit);
-char          *project_filepath_get();
-char          *project_basepath_get();
-void           project_filepath_set(char *s);
-bool           project_reskin_mesh(int frame);
-void           context_set_viewport_shader(void *viewport_shader);
-void           context_set_viewport_mode(int mode);
-void           context_set_camera_controls(int i);
-void           node_shader_write_frag(void *raw, char *s);
-mesh_object_t *context_main_object();
-void           export_texture_run(char *path, bool bake_material);
-void           context_select_tool(i32 i);
 gpu_texture_t *gpu_create_render_target(i32 width, i32 height, i32 format);
-void           viewport_capture_screenshot_to(gpu_texture_t *target, float x, float y, float w, float h);
-void           viewport_save_texture(gpu_texture_t *screenshot);
-char          *parser_material_parse_value_input(ui_node_socket_t *inp, bool vector_as_grayscale);
-
-void       *plugin_create();
-void        plugin_notify_on_ui(void *plugin, void *f);
-void        plugin_notify_on_update(void *plugin, void *f);
-void        plugin_notify_on_delete(void *plugin, void *f);
-void        plugin_register_texture(char *format, void *fn);
-void        plugin_unregister_texture(char *format);
-void        plugin_register_mesh(char *format, void *fn);
-void        plugin_unregister_mesh(char *format);
-void        plugin_register_text(char *format, void *fn);
-void        plugin_unregister_text(char *format);
-raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos);
-void        plugin_material_category_add(char *category_name, any_array_t *node_list);
-void        plugin_brush_category_add(char *category_name, any_array_t *node_list);
-void        plugin_material_category_remove(char *category_name);
-void        plugin_brush_category_remove(char *category_name);
-void        plugin_material_custom_nodes_set(char *node_type, void *fn);
-void        plugin_brush_custom_nodes_set(char *node_type, void *fn);
-void        plugin_material_custom_nodes_remove(char *node_type);
-void        plugin_brush_custom_nodes_remove(char *node_type);
-void       *plugin_material_kong_get();
-
-void       script_tween_to(object_t *o, vec4_t to, f32 speed);
-void       script_notify_on_update(void *fn);
-void       script_notify_on_next_frame(void *fn);
-context_t *script_get_context();
-config_t  *script_get_config();
-project_t *script_get_project();
-void       script_set_stage(char *name);
-void       script_show_envmap(bool b);
-void       script_fade_to_stage(char *stage);
-void       script_timer(f32 delay, void *fn);
-char      *script_get_stage();
-void       script_set_tilesheet_anim(object_t *o, char *anim);
-object_t  *script_get_object(char *s);
-void       script_draw_particles(gpu_texture_t *texture, float x, float y, float w, float h, int atlas_x, int atlas_frames);
+void           iron_delay_idle_sleep();
 
 static const char *minic_read_str(minic_val_t v) {
 	if (v.type == MINIC_T_PTR && v.p != NULL) {
@@ -390,9 +326,51 @@ static void minic_register_array_struct(const char *name, int size, minic_type_t
 	minic_struct_field("capacity", (int)offsetof(u8_array_t, capacity), MINIC_T_INT, MINIC_T_INT, NULL);
 }
 
-#define R(name, sig) minic_register(#name, sig, (minic_ext_fn_raw_t)name)
+#define MINIC_API_MAX_SIGS 1024
+
+static const char *minic_api_sig_names[MINIC_API_MAX_SIGS];
+static const char *minic_api_sig_hints[MINIC_API_MAX_SIGS];
+static int         minic_api_sig_count = 0;
+
+static void minic_api_register(const char *name, const char *sig, minic_ext_fn_raw_t fn) {
+	char stripped[MINIC_MAX_SIG];
+	int  n    = 0;
+	bool skip = false;
+	for (const char *p = sig; *p != '\0' && n < MINIC_MAX_SIG - 1; ++p) {
+		if (*p == ' ') {
+			skip = true;
+		}
+		else if (*p == ',' || *p == ')') {
+			skip = false;
+		}
+		if (!skip) {
+			stripped[n++] = *p;
+		}
+	}
+	stripped[n] = '\0';
+	minic_register(name, stripped, fn);
+
+	if (minic_api_sig_count < MINIC_API_MAX_SIGS) {
+		minic_api_sig_names[minic_api_sig_count] = name;
+		minic_api_sig_hints[minic_api_sig_count] = sig;
+		minic_api_sig_count++;
+	}
+}
+
+static const char *minic_api_sig_hint(const char *name) {
+	for (int i = 0; i < minic_api_sig_count; ++i) {
+		if (strcmp(minic_api_sig_names[i], name) == 0) {
+			return minic_api_sig_hints[i];
+		}
+	}
+	return NULL;
+}
+
+#define R(name, sig) minic_api_register(#name, sig, (minic_ext_fn_raw_t)name)
 
 void minic_register_builtins() {
+	minic_api_sig_count = 0;
+
 	minic_register_native("printf", minic_printf_native);
 	minic_register_native("string", minic_string_native);
 
@@ -444,8 +422,11 @@ void minic_register_builtins() {
 	MINIC_ENUM("ui_layout_t", "UI_LAYOUT_VERTICAL", "UI_LAYOUT_HORIZONTAL");
 	MINIC_ENUM("ui_align_t", "UI_ALIGN_LEFT", "UI_ALIGN_CENTER", "UI_ALIGN_RIGHT");
 	MINIC_ENUM("ui_state_t", "UI_STATE_IDLE", "UI_STATE_STARTED", "UI_STATE_DOWN", "UI_STATE_RELEASED", "UI_STATE_HOVERED");
+
 	MINIC_ENUM("gpu_texture_format_t", "GPU_TEXTURE_FORMAT_RGBA32", "GPU_TEXTURE_FORMAT_RGBA64", "GPU_TEXTURE_FORMAT_RGBA128", "GPU_TEXTURE_FORMAT_R8",
 	           "GPU_TEXTURE_FORMAT_R16", "GPU_TEXTURE_FORMAT_R32", "GPU_TEXTURE_FORMAT_D32", "GPU_TEXTURE_FORMAT_RGBA32_BC7");
+	MINIC_ENUM("tool_type_t", "TOOL_TYPE_BRUSH", "TOOL_TYPE_ERASER", "TOOL_TYPE_FILL", "TOOL_TYPE_DECAL", "TOOL_TYPE_TEXT", "TOOL_TYPE_CLONE", "TOOL_TYPE_BLUR",
+	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_BAKE");
 
 	MINIC_STRUCT(ui_handle_t);
 	MINIC_I(i);
@@ -508,6 +489,26 @@ void minic_register_builtins() {
 	MINIC_O(buttons, any_array_t);
 	MINIC_F(width);
 	MINIC_I(flags);
+	MINIC_END();
+
+	MINIC_STRUCT(ui_node_canvas_t);
+	MINIC_S(name);
+	MINIC_O(nodes, any_array_t);
+	MINIC_O(links, any_array_t);
+	MINIC_END();
+
+	MINIC_STRUCT(slot_material_t);
+	MINIC_O(canvas, ui_node_canvas_t);
+	MINIC_I(id);
+	MINIC_I(paint_base);
+	MINIC_I(paint_opac);
+	MINIC_I(paint_occ);
+	MINIC_I(paint_rough);
+	MINIC_I(paint_met);
+	MINIC_I(paint_nor);
+	MINIC_I(paint_height);
+	MINIC_I(paint_emis);
+	MINIC_I(paint_subs);
 	MINIC_END();
 
 	// engine.h
@@ -701,7 +702,7 @@ void minic_register_builtins() {
 	MINIC_I(ddirty);
 	MINIC_I(pdirty);
 	MINIC_I(rdirty);
-	MINIC_P(material);
+	MINIC_O(material, slot_material_t);
 	MINIC_P(layer);
 	MINIC_P(brush);
 	MINIC_I(tool);
@@ -740,175 +741,175 @@ void minic_register_builtins() {
 	MINIC_MATH_API
 #undef X
 	R(iron_random_get, "i()");
-	R(iron_random_get_max, "i(i)");
-	R(iron_random_get_in, "i(i,i)");
-	R(vec4_fdist, "f(f,f,f,f,f,f)");
-	R(mat4_cofactor, "f(f,f,f,f,f,f,f,f,f)");
-	R(cosf, "f(f)");
-	R(sinf, "f(f)");
+	R(iron_random_get_max, "i(i max)");
+	R(iron_random_get_in, "i(i min,i max)");
+	R(vec4_fdist, "f(f v1x,f v1y,f v1z,f v2x,f v2y,f v2z)");
+	R(mat4_cofactor, "f(f m0,f m1,f m2,f m3,f m4,f m5,f m6,f m7,f m8)");
+	R(cosf, "f(f x)");
+	R(sinf, "f(f x)");
 
 	// object
-	R(object_create, "p(i)");
-	R(object_set_parent, "v(p,p)");
-	R(object_remove, "v(p)");
-	R(object_get_child, "p(p,p)");
+	R(object_create, "p(i is_empty)");
+	R(object_set_parent, "v(p raw,p parent_object)");
+	R(object_remove, "v(p raw)");
+	R(object_get_child, "p(p raw,p name)");
 
 	// transform
-	R(transform_create, "p(p)");
-	R(transform_reset, "v(p)");
-	R(transform_update, "v(p)");
-	R(transform_build_matrix, "v(p)");
-	R(transform_decompose, "v(p)");
-	R(transform_world_x, "f(p)");
-	R(transform_world_y, "f(p)");
-	R(transform_world_z, "f(p)");
+	R(transform_create, "p(p object)");
+	R(transform_reset, "v(p raw)");
+	R(transform_update, "v(p raw)");
+	R(transform_build_matrix, "v(p raw)");
+	R(transform_decompose, "v(p raw)");
+	R(transform_world_x, "f(p raw)");
+	R(transform_world_y, "f(p raw)");
+	R(transform_world_z, "f(p raw)");
 
 	// camera_object
-	R(camera_object_create, "p(p)");
-	R(camera_object_build_proj, "v(p,f)");
-	R(camera_object_remove, "v(p)");
-	R(camera_object_build_mat, "v(p)");
+	R(camera_object_create, "p(p data)");
+	R(camera_object_build_proj, "v(p raw,f screen_aspect)");
+	R(camera_object_remove, "v(p raw)");
+	R(camera_object_build_mat, "v(p raw)");
 
 	// world_data
-	R(world_data_parse, "p(p,p)");
-	R(world_data_load_envmap, "v(p)");
+	R(world_data_parse, "p(p name,p id)");
+	R(world_data_load_envmap, "v(p raw)");
 
 	// material_data
-	R(material_data_create, "p(p,p)");
-	R(material_data_parse, "p(p,p)");
-	R(material_data_get_context, "p(p,p)");
-	R(material_context_load, "v(p)");
+	R(material_data_create, "p(p raw,p file)");
+	R(material_data_parse, "p(p file,p name)");
+	R(material_data_get_context, "p(p raw,p name)");
+	R(material_context_load, "v(p raw)");
 
 	// shader_data
-	R(shader_data_create, "p(p)");
-	R(shader_data_parse, "p(p,p)");
-	R(shader_data_delete, "v(p)");
-	R(shader_data_get_context, "p(p,p)");
+	R(shader_data_create, "p(p raw)");
+	R(shader_data_parse, "p(p file,p name)");
+	R(shader_data_delete, "v(p raw)");
+	R(shader_data_get_context, "p(p raw,p name)");
 
 	// shader_context
-	R(shader_context_load, "v(p)");
-	R(shader_context_compile, "v(p)");
-	R(shader_context_finish_compile, "v(p)");
-	R(shader_context_delete, "v(p)");
-	R(shader_context_add_const, "v(p,i)");
-	R(shader_context_add_tex, "v(p,i)");
+	R(shader_context_load, "v(p raw)");
+	R(shader_context_compile, "v(p raw)");
+	R(shader_context_finish_compile, "v(p raw)");
+	R(shader_context_delete, "v(p raw)");
+	R(shader_context_add_const, "v(p raw,i offset)");
+	R(shader_context_add_tex, "v(p raw,i i)");
 
 	// mesh_data
-	R(mesh_data_parse, "p(p,p)");
-	R(mesh_data_create, "p(p)");
-	R(mesh_data_get_vertex_size, "i(p)");
-	R(mesh_data_build_vertices, "v(p,p)");
-	R(mesh_data_build_indices, "v(p,p)");
-	R(mesh_data_get_vertex_array, "p(p,p)");
-	R(mesh_data_build, "v(p)");
-	R(mesh_data_delete, "v(p)");
+	R(mesh_data_parse, "p(p name,p id)");
+	R(mesh_data_create, "p(p raw)");
+	R(mesh_data_get_vertex_size, "i(p vertex_data)");
+	R(mesh_data_build_vertices, "v(p vertex_buffer,p vertex_arrays)");
+	R(mesh_data_build_indices, "v(p index_buffer,p index_array)");
+	R(mesh_data_get_vertex_array, "p(p raw,p name)");
+	R(mesh_data_build, "v(p raw)");
+	R(mesh_data_delete, "v(p raw)");
 
 	// mesh_object
-	R(mesh_object_create, "p(p,p)");
-	R(mesh_object_set_data, "v(p,p)");
-	R(mesh_object_remove, "v(p)");
-	R(mesh_object_render, "v(p,p,p)");
+	R(mesh_object_create, "p(p data,p material)");
+	R(mesh_object_set_data, "v(p raw,p data)");
+	R(mesh_object_remove, "v(p raw)");
+	R(mesh_object_render, "v(p raw,p context,p bind_params)");
 
 	// data
-	R(data_get_mesh, "p(p,p)");
-	R(data_get_camera, "p(p,p)");
-	R(data_get_material, "p(p,p)");
-	R(data_get_world, "p(p,p)");
-	R(data_get_shader, "p(p,p)");
-	R(data_get_scene_raw, "p(p)");
-	R(data_get_texture, "p(p)");
-	R(data_get_blob, "p(p)");
-	R(data_get_video, "p(p)");
-	R(data_get_font, "p(p)");
-	R(data_get_sound, "p(p)");
-	R(data_delete_mesh, "v(p)");
-	R(data_delete_blob, "v(p)");
-	R(data_delete_texture, "v(p)");
-	R(data_delete_video, "v(p)");
-	R(data_delete_font, "v(p)");
-	R(data_is_abs, "b(p)");
+	R(data_get_mesh, "p(p file,p name)");
+	R(data_get_camera, "p(p file,p name)");
+	R(data_get_material, "p(p file,p name)");
+	R(data_get_world, "p(p file,p name)");
+	R(data_get_shader, "p(p file,p name)");
+	R(data_get_scene_raw, "p(p file)");
+	R(data_get_texture, "p(p file)");
+	R(data_get_blob, "p(p file)");
+	R(data_get_video, "p(p file)");
+	R(data_get_font, "p(p file)");
+	R(data_get_sound, "p(p file)");
+	R(data_delete_mesh, "v(p handle)");
+	R(data_delete_blob, "v(p handle)");
+	R(data_delete_texture, "v(p handle)");
+	R(data_delete_video, "v(p handle)");
+	R(data_delete_font, "v(p handle)");
+	R(data_is_abs, "b(p file)");
 	R(data_path, "p()");
 
 	// scene
-	R(scene_create, "p(p)");
+	R(scene_create, "p(p format)");
 	R(scene_remove, "v()");
-	R(scene_set_active, "p(p)");
-	R(scene_add_object, "p(p)");
-	R(scene_get_child, "p(p)");
-	R(scene_add_mesh_object, "p(p,p,p)");
-	R(scene_add_camera_object, "p(p,p)");
-	R(scene_add_scene, "p(p,p)");
-	R(scene_spawn_object, "p(p,p,i)");
-	R(scene_get_raw_object_by_name, "p(p,p)");
-	R(scene_create_object, "p(p,p,p)");
-	R(scene_create_mesh_object, "p(p,p,p,p)");
-	R(scene_gen_transform, "v(p,p)");
+	R(scene_set_active, "p(p scene_name)");
+	R(scene_add_object, "p(p parent)");
+	R(scene_get_child, "p(p name)");
+	R(scene_add_mesh_object, "p(p data,p material,p parent)");
+	R(scene_add_camera_object, "p(p data,p parent)");
+	R(scene_add_scene, "p(p scene_name,p parent)");
+	R(scene_spawn_object, "p(p name,p parent,i spawn_children)");
+	R(scene_get_raw_object_by_name, "p(p format,p name)");
+	R(scene_create_object, "p(p o,p format,p parent)");
+	R(scene_create_mesh_object, "p(p o,p format,p parent,p material)");
+	R(scene_gen_transform, "v(p object,p transform)");
 
 	// render_path
-	R(render_path_set_target, "v(p,p,p,i,i,f)");
+	R(render_path_set_target, "v(p target,p additional,p depth_buffer,i flags,i color,f depth)");
 	R(render_path_end, "v()");
-	R(render_path_draw_meshes, "v(p)");
-	R(render_path_draw_skydome, "v(p)");
-	R(render_path_bind_target, "v(p,p)");
-	R(render_path_draw_shader, "v(p)");
-	R(render_path_load_shader, "v(p)");
+	R(render_path_draw_meshes, "v(p context)");
+	R(render_path_draw_skydome, "v(p handle)");
+	R(render_path_bind_target, "v(p target,p uniform)");
+	R(render_path_draw_shader, "v(p handle)");
+	R(render_path_load_shader, "v(p handle)");
 	R(render_path_resize, "v()");
-	R(render_path_create_render_target, "p(p)");
+	R(render_path_create_render_target, "p(p t)");
 	R(render_target_create, "p()");
 
 	// ui
-	R(ui_begin, "v(p)");
+	R(ui_begin, "v(p ui)");
 	R(ui_begin_sticky, "v()");
 	R(ui_end_sticky, "v()");
-	R(ui_begin_region, "v(p,i,i,i)");
+	R(ui_begin_region, "v(p ui,i x,i y,i w)");
 	R(ui_end_region, "v()");
-	R(ui_window, "b(p,i,i,i,i,i)");
-	R(ui_button, "b(p,i,p)");
-	R(ui_text, "i(p,i,i)");
-	R(ui_tab, "b(p,p,i,i,i)");
-	R(ui_panel, "b(p,p,i,i,i)");
-	R(ui_sub_image, "i(p,i,i,i,i,i,i)");
-	R(ui_image, "i(p,i,i)");
-	R(ui_text_input, "p(p,p,i,i,i)");
-	R(ui_check, "b(p,p,p)");
-	R(ui_radio, "b(p,i,p,p)");
-	R(ui_combo, "i(p,p,p,i,i,i)");
-	R(ui_slider, "f(p,p,f,f,i,f,i,i,i)");
-	R(ui_row, "v(p)");
+	R(ui_window, "b(p handle,i x,i y,i w,i h,i drag)");
+	R(ui_button, "b(p text,i align,p label)");
+	R(ui_text, "i(p text,i align,i bg)");
+	R(ui_tab, "b(p handle,p text,i vertical,i color,i align_right)");
+	R(ui_panel, "b(p handle,p text,i is_tree,i filled,i align_right)");
+	R(ui_sub_image, "i(p image,i tint,i h,i sx,i sy,i sw,i sh)");
+	R(ui_image, "i(p image,i tint,i h)");
+	R(ui_text_input, "p(p handle,p label,i align,i editable,i live_update)");
+	R(ui_check, "b(p handle,p text,p label)");
+	R(ui_radio, "b(p handle,i position,p text,p label)");
+	R(ui_combo, "i(p handle,p texts,p label,i show_label,i align,i search_bar)");
+	R(ui_slider, "f(p handle,p text,f from,f to,i filled,f precision,i display_value,i align,i text_edit)");
+	R(ui_row, "v(p ratios)");
 	R(ui_row2, "v()");
 	R(ui_row3, "v()");
 	R(ui_row4, "v()");
 	R(ui_row5, "v()");
 	R(ui_row6, "v()");
 	R(ui_row7, "v()");
-	R(ui_separator, "v(i,i)");
-	R(ui_tooltip, "v(p)");
-	R(ui_tooltip_image, "v(p,i)");
+	R(ui_separator, "v(i h,i fill)");
+	R(ui_tooltip, "v(p text)");
+	R(ui_tooltip_image, "v(p image,i max_width)");
 	R(ui_end, "v()");
 	R(ui_end_window, "v()");
-	R(ui_mouse_down, "v(p,i,i,i)");
-	R(ui_mouse_move, "v(p,i,i,i,i)");
-	R(ui_mouse_up, "v(p,i,i,i)");
-	R(ui_mouse_wheel, "v(p,f)");
-	R(ui_key_down, "v(p,i)");
-	R(ui_key_up, "v(p,i)");
-	R(ui_key_press, "v(p,i)");
+	R(ui_mouse_down, "v(p ui,i button,i x,i y)");
+	R(ui_mouse_move, "v(p ui,i x,i y,i movement_x,i movement_y)");
+	R(ui_mouse_up, "v(p ui,i button,i x,i y)");
+	R(ui_mouse_wheel, "v(p ui,f delta)");
+	R(ui_key_down, "v(p ui,i key_code)");
+	R(ui_key_up, "v(p ui,i key_code)");
+	R(ui_key_press, "v(p ui,i character)");
 	R(ui_handle_create, "p()");
-	R(ui_nest, "p(p,i)");
-	R(ui_set_scale, "v(f)");
-	R(ui_get_hover, "b(f)");
-	R(ui_get_released, "b(f)");
-	R(ui_input_in_rect, "b(f,f,f,f)");
-	R(ui_fill, "v(f,f,f,f,i)");
-	R(ui_rect, "v(f,f,f,f,i,f)");
-	R(ui_is_visible, "b(f)");
+	R(ui_nest, "p(p handle,i pos)");
+	R(ui_set_scale, "v(f factor)");
+	R(ui_get_hover, "b(f elem_h)");
+	R(ui_get_released, "b(f elem_h)");
+	R(ui_input_in_rect, "b(f x,f y,f w,f h)");
+	R(ui_fill, "v(f x,f y,f w,f h,i color)");
+	R(ui_rect, "v(f x,f y,f w,f h,i color,f strength)");
+	R(ui_is_visible, "b(f elem_h)");
 	R(ui_end_element, "v()");
-	R(ui_end_element_of_size, "v(f)");
-	R(ui_fade_color, "v(f)");
-	R(ui_draw_string, "v(p,f,f,i,i)");
-	R(ui_draw_shadow, "v(f,f,f,f)");
-	R(ui_draw_rect, "v(i,i,f,f,f,f)");
-	R(ui_start_text_edit, "v(p,i)");
+	R(ui_end_element_of_size, "v(f element_size)");
+	R(ui_fade_color, "v(f alpha)");
+	R(ui_draw_string, "v(p text,f x_offset,f y_offset,i align,i truncation)");
+	R(ui_draw_shadow, "v(f x,f y,f w,f h)");
+	R(ui_draw_rect, "v(i fill,i shadows,f x,f y,f w,f h)");
+	R(ui_start_text_edit, "v(p handle,i align)");
 	R(UI_SCALE, "f()");
 	R(UI_ELEMENT_W, "f()");
 	R(UI_ELEMENT_H, "f()");
@@ -923,41 +924,41 @@ void minic_register_builtins() {
 	R(UI_TAB_W, "f()");
 	R(UI_HEADER_DRAG_H, "f()");
 	R(UI_TOOLTIP_DELAY, "f()");
-	R(ui_float_input, "f(p,p,i,f)");
-	R(ui_inline_radio, "i(p,p,i)");
-	R(ui_color_wheel, "i(p,i,f,f,i,p,p)");
-	R(ui_text_area, "p(p,i,i,p,i)");
+	R(ui_float_input, "f(p handle,p label,i align,f precision)");
+	R(ui_inline_radio, "i(p handle,p texts,i align)");
+	R(ui_color_wheel, "i(p handle,i alpha,f w,f h,i color_preview,p picker,p data)");
+	R(ui_text_area, "p(p handle,i align,i editable,p label,i word_wrap)");
 	R(ui_begin_menu, "v()");
 	R(ui_end_menu, "v()");
-	R(ui_menubar_button, "b(p)");
-	R(ui_color_r, "i(i)");
-	R(ui_color_g, "i(i)");
-	R(ui_color_b, "i(i)");
-	R(ui_color_a, "i(i)");
-	R(ui_color, "i(i,i,i,i)");
+	R(ui_menubar_button, "b(p text)");
+	R(ui_color_r, "i(i color)");
+	R(ui_color_g, "i(i color)");
+	R(ui_color_b, "i(i color)");
+	R(ui_color_a, "i(i color)");
+	R(ui_color, "i(i r,i g,i b,i a)");
 
 	// ui_nodes
-	R(ui_nodes_init, "v(p)");
-	R(ui_node_canvas, "v(p,p)");
-	R(ui_nodes_rgba_popup, "v(p,p,i,i)");
-	R(ui_remove_node, "v(p,p)");
+	R(ui_nodes_init, "v(p nodes)");
+	R(ui_node_canvas, "v(p nodes,p canvas)");
+	R(ui_nodes_rgba_popup, "v(p nhandle,p val,i x,i y)");
+	R(ui_remove_node, "v(p n,p canvas)");
 	R(UI_NODES_SCALE, "f()");
 	R(UI_NODES_PAN_X, "f()");
 	R(UI_NODES_PAN_Y, "f()");
-	R(UI_NODE_X, "f(p)");
-	R(UI_NODE_Y, "f(p)");
-	R(UI_NODE_W, "f(p)");
-	R(UI_NODE_H, "f(p,p)");
-	R(UI_OUTPUT_Y, "f(p,i)");
-	R(UI_INPUT_Y, "f(p,p,i)");
-	R(UI_OUTPUTS_H, "f(p,i)");
-	R(UI_BUTTONS_H, "f(p)");
+	R(UI_NODE_X, "f(p node)");
+	R(UI_NODE_Y, "f(p node)");
+	R(UI_NODE_W, "f(p node)");
+	R(UI_NODE_H, "f(p canvas,p node)");
+	R(UI_OUTPUT_Y, "f(p node,i pos)");
+	R(UI_INPUT_Y, "f(p canvas,p node,i pos)");
+	R(UI_OUTPUTS_H, "f(p node,i length)");
+	R(UI_BUTTONS_H, "f(p node)");
 	R(UI_LINE_H, "f()");
-	R(ui_get_socket_id, "i(p)");
-	R(ui_get_link, "p(p,i)");
-	R(ui_next_link_id, "i(p)");
-	R(ui_get_node, "p(p,i)");
-	R(ui_next_node_id, "i(p)");
+	R(ui_get_socket_id, "i(p nodes)");
+	R(ui_get_link, "p(p links,i id)");
+	R(ui_next_link_id, "i(p links)");
+	R(ui_get_node, "p(p nodes,i id)");
+	R(ui_next_node_id, "i(p nodes)");
 
 	// sys
 	R(sys_time, "f()");
@@ -968,343 +969,516 @@ void minic_register_builtins() {
 	R(sys_x, "i()");
 	R(sys_y, "i()");
 	R(sys_title, "p()");
-	R(sys_title_set, "v(p)");
-	R(sys_get_shader, "p(p)");
-	R(sys_buffer_to_string, "p(p)");
-	R(sys_string_to_buffer, "p(p)");
+	R(sys_title_set, "v(p value)");
+	R(sys_get_shader, "p(p name)");
+	R(sys_buffer_to_string, "p(p b)");
+	R(sys_string_to_buffer, "p(p str)");
 
 	// iron_shape
 	R(line_draw_init, "v()");
-	R(line_draw_lineb, "v(i,i,i,i,i,i)");
-	R(line_draw_line, "v(f,f,f,f,f,f)");
+	R(line_draw_lineb, "v(i a,i b,i c,i d,i e,i f)");
+	R(line_draw_line, "v(f x1,f y1,f z1,f x2,f y2,f z2)");
 	R(line_draw_begin, "v()");
 	R(line_draw_end, "v()");
 
 	// iron_draw
-	R(draw_begin, "v(p,i,i)");
-	R(draw_scaled_sub_image, "v(p,f,f,f,f,f,f,f,f)");
-	R(draw_scaled_image, "v(p,f,f,f,f)");
-	R(draw_sub_image, "v(p,f,f,f,f,f,f)");
-	R(draw_image, "v(p,f,f)");
-	R(draw_filled_triangle, "v(f,f,f,f,f,f)");
-	R(draw_filled_rect, "v(f,f,f,f)");
-	R(draw_rect, "v(f,f,f,f,f)");
-	R(draw_line, "v(f,f,f,f,f)");
-	R(draw_line_aa, "v(f,f,f,f,f)");
-	R(draw_string, "v(p,f,f)");
+	R(draw_begin, "v(p target,i clear,i color)");
+	R(draw_scaled_sub_image, "v(p img,f sx,f sy,f sw,f sh,f dx,f dy,f dw,f dh)");
+	R(draw_scaled_image, "v(p tex,f dx,f dy,f dw,f dh)");
+	R(draw_sub_image, "v(p tex,f sx,f sy,f sw,f sh,f x,f y)");
+	R(draw_image, "v(p tex,f x,f y)");
+	R(draw_filled_triangle, "v(f x0,f y0,f x1,f y1,f x2,f y2)");
+	R(draw_filled_rect, "v(f x,f y,f width,f height)");
+	R(draw_rect, "v(f x,f y,f width,f height,f strength)");
+	R(draw_line, "v(f x0,f y0,f x1,f y1,f strength)");
+	R(draw_line_aa, "v(f x0,f y0,f x1,f y1,f strength)");
+	R(draw_string, "v(p text,f x,f y)");
 	R(draw_end, "v()");
 	R(draw_flush, "v()");
-	R(draw_set_color, "v(i)");
+	R(draw_set_color, "v(i color)");
 	R(draw_get_color, "i()");
-	R(draw_set_pipeline, "v(p)");
-	R(draw_set_font, "b(p,i)");
-	R(draw_sub_string_width, "f(p,i,p,i,i)");
-	R(draw_string_width, "i(p,i,p)");
-	R(draw_filled_circle, "v(f,f,f,i)");
-	R(draw_circle, "v(f,f,f,i,f)");
-	R(draw_cubic_bezier, "v(p,p,i,f)");
+	R(draw_set_pipeline, "v(p pipeline)");
+	R(draw_set_font, "b(p font,i size)");
+	R(draw_sub_string_width, "f(p font,i font_size,p text,i start,i end)");
+	R(draw_string_width, "i(p font,i font_size,p text)");
+	R(draw_filled_circle, "v(f cx,f cy,f radius,i segments)");
+	R(draw_circle, "v(f cx,f cy,f radius,i segments,f strength)");
+	R(draw_cubic_bezier, "v(p x,p y,i segments,f strength)");
 
 	// iron_audio
 #ifdef IRON_AUDIO
-	R(audio_play, "v(p,i)");
+	R(audio_play, "v(p sound,i loop)");
 #endif
 
 	// iron_string
-	R(string_alloc, "p(i)");
-	R(string_copy, "p(p)");
-	R(string_length, "i(p)");
-	R(string_equals, "b(p,p)");
-	R(i32_to_string, "p(i)");
-	R(i32_to_string_hex, "p(i)");
-	R(i64_to_string, "p(i)");
-	R(u64_to_string, "p(i)");
-	R(f32_to_string, "p(f)");
-	R(f32_to_string_with_zeros, "p(f)");
-	R(string_strip_trailing_zeros, "v(p)");
-	R(string_index_of, "i(p,p)");
-	R(string_index_of_pos, "i(p,p,i)");
-	R(string_last_index_of, "i(p,p)");
-	R(string_split, "p(p,p)");
-	R(string_array_join, "p(p,p)");
-	R(string_replace_all, "p(p,p,p)");
-	R(substring, "p(p,i,i)");
-	R(string_from_char_code, "p(i)");
-	R(char_code_at, "i(p,i)");
-	R(char_at, "p(p,i)");
-	R(starts_with, "b(p,p)");
-	R(ends_with, "b(p,p)");
-	R(to_lower_case, "p(p)");
-	R(to_upper_case, "p(p)");
-	R(trim_end, "p(p)");
-	R(string_utf8_decode, "i(p,p)");
+	R(string_alloc, "p(i size)");
+	R(string_copy, "p(p a)");
+	R(string_length, "i(p str)");
+	R(string_equals, "b(p a,p b)");
+	R(i32_to_string, "p(i i)");
+	R(i32_to_string_hex, "p(i i)");
+	R(i64_to_string, "p(i i)");
+	R(u64_to_string, "p(i i)");
+	R(f32_to_string, "p(f f)");
+	R(f32_to_string_with_zeros, "p(f f)");
+	R(string_strip_trailing_zeros, "v(p str)");
+	R(string_index_of, "i(p s,p search)");
+	R(string_index_of_pos, "i(p s,p search,i pos)");
+	R(string_last_index_of, "i(p s,p search)");
+	R(string_split, "p(p s,p sep)");
+	R(string_array_join, "p(p a,p separator)");
+	R(string_replace_all, "p(p s,p search,p replace)");
+	R(substring, "p(p s,i start,i end)");
+	R(string_from_char_code, "p(i c)");
+	R(char_code_at, "i(p s,i i)");
+	R(char_at, "p(p s,i i)");
+	R(starts_with, "b(p s,p start)");
+	R(ends_with, "b(p s,p end)");
+	R(to_lower_case, "p(p s)");
+	R(to_upper_case, "p(p s)");
+	R(trim_end, "p(p str)");
+	R(string_utf8_decode, "i(p str,p i)");
 
 	// iron_file
-	R(iron_file_reader_open, "b(p,p,i)");
-	R(iron_file_reader_close, "b(p)");
-	R(iron_file_reader_read, "i(p,p,i)");
-	R(iron_file_reader_size, "i(p)");
-	R(iron_file_reader_pos, "i(p)");
-	R(iron_file_reader_seek, "b(p,i)");
-	R(iron_file_writer_open, "b(p,p)");
-	R(iron_file_writer_write, "v(p,p,i)");
-	R(iron_file_writer_close, "v(p)");
-	R(iron_read_directory, "p(p)");
-	R(iron_create_directory, "v(p)");
-	R(iron_is_directory, "b(p)");
-	R(iron_file_exists, "b(p)");
-	R(iron_delete_file, "v(p)");
-	R(iron_file_save_bytes, "v(p,p,i)");
-	R(iron_file_download, "v(p,p,i,p)");
-	R(file_read_directory, "p(p)");
-	R(file_copy, "v(p,p)");
-	R(file_start, "v(p)");
-	R(file_download_to, "v(p,p,p,i)");
+	R(iron_file_reader_open, "b(p reader,p filepath,i type)");
+	R(iron_file_reader_close, "b(p reader)");
+	R(iron_file_reader_read, "i(p reader,p data,i size)");
+	R(iron_file_reader_size, "i(p reader)");
+	R(iron_file_reader_pos, "i(p reader)");
+	R(iron_file_reader_seek, "b(p reader,i pos)");
+	R(iron_file_writer_open, "b(p writer,p filepath)");
+	R(iron_file_writer_write, "v(p writer,p data,i size)");
+	R(iron_file_writer_close, "v(p writer)");
+	R(iron_read_directory, "p(p path)");
+	R(iron_create_directory, "v(p path)");
+	R(iron_is_directory, "b(p path)");
+	R(iron_file_exists, "b(p path)");
+	R(iron_delete_file, "v(p path)");
+	R(iron_file_save_bytes, "v(p path,p bytes,i length)");
+	R(iron_file_download, "v(p url,p callback,i size,p dst_path)");
+	R(file_read_directory, "p(p path)");
+	R(file_copy, "v(p src_path,p dst_path)");
+	R(file_start, "v(p path)");
+	R(file_download_to, "v(p url,p dst_path,p done,i size)");
 
 	// iron_gc
-	R(gc_alloc, "p(i)");
-	R(gc_leaf, "v(p)");
-	R(gc_root, "v(p)");
-	R(gc_unroot, "v(p)");
-	R(gc_realloc, "p(p,i)");
-	R(gc_free, "v(p)");
+	R(gc_alloc, "p(i size)");
+	R(gc_leaf, "v(p ptr)");
+	R(gc_root, "v(p ptr)");
+	R(gc_unroot, "v(p ptr)");
+	R(gc_realloc, "p(p ptr,i size)");
+	R(gc_free, "v(p ptr)");
 	R(gc_pause, "v()");
 	R(gc_resume, "v()");
 	R(gc_run, "v()");
-	R(gc_start, "v(p)");
+	R(gc_start, "v(p bos)");
 	R(gc_stop, "v()");
 
 	// iron_map
-	R(i32_map_set, "v(p,p,i)");
-	R(f32_map_set, "v(p,p,f)");
-	R(any_map_set, "v(p,p,p)");
-	R(i32_map_get, "i(p,p)");
-	R(f32_map_get, "f(p,p)");
-	R(any_map_get, "p(p,p)");
-	R(map_delete, "v(p,p)");
-	R(map_keys, "p(p)");
+	R(i32_map_set, "v(p m,p k,i v)");
+	R(f32_map_set, "v(p m,p k,f v)");
+	R(any_map_set, "v(p m,p k,p v)");
+	R(i32_map_get, "i(p m,p k)");
+	R(f32_map_get, "f(p m,p k)");
+	R(any_map_get, "p(p m,p k)");
+	R(map_delete, "v(p m,p k)");
+	R(map_keys, "p(p m)");
 	R(i32_map_create, "p()");
 	R(any_map_create, "p()");
-	R(i32_imap_set, "v(p,i,i)");
-	R(any_imap_set, "v(p,i,p)");
-	R(i32_imap_get, "i(p,i)");
-	R(any_imap_get, "p(p,i)");
-	R(imap_delete, "v(p,i)");
-	R(imap_keys, "p(p)");
+	R(i32_imap_set, "v(p m,i k,i v)");
+	R(any_imap_set, "v(p m,i k,p v)");
+	R(i32_imap_get, "i(p m,i k)");
+	R(any_imap_get, "p(p m,i k)");
+	R(imap_delete, "v(p m,i k)");
+	R(imap_keys, "p(p m)");
 	R(any_imap_create, "p()");
 
 	// iron_array
-	R(array_free, "v(p)");
-	R(i8_array_push, "v(p,i)");
-	R(u8_array_push, "v(p,i)");
-	R(i16_array_push, "v(p,i)");
-	R(u16_array_push, "v(p,i)");
-	R(i32_array_push, "v(p,i)");
-	R(u32_array_push, "v(p,i)");
-	R(f32_array_push, "v(p,f)");
-	R(any_array_push, "v(p,p)");
-	R(string_array_push, "v(p,p)");
-	R(i8_array_resize, "v(p,i)");
-	R(u8_array_resize, "v(p,i)");
-	R(i16_array_resize, "v(p,i)");
-	R(u16_array_resize, "v(p,i)");
-	R(i32_array_resize, "v(p,i)");
-	R(u32_array_resize, "v(p,i)");
-	R(f32_array_resize, "v(p,i)");
-	R(any_array_resize, "v(p,i)");
-	R(string_array_resize, "v(p,i)");
-	R(buffer_resize, "v(p,i)");
-	R(array_sort, "v(p,p)");
-	R(i32_array_sort, "v(p,p)");
-	R(array_pop, "p(p)");
-	R(i32_array_pop, "i(p)");
-	R(array_shift, "p(p)");
-	R(array_splice, "v(p,i,i)");
-	R(i32_array_splice, "v(p,i,i)");
-	R(array_concat, "p(p,p)");
-	R(array_slice, "p(p,i,i)");
-	R(array_insert, "v(p,i,p)");
-	R(array_remove, "v(p,p)");
-	R(string_array_remove, "v(p,p)");
-	R(i32_array_remove, "v(p,i)");
-	R(array_index_of, "i(p,p)");
-	R(string_array_index_of, "i(p,p)");
-	R(i32_array_index_of, "i(p,i)");
-	R(array_reverse, "v(p)");
-	R(buffer_slice, "p(p,i,i)");
-	R(buffer_get_u8, "i(p,i)");
-	R(buffer_get_i8, "i(p,i)");
-	R(buffer_get_u16, "i(p,i)");
-	R(buffer_get_i16, "i(p,i)");
-	R(buffer_get_f16, "f(p,i)");
-	R(buffer_get_u32, "i(p,i)");
-	R(buffer_get_i32, "i(p,i)");
-	R(buffer_get_f32, "f(p,i)");
-	R(buffer_get_f64, "f(p,i)");
-	R(buffer_get_i64, "i(p,i)");
-	R(buffer_set_u8, "v(p,i,i)");
-	R(buffer_set_i8, "v(p,i,i)");
-	R(buffer_set_u16, "v(p,i,i)");
-	R(buffer_set_i16, "v(p,i,i)");
-	R(buffer_set_u32, "v(p,i,i)");
-	R(buffer_set_i32, "v(p,i,i)");
-	R(buffer_set_f32, "v(p,i,f)");
-	R(buffer_create, "p(i)");
-	R(buffer_create_from_raw, "p(p,i)");
-	R(f32_array_create, "p(i)");
-	R(f32_array_create_from_buffer, "p(p)");
-	R(f32_array_create_from_array, "p(p)");
-	R(f32_array_create_from_raw, "p(p,i)");
-	R(f32_array_create_x, "p(f)");
-	R(f32_array_create_xy, "p(f,f)");
-	R(f32_array_create_xyz, "p(f,f,f)");
-	R(f32_array_create_xyzw, "p(f,f,f,f)");
-	R(f32_array_create_xyzwv, "p(f,f,f,f,f)");
-	R(u32_array_create, "p(i)");
-	R(u32_array_create_from_array, "p(p)");
-	R(u32_array_create_from_raw, "p(p,i)");
-	R(i32_array_create, "p(i)");
-	R(i32_array_create_from_array, "p(p)");
-	R(i32_array_create_from_raw, "p(p,i)");
-	R(u16_array_create, "p(i)");
-	R(u16_array_create_from_raw, "p(p,i)");
-	R(i16_array_create, "p(i)");
-	R(i16_array_create_from_array, "p(p)");
-	R(i16_array_create_from_raw, "p(p,i)");
-	R(u8_array_create, "p(i)");
-	R(u8_array_create_from_array, "p(p)");
-	R(u8_array_create_from_raw, "p(p,i)");
-	R(u8_array_create_from_string, "p(p)");
-	R(u8_array_to_string, "p(p)");
-	R(i8_array_create, "p(i)");
-	R(i8_array_create_from_raw, "p(p,i)");
-	R(any_array_create, "p(i)");
-	R(any_array_create_from_raw, "p(p,i)");
-	R(string_array_create, "p(i)");
-	R(float_to_half_fast, "i(f)");
-	R(half_to_u8_fast, "i(i)");
+	R(array_free, "v(p a)");
+	R(i8_array_push, "v(p a,i e)");
+	R(u8_array_push, "v(p a,i e)");
+	R(i16_array_push, "v(p a,i e)");
+	R(u16_array_push, "v(p a,i e)");
+	R(i32_array_push, "v(p a,i e)");
+	R(u32_array_push, "v(p a,i e)");
+	R(f32_array_push, "v(p a,f e)");
+	R(any_array_push, "v(p a,p e)");
+	R(string_array_push, "v(p a,p e)");
+	R(i8_array_resize, "v(p a,i size)");
+	R(u8_array_resize, "v(p a,i size)");
+	R(i16_array_resize, "v(p a,i size)");
+	R(u16_array_resize, "v(p a,i size)");
+	R(i32_array_resize, "v(p a,i size)");
+	R(u32_array_resize, "v(p a,i size)");
+	R(f32_array_resize, "v(p a,i size)");
+	R(any_array_resize, "v(p a,i size)");
+	R(string_array_resize, "v(p a,i size)");
+	R(buffer_resize, "v(p b,i size)");
+	R(array_sort, "v(p ar,p compare)");
+	R(i32_array_sort, "v(p ar,p compare)");
+	R(array_pop, "p(p ar)");
+	R(i32_array_pop, "i(p ar)");
+	R(array_shift, "p(p ar)");
+	R(array_splice, "v(p ar,i start,i delete_count)");
+	R(i32_array_splice, "v(p ar,i start,i delete_count)");
+	R(array_concat, "p(p a,p b)");
+	R(array_slice, "p(p a,i begin,i end)");
+	R(array_insert, "v(p a,i at,p e)");
+	R(array_remove, "v(p ar,p e)");
+	R(string_array_remove, "v(p ar,p e)");
+	R(i32_array_remove, "v(p ar,i e)");
+	R(array_index_of, "i(p ar,p e)");
+	R(string_array_index_of, "i(p ar,p e)");
+	R(i32_array_index_of, "i(p ar,i e)");
+	R(array_reverse, "v(p ar)");
+	R(buffer_slice, "p(p a,i begin,i end)");
+	R(buffer_get_u8, "i(p b,i p)");
+	R(buffer_get_i8, "i(p b,i p)");
+	R(buffer_get_u16, "i(p b,i p)");
+	R(buffer_get_i16, "i(p b,i p)");
+	R(buffer_get_f16, "f(p b,i p)");
+	R(buffer_get_u32, "i(p b,i p)");
+	R(buffer_get_i32, "i(p b,i p)");
+	R(buffer_get_f32, "f(p b,i p)");
+	R(buffer_get_f64, "f(p b,i p)");
+	R(buffer_get_i64, "i(p b,i p)");
+	R(buffer_set_u8, "v(p b,i p,i n)");
+	R(buffer_set_i8, "v(p b,i p,i n)");
+	R(buffer_set_u16, "v(p b,i p,i n)");
+	R(buffer_set_i16, "v(p b,i p,i n)");
+	R(buffer_set_u32, "v(p b,i p,i n)");
+	R(buffer_set_i32, "v(p b,i p,i n)");
+	R(buffer_set_f32, "v(p b,i p,f n)");
+	R(buffer_create, "p(i length)");
+	R(buffer_create_from_raw, "p(p raw,i length)");
+	R(f32_array_create, "p(i length)");
+	R(f32_array_create_from_buffer, "p(p b)");
+	R(f32_array_create_from_array, "p(p from)");
+	R(f32_array_create_from_raw, "p(p raw,i length)");
+	R(f32_array_create_x, "p(f x)");
+	R(f32_array_create_xy, "p(f x,f y)");
+	R(f32_array_create_xyz, "p(f x,f y,f z)");
+	R(f32_array_create_xyzw, "p(f x,f y,f z,f w)");
+	R(f32_array_create_xyzwv, "p(f x,f y,f z,f w,f v)");
+	R(u32_array_create, "p(i length)");
+	R(u32_array_create_from_array, "p(p from)");
+	R(u32_array_create_from_raw, "p(p raw,i length)");
+	R(i32_array_create, "p(i length)");
+	R(i32_array_create_from_array, "p(p from)");
+	R(i32_array_create_from_raw, "p(p raw,i length)");
+	R(u16_array_create, "p(i length)");
+	R(u16_array_create_from_raw, "p(p raw,i length)");
+	R(i16_array_create, "p(i length)");
+	R(i16_array_create_from_array, "p(p from)");
+	R(i16_array_create_from_raw, "p(p raw,i length)");
+	R(u8_array_create, "p(i length)");
+	R(u8_array_create_from_array, "p(p from)");
+	R(u8_array_create_from_raw, "p(p raw,i length)");
+	R(u8_array_create_from_string, "p(p s)");
+	R(u8_array_to_string, "p(p a)");
+	R(i8_array_create, "p(i length)");
+	R(i8_array_create_from_raw, "p(p raw,i length)");
+	R(any_array_create, "p(i length)");
+	R(any_array_create_from_raw, "p(p raw,i length)");
+	R(string_array_create, "p(i length)");
+	R(float_to_half_fast, "i(f value)");
+	R(half_to_u8_fast, "i(i h)");
 
 	// iron_input
 	minic_register_global("mouse_x", &mouse_x, MINIC_T_FLOAT);
 	minic_register_global("mouse_y", &mouse_y, MINIC_T_FLOAT);
-	R(mouse_down, "b(p)");
+	R(mouse_down, "b(p button)");
 	R(mouse_down_any, "b()");
-	R(mouse_started, "b(p)");
+	R(mouse_started, "b(p button)");
 	R(mouse_started_any, "b()");
-	R(mouse_released, "b(p)");
+	R(mouse_released, "b(p button)");
 	R(mouse_view_x, "f()");
 	R(mouse_view_y, "f()");
-	R(keyboard_down, "b(p)");
-	R(keyboard_started, "b(p)");
+	R(keyboard_down, "b(p key)");
+	R(keyboard_started, "b(p key)");
 	R(keyboard_started_any, "b()");
-	R(keyboard_released, "b(p)");
-	R(keyboard_repeat, "b(p)");
-	R(keyboard_key_code, "p(i)");
+	R(keyboard_released, "b(p key)");
+	R(keyboard_repeat, "b(p key)");
+	R(keyboard_key_code, "p(i key)");
 
 	// paint
 	R(plugin_create, "p()");
-	R(plugin_notify_on_ui, "v(p,p)");
-	R(plugin_notify_on_update, "v(p,p)");
-	R(plugin_notify_on_delete, "v(p,p)");
-	R(script_notify_on_update, "v(p)");
-	R(script_notify_on_next_frame, "v(p)");
-	R(console_info, "v(p)");
-	R(console_error, "v(p)");
-	R(console_log, "v(p)");
-	R(ui_box_show_message, "v(p,p,i)");
-	R(ui_files_show2, "v(p,i,i,p)");
-	R(project_save, "v(i)");
+	R(plugin_notify_on_ui, "v(p plugin,p f)");
+	R(plugin_notify_on_update, "v(p plugin,p f)");
+	R(plugin_notify_on_delete, "v(p plugin,p f)");
+	R(script_notify_on_update, "v(p fn)");
+	R(script_notify_on_next_frame, "v(p fn)");
+	R(console_info, "v(p s)");
+	R(console_error, "v(p s)");
+	R(console_log, "v(p s)");
+	R(ui_box_show_message, "v(p title,p text,i copyable)");
+	R(ui_files_show2, "v(p filters,i is_save,i open_multiple,p files_done)");
+	R(project_save, "v(i save_and_quit)");
 	R(project_filepath_get, "p()");
 	R(project_basepath_get, "p()");
-	R(project_filepath_set, "v(p)");
+	R(project_filepath_set, "v(p s)");
 	R(script_get_context, "p()");
 	R(script_get_config, "p()");
 	R(script_get_project, "p()");
-	R(script_get_object, "p(p)");
-	R(script_set_stage, "v(p)");
-	R(script_show_envmap, "v(i)");
-	R(script_fade_to_stage, "v(p)");
-	R(script_timer, "v(f,p)");
+	R(script_get_object, "p(p s)");
+	R(script_set_stage, "v(p name)");
+	R(script_show_envmap, "v(i b)");
+	R(script_fade_to_stage, "v(p stage)");
+	R(script_timer, "v(f delay,p fn)");
 	R(script_get_stage, "p()");
-	R(script_set_tilesheet_anim, "v(p,p)");
-	R(script_draw_particles, "v(p,f,f,f,f,i,i)");
-	R(context_set_viewport_shader, "v(p)");
-	R(context_set_viewport_mode, "v(i)");
-	R(context_set_camera_controls, "v(i)");
-	R(node_shader_write_frag, "v(p,p)");
-	R(plugin_register_texture, "v(p,p)");
-	R(plugin_unregister_texture, "v(p)");
-	R(plugin_register_mesh, "v(p,p)");
-	R(plugin_unregister_mesh, "v(p)");
-	R(plugin_register_text, "v(p,p)");
-	R(plugin_unregister_text, "v(p)");
-	R(plugin_make_raw_mesh, "p(p,p,p,p,f)");
-	R(plugin_material_category_add, "v(p,p)");
-	R(plugin_brush_category_add, "v(p,p)");
-	R(plugin_material_category_remove, "v(p)");
-	R(plugin_brush_category_remove, "v(p)");
-	R(plugin_material_custom_nodes_set, "v(p,p)");
-	R(plugin_brush_custom_nodes_set, "v(p,p)");
-	R(plugin_material_custom_nodes_remove, "v(p)");
-	R(plugin_brush_custom_nodes_remove, "v(p)");
+	R(script_set_tilesheet_anim, "v(p o,p anim)");
+	R(script_draw_particles, "v(p texture,f x,f y,f w,f h,i atlas_x,i atlas_frames)");
+	R(script_paint, "v(f x,f y)");
+	R(script_paint_world, "v(f x,f y,f z)");
+	R(script_paint_end, "v()");
+	R(script_fill_layer, "v()");
+	R(script_material_create, "p(p name)");
+	R(script_material_set, "v(p m)");
+	R(script_material_delete, "v(p m)");
+	R(script_material_create_node, "p(p type)");
+	R(script_material_create_node_at, "p(p type,f x,f y)");
+	R(script_material_get_node, "p(p type)");
+	R(script_material_get_node_id, "p(i id)");
+	R(script_material_connect, "v(p from,i from_socket,p to,i to_socket)");
+	R(script_material_disconnect, "v(p to,i to_socket)");
+	R(script_material_remove_node, "v(p node)");
+	R(script_material_set_float, "v(p node,i is_input,i socket,f value)");
+	R(script_material_set_color, "v(p node,i is_input,i socket,f r,f g,f b,f a)");
+	R(script_material_set_vector, "v(p node,i is_input,i socket,f x,f y,f z)");
+	R(script_material_update, "v()");
+	R(context_set_viewport_shader, "v(p viewport_shader)");
+	R(context_set_viewport_mode, "v(i mode)");
+	R(context_set_camera_controls, "v(i i)");
+	R(node_shader_write_frag, "v(p raw,p s)");
+	R(plugin_register_texture, "v(p format,p fn)");
+	R(plugin_unregister_texture, "v(p format)");
+	R(plugin_register_mesh, "v(p format,p fn)");
+	R(plugin_unregister_mesh, "v(p format)");
+	R(plugin_register_text, "v(p format,p fn)");
+	R(plugin_unregister_text, "v(p format)");
+	R(plugin_make_raw_mesh, "p(p name,p posa,p nora,p inda,f scale_pos)");
+	R(plugin_material_category_add, "v(p category_name,p node_list)");
+	R(plugin_brush_category_add, "v(p category_name,p node_list)");
+	R(plugin_material_category_remove, "v(p category_name)");
+	R(plugin_brush_category_remove, "v(p category_name)");
+	R(plugin_material_custom_nodes_set, "v(p node_type,p fn)");
+	R(plugin_brush_custom_nodes_set, "v(p node_type,p fn)");
+	R(plugin_material_custom_nodes_remove, "v(p node_type)");
+	R(plugin_brush_custom_nodes_remove, "v(p node_type)");
 	R(plugin_material_kong_get, "p()");
-	R(parser_material_parse_value_input, "p(p,i)");
+	R(parser_material_parse_value_input, "p(p inp,i vector_as_grayscale)");
 	R(context_main_object, "p()");
-	R(export_texture_run, "v(p,i)");
-	R(context_select_tool, "v(i)");
-	R(gpu_create_render_target, "p(i,i,i)");
-	R(viewport_capture_screenshot_to, "v(p,f,f,f,f)");
-	R(viewport_save_texture, "v(p)");
-	R(project_reskin_mesh, "b(i)");
+	R(export_texture_run, "v(p path,i bake_material)");
+	R(context_select_tool, "v(i i)");
+	R(gpu_create_render_target, "p(i width,i height,i format)");
+	R(viewport_capture_screenshot_to, "v(p target,f x,f y,f w,f h)");
+	R(viewport_save_texture, "v(p screenshot)");
+	R(project_reskin_mesh, "b(i frame)");
 	R(iron_delay_idle_sleep, "v()");
 
 	// json
-	R(json_parse, "p(p)");
-	R(json_parse_to_map, "p(p)");
+	R(json_parse, "p(p s)");
+	R(json_parse_to_map, "p(p s)");
 	R(json_encode_begin, "v()");
 	R(json_encode_end, "p()");
-	R(json_encode_string, "v(p,p)");
-	R(json_encode_string_array, "v(p,p)");
-	R(json_encode_f32, "v(p,f)");
-	R(json_encode_i32, "v(p,i)");
-	R(json_encode_null, "v(p)");
-	R(json_encode_f32_array, "v(p,p)");
-	R(json_encode_i32_array, "v(p,p)");
-	R(json_encode_bool, "v(p,i)");
-	R(json_encode_begin_array, "v(p)");
+	R(json_encode_string, "v(p k,p v)");
+	R(json_encode_string_array, "v(p k,p a)");
+	R(json_encode_f32, "v(p k,f f)");
+	R(json_encode_i32, "v(p k,i i)");
+	R(json_encode_null, "v(p k)");
+	R(json_encode_f32_array, "v(p k,p a)");
+	R(json_encode_i32_array, "v(p k,p a)");
+	R(json_encode_bool, "v(p k,i b)");
+	R(json_encode_begin_array, "v(p k)");
 	R(json_encode_end_array, "v()");
 	R(json_encode_begin_object, "v()");
 	R(json_encode_end_object, "v()");
-	R(json_encode_map, "v(p)");
-	R(json_encode_to_armpack, "p(p)");
+	R(json_encode_map, "v(p m)");
+	R(json_encode_to_armpack, "p(p json)");
 
 	// armpack
-	R(armpack_decode, "p(p)");
-	R(armpack_decode_to_map, "p(p)");
-	R(armpack_decode_to_json, "p(p)");
-	R(armpack_encode_start, "v(p)");
+	R(armpack_decode, "p(p b)");
+	R(armpack_decode_to_map, "p(p b)");
+	R(armpack_decode_to_json, "p(p b)");
+	R(armpack_encode_start, "v(p encoded)");
 	R(armpack_encode_end, "i()");
-	R(armpack_encode_map, "v(i)");
-	R(armpack_encode_array, "v(i)");
-	R(armpack_encode_array_f32, "v(p)");
-	R(armpack_encode_array_i32, "v(p)");
-	R(armpack_encode_array_i16, "v(p)");
-	R(armpack_encode_array_u8, "v(p)");
-	R(armpack_encode_array_string, "v(p)");
-	R(armpack_encode_string, "v(p)");
-	R(armpack_encode_i32, "v(i)");
-	R(armpack_encode_f32, "v(f)");
-	R(armpack_encode_bool, "v(i)");
+	R(armpack_encode_map, "v(i count)");
+	R(armpack_encode_array, "v(i count)");
+	R(armpack_encode_array_f32, "v(p f32a)");
+	R(armpack_encode_array_i32, "v(p i32a)");
+	R(armpack_encode_array_i16, "v(p i16a)");
+	R(armpack_encode_array_u8, "v(p u8a)");
+	R(armpack_encode_array_string, "v(p strings)");
+	R(armpack_encode_string, "v(p str)");
+	R(armpack_encode_i32, "v(i i)");
+	R(armpack_encode_f32, "v(f f)");
+	R(armpack_encode_bool, "v(i b)");
 	R(armpack_encode_null, "v()");
 	R(armpack_size_map, "i()");
 	R(armpack_size_array, "i()");
-	R(armpack_size_array_f32, "i(p)");
-	R(armpack_size_array_u8, "i(p)");
-	R(armpack_size_string, "i(p)");
+	R(armpack_size_array_f32, "i(p f32a)");
+	R(armpack_size_array_u8, "i(p u8a)");
+	R(armpack_size_string, "i(p str)");
 	R(armpack_size_i32, "i()");
 	R(armpack_size_f32, "i()");
 	R(armpack_size_bool, "i()");
-	R(armpack_map_get_f32, "f(p,p)");
-	R(armpack_map_get_i32, "i(p,p)");
+	R(armpack_map_get_f32, "f(p map,p key)");
+	R(armpack_map_get_i32, "i(p map,p key)");
 }
 
 #undef R
+
+static const char *minic_api_type_name(minic_type_t t, minic_type_t deref, const char *struct_name) {
+	if (t == MINIC_T_INT) {
+		return "int";
+	}
+	if (t == MINIC_T_FLOAT) {
+		return "float";
+	}
+	if (t == MINIC_T_BOOL) {
+		return "bool";
+	}
+	if (t == MINIC_T_CHAR) {
+		return "char";
+	}
+	if (t == MINIC_T_VOID) {
+		return "void";
+	}
+	if (t == MINIC_T_EMBED) {
+		return struct_name != NULL && struct_name[0] != '\0' ? struct_name : "void";
+	}
+	if (t == MINIC_T_PTR) {
+		if (deref == MINIC_T_CHAR) {
+			return "char *";
+		}
+		if (struct_name != NULL && struct_name[0] != '\0') {
+			return NULL; // caller formats as "struct_name *"
+		}
+		return "void *";
+	}
+	return "int";
+}
+
+static const char *minic_api_sig_type(char c) {
+	switch (c) {
+	case 'f':
+		return "float";
+	case 'p':
+		return "void *";
+	case 'b':
+		return "bool";
+	case 'c':
+		return "char";
+	case 'v':
+		return "void";
+	default:
+		return "int";
+	}
+}
+
+char *minic_api_header_generate(void) {
+	minic_register_builtins();
+
+	buffer_t sb;
+	string_buffer_init(&sb);
+	string_buffer_append(&sb, "// ArmorPaint script API\n\n");
+
+	// Structs
+	for (int i = 0; i < minic_struct_count; ++i) {
+		minic_struct_t *s = &minic_structs[i];
+		string_buffer_append(&sb, string("typedef struct %s {\n", s->name));
+		for (int f = 0; f < s->field_count; ++f) {
+			const char *stype = s->field_structs[f];
+			const char *tn    = minic_api_type_name(s->types[f], s->deref_types[f], stype);
+			if (tn == NULL) {
+				string_buffer_append(&sb, string("    %s *%s;\n", stype, s->fields[f]));
+			}
+			else if (s->types[f] == MINIC_T_EMBED) {
+				string_buffer_append(&sb, string("    %s %s;\n", tn, s->fields[f]));
+			}
+			else {
+				string_buffer_append(&sb, string("    %s %s;\n", tn, s->fields[f]));
+			}
+		}
+		string_buffer_append(&sb, string("} %s;\n\n", s->name));
+	}
+
+	// Enums
+	int enum_count = minic_enum_const_count_get();
+	if (enum_count > 0) {
+		string_buffer_append(&sb, "// Enums\n");
+		for (int i = 0; i < enum_count; ++i) {
+			string_buffer_append(&sb, string("#define %s %d\n", minic_enum_const_name_at(i), minic_enum_const_value_at(i)));
+		}
+		string_buffer_append(&sb, "\n");
+	}
+
+	// Globals
+	int global_count = minic_global_count_get();
+	if (global_count > 0) {
+		string_buffer_append(&sb, "// Globals\n");
+		for (int i = 0; i < global_count; ++i) {
+			minic_type_t t = minic_global_type_at(i);
+			string_buffer_append(&sb, string("extern %s %s;\n", minic_api_type_name(t, t, NULL), minic_global_name_at(i)));
+		}
+		string_buffer_append(&sb, "\n");
+	}
+
+	// Functions
+	string_buffer_append(&sb, "// Functions\n");
+	int func_count = minic_ext_func_count_get();
+	for (int i = 0; i < func_count; ++i) {
+		const char *name = minic_ext_func_name_at(i);
+		const char *sig  = minic_api_sig_hint(name);
+		if (sig == NULL) {
+			sig = minic_ext_func_sig_at(i);
+		}
+		if (sig[0] == '\0') {
+			string_buffer_append(&sb, string("void %s(...);\n", name));
+			continue;
+		}
+		const char *ret = minic_api_sig_type(sig[0]);
+		string_buffer_append(&sb, string("%s %s(", ret, name));
+		const char *p = sig;
+		if (*p) {
+			p++; // Skip ret
+		}
+		if (*p == '(') {
+			p++;
+		}
+		int arg = 0;
+		while (*p && *p != ')') {
+			if (*p == ',') {
+				p++;
+				continue;
+			}
+			if (arg > 0) {
+				string_buffer_append(&sb, ", ");
+			}
+			const char *type = minic_api_sig_type(*p);
+			p++;
+			const char *arg_name = "";
+			int         name_len = 0;
+			if (*p == ' ') {
+				p++;
+				arg_name = p;
+				while (*p && *p != ',' && *p != ')') {
+					p++;
+				}
+				name_len = (int)(p - arg_name);
+			}
+			// Pointer types already end with "*"
+			const char *sep = name_len > 0 && type[strlen(type) - 1] != '*' ? " " : "";
+			string_buffer_append(&sb, string("%s%s%.*s", type, sep, name_len, arg_name));
+			arg++;
+		}
+		if (arg == 0) {
+			string_buffer_append(&sb, "void");
+		}
+		string_buffer_append(&sb, ");\n");
+	}
+
+	char *result = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return result;
+}
