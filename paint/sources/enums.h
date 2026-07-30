@@ -265,6 +265,12 @@ typedef enum {
 } texture_res_t;
 
 typedef enum {
+	CONSOLE_MODEL_QWEN   = 0,
+	CONSOLE_MODEL_CLAUDE = 1,
+	CONSOLE_MODEL_GROK   = 2,
+} console_model_t;
+
+typedef enum {
 	LAYOUT_SIZE_SIDEBAR_W  = 0,
 	LAYOUT_SIZE_SIDEBAR_H0 = 1,
 	LAYOUT_SIZE_SIDEBAR_H1 = 2,
@@ -285,14 +291,6 @@ typedef enum {
 	PREFERENCES_TAB_NEURAL    = 7,
 	PREFERENCES_TAB_PLUGINS   = 8,
 } preferences_tab_t;
-
-typedef enum {
-	PHYSICS_SHAPE_BOX     = 0,
-	PHYSICS_SHAPE_SPHERE  = 1,
-	PHYSICS_SHAPE_HULL    = 2,
-	PHYSICS_SHAPE_TERRAIN = 3,
-	PHYSICS_SHAPE_MESH    = 4,
-} physics_shape_t;
 
 typedef enum {
 	ICON18_EYE_ON  = 0,

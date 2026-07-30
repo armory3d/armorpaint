@@ -879,6 +879,17 @@ void box_preferences_neural_tab() {
 	i32 neural_res_sel   = ui_combo(h_neural_res, neural_res_combo, tr("Resolution"), true, UI_ALIGN_LEFT, true);
 	g_config->neural_res = neural_res_sel == 2 ? 2048 : (neural_res_sel == 1 ? 1024 : 512);
 
+	ui_handle_t *h_console_model        = ui_handle(__ID__);
+	h_console_model->i                  = g_config->console_model;
+	string_array_t *console_model_combo = any_array_create_from_raw(
+	    (void *[]){
+	        "Qwen",
+	        "Claude",
+	        "Grok",
+	    },
+	    3);
+	g_config->console_model = ui_combo(h_console_model, console_model_combo, tr("Console Model"), true, UI_ALIGN_LEFT, true);
+
 	ui_text(tr("Models"), UI_ALIGN_LEFT, 0x00000000);
 
 	if (neural_node_models == NULL) {
