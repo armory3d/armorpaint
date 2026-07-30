@@ -743,6 +743,7 @@ any_map_t *armpack_decode_to_map(buffer_t *b) {
 }
 
 static char *armpack_to_json_value();
+static bool  json_omit_buffers;
 
 static const char *peek_typed_array_suffix() {
 	if (encoded[ei] != 0xdd)
@@ -805,8 +806,15 @@ static char *armpack_to_json_value() {
 		if (count == 0) {
 			return "[]";
 		}
-		uint8_t flag2  = read_u8();
-		char   *result = "[";
+		uint8_t flag2 = read_u8();
+		if (json_omit_buffers) {
+			uint32_t elem_size = flag2 == 0xca || flag2 == 0xd2 ? 4 : flag2 == 0xd1 ? 2 : flag2 == 0xc4 ? 1 : 0;
+			if (elem_size > 0) {
+				ei += count * elem_size;
+				return string("\"<%d values omitted>\"", count);
+			}
+		}
+		char *result = "[";
 		if (flag2 == 0xca) { // f32
 			for (uint32_t i = 0; i < count; i++) {
 				if (i > 0)
@@ -855,6 +863,16 @@ char *armpack_decode_to_json(buffer_t *b) {
 	ei      = 0;
 	read_u8(); // Must be 0xdf for a map
 	return armpack_to_json_map(read_i32());
+}
+
+char *armpack_decode_to_json_omit_buffers(buffer_t *b) {
+	encoded           = b->buffer;
+	ei                = 0;
+	json_omit_buffers = true;
+	read_u8(); // Must be 0xdf for a map
+	char *result      = armpack_to_json_map(read_i32());
+	json_omit_buffers = false;
+	return result;
 }
 
 float armpack_map_get_f32(any_map_t *map, char *key) {

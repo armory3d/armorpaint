@@ -37,6 +37,7 @@ uint32_t armpack_size_bool();
 
 any_map_t *armpack_decode_to_map(buffer_t *b);
 char      *armpack_decode_to_json(buffer_t *b);
+char      *armpack_decode_to_json_omit_buffers(buffer_t *b);
 float      armpack_map_get_f32(any_map_t *map, char *key);
 int        armpack_map_get_i32(any_map_t *map, char *key);
 void       armpack_map_set_i32(any_map_t *map, char *key, int value);
