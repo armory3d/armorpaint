@@ -1864,6 +1864,11 @@ char *data_resolve_path(char *file) {
 	if (data_is_abs(file) || data_is_up(file)) {
 		return file;
 	}
+#ifdef IRON_WASM
+	if (starts_with(file, "./")) {
+		return file;
+	}
+#endif
 	return string("%s%s", data_path(), file);
 }
 

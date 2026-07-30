@@ -169,6 +169,10 @@ bool iron_internal_file_reader_open(iron_file_reader_t *reader, const char *file
 	bool is_abs = filename[0] == '/';
 #endif
 
+#ifdef IRON_WASM
+	is_abs = is_abs || (filename[0] == '.' && filename[1] == '/');
+#endif
+
 	if (is_abs) {
 		strcpy(filepath, filename);
 	}
