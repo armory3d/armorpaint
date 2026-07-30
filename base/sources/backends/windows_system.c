@@ -1762,15 +1762,30 @@ static void CALLBACK exec_wait_callback(PVOID lparam, BOOLEAN b) {
 void iron_exec_async(const char *path, char *argv[]) {
 	iron_exec_async_done = 0;
 
-	char cmd[4096] = {0};
-	snprintf(cmd, sizeof(cmd), "\"%s\"", path);
-	for (int i = 1; argv[i] != NULL; ++i) {
-		strncat(cmd, " \"", sizeof(cmd) - strlen(cmd) - 1);
-		strncat(cmd, argv[i], sizeof(cmd) - strlen(cmd) - 1);
-		strncat(cmd, "\"", sizeof(cmd) - strlen(cmd) - 1);
+	static char    cmd[32768];
+	static wchar_t wcmd[32768];
+
+	size_t len = 0;
+	for (int i = 0;; ++i) {
+		const char *arg = i == 0 ? path : argv[i];
+		if (arg == NULL) {
+			break;
+		}
+		if (i > 0 && len + 1 < sizeof(cmd)) {
+			cmd[len++] = ' ';
+		}
+		if (len + 1 < sizeof(cmd)) {
+			cmd[len++] = '"';
+		}
+		for (const char *p = arg; *p != '\0' && len + 2 < sizeof(cmd); ++p) {
+			cmd[len++] = *p == '"' ? '\'' : *p;
+		}
+		if (len + 1 < sizeof(cmd)) {
+			cmd[len++] = '"';
+		}
 	}
-	wchar_t wcmd[4096];
-	MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, 4096);
+	cmd[len] = '\0';
+	MultiByteToWideChar(CP_UTF8, 0, cmd, -1, wcmd, 32768);
 
 	STARTUPINFOW        si = {0};
 	PROCESS_INFORMATION pi = {0};
@@ -1778,13 +1793,16 @@ void iron_exec_async(const char *path, char *argv[]) {
 	si.dwFlags             = STARTF_USESHOWWINDOW;
 	si.wShowWindow         = SW_HIDE;
 
-	HANDLE out_handle = INVALID_HANDLE_VALUE;
+	SECURITY_ATTRIBUTES sa         = {sizeof(sa), NULL, TRUE};
+	HANDLE              out_handle = INVALID_HANDLE_VALUE;
+	HANDLE              in_handle  = INVALID_HANDLE_VALUE;
 	if (iron_exec_async_output_file != NULL) {
 		wchar_t wpath[1024];
 		MultiByteToWideChar(CP_UTF8, 0, iron_exec_async_output_file, -1, wpath, 1024);
-		SECURITY_ATTRIBUTES sa = {sizeof(sa), NULL, TRUE};
-		out_handle             = CreateFileW(wpath, GENERIC_WRITE, 0, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		out_handle = CreateFileW(wpath, GENERIC_WRITE, 0, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		in_handle  = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ, &sa, OPEN_EXISTING, 0, NULL);
 		si.dwFlags |= STARTF_USESTDHANDLES;
+		si.hStdInput  = in_handle;
 		si.hStdOutput = out_handle;
 		si.hStdError  = out_handle;
 	}
@@ -1792,6 +1810,9 @@ void iron_exec_async(const char *path, char *argv[]) {
 	BOOL success = CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
 	if (out_handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(out_handle);
+	}
+	if (in_handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(in_handle);
 	}
 	if (!success) {
 		iron_exec_async_done = 1;
