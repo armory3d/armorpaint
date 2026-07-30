@@ -1550,13 +1550,21 @@ void iron_exec_async(const char *path, char *argv[]) {
 	iron_exec_async_done = 0;
 	child_pid            = fork();
 	if (child_pid == 0) {
-		if (iron_exec_async_output_file != NULL) {
-			int fd = open(iron_exec_async_output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-			dup2(fd, STDOUT_FILENO);
+		int fd = iron_exec_async_output_file != NULL ? open(iron_exec_async_output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644) : open("/dev/null", O_WRONLY);
+		dup2(fd, STDOUT_FILENO);
+		dup2(fd, STDERR_FILENO);
+		if (fd > STDERR_FILENO) {
 			close(fd);
 		}
+		char *home = getenv("HOME");
+		char *env  = getenv("PATH");
+		if (home != NULL) {
+			char new_path[4096];
+			snprintf(new_path, sizeof(new_path), "%s/.local/bin:%s/bin:%s", home, home, env);
+			setenv("PATH", new_path, 1);
+		}
 		execvp(path, argv);
-		exit(1);
+		_exit(1);
 	}
 	else {
 		struct sigaction sa = {0};
