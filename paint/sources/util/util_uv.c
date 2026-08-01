@@ -181,6 +181,7 @@ void util_uv_cache_uv_island_map() {
 	}
 	util_render_pick_pos_nor_tex();
 	util_render_pick_fill_symmetry();
+	util_render_pick_fill_xray();
 	i32          w        = 2048; // config_get_texture_res_x()
 	i32          h        = 2048; // config_get_texture_res_y()
 	i32          x        = math_floor(g_context->uvx_picked * w);
@@ -210,6 +211,10 @@ void util_uv_cache_uv_island_map() {
 	if (g_context->fill_sym_z_valid) {
 		i32_array_push(coords_x, math_floor(g_context->fill_sym_z_uvx * w));
 		i32_array_push(coords_y, math_floor(g_context->fill_sym_z_uvy * h));
+	}
+	if (g_context->fill_xray_valid) {
+		i32_array_push(coords_x, math_floor(g_context->fill_xray_uvx * w));
+		i32_array_push(coords_y, math_floor(g_context->fill_xray_uvy * h));
 	}
 
 	i32 r = math_floor(util_uv_dilatemap->width / (float)w);

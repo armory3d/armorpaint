@@ -51,6 +51,13 @@ void make_discard_face(node_shader_t *kong) {
 		    kong, "if (face_symz.x == face_c2.x && face_symz.y == face_c2.y && face_symz.z == face_c2.z && face_symz.w == face_c2.w) { face_match = true; }");
 	}
 
+	if (g_context->xray && g_context->fill_xray_valid) {
+		node_shader_add_constant(kong, "fill_xray_uv: float2", "_fill_xray_uv");
+		node_shader_write_frag(kong, "var face_xray: float4 = sample_lod(textrianglemap, sampler_linear, constants.fill_xray_uv, 0.0);");
+		node_shader_write_frag(
+		    kong, "if (face_xray.x == face_c2.x && face_xray.y == face_c2.y && face_xray.z == face_c2.z && face_xray.w == face_c2.w) { face_match = true; }");
+	}
+
 	node_shader_write_frag(kong, "if (!face_match) { discard; }");
 }
 

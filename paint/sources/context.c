@@ -164,6 +164,7 @@ void context_init() {
 	g_context->fill_sym_x_valid              = false;
 	g_context->fill_sym_y_valid              = false;
 	g_context->fill_sym_z_valid              = false;
+	g_context->fill_xray_valid              = false;
 	g_context->fill_type                    = FILL_TYPE_OBJECT;
 	g_context->blur_type                    = BLUR_TYPE_BLUR;
 	g_context->paint2d                      = false;

@@ -297,6 +297,11 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 				node_shader_write_frag(kong, string("if (dot(constants.fill_sym_z_nor, n) >= %s) { angle_match = true; }", f32_to_string(angle)));
 			}
 
+			if (g_context->xray && g_context->fill_xray_valid) {
+				node_shader_add_constant(kong, "fill_xray_nor: float3", "_fill_xray_nor");
+				node_shader_write_frag(kong, string("if (dot(constants.fill_xray_nor, n) >= %s) { angle_match = true; }", f32_to_string(angle)));
+			}
+
 			node_shader_write_frag(kong, "if (!angle_match) { discard; }");
 		}
 		bool stencil_fill = g_context->tool == TOOL_TYPE_FILL && g_context->brush_stencil_image != NULL;

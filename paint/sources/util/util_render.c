@@ -587,9 +587,32 @@ void util_render_pick_pos_nor_tex() {
 	g_context->pdirty = 0;
 }
 
-// Re-picks pos/nor/tex under the cursor with the paint object's transform mirrored across
-// each active symmetry axis, so Fill can match faces/UV islands/normals on the opposite side
-// without needing to re-render the paint pass per axis.
+// Projects a mirrored world-space point back onto screen and re-picks pos/nor/tex there.
+// Uses the camera's non-jittered projection (TAA jitter would offset the reprojected pixel by
+// a fraction of a texel, which is enough to land on the wrong triangle). Returns false (leaving
+// picked state untouched) if the point falls behind the camera or off screen.
+bool util_render_pick_screen_point(vec4_t world_pt) {
+	mat4_t stable_vp = mat4_mult_mat(scene_camera->v, scene_camera->no_jitter_p);
+	vec4_t clip      = vec4_apply_mat4(world_pt, stable_vp);
+	if (clip.w <= 0.0) {
+		return false;
+	}
+	f32 u = (clip.x / clip.w + 1.0) * 0.5;
+	f32 v = (-clip.y / clip.w + 1.0) * 0.5;
+	if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
+		return false;
+	}
+	g_context->paint_vec.x = u;
+	g_context->paint_vec.y = v;
+	util_render_pick_pos_nor_tex();
+	return true;
+}
+
+// Reflects the already-picked world-space point across each active symmetry axis of the paint
+// object (about the object's own world-space pivot and local axis directions, so position and
+// rotation are respected), projects the mirrored point back onto screen, and re-picks pos/nor/tex
+// there. This is what lets Fill match faces/UV islands/normals on the opposite side of the mesh
+// regardless of the current camera angle.
 void util_render_pick_fill_symmetry() {
 	g_context->fill_sym_x_valid = false;
 	g_context->fill_sym_y_valid = false;
@@ -599,56 +622,63 @@ void util_render_pick_fill_symmetry() {
 		return;
 	}
 
-	f32 uvx  = g_context->uvx_picked;
-	f32 uvy  = g_context->uvy_picked;
-	f32 norx = g_context->norx_picked;
-	f32 nory = g_context->nory_picked;
-	f32 norz = g_context->norz_picked;
-	f32 posx = g_context->posx_picked;
-	f32 posy = g_context->posy_picked;
-	f32 posz = g_context->posz_picked;
+	f32 uvx        = g_context->uvx_picked;
+	f32 uvy        = g_context->uvy_picked;
+	f32 norx       = g_context->norx_picked;
+	f32 nory       = g_context->nory_picked;
+	f32 norz       = g_context->norz_picked;
+	f32 posx       = g_context->posx_picked;
+	f32 posy       = g_context->posy_picked;
+	f32 posz       = g_context->posz_picked;
+	f32 paint_vecx = g_context->paint_vec.x;
+	f32 paint_vecy = g_context->paint_vec.y;
 
-	transform_t *t  = g_context->paint_object->base->transform;
-	f32          sx = t->scale.x;
-	f32          sy = t->scale.y;
-	f32          sz = t->scale.z;
+	transform_t *t      = g_context->paint_object->base->transform;
+	mat4_t       W      = t->world;
+	vec4_t       origin = (vec4_t){W.m30, W.m31, W.m32, 1.0};
+	vec4_t       axis_x = vec4_norm((vec4_t){W.m00, W.m10, W.m20, 0.0});
+	vec4_t       axis_y = vec4_norm((vec4_t){W.m01, W.m11, W.m21, 0.0});
+	vec4_t       axis_z = vec4_norm((vec4_t){W.m02, W.m12, W.m22, 0.0});
+
+	vec4_t world_pos = (vec4_t){posx, posy, posz, 1.0};
+	vec4_t delta     = vec4_sub(world_pos, origin);
 
 	if (g_context->sym_x) {
-		t->scale = (vec4_t){-sx, sy, sz, 1.0};
-		transform_build_matrix(t);
-		util_render_pick_pos_nor_tex();
-		g_context->fill_sym_x_uvx   = g_context->uvx_picked;
-		g_context->fill_sym_x_uvy   = g_context->uvy_picked;
-		g_context->fill_sym_x_norx  = g_context->norx_picked;
-		g_context->fill_sym_x_nory  = g_context->nory_picked;
-		g_context->fill_sym_x_norz  = g_context->norz_picked;
-		g_context->fill_sym_x_valid = true;
+		vec4_t reflected_delta = vec4_reflect(delta, axis_x);
+		vec4_t mirrored_world  = vec4_add(origin, reflected_delta);
+		if (util_render_pick_screen_point(mirrored_world)) {
+			g_context->fill_sym_x_uvx   = g_context->uvx_picked;
+			g_context->fill_sym_x_uvy   = g_context->uvy_picked;
+			g_context->fill_sym_x_norx  = g_context->norx_picked;
+			g_context->fill_sym_x_nory  = g_context->nory_picked;
+			g_context->fill_sym_x_norz  = g_context->norz_picked;
+			g_context->fill_sym_x_valid = true;
+		}
 	}
 	if (g_context->sym_y) {
-		t->scale = (vec4_t){sx, -sy, sz, 1.0};
-		transform_build_matrix(t);
-		util_render_pick_pos_nor_tex();
-		g_context->fill_sym_y_uvx   = g_context->uvx_picked;
-		g_context->fill_sym_y_uvy   = g_context->uvy_picked;
-		g_context->fill_sym_y_norx  = g_context->norx_picked;
-		g_context->fill_sym_y_nory  = g_context->nory_picked;
-		g_context->fill_sym_y_norz  = g_context->norz_picked;
-		g_context->fill_sym_y_valid = true;
+		vec4_t reflected_delta = vec4_reflect(delta, axis_y);
+		vec4_t mirrored_world  = vec4_add(origin, reflected_delta);
+		if (util_render_pick_screen_point(mirrored_world)) {
+			g_context->fill_sym_y_uvx   = g_context->uvx_picked;
+			g_context->fill_sym_y_uvy   = g_context->uvy_picked;
+			g_context->fill_sym_y_norx  = g_context->norx_picked;
+			g_context->fill_sym_y_nory  = g_context->nory_picked;
+			g_context->fill_sym_y_norz  = g_context->norz_picked;
+			g_context->fill_sym_y_valid = true;
+		}
 	}
 	if (g_context->sym_z) {
-		t->scale = (vec4_t){sx, sy, -sz, 1.0};
-		transform_build_matrix(t);
-		util_render_pick_pos_nor_tex();
-		g_context->fill_sym_z_uvx   = g_context->uvx_picked;
-		g_context->fill_sym_z_uvy   = g_context->uvy_picked;
-		g_context->fill_sym_z_norx  = g_context->norx_picked;
-		g_context->fill_sym_z_nory  = g_context->nory_picked;
-		g_context->fill_sym_z_norz  = g_context->norz_picked;
-		g_context->fill_sym_z_valid = true;
+		vec4_t reflected_delta = vec4_reflect(delta, axis_z);
+		vec4_t mirrored_world  = vec4_add(origin, reflected_delta);
+		if (util_render_pick_screen_point(mirrored_world)) {
+			g_context->fill_sym_z_uvx   = g_context->uvx_picked;
+			g_context->fill_sym_z_uvy   = g_context->uvy_picked;
+			g_context->fill_sym_z_norx  = g_context->norx_picked;
+			g_context->fill_sym_z_nory  = g_context->nory_picked;
+			g_context->fill_sym_z_norz  = g_context->norz_picked;
+			g_context->fill_sym_z_valid = true;
+		}
 	}
-
-	t->scale = (vec4_t){sx, sy, sz, 1.0};
-	transform_build_matrix(t);
 
 	g_context->uvx_picked  = uvx;
 	g_context->uvy_picked  = uvy;
@@ -658,6 +688,90 @@ void util_render_pick_fill_symmetry() {
 	g_context->posx_picked = posx;
 	g_context->posy_picked = posy;
 	g_context->posz_picked = posz;
+	g_context->paint_vec.x = paint_vecx;
+	g_context->paint_vec.y = paint_vecy;
+}
+
+// Casts a ray through the cursor against the paint mesh's raw triangles and keeps the second
+// closest hit (the first is the visible front surface already covered by the normal pick) so
+// Fill's X-Ray option can also match the face/UV island/normal directly behind it, letting a
+// single click paint both the outer and inner side of thin geometry.
+void util_render_pick_fill_xray() {
+	g_context->fill_xray_valid = false;
+
+	if (!g_context->xray) {
+		return;
+	}
+
+	mesh_object_t *obj  = g_context->paint_object;
+	mesh_data_t   *mesh = obj->data;
+	i16_array_t   *posa = mesh->vertex_arrays->buffer[0]->values;
+	i16_array_t   *uva  = mesh->vertex_arrays->buffer[2]->values;
+	u32_array_t   *inda = mesh->index_array;
+	mat4_t         world = obj->base->transform->world_unpack;
+
+	ray_t *ray = raycast_get_ray(g_context->paint_vec.x * sys_w(), g_context->paint_vec.y * sys_h(), scene_camera);
+
+	f32 dist1 = -1.0;
+	f32 dist2 = -1.0;
+	i32 tri1  = -1;
+	i32 tri2  = -1;
+
+	i32 tri_count = math_floor(inda->length / 3.0);
+	for (i32 i = 0; i < tri_count; ++i) {
+		u32 i0 = inda->buffer[i * 3];
+		u32 i1 = inda->buffer[i * 3 + 1];
+		u32 i2 = inda->buffer[i * 3 + 2];
+
+		vec4_t p0 = vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p1 = vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p2 = vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
+
+		vec4_t hit = ray_intersect_triangle(ray, p0, p1, p2, false);
+		if (vec4_isnan(hit)) {
+			continue;
+		}
+
+		f32 dist = vec4_len(vec4_sub(hit, ray->origin));
+
+		if (tri1 == -1 || dist < dist1) {
+			dist2 = dist1;
+			tri2  = tri1;
+			dist1 = dist;
+			tri1  = i;
+		}
+		else if (tri2 == -1 || dist < dist2) {
+			dist2 = dist;
+			tri2  = i;
+		}
+	}
+
+	if (tri2 == -1) {
+		return;
+	}
+
+	u32 j0 = inda->buffer[tri2 * 3];
+	u32 j1 = inda->buffer[tri2 * 3 + 1];
+	u32 j2 = inda->buffer[tri2 * 3 + 2];
+
+	f32 u0 = uva->buffer[j0 * 2] / 32767.0;
+	f32 v0 = uva->buffer[j0 * 2 + 1] / 32767.0;
+	f32 u1 = uva->buffer[j1 * 2] / 32767.0;
+	f32 v1 = uva->buffer[j1 * 2 + 1] / 32767.0;
+	f32 u2 = uva->buffer[j2 * 2] / 32767.0;
+	f32 v2 = uva->buffer[j2 * 2 + 1] / 32767.0;
+
+	vec4_t q0 = vec4_apply_mat4((vec4_t){posa->buffer[j0 * 4] / 32767.0, posa->buffer[j0 * 4 + 1] / 32767.0, posa->buffer[j0 * 4 + 2] / 32767.0, 1.0}, world);
+	vec4_t q1 = vec4_apply_mat4((vec4_t){posa->buffer[j1 * 4] / 32767.0, posa->buffer[j1 * 4 + 1] / 32767.0, posa->buffer[j1 * 4 + 2] / 32767.0, 1.0}, world);
+	vec4_t q2 = vec4_apply_mat4((vec4_t){posa->buffer[j2 * 4] / 32767.0, posa->buffer[j2 * 4 + 1] / 32767.0, posa->buffer[j2 * 4 + 2] / 32767.0, 1.0}, world);
+	vec4_t face_nor = vec4_norm(vec4_cross(vec4_sub(q1, q0), vec4_sub(q2, q0)));
+
+	g_context->fill_xray_uvx   = (u0 + u1 + u2) / 3.0;
+	g_context->fill_xray_uvy   = (v0 + v1 + v2) / 3.0;
+	g_context->fill_xray_norx  = face_nor.x;
+	g_context->fill_xray_nory  = face_nor.y;
+	g_context->fill_xray_norz  = face_nor.z;
+	g_context->fill_xray_valid = true;
 }
 
 mat4_t util_render_get_decal_mat() {

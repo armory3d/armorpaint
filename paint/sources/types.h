@@ -394,6 +394,12 @@ typedef struct context {
 	f32                         fill_sym_z_norx;
 	f32                         fill_sym_z_nory;
 	f32                         fill_sym_z_norz;
+	bool                        fill_xray_valid;
+	f32                         fill_xray_uvx;
+	f32                         fill_xray_uvy;
+	f32                         fill_xray_norx;
+	f32                         fill_xray_nory;
+	f32                         fill_xray_norz;
 	i32                         fill_type;
 	i32                         blur_type;
 	bool                        paint2d;

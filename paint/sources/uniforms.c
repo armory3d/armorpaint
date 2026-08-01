@@ -192,6 +192,9 @@ vec2_t uniforms_ext_vec2_link(object_t *object, material_data_t *mat, char *link
 	else if (string_equals(link, "_fill_sym_z_uv")) {
 		return (vec2_t){g_context->fill_sym_z_uvx, g_context->fill_sym_z_uvy};
 	}
+	else if (string_equals(link, "_fill_xray_uv")) {
+		return (vec2_t){g_context->fill_xray_uvx, g_context->fill_xray_uvy};
+	}
 	else if (string_equals(link, "_brush_angle")) {
 		f32 brush_angle = g_context->brush_angle + g_context->brush_nodes_angle;
 		f32 angle       = g_context->layer->fill_material != NULL ? g_context->layer->angle : brush_angle;
@@ -259,6 +262,9 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 	}
 	else if (string_equals(link, "_fill_sym_z_nor")) {
 		return (vec4_t){g_context->fill_sym_z_norx, g_context->fill_sym_z_nory, g_context->fill_sym_z_norz, 1.0};
+	}
+	else if (string_equals(link, "_fill_xray_nor")) {
+		return (vec4_t){g_context->fill_xray_norx, g_context->fill_xray_nory, g_context->fill_xray_norz, 1.0};
 	}
 	else if (string_equals(link, "_particle_hit")) {
 		v = (vec4_t){g_context->particle_hit_x, g_context->particle_hit_y, g_context->particle_hit_z, 1.0};
