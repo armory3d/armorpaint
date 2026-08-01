@@ -26,8 +26,32 @@ void make_discard_face(node_shader_t *kong) {
 	node_shader_write_frag(kong, "var face_c1: float4 = textrianglemap[uint2(uint(tex_coord_inp.x * constants.textrianglemap_size.x), uint(tex_coord_inp.y * "
 	                             "constants.textrianglemap_size.y))];");
 	node_shader_write_frag(kong, "var face_c2: float4 = sample_lod(textrianglemap, sampler_linear, input.tex_coord_pick, 0.0);");
-	// node_shader_write_frag(kong, "if (any(face_c1 != face_c2)) { discard; }");
-	node_shader_write_frag(kong, "if (face_c1.x != face_c2.x || face_c1.y != face_c2.y || face_c1.z != face_c2.z || face_c1.w != face_c2.w) { discard; }");
+	node_shader_write_frag(kong, "var face_match: bool = face_c1.x == face_c2.x && face_c1.y == face_c2.y && face_c1.z == face_c2.z && face_c1.w == face_c2.w;");
+
+	bool sym_x = g_context->sym_x && g_context->fill_sym_x_valid;
+	bool sym_y = g_context->sym_y && g_context->fill_sym_y_valid;
+	bool sym_z = g_context->sym_z && g_context->fill_sym_z_valid;
+
+	if (sym_x) {
+		node_shader_add_constant(kong, "fill_sym_x_uv: float2", "_fill_sym_x_uv");
+		node_shader_write_frag(kong, "var face_symx: float4 = sample_lod(textrianglemap, sampler_linear, constants.fill_sym_x_uv, 0.0);");
+		node_shader_write_frag(
+		    kong, "if (face_symx.x == face_c2.x && face_symx.y == face_c2.y && face_symx.z == face_c2.z && face_symx.w == face_c2.w) { face_match = true; }");
+	}
+	if (sym_y) {
+		node_shader_add_constant(kong, "fill_sym_y_uv: float2", "_fill_sym_y_uv");
+		node_shader_write_frag(kong, "var face_symy: float4 = sample_lod(textrianglemap, sampler_linear, constants.fill_sym_y_uv, 0.0);");
+		node_shader_write_frag(
+		    kong, "if (face_symy.x == face_c2.x && face_symy.y == face_c2.y && face_symy.z == face_c2.z && face_symy.w == face_c2.w) { face_match = true; }");
+	}
+	if (sym_z) {
+		node_shader_add_constant(kong, "fill_sym_z_uv: float2", "_fill_sym_z_uv");
+		node_shader_write_frag(kong, "var face_symz: float4 = sample_lod(textrianglemap, sampler_linear, constants.fill_sym_z_uv, 0.0);");
+		node_shader_write_frag(
+		    kong, "if (face_symz.x == face_c2.x && face_symz.y == face_c2.y && face_symz.z == face_c2.z && face_symz.w == face_c2.w) { face_match = true; }");
+	}
+
+	node_shader_write_frag(kong, "if (!face_match) { discard; }");
 }
 
 void make_discard_uv_island(node_shader_t *kong) {

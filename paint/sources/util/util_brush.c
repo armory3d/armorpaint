@@ -64,6 +64,14 @@ void util_brush_update() {
 					else if (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_UV_ISLAND) {
 						util_uv_uvislandmap_cached = false;
 					}
+					else if (g_context->tool == TOOL_TYPE_FILL &&
+					         (g_context->fill_type == FILL_TYPE_FACE || g_context->fill_type == FILL_TYPE_ANGLE) &&
+					         (g_context->sym_x || g_context->sym_y || g_context->sym_z)) {
+						util_render_pick_pos_nor_tex();
+						util_render_pick_fill_symmetry();
+						// Recompile the fill shader so the freshly picked mirror candidates are baked in
+						make_material_parse_paint_material(true);
+					}
 				}
 
 				g_context->brush_time += sys_delta();

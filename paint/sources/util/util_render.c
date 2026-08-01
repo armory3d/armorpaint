@@ -587,6 +587,79 @@ void util_render_pick_pos_nor_tex() {
 	g_context->pdirty = 0;
 }
 
+// Re-picks pos/nor/tex under the cursor with the paint object's transform mirrored across
+// each active symmetry axis, so Fill can match faces/UV islands/normals on the opposite side
+// without needing to re-render the paint pass per axis.
+void util_render_pick_fill_symmetry() {
+	g_context->fill_sym_x_valid = false;
+	g_context->fill_sym_y_valid = false;
+	g_context->fill_sym_z_valid = false;
+
+	if (!(g_context->sym_x || g_context->sym_y || g_context->sym_z)) {
+		return;
+	}
+
+	f32 uvx  = g_context->uvx_picked;
+	f32 uvy  = g_context->uvy_picked;
+	f32 norx = g_context->norx_picked;
+	f32 nory = g_context->nory_picked;
+	f32 norz = g_context->norz_picked;
+	f32 posx = g_context->posx_picked;
+	f32 posy = g_context->posy_picked;
+	f32 posz = g_context->posz_picked;
+
+	transform_t *t  = g_context->paint_object->base->transform;
+	f32          sx = t->scale.x;
+	f32          sy = t->scale.y;
+	f32          sz = t->scale.z;
+
+	if (g_context->sym_x) {
+		t->scale = (vec4_t){-sx, sy, sz, 1.0};
+		transform_build_matrix(t);
+		util_render_pick_pos_nor_tex();
+		g_context->fill_sym_x_uvx   = g_context->uvx_picked;
+		g_context->fill_sym_x_uvy   = g_context->uvy_picked;
+		g_context->fill_sym_x_norx  = g_context->norx_picked;
+		g_context->fill_sym_x_nory  = g_context->nory_picked;
+		g_context->fill_sym_x_norz  = g_context->norz_picked;
+		g_context->fill_sym_x_valid = true;
+	}
+	if (g_context->sym_y) {
+		t->scale = (vec4_t){sx, -sy, sz, 1.0};
+		transform_build_matrix(t);
+		util_render_pick_pos_nor_tex();
+		g_context->fill_sym_y_uvx   = g_context->uvx_picked;
+		g_context->fill_sym_y_uvy   = g_context->uvy_picked;
+		g_context->fill_sym_y_norx  = g_context->norx_picked;
+		g_context->fill_sym_y_nory  = g_context->nory_picked;
+		g_context->fill_sym_y_norz  = g_context->norz_picked;
+		g_context->fill_sym_y_valid = true;
+	}
+	if (g_context->sym_z) {
+		t->scale = (vec4_t){sx, sy, -sz, 1.0};
+		transform_build_matrix(t);
+		util_render_pick_pos_nor_tex();
+		g_context->fill_sym_z_uvx   = g_context->uvx_picked;
+		g_context->fill_sym_z_uvy   = g_context->uvy_picked;
+		g_context->fill_sym_z_norx  = g_context->norx_picked;
+		g_context->fill_sym_z_nory  = g_context->nory_picked;
+		g_context->fill_sym_z_norz  = g_context->norz_picked;
+		g_context->fill_sym_z_valid = true;
+	}
+
+	t->scale = (vec4_t){sx, sy, sz, 1.0};
+	transform_build_matrix(t);
+
+	g_context->uvx_picked  = uvx;
+	g_context->uvy_picked  = uvy;
+	g_context->norx_picked = norx;
+	g_context->nory_picked = nory;
+	g_context->norz_picked = norz;
+	g_context->posx_picked = posx;
+	g_context->posy_picked = posy;
+	g_context->posz_picked = posz;
+}
+
 mat4_t util_render_get_decal_mat() {
 	util_render_pick_pos_nor_tex();
 	mat4_t decal_mat = mat4_identity();

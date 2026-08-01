@@ -518,7 +518,8 @@ void ui_header_draw_tool_properties() {
 				make_material_parse_mesh_material();
 			}
 		}
-		else {
+
+		{
 			i32  _w           = g_ui->_w;
 			f32  sc           = UI_SCALE();
 			bool touch_header = (g_config->touch_ui && g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1);

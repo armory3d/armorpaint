@@ -549,6 +549,7 @@ void                      util_render_make_font_preview();
 void                      util_render_make_brush_preview();
 void   util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gpu_texture_t *image, ui_node_canvas_t *group, ui_node_t_array_t *parents);
 void   util_render_pick_pos_nor_tex();
+void   util_render_pick_fill_symmetry();
 mat4_t util_render_get_decal_mat();
 void   util_brush_update();
 vec4_t raycast_aabb_mouse(object_t *object);

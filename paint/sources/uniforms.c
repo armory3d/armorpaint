@@ -183,6 +183,15 @@ vec2_t uniforms_ext_vec2_link(object_t *object, material_data_t *mat, char *link
 	else if (string_equals(link, "_texpaint_size")) {
 		return (vec2_t){config_get_texture_res_x(), config_get_texture_res_y()};
 	}
+	else if (string_equals(link, "_fill_sym_x_uv")) {
+		return (vec2_t){g_context->fill_sym_x_uvx, g_context->fill_sym_x_uvy};
+	}
+	else if (string_equals(link, "_fill_sym_y_uv")) {
+		return (vec2_t){g_context->fill_sym_y_uvx, g_context->fill_sym_y_uvy};
+	}
+	else if (string_equals(link, "_fill_sym_z_uv")) {
+		return (vec2_t){g_context->fill_sym_z_uvx, g_context->fill_sym_z_uvy};
+	}
 	else if (string_equals(link, "_brush_angle")) {
 		f32 brush_angle = g_context->brush_angle + g_context->brush_nodes_angle;
 		f32 angle       = g_context->layer->fill_material != NULL ? g_context->layer->angle : brush_angle;
@@ -241,6 +250,15 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 		v = (vec4_t){color_get_rb(g_context->picked_color->normal) / 255.0, color_get_gb(g_context->picked_color->normal) / 255.0,
 		             color_get_bb(g_context->picked_color->normal) / 255.0, 1.0};
 		return v;
+	}
+	else if (string_equals(link, "_fill_sym_x_nor")) {
+		return (vec4_t){g_context->fill_sym_x_norx, g_context->fill_sym_x_nory, g_context->fill_sym_x_norz, 1.0};
+	}
+	else if (string_equals(link, "_fill_sym_y_nor")) {
+		return (vec4_t){g_context->fill_sym_y_norx, g_context->fill_sym_y_nory, g_context->fill_sym_y_norz, 1.0};
+	}
+	else if (string_equals(link, "_fill_sym_z_nor")) {
+		return (vec4_t){g_context->fill_sym_z_norx, g_context->fill_sym_z_nory, g_context->fill_sym_z_norz, 1.0};
 	}
 	else if (string_equals(link, "_particle_hit")) {
 		v = (vec4_t){g_context->particle_hit_x, g_context->particle_hit_y, g_context->particle_hit_z, 1.0};

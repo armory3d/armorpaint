@@ -278,10 +278,29 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 			node_shader_write_frag(kong, "wn = normalize(wn);");
 			kong->frag_n = true;
 			f32 angle    = g_context->brush_angle_reject_dot;
-			node_shader_write_frag(kong, string("if (dot(wn, n) < %s) { discard; }", f32_to_string(angle)));
+			node_shader_write_frag(kong, string("var angle_match: bool = dot(wn, n) >= %s;", f32_to_string(angle)));
+
+			bool sym_x = g_context->sym_x && g_context->fill_sym_x_valid;
+			bool sym_y = g_context->sym_y && g_context->fill_sym_y_valid;
+			bool sym_z = g_context->sym_z && g_context->fill_sym_z_valid;
+
+			if (sym_x) {
+				node_shader_add_constant(kong, "fill_sym_x_nor: float3", "_fill_sym_x_nor");
+				node_shader_write_frag(kong, string("if (dot(constants.fill_sym_x_nor, n) >= %s) { angle_match = true; }", f32_to_string(angle)));
+			}
+			if (sym_y) {
+				node_shader_add_constant(kong, "fill_sym_y_nor: float3", "_fill_sym_y_nor");
+				node_shader_write_frag(kong, string("if (dot(constants.fill_sym_y_nor, n) >= %s) { angle_match = true; }", f32_to_string(angle)));
+			}
+			if (sym_z) {
+				node_shader_add_constant(kong, "fill_sym_z_nor: float3", "_fill_sym_z_nor");
+				node_shader_write_frag(kong, string("if (dot(constants.fill_sym_z_nor, n) >= %s) { angle_match = true; }", f32_to_string(angle)));
+			}
+
+			node_shader_write_frag(kong, "if (!angle_match) { discard; }");
 		}
 		bool stencil_fill = g_context->tool == TOOL_TYPE_FILL && g_context->brush_stencil_image != NULL;
-		if (stencil_fill) {
+		if (stencil_fill && !g_context->xray) {
 			node_shader_write_frag(kong, "if (sp.z > sample_lod(gbufferD, sampler_linear, sp.xy, 0.0).r - 0.00005) { discard; }");
 		}
 	}
