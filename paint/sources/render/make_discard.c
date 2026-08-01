@@ -26,7 +26,8 @@ void make_discard_face(node_shader_t *kong) {
 	node_shader_write_frag(kong, "var face_c1: float4 = textrianglemap[uint2(uint(tex_coord_inp.x * constants.textrianglemap_size.x), uint(tex_coord_inp.y * "
 	                             "constants.textrianglemap_size.y))];");
 	node_shader_write_frag(kong, "var face_c2: float4 = sample_lod(textrianglemap, sampler_linear, input.tex_coord_pick, 0.0);");
-	node_shader_write_frag(kong, "var face_match: bool = face_c1.x == face_c2.x && face_c1.y == face_c2.y && face_c1.z == face_c2.z && face_c1.w == face_c2.w;");
+	node_shader_write_frag(kong,
+	                       "var face_match: bool = face_c1.x == face_c2.x && face_c1.y == face_c2.y && face_c1.z == face_c2.z && face_c1.w == face_c2.w;");
 
 	bool sym_x = g_context->sym_x && g_context->fill_sym_x_valid;
 	bool sym_y = g_context->sym_y && g_context->fill_sym_y_valid;

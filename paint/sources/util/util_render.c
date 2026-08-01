@@ -642,15 +642,15 @@ vec4_t util_render_closest_point_on_triangle(vec4_t p, vec4_t a, vec4_t b, vec4_
 // point isn't currently visible/unoccluded from the camera (e.g. the bottom of an object viewed
 // from above) - which a re-render-and-sample approach fundamentally cannot handle.
 bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy, f32 *out_norx, f32 *out_nory, f32 *out_norz) {
-	mesh_object_t *obj  = g_context->paint_object;
-	mesh_data_t   *mesh = obj->data;
-	i16_array_t   *posa = mesh->vertex_arrays->buffer[0]->values;
-	i16_array_t   *uva  = mesh->vertex_arrays->buffer[2]->values;
-	u32_array_t   *inda = mesh->index_array;
+	mesh_object_t *obj   = g_context->paint_object;
+	mesh_data_t   *mesh  = obj->data;
+	i16_array_t   *posa  = mesh->vertex_arrays->buffer[0]->values;
+	i16_array_t   *uva   = mesh->vertex_arrays->buffer[2]->values;
+	u32_array_t   *inda  = mesh->index_array;
 	mat4_t         world = obj->base->transform->world_unpack;
 
 	f32 best_dist_sq = -1.0;
-	i32 best_tri      = -1;
+	i32 best_tri     = -1;
 
 	i32 tri_count = math_floor(inda->length / 3.0);
 	for (i32 i = 0; i < tri_count; ++i) {
@@ -658,9 +658,12 @@ bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy
 		u32 i1 = inda->buffer[i * 3 + 1];
 		u32 i2 = inda->buffer[i * 3 + 2];
 
-		vec4_t p0 = vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p1 = vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p2 = vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p0 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p1 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p2 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
 
 		vec4_t cp      = util_render_closest_point_on_triangle(target, p0, p1, p2);
 		vec4_t diff    = vec4_sub(cp, target);
@@ -731,22 +734,19 @@ void util_render_pick_fill_symmetry() {
 	vec4_t delta     = vec4_sub(world_pos, origin);
 
 	if (g_context->sym_x) {
-		vec4_t mirrored_world = vec4_add(origin, vec4_reflect(delta, axis_x));
-		g_context->fill_sym_x_valid =
-		    util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_x_uvx, &g_context->fill_sym_x_uvy, &g_context->fill_sym_x_norx,
-		                                       &g_context->fill_sym_x_nory, &g_context->fill_sym_x_norz);
+		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_x));
+		g_context->fill_sym_x_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_x_uvx, &g_context->fill_sym_x_uvy,
+		                                                                &g_context->fill_sym_x_norx, &g_context->fill_sym_x_nory, &g_context->fill_sym_x_norz);
 	}
 	if (g_context->sym_y) {
-		vec4_t mirrored_world = vec4_add(origin, vec4_reflect(delta, axis_y));
-		g_context->fill_sym_y_valid =
-		    util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_y_uvx, &g_context->fill_sym_y_uvy, &g_context->fill_sym_y_norx,
-		                                       &g_context->fill_sym_y_nory, &g_context->fill_sym_y_norz);
+		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_y));
+		g_context->fill_sym_y_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_y_uvx, &g_context->fill_sym_y_uvy,
+		                                                                &g_context->fill_sym_y_norx, &g_context->fill_sym_y_nory, &g_context->fill_sym_y_norz);
 	}
 	if (g_context->sym_z) {
-		vec4_t mirrored_world = vec4_add(origin, vec4_reflect(delta, axis_z));
-		g_context->fill_sym_z_valid =
-		    util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_z_uvx, &g_context->fill_sym_z_uvy, &g_context->fill_sym_z_norx,
-		                                       &g_context->fill_sym_z_nory, &g_context->fill_sym_z_norz);
+		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_z));
+		g_context->fill_sym_z_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_z_uvx, &g_context->fill_sym_z_uvy,
+		                                                                &g_context->fill_sym_z_norx, &g_context->fill_sym_z_nory, &g_context->fill_sym_z_norz);
 	}
 }
 
@@ -761,11 +761,11 @@ void util_render_pick_fill_xray() {
 		return;
 	}
 
-	mesh_object_t *obj  = g_context->paint_object;
-	mesh_data_t   *mesh = obj->data;
-	i16_array_t   *posa = mesh->vertex_arrays->buffer[0]->values;
-	i16_array_t   *uva  = mesh->vertex_arrays->buffer[2]->values;
-	u32_array_t   *inda = mesh->index_array;
+	mesh_object_t *obj   = g_context->paint_object;
+	mesh_data_t   *mesh  = obj->data;
+	i16_array_t   *posa  = mesh->vertex_arrays->buffer[0]->values;
+	i16_array_t   *uva   = mesh->vertex_arrays->buffer[2]->values;
+	u32_array_t   *inda  = mesh->index_array;
 	mat4_t         world = obj->base->transform->world_unpack;
 
 	ray_t *ray = raycast_get_ray(g_context->paint_vec.x * sys_w(), g_context->paint_vec.y * sys_h(), scene_camera);
@@ -781,9 +781,12 @@ void util_render_pick_fill_xray() {
 		u32 i1 = inda->buffer[i * 3 + 1];
 		u32 i2 = inda->buffer[i * 3 + 2];
 
-		vec4_t p0 = vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p1 = vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p2 = vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p0 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p1 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
+		vec4_t p2 =
+		    vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
 
 		vec4_t hit = ray_intersect_triangle(ray, p0, p1, p2, false);
 		if (vec4_isnan(hit)) {
