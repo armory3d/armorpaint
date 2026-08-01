@@ -170,6 +170,9 @@ void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_arr
 }
 
 void util_uv_cache_uv_island_map() {
+	if (util_uv_uvislandmap_cached) {
+		return;
+	}
 	util_uv_cache_dilate_map();
 	if (util_uv_dilate_bytes == NULL) {
 		gc_unroot(util_uv_dilate_bytes);
