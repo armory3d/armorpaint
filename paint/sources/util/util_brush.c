@@ -64,13 +64,25 @@ void util_brush_update() {
 					else if (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_UV_ISLAND) {
 						util_uv_uvislandmap_cached = false;
 					}
-					else if (g_context->tool == TOOL_TYPE_FILL &&
-					         (g_context->fill_type == FILL_TYPE_FACE || g_context->fill_type == FILL_TYPE_ANGLE) &&
-					         (g_context->sym_x || g_context->sym_y || g_context->sym_z || g_context->xray)) {
-						util_render_pick_pos_nor_tex();
-						util_render_pick_fill_symmetry();
-						util_render_pick_fill_xray();
-						// Recompile the fill shader so the freshly picked mirror/xray candidates are baked in
+				}
+
+				// Keep Fill's symmetry/X-ray candidates following the cursor every frame while painting
+				// (not just at stroke start), so dragging across multiple faces mirrors/x-rays correctly too.
+				// The shader only needs recompiling when a candidate's validity actually flips, not on every
+				// position update, since the picked UV/normal values themselves flow through as constants.
+				if (g_context->tool == TOOL_TYPE_FILL && (g_context->fill_type == FILL_TYPE_FACE || g_context->fill_type == FILL_TYPE_ANGLE) &&
+				    (g_context->sym_x || g_context->sym_y || g_context->sym_z || g_context->xray)) {
+					bool was_sym_x_valid = g_context->fill_sym_x_valid;
+					bool was_sym_y_valid = g_context->fill_sym_y_valid;
+					bool was_sym_z_valid = g_context->fill_sym_z_valid;
+					bool was_xray_valid  = g_context->fill_xray_valid;
+
+					util_render_pick_pos_nor_tex();
+					util_render_pick_fill_symmetry();
+					util_render_pick_fill_xray();
+
+					if (g_context->fill_sym_x_valid != was_sym_x_valid || g_context->fill_sym_y_valid != was_sym_y_valid ||
+					    g_context->fill_sym_z_valid != was_sym_z_valid || g_context->fill_xray_valid != was_xray_valid) {
 						make_material_parse_paint_material(true);
 					}
 				}
