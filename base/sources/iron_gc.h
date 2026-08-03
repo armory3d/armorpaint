@@ -11,6 +11,7 @@ void *gc_alloc(size_t size);
 void  gc_leaf(void *ptr);
 void  gc_root(void *ptr);
 void  gc_unroot(void *ptr);
+void  gc_resize(void *ptr, size_t size);
 void *gc_realloc(void *ptr, size_t size);
 void  gc_free(void *ptr);
 void  gc_pause();

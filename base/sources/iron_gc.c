@@ -14,6 +14,7 @@ void *gc_alloc(size_t size) {
 void gc_leaf(void *ptr) {}
 void gc_root(void *ptr) {}
 void gc_unroot(void *ptr) {}
+void gc_resize(void *ptr, size_t size) {}
 
 void *gc_realloc(void *ptr, size_t size) {
 	return realloc(ptr, size);
@@ -368,6 +369,14 @@ void gc_unroot(void *ptr) {
 		if (alloc->roots == 0) {
 			alloc->tag &= ~GC_TAG_ROOT;
 		}
+	}
+}
+
+void gc_resize(void *ptr, size_t size) {
+	// Narrows the range gc_mark_alloc walks
+	gc_allocation_t *alloc = gc_allocation_map_get(gc->allocs, ptr);
+	if (alloc) {
+		alloc->size = size;
 	}
 }
 
