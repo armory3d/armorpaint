@@ -31,7 +31,7 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	array_insert(g_project->_->paint_objects, new_pos, mesh);
 }
 
-void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
+void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, material_data_t *data) {
 	// Render an object with a chosen material instead of the painted layers
 	if (tab_meshes_override_map == NULL) {
 		tab_meshes_override_map = any_map_create();
@@ -44,9 +44,13 @@ void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
 	}
 	else {
 		slot_material_t *slot = g_project->_->materials->buffer[mat_index];
-		o->material           = make_mesh_preview_viewport(slot);
+		o->material           = data != NULL ? data : make_mesh_preview_viewport(slot);
 		any_map_set(tab_meshes_override_map, uid_key, i32_to_string(mat_index));
 	}
+}
+
+void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
+	tab_meshes_set_override_data(o, mat_index, NULL);
 }
 
 i32 tab_meshes_get_override(mesh_object_t *o) {
@@ -505,7 +509,7 @@ void tab_meshes_draw_edit() {
 	}
 }
 
-void tab_meshes_append_shape(char *mesh_name) {
+mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	scene_t     *scene_raw = NULL;
 	mesh_data_t *raw       = NULL;
 	if (string_equals(mesh_name, "sphere")) {
@@ -549,6 +553,7 @@ void tab_meshes_append_shape(char *mesh_name) {
 	any_map_set(data_cached_meshes, md->_->handle, md);
 	any_array_push(g_project->_->paint_objects, mo);
 	g_context->paint_object = mo;
+	return mo;
 }
 
 static icon_t tab_meshes_mesh_name_to_icon(char *s) {
