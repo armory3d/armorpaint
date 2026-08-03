@@ -194,9 +194,9 @@ static void script_paint_begin_stroke(void) {
 		history_paint();
 	}
 
-	script_paint_active        = true;
-	script_paint_first         = true;
-	g_context->brush_time      = sys_delta();
+	script_paint_active         = true;
+	script_paint_first          = true;
+	g_context->brush_time       = sys_delta();
 	g_context->prev_paint_vec_x = -1.0f;
 	g_context->prev_paint_vec_y = -1.0f;
 }
@@ -617,6 +617,57 @@ object_t *script_shape_add(char *name) {
 		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 	}
 	return mo->base;
+}
+
+static asim_body_t *script_physics_body(object_t *o) {
+	return o != NULL && o->_ != NULL ? o->_->body : NULL;
+}
+
+void script_physics_set_shape(object_t *o, i32 shape) {
+	if (o == NULL) {
+		return;
+	}
+
+	asim_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		asim_body_remove(body);
+	}
+	g_project->mesh_physics_shapes = i32_array_create(0);
+	if (shape < 0) {
+		return;
+	}
+
+	bool dynamic = shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE;
+	sim_add_body(o, (asim_shape_t)shape, dynamic ? 1.0 : 0.0);
+}
+
+void script_physics_set_mass(object_t *o, f32 mass) {
+	asim_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		asim_body_set_mass(body, mass);
+		g_project->mesh_physics_shapes = i32_array_create(0);
+	}
+}
+
+void script_physics_apply_impulse(object_t *o, f32 x, f32 y, f32 z) {
+	asim_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		asim_body_apply_impulse(body->_body, (vec4_t){x, y, z, 0.0});
+	}
+}
+
+void script_physics_set_velocity(object_t *o, f32 x, f32 y, f32 z) {
+	asim_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		asim_body_set_velocity(body->_body, x, y, z);
+	}
+}
+
+void script_physics_sync_transform(object_t *o) {
+	asim_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		asim_body_sync_transform(body);
+	}
 }
 
 extern string_array_t *_path_texture_formats;

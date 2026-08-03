@@ -434,6 +434,7 @@ void minic_register_builtins() {
 
 	MINIC_ENUM("gpu_texture_format_t", "GPU_TEXTURE_FORMAT_RGBA32", "GPU_TEXTURE_FORMAT_RGBA64", "GPU_TEXTURE_FORMAT_RGBA128", "GPU_TEXTURE_FORMAT_R8",
 	           "GPU_TEXTURE_FORMAT_R16", "GPU_TEXTURE_FORMAT_R32", "GPU_TEXTURE_FORMAT_D32", "GPU_TEXTURE_FORMAT_RGBA32_BC7");
+	MINIC_ENUM("asim_shape_t", "ASIM_SHAPE_BOX", "ASIM_SHAPE_SPHERE", "ASIM_SHAPE_TERRAIN", "ASIM_SHAPE_MESH");
 	MINIC_ENUM("tool_type_t", "TOOL_TYPE_BRUSH", "TOOL_TYPE_ERASER", "TOOL_TYPE_FILL", "TOOL_TYPE_DECAL", "TOOL_TYPE_TEXT", "TOOL_TYPE_CLONE", "TOOL_TYPE_BLUR",
 	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_BAKE");
 
@@ -1231,6 +1232,11 @@ void minic_register_builtins() {
 	R(script_get_project, "p()");
 	R(script_get_object, "p(p s)");
 	R(script_shape_add, "p(p name)");
+	R(script_physics_set_shape, "v(p o,i shape)");
+	R(script_physics_set_mass, "v(p o,f mass)");
+	R(script_physics_apply_impulse, "v(p o,f x,f y,f z)");
+	R(script_physics_set_velocity, "v(p o,f x,f y,f z)");
+	R(script_physics_sync_transform, "v(p o)");
 	R(script_set_stage, "v(p name)");
 	R(script_show_envmap, "v(i b)");
 	R(script_fade_to_stage, "v(p stage)");
