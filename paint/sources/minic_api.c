@@ -178,14 +178,23 @@ static void minic_set_mat3(minic_val_t *o, mat3_t m) { minic_box(o, m.m, 9); }
 static void minic_set_mat4(minic_val_t *o, mat4_t m) { minic_box(o, m.m, 16); }
 // clang-format on
 
+// A call may pass too few arguments or the wrong kind
+static void *minic_arg_ptr(minic_val_t *a, int c, int i) {
+	return (i < c && a[i].type == MINIC_T_PTR) ? a[i].p : NULL;
+}
+
+static float minic_arg_float(minic_val_t *a, int c, int i) {
+	return i < c ? (float)minic_val_to_d(a[i]) : 0.0f;
+}
+
 // Argument accessors for the wrapper table
-#define V2(i) minic_get_vec2(_a[i].p)
-#define V4(i) minic_get_vec4(_a[i].p)
-#define QT(i) minic_get_quat(_a[i].p)
-#define M3(i) minic_get_mat3(_a[i].p)
-#define M4(i) minic_get_mat4(_a[i].p)
-#define AF(i) (_a[i].f)
-#define AP(i) (_a[i].p)
+#define V2(i) minic_get_vec2(minic_arg_ptr(_a, _c, i))
+#define V4(i) minic_get_vec4(minic_arg_ptr(_a, _c, i))
+#define QT(i) minic_get_quat(minic_arg_ptr(_a, _c, i))
+#define M3(i) minic_get_mat3(minic_arg_ptr(_a, _c, i))
+#define M4(i) minic_get_mat4(minic_arg_ptr(_a, _c, i))
+#define AF(i) minic_arg_float(_a, _c, i)
+#define AP(i) minic_arg_ptr(_a, _c, i)
 
 // One X(return-kind, name, call) line per math function; expanded twice:
 // once to define the mn_* wrappers, once to register them
@@ -1221,6 +1230,7 @@ void minic_register_builtins() {
 	R(script_get_config, "p()");
 	R(script_get_project, "p()");
 	R(script_get_object, "p(p s)");
+	R(script_shape_add, "p(p name)");
 	R(script_set_stage, "v(p name)");
 	R(script_show_envmap, "v(i b)");
 	R(script_fade_to_stage, "v(p stage)");
@@ -1234,6 +1244,7 @@ void minic_register_builtins() {
 	R(script_fill_layer, "v()");
 	R(script_material_create, "p(p name)");
 	R(script_material_set, "v(p m)");
+	R(script_object_set_material, "v(p object,p material)");
 	R(script_material_delete, "v(p m)");
 	R(script_material_create_node, "p(p type)");
 	R(script_material_create_node_at, "p(p type,f x,f y)");

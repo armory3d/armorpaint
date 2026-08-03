@@ -308,7 +308,7 @@ static ui_node_canvas_t *script_material_canvas(void) {
 	return g_context->material->canvas;
 }
 
-static void script_material_gpu_begin(gpu_texture_t **out_current, bool *out_in_use) {
+static void script_gpu_begin(gpu_texture_t **out_current, bool *out_in_use) {
 	*out_current = _draw_current;
 	*out_in_use  = gpu_in_use;
 	if (*out_in_use) {
@@ -316,7 +316,7 @@ static void script_material_gpu_begin(gpu_texture_t **out_current, bool *out_in_
 	}
 }
 
-static void script_material_gpu_end(gpu_texture_t *current, bool in_use) {
+static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	if (in_use) {
 		draw_begin(current, false, 0);
 	}
@@ -335,10 +335,10 @@ slot_material_t *script_material_create(char *name) {
 
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 	context_set_material(m);
 	util_render_make_material_preview();
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
 
 	history_new_material();
 	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
@@ -353,15 +353,46 @@ void script_material_set(slot_material_t *m) {
 	}
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 	context_set_material(m);
 	util_render_make_material_preview();
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
+}
+
+static slot_material_t *script_object_material_slot = NULL;
+static material_data_t *script_object_material_data = NULL;
+
+static void script_object_material_reset(void) {
+	gc_unroot(script_object_material_data);
+	script_object_material_slot = NULL;
+	script_object_material_data = NULL;
+}
+
+void script_object_set_material(object_t *o, slot_material_t *m) {
+	if (o == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL) {
+		return;
+	}
+	if (!string_equals(o->ext_type, "mesh_object_t")) {
+		return;
+	}
+	i32 index = m != NULL ? array_index_of(g_project->_->materials, m) : -1;
+	if (index >= 0 && m != script_object_material_slot) {
+		script_object_material_reset();
+		script_object_material_slot = m;
+		script_object_material_data = make_mesh_preview_viewport(m);
+		gc_root(script_object_material_data);
+	}
+	tab_meshes_set_override_data(o->ext, index, index >= 0 ? script_object_material_data : NULL);
+	g_project->mesh_materials = i32_array_create(0);
+	g_context->ddirty         = 2;
 }
 
 void script_material_delete(slot_material_t *m) {
 	if (m == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL) {
 		return;
+	}
+	if (m == script_object_material_slot) {
+		script_object_material_reset();
 	}
 	if (g_project->_->materials->length <= 1) {
 		return;
@@ -529,10 +560,11 @@ void script_material_update(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return;
 	}
+	script_object_material_reset();
 
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
@@ -541,7 +573,7 @@ void script_material_update(void) {
 	}
 	base_update_workflow_nodes();
 
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
 
 	if (ui_nodes_hwnd != NULL) {
 		ui_nodes_hwnd->redraws = 2;
@@ -554,6 +586,37 @@ void script_material_update(void) {
 	}
 	g_context->ddirty  = 2;
 	g_context->rtdirty = 1;
+}
+
+string_array_t *script_shape_list(void) {
+	project_fetch_default_meshes();
+	return project_default_mesh_list;
+}
+
+object_t *script_shape_add(char *name) {
+	if (name == NULL || string_array_index_of(script_shape_list(), name) < 0) {
+		return NULL;
+	}
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->paint_objects == NULL || g_project->_->paint_objects->length == 0) {
+		return NULL;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	mesh_object_t *mo = tab_meshes_append_shape(name);
+	script_gpu_end(current, in_use);
+
+	if (mo == NULL) {
+		return NULL;
+	}
+
+	tab_meshes_reset_preview_map();
+	g_context->ddirty = 2;
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+	return mo->base;
 }
 
 extern string_array_t *_path_texture_formats;
