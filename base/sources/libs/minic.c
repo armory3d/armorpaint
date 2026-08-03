@@ -1413,11 +1413,9 @@ static void minic_parse_stmt(minic_env_t *e) {
 			minic_lex_next(&e->lex);
 			v = minic_parse_cond(e);
 			if (is_ptr) {
-				v.type = MINIC_T_PTR;
-				if (v.p == NULL) {
+				if (v.type != MINIC_T_PTR) {
 					// NULL literal passed as integer 0 — convert
-					uintptr_t ua = (uintptr_t)(uint64_t)minic_val_to_d(v);
-					v.p          = (ua == 0) ? NULL : (void *)ua;
+					v = minic_val_ptr((void *)(uintptr_t)(uint64_t)minic_val_to_d(v));
 				}
 				// Only stamp the declared element type for native C pointers.
 				// Pointers into the active arena (e.g. from &var) use the MINIC_T_PTR sentinel
@@ -2610,6 +2608,7 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D4(VOID, f, f, f, i);
 	D4(VOID, f, f, f, p);
 	D4(VOID, i, i, i, i);
+	D4(VOID, p, f, f, f);
 	D4(VOID, p, i, i, f);
 	D4(VOID, p, i, i, i);
 	D4(VOID, p, i, i, p);
@@ -2629,6 +2628,7 @@ minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
 	D5(VOID, p, p, p, p, p);
 	D6(VOID, f, f, f, f, f, f);
 	D6(VOID, f, f, f, f, i, f);
+	D6(VOID, i, i, f, f, f, f);
 	D6(VOID, i, i, i, i, i, i);
 	D6(VOID, p, i, i, f, f, f);
 	D6(VOID, p, p, p, i, i, f);

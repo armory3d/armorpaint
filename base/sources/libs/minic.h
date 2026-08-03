@@ -135,18 +135,18 @@ bool              minic_global_get(const char *name, minic_val_t *out); // false
 	} while (0)
 
 static inline minic_val_t minic_val_int(int v) {
-	minic_val_t r;
-	r.type       = MINIC_T_INT;
-	r.deref_type = MINIC_T_INT;
-	r.i          = v;
+	minic_val_t r = {0};
+	r.type        = MINIC_T_INT;
+	r.deref_type  = MINIC_T_INT;
+	r.i           = v;
 	return r;
 }
 
 static inline minic_val_t minic_val_float(float v) {
-	minic_val_t r;
-	r.type       = MINIC_T_FLOAT;
-	r.deref_type = MINIC_T_FLOAT;
-	r.f          = v;
+	minic_val_t r = {0};
+	r.type        = MINIC_T_FLOAT;
+	r.deref_type  = MINIC_T_FLOAT;
+	r.f           = v;
 	return r;
 }
 
