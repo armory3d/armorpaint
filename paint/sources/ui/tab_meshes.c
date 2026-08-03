@@ -129,19 +129,24 @@ void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
 
+static void tab_meshes_reparent_keep_world(object_t *child, object_t *parent) {
+	mat4_t world = child->transform->world;
+	object_set_parent(child, parent);
+	mat4_t parent_world = child->parent != NULL ? child->parent->transform->world : mat4_identity();
+	transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
+}
+
 void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
 	array_remove(g_project->_->paint_objects, o);
-	while (o->base->children->length > 0) {
-		object_t *child = o->base->children->buffer[0];
-		object_set_parent(child, NULL);
-		if (g_project->_->paint_objects->buffer[0]->base != child) {
-			object_set_parent(child, g_project->_->paint_objects->buffer[0]->base);
-		}
-		if (o->base->children->length == 0) {
-			g_project->_->paint_objects->buffer[0]->base->transform->scale = o->base->transform->scale;
-			transform_build_matrix(g_project->_->paint_objects->buffer[0]->base->transform);
-		}
+
+	object_t *new_root = g_project->_->paint_objects->buffer[0]->base;
+	if (new_root->parent == o->base) {
+		tab_meshes_reparent_keep_world(new_root, NULL);
 	}
+	while (o->base->children->length > 0) {
+		tab_meshes_reparent_keep_world(o->base->children->buffer[0], new_root);
+	}
+
 	sys_notify_on_next_frame(tab_meshes_draw_context_menu_delete_next_frame, o);
 }
 
@@ -386,12 +391,14 @@ void tab_meshes_draw_context_menu() {
 	if (g_config->experimental) {
 		asim_body_t    *pb         = o->base->_->body;
 		string_array_t *phys_combo = string_array_create(0);
-		string_array_push(phys_combo, ""); // Empty = no physics
+		string_array_push(phys_combo, "");        // Empty = no physics
+		string_array_push(phys_combo, tr("Box"));
 		string_array_push(phys_combo, tr("Sphere"));
+		string_array_push(phys_combo, tr("Terrain"));
 		string_array_push(phys_combo, tr("Mesh"));
 
 		ui_handle_t *hphys = ui_handle(__ID__);
-		hphys->i           = pb == NULL ? 0 : (pb->shape == ASIM_SHAPE_SPHERE ? 1 : 2);
+		hphys->i           = pb == NULL ? 0 : pb->shape + 1;
 		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
 		if (hphys->changed) {
 			if (pb != NULL) {
@@ -399,9 +406,12 @@ void tab_meshes_draw_context_menu() {
 				pb = NULL;
 			}
 			if (hphys->i > 0) {
-				sim_add_body(o->base, hphys->i == 1 ? ASIM_SHAPE_SPHERE : ASIM_SHAPE_MESH, hphys->i == 1 ? 1.0 : 0.0);
+				asim_shape_t shape   = (asim_shape_t)(hphys->i - 1);
+				bool         dynamic = shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE;
+				sim_add_body(o->base, shape, dynamic ? 1.0 : 0.0);
 				pb = o->base->_->body;
 			}
+			g_project->mesh_physics_shapes = i32_array_create(0);
 		}
 
 		if (pb != NULL) {
@@ -410,7 +420,8 @@ void tab_meshes_draw_context_menu() {
 			ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
 			if (hmass->changed) {
 				asim_body_set_mass(pb, hmass->f); // Zero mass = static
-				ui_menu_keep_open = true;
+				g_project->mesh_physics_shapes = i32_array_create(0);
+				ui_menu_keep_open              = true;
 			}
 		}
 	}
