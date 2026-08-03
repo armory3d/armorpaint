@@ -100,6 +100,13 @@ void sim_duplicate() {
 	dup->base->name = string("%s%s", oname, ext);
 	dup->data->name = dup->base->name;
 
+	// Material override
+	i32 mat_index = tab_meshes_get_override(so);
+	if (mat_index >= 0) {
+		tab_meshes_set_override_data(dup, mat_index, so->material);
+		g_project->mesh_materials = i32_array_create(0);
+	}
+
 	// Physics
 	asim_body_t *pb = so->base->_->body;
 	if (pb != NULL) {
