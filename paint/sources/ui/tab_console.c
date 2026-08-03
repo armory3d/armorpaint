@@ -19,7 +19,7 @@ void tab_console_run_done(char *s) {
 
 	i32 i = string_index_of(s, "```c");
 	if (i >= 0) {
-		s = substring(s, i + 5, string_length(s) - 4);
+		s = substring(s, i + 5, string_last_index_of(s, "```"));
 	}
 
 	tab_scripts_get();
