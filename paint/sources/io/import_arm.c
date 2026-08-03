@@ -655,6 +655,17 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
+	if (g_project->mesh_physics_shapes != NULL) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length && i < g_project->mesh_physics_shapes->length; ++i) {
+			i32 shape = g_project->mesh_physics_shapes->buffer[i];
+			if (shape < 0) {
+				continue; // No physics
+			}
+			f32 mass = g_project->mesh_physics_masses != NULL && i < g_project->mesh_physics_masses->length ? g_project->mesh_physics_masses->buffer[i] : 0.0;
+			sim_add_body(g_project->_->paint_objects->buffer[i]->base, (asim_shape_t)shape, mass);
+		}
+	}
+
 	tab_timeline_import(g_project);
 
 	// Select the first stage

@@ -305,6 +305,16 @@ void export_arm_run_project() {
 		}
 	}
 
+	if (g_project->mesh_physics_shapes != NULL) {
+		g_project->mesh_physics_shapes = i32_array_create(g_project->_->paint_objects->length);
+		g_project->mesh_physics_masses = f32_array_create(g_project->_->paint_objects->length);
+		for (i32 i = 0; i < g_project->mesh_physics_shapes->length; ++i) {
+			asim_body_t *pb                           = g_project->_->paint_objects->buffer[i]->base->_->body;
+			g_project->mesh_physics_shapes->buffer[i] = pb != NULL ? pb->shape : -1; // No physics
+			g_project->mesh_physics_masses->buffer[i] = pb != NULL ? pb->mass : 0.0;
+		}
+	}
+
 	g_project->material_nodes = mnodes;
 	g_project->brush_nodes    = bnodes;
 	g_project->layer_datas    = ld;

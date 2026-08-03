@@ -206,7 +206,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	buffer_t *encoded = buffer_create(size);
 
 	armpack_encode_start(encoded->buffer);
-	armpack_encode_map(36);
+	armpack_encode_map(38);
 
 	armpack_encode_string("version");
 	armpack_encode_string(raw->version);
@@ -477,6 +477,12 @@ buffer_t *util_encode_project(project_t *raw) {
 
 	armpack_encode_string("mesh_parents");
 	armpack_encode_array_i32(raw->mesh_parents);
+
+	armpack_encode_string("mesh_physics_shapes");
+	armpack_encode_array_i32(raw->mesh_physics_shapes);
+
+	armpack_encode_string("mesh_physics_masses");
+	armpack_encode_array_f32(raw->mesh_physics_masses);
 
 	armpack_encode_string("atlas_objects");
 	armpack_encode_array_i32(raw->atlas_objects);
