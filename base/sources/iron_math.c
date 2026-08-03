@@ -52,7 +52,8 @@ int64_t iron_random_get(void) {
 }
 
 int64_t iron_random_get_max(int64_t max) {
-	return iron_random_get() % (max + 1);
+	int64_t value = iron_random_get();
+	return (value < -LLONG_MAX ? LLONG_MAX : llabs(value)) % (max + 1);
 }
 
 int64_t iron_random_get_in(int64_t min, int64_t max) {
