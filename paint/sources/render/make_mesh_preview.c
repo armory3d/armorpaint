@@ -73,7 +73,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 		node_shader_write_frag(kong, string("if (opacity <= float(%s)) { discard; }", f32_to_string(opac)));
 	}
 
-	kong->frag_out = "float4[2]";
+	kong->frag_out = viewport ? "float4[3]" : "float4[2]";
 	kong->frag_n   = true;
 
 	node_shader_add_function(kong, str_pack_float_int16);
