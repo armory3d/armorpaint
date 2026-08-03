@@ -3,6 +3,7 @@
 
 #include "minic.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,22 +17,25 @@
 //    ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║
 //    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
 
-#define MINIC_TOK_LIST                                                                                                                                \
-	X(TOK_INT, "'int'")                                                                                                                               \
-	X(TOK_FLOAT, "'float'")                                                                                                                           \
-	X(TOK_CHAR, "'char'")                                                                                                                             \
-	X(TOK_DOUBLE, "'double'")                                                                                                                         \
-	X(TOK_BOOL, "'bool'")                                                                                                                             \
-	X(TOK_RETURN, "'return'")                                                                                                                         \
-	X(TOK_IF, "'if'")                                                                                                                                 \
-	X(TOK_ELSE, "'else'") X(TOK_WHILE, "'while'") X(TOK_FOR, "'for'") X(TOK_BREAK, "'break'") X(TOK_CONTINUE, "'continue'") X(TOK_STRUCT, "'struct'") \
-	    X(TOK_TYPEDEF, "'typedef'") X(TOK_ENUM, "'enum'") X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") X(TOK_NUMBER, "number")                    \
-	        X(TOK_CHAR_LIT, "char literal") X(TOK_STR_LIT, "string literal") X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'")           \
-	            X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='")   \
-	                X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_EQ, "'=='")      \
-	                    X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") \
-	                        X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'")          \
-	                            X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_EOF, "end of file")
+#define MINIC_TOK_LIST                                                                                                                                         \
+	X(TOK_INT, "'int'")                                                                                                                                        \
+	X(TOK_FLOAT, "'float'")                                                                                                                                    \
+	X(TOK_CHAR, "'char'")                                                                                                                                      \
+	X(TOK_DOUBLE, "'double'")                                                                                                                                  \
+	X(TOK_BOOL, "'bool'")                                                                                                                                      \
+	X(TOK_RETURN, "'return'")                                                                                                                                  \
+	X(TOK_IF, "'if'")                                                                                                                                          \
+	X(TOK_ELSE, "'else'")                                                                                                                                      \
+	X(TOK_WHILE, "'while'") X(TOK_FOR, "'for'") X(TOK_BREAK, "'break'") X(TOK_CONTINUE, "'continue'") X(TOK_STRUCT, "'struct'") X(TOK_TYPEDEF, "'typedef'")    \
+	    X(TOK_ENUM, "'enum'") X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") X(TOK_NUMBER, "number") X(TOK_CHAR_LIT, "char literal")                         \
+	        X(TOK_STR_LIT, "string literal") X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['")        \
+	            X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") \
+	                X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='")        \
+	                    X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'")     \
+	                        X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'")      \
+	                            X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'")            \
+	                                X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'")     \
+	                                    X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_EOF, "end of file")
 
 typedef enum {
 #define X(t, s) t,
@@ -57,8 +61,18 @@ typedef struct {
 	minic_token_t cur;
 } minic_lexer_t;
 
+void *gc_alloc(size_t size);
+void  gc_root(void *ptr);
+void  gc_unroot(void *ptr);
+void  gc_free(void *ptr);
+void  gc_resize(void *ptr, size_t size);
+
 static minic_u8 *minic_active_mem      = NULL;
 static int      *minic_active_mem_used = NULL;
+
+static void minic_mem_sync(void) {
+	gc_resize(minic_active_mem, (size_t)*minic_active_mem_used);
+}
 
 static const struct {
 	const char      *kw;
@@ -69,26 +83,30 @@ static const struct {
     {"continue", TOK_CONTINUE}, {"struct", TOK_STRUCT}, {"typedef", TOK_TYPEDEF}, {"enum", TOK_ENUM},
 };
 
+// Three-char operators are matched before the two-char table below
+static const struct {
+	char             a, b, c;
+	minic_tok_type_t tok;
+} minic_ops3[] = {
+    {'<', '<', '=', TOK_SHL_ASSIGN},
+    {'>', '>', '=', TOK_SHR_ASSIGN},
+};
+
 // Two-char operators must come before their one-char prefixes
 static const struct {
 	char             a, b;
 	minic_tok_type_t tok;
 } minic_ops[] = {
-    {'+', '+', TOK_INC},        {'+', '=', TOK_PLUS_ASSIGN},
-    {'-', '-', TOK_DEC},        {'-', '=', TOK_MINUS_ASSIGN},
-    {'-', '>', TOK_ARROW},      {'*', '=', TOK_MUL_ASSIGN},
-    {'/', '=', TOK_DIV_ASSIGN}, {'=', '=', TOK_EQ},
-    {'!', '=', TOK_NEQ},        {'&', '&', TOK_AND},
-    {'|', '|', TOK_OR},         {'<', '=', TOK_LE},
-    {'>', '=', TOK_GE},         {'+', 0, TOK_PLUS},
-    {'-', 0, TOK_MINUS},        {'*', 0, TOK_STAR},
-    {'/', 0, TOK_SLASH},        {'=', 0, TOK_ASSIGN},
-    {'!', 0, TOK_NOT},          {'&', 0, TOK_AMP},
-    {'<', 0, TOK_LT},           {'>', 0, TOK_GT},
-    {'(', 0, TOK_LPAREN},       {')', 0, TOK_RPAREN},
-    {'{', 0, TOK_LBRACE},       {'}', 0, TOK_RBRACE},
-    {'[', 0, TOK_LBRACKET},     {']', 0, TOK_RBRACKET},
-    {';', 0, TOK_SEMICOLON},    {',', 0, TOK_COMMA},
+    {'+', '+', TOK_INC},        {'+', '=', TOK_PLUS_ASSIGN}, {'-', '-', TOK_DEC},        {'-', '=', TOK_MINUS_ASSIGN},
+    {'-', '>', TOK_ARROW},      {'*', '=', TOK_MUL_ASSIGN},  {'/', '=', TOK_DIV_ASSIGN}, {'=', '=', TOK_EQ},
+    {'!', '=', TOK_NEQ},        {'&', '&', TOK_AND},         {'|', '|', TOK_OR},         {'<', '=', TOK_LE},
+    {'>', '=', TOK_GE},         {'<', '<', TOK_SHL},         {'>', '>', TOK_SHR},        {'%', '=', TOK_MOD_ASSIGN},
+    {'&', '=', TOK_AND_ASSIGN}, {'|', '=', TOK_OR_ASSIGN},   {'^', '=', TOK_XOR_ASSIGN}, {'+', 0, TOK_PLUS},
+    {'-', 0, TOK_MINUS},        {'*', 0, TOK_STAR},          {'/', 0, TOK_SLASH},        {'%', 0, TOK_PERCENT},
+    {'=', 0, TOK_ASSIGN},       {'!', 0, TOK_NOT},           {'&', 0, TOK_AMP},          {'|', 0, TOK_BITOR},
+    {'^', 0, TOK_XOR},          {'~', 0, TOK_BITNOT},        {'<', 0, TOK_LT},           {'>', 0, TOK_GT},
+    {'(', 0, TOK_LPAREN},       {')', 0, TOK_RPAREN},        {'{', 0, TOK_LBRACE},       {'}', 0, TOK_RBRACE},
+    {'[', 0, TOK_LBRACKET},     {']', 0, TOK_RBRACKET},      {';', 0, TOK_SEMICOLON},    {',', 0, TOK_COMMA},
     {'.', 0, TOK_DOT},
 };
 
@@ -202,6 +220,7 @@ static void minic_lex_next(minic_lexer_t *l) {
 			}
 			minic_active_mem[wi++] = '\0';
 			*minic_active_mem_used = (wi + 7) & ~7;
+			minic_mem_sync();
 			if (l->src[l->pos] == '"') {
 				l->pos++; // Consume closing '"'
 			}
@@ -247,6 +266,14 @@ static void minic_lex_next(minic_lexer_t *l) {
 			return;
 		}
 
+		for (size_t k = 0; k < sizeof(minic_ops3) / sizeof(minic_ops3[0]); ++k) {
+			if (c == minic_ops3[k].a && l->src[l->pos + 1] == minic_ops3[k].b && l->src[l->pos + 2] == minic_ops3[k].c) {
+				l->pos += 3;
+				l->cur.type = minic_ops3[k].tok;
+				return;
+			}
+		}
+
 		for (size_t k = 0; k < sizeof(minic_ops) / sizeof(minic_ops[0]); ++k) {
 			if (c == minic_ops[k].a && (minic_ops[k].b == 0 || l->src[l->pos + 1] == minic_ops[k].b)) {
 				l->pos += minic_ops[k].b != 0 ? 2 : 1;
@@ -269,6 +296,7 @@ void *minic_alloc(int size) {
 	// Align to 8 bytes
 	int aligned            = (*minic_active_mem_used + 7) & ~7;
 	*minic_active_mem_used = aligned + size;
+	minic_mem_sync();
 	return &minic_active_mem[aligned];
 }
 
@@ -408,9 +436,28 @@ static double minic_apply_op(minic_tok_type_t op, double a, double b) {
 		return a * b;
 	case TOK_DIV_ASSIGN:
 		return b != 0.0 ? a / b : 0.0;
+	case TOK_MOD_ASSIGN:
+		return b != 0.0 ? fmod(a, b) : 0.0;
+	case TOK_SHL_ASSIGN:
+	case TOK_SHR_ASSIGN: {
+		int ia = (int)a;
+		int ib = (int)b;
+		return (double)(op == TOK_SHL_ASSIGN ? (int)((unsigned int)ia << ib) : (ia >> ib));
+	}
+	case TOK_AND_ASSIGN:
+		return (double)((int)a & (int)b);
+	case TOK_OR_ASSIGN:
+		return (double)((int)a | (int)b);
+	case TOK_XOR_ASSIGN:
+		return (double)((int)a ^ (int)b);
 	default:
 		return b;
 	}
+}
+
+static bool minic_is_compound_assign(minic_tok_type_t t) {
+	return t == TOK_PLUS_ASSIGN || t == TOK_MINUS_ASSIGN || t == TOK_MUL_ASSIGN || t == TOK_DIV_ASSIGN || t == TOK_MOD_ASSIGN || t == TOK_SHL_ASSIGN ||
+	       t == TOK_SHR_ASSIGN || t == TOK_AND_ASSIGN || t == TOK_OR_ASSIGN || t == TOK_XOR_ASSIGN;
 }
 
 static minic_var_t *minic_var_find(minic_env_t *e, const char *name) {
@@ -553,13 +600,21 @@ static minic_val_t minic_arr_elem_get(minic_env_t *e, const char *name, int idx)
 	if (a != NULL && idx >= 0 && idx < a->count) {
 		return e->arr_data[a->offset + idx];
 	}
-	return minic_ptr_index_get(minic_var_get(e, name), idx); // native pointer subscript
+	if (idx < 0) {
+		minic_error(e, "negative index %d on '%s'", idx, name);
+		return minic_val_int(0);
+	}
+	return minic_ptr_index_get(minic_var_get(e, name), idx);
 }
 
 static void minic_arr_elem_set(minic_env_t *e, const char *name, int idx, minic_val_t val) {
 	minic_arr_t *a = minic_arr_get(e, name);
 	if (a != NULL && idx >= 0 && idx < a->count) {
 		e->arr_data[a->offset + idx] = minic_val_cast(val, a->elem_type);
+		return;
+	}
+	if (idx < 0) {
+		minic_error(e, "negative index %d on '%s'", idx, name);
 		return;
 	}
 	minic_ptr_index_set(minic_var_get(e, name), idx, val); // native pointer subscript
@@ -679,6 +734,10 @@ bool minic_in_arena(void *p) {
 }
 
 static minic_val_t minic_struct_field_get_base(minic_env_t *e, void *base, minic_struct_t *def, const char *field) {
+	if (base == NULL) {
+		minic_error(e, "null pointer access on '%s->%s'", def->name, field);
+		return minic_val_int(0);
+	}
 	int idx = minic_struct_field_idx(def, field);
 	if (idx < 0) {
 		minic_error(e, "struct '%s' has no field '%s'", def->name, field);
@@ -705,6 +764,10 @@ static minic_val_t minic_struct_field_get_base(minic_env_t *e, void *base, minic
 }
 
 static void minic_struct_field_set_base(minic_env_t *e, void *base, minic_struct_t *def, const char *field, minic_val_t val) {
+	if (base == NULL) {
+		minic_error(e, "null pointer access on '%s->%s'", def->name, field);
+		return;
+	}
 	int idx = minic_struct_field_idx(def, field);
 	if (idx < 0) {
 		minic_error(e, "struct '%s' has no field '%s'", def->name, field);
@@ -731,6 +794,18 @@ static void minic_struct_field_set_base(minic_env_t *e, void *base, minic_struct
 		return;
 	}
 	memcpy((minic_val_t *)base + idx, &val, sizeof(minic_val_t));
+}
+
+static bool minic_index_in_range(minic_env_t *e, void *base, minic_struct_t *def, const char *field, int idx) {
+	if (strcmp(field, "buffer") != 0 || minic_struct_field_idx(def, "length") < 0) {
+		return true;
+	}
+	int len = (int)minic_val_to_d(minic_struct_field_get_base(e, base, def, "length"));
+	if (idx < 0 || idx >= len) {
+		minic_error(e, "index %d out of range for '%s' of length %d", idx, def->name, len);
+		return false;
+	}
+	return true;
 }
 
 static minic_val_t minic_call(minic_env_t *e, minic_func_t *fn, minic_val_t *args, int argc) {
@@ -773,8 +848,9 @@ static minic_val_t minic_call_in_ctx(minic_ctx_t *ctx, minic_func_t *fn, minic_v
 	int         saved_used  = ctx->mem_used;
 	minic_val_t r           = minic_call(&ctx->e, fn, args, argc);
 	ctx->mem_used           = saved_used;
-	minic_active_mem        = prev_mem;
-	minic_active_mem_used   = prev_mem_used;
+	minic_mem_sync();
+	minic_active_mem      = prev_mem;
+	minic_active_mem_used = prev_mem_used;
 	return r;
 }
 
@@ -807,7 +883,18 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, minic_tok_type_t op
 	}
 	double da = minic_val_to_d(a);
 	double db = minic_val_to_d(b);
-	double r  = op == TOK_PLUS ? da + db : op == TOK_MINUS ? da - db : op == TOK_STAR ? da * db : (db != 0.0 ? da / db : 0.0);
+	if (op == TOK_PERCENT) {
+		double r = 0.0;
+		if (rt == MINIC_T_FLOAT) {
+			r = db != 0.0 ? fmod(da, db) : 0.0;
+		}
+		else {
+			int ib = (int)db;
+			r      = ib != 0 ? (double)((int)da % ib) : 0.0;
+		}
+		return minic_val_coerce(r, rt);
+	}
+	double r = op == TOK_PLUS ? da + db : op == TOK_MINUS ? da - db : op == TOK_STAR ? da * db : (db != 0.0 ? da / db : 0.0);
 	return minic_val_coerce(r, rt);
 }
 
@@ -837,7 +924,7 @@ static minic_val_t minic_parse_call(minic_env_t *e, const char *name) {
 	return minic_val_int(0);
 }
 
-// primary: '&' IDENT | '*' primary | '-' primary | '!' primary | '++'/'--' IDENT |
+// primary: '&' IDENT | '*' primary | '-' primary | '!' primary | '~' primary | '++'/'--' IDENT |
 //          NUMBER | CHAR_LIT | STR_LIT | IDENT ['[' expr ']' | '(' args ')' | ('.'|'->') field...] | '(' expr ')'
 static minic_val_t minic_parse_primary(minic_env_t *e) {
 	if (e->lex.cur.type == TOK_AMP) {
@@ -882,6 +969,10 @@ static minic_val_t minic_parse_primary(minic_env_t *e) {
 	if (e->lex.cur.type == TOK_NOT) {
 		minic_lex_next(&e->lex);
 		return minic_val_int(!minic_val_is_true(minic_parse_primary(e)));
+	}
+	if (e->lex.cur.type == TOK_BITNOT) {
+		minic_lex_next(&e->lex);
+		return minic_val_int(~(int)minic_val_to_d(minic_parse_primary(e)));
 	}
 	if (e->lex.cur.type == TOK_INC || e->lex.cur.type == TOK_DEC) {
 		double delta = MINIC_INC_DELTA(&e->lex);
@@ -959,6 +1050,9 @@ static minic_val_t minic_parse_primary(minic_env_t *e) {
 				minic_lex_next(&e->lex); // Consume '['
 				int idx = (int)minic_val_to_d(minic_parse_cond(e));
 				minic_expect(e, TOK_RBRACKET);
+				if (!minic_index_in_range(e, base, def, field, idx)) {
+					return minic_val_int(0);
+				}
 				return minic_ptr_index_get(v, idx);
 			}
 			return v;
@@ -990,10 +1084,10 @@ static minic_val_t minic_parse_primary(minic_env_t *e) {
 	return minic_val_int(0);
 }
 
-// term: primary (('*' | '/') primary)*
+// term: primary (('*' | '/' | '%') primary)*
 static minic_val_t minic_parse_term(minic_env_t *e) {
 	minic_val_t v = minic_parse_primary(e);
-	while (e->lex.cur.type == TOK_STAR || e->lex.cur.type == TOK_SLASH) {
+	while (e->lex.cur.type == TOK_STAR || e->lex.cur.type == TOK_SLASH || e->lex.cur.type == TOK_PERCENT) {
 		minic_tok_type_t op = e->lex.cur.type;
 		minic_lex_next(&e->lex);
 		v = minic_arith(v, minic_parse_primary(e), op);
@@ -1012,14 +1106,27 @@ static minic_val_t minic_parse_expr(minic_env_t *e) {
 	return v;
 }
 
-// cmp: expr (('=='|'!='|'<'|'>'|'<='|'>=') expr)?
+// shift: expr (('<<' | '>>') expr)*
+static minic_val_t minic_parse_shift(minic_env_t *e) {
+	minic_val_t v = minic_parse_expr(e);
+	while (e->lex.cur.type == TOK_SHL || e->lex.cur.type == TOK_SHR) {
+		minic_tok_type_t op = e->lex.cur.type;
+		minic_lex_next(&e->lex);
+		int a = (int)minic_val_to_d(v);
+		int b = (int)minic_val_to_d(minic_parse_expr(e));
+		v = minic_val_int(op == TOK_SHL ? (int)((unsigned int)a << b) : (a >> b));
+	}
+	return v;
+}
+
+// cmp: shift (('=='|'!='|'<'|'>'|'<='|'>=') shift)?
 static minic_val_t minic_parse_cmp(minic_env_t *e) {
-	minic_val_t      v  = minic_parse_expr(e);
+	minic_val_t      v  = minic_parse_shift(e);
 	minic_tok_type_t op = e->lex.cur.type;
 	if (op == TOK_EQ || op == TOK_NEQ || op == TOK_LT || op == TOK_GT || op == TOK_LE || op == TOK_GE) {
 		minic_lex_next(&e->lex);
 		double a = minic_val_to_d(v);
-		double b = minic_val_to_d(minic_parse_expr(e));
+		double b = minic_val_to_d(minic_parse_shift(e));
 		int    res;
 		switch (op) {
 		case TOK_EQ:
@@ -1046,38 +1153,113 @@ static minic_val_t minic_parse_cmp(minic_env_t *e) {
 	return v;
 }
 
-// cond: cmp (('&&' | '||') cmp)*
-static minic_val_t minic_parse_cond(minic_env_t *e) {
+// bitand: cmp ('&' cmp)*
+// '&' is only binary here; a leading '&' is consumed as address-of by minic_parse_primary
+static minic_val_t minic_parse_bitand(minic_env_t *e) {
 	minic_val_t v = minic_parse_cmp(e);
+	while (e->lex.cur.type == TOK_AMP) {
+		minic_lex_next(&e->lex);
+		int a = (int)minic_val_to_d(v);
+		int b = (int)minic_val_to_d(minic_parse_cmp(e));
+		v     = minic_val_int(a & b);
+	}
+	return v;
+}
+
+// bitxor: bitand ('^' bitand)*
+static minic_val_t minic_parse_bitxor(minic_env_t *e) {
+	minic_val_t v = minic_parse_bitand(e);
+	while (e->lex.cur.type == TOK_XOR) {
+		minic_lex_next(&e->lex);
+		int a = (int)minic_val_to_d(v);
+		int b = (int)minic_val_to_d(minic_parse_bitand(e));
+		v     = minic_val_int(a ^ b);
+	}
+	return v;
+}
+
+// bitor: bitxor ('|' bitxor)*
+static minic_val_t minic_parse_bitor(minic_env_t *e) {
+	minic_val_t v = minic_parse_bitxor(e);
+	while (e->lex.cur.type == TOK_BITOR) {
+		minic_lex_next(&e->lex);
+		int a = (int)minic_val_to_d(v);
+		int b = (int)minic_val_to_d(minic_parse_bitxor(e));
+		v     = minic_val_int(a | b);
+	}
+	return v;
+}
+
+// cond: bitor (('&&' | '||') bitor)*
+static minic_val_t minic_parse_cond(minic_env_t *e) {
+	minic_val_t v = minic_parse_bitor(e);
 	while (e->lex.cur.type == TOK_AND || e->lex.cur.type == TOK_OR) {
 		minic_tok_type_t op = e->lex.cur.type;
 		minic_lex_next(&e->lex);
 		int vi = minic_val_is_true(v);
-		int ri = minic_val_is_true(minic_parse_cmp(e));
+		int ri = minic_val_is_true(minic_parse_bitor(e));
 		v      = minic_val_int(op == TOK_AND ? (vi && ri) : (vi || ri));
 	}
 	return v;
 }
 
-static void minic_skip_block(minic_env_t *e) {
-	if (e->lex.cur.type != TOK_LBRACE) {
-		// Single-statement body: skip until ';'
-		while (e->lex.cur.type != TOK_SEMICOLON && e->lex.cur.type != TOK_EOF) {
-			minic_lex_next(&e->lex);
-		}
-		minic_lex_next(&e->lex); // Consume ';'
-		return;
-	}
-	minic_lex_next(&e->lex); // Consume '{'
-	int depth = 1;
-	while (depth > 0 && e->lex.cur.type != TOK_EOF) {
-		if (e->lex.cur.type == TOK_LBRACE) {
+// Skip the parenthesised header of an if/for/while, leaving the first body token current
+static void minic_skip_header(minic_env_t *e) {
+	int depth = 0;
+	do {
+		if (e->lex.cur.type == TOK_LPAREN) {
 			depth++;
 		}
-		if (e->lex.cur.type == TOK_RBRACE) {
+		if (e->lex.cur.type == TOK_RPAREN) {
 			depth--;
 		}
 		minic_lex_next(&e->lex);
+	} while (depth > 0 && e->lex.cur.type != TOK_EOF);
+}
+
+// Skip one statement without executing it
+static void minic_skip_block(minic_env_t *e) {
+	if (e->lex.cur.type == TOK_LBRACE) {
+		minic_lex_next(&e->lex); // Consume '{'
+		int depth = 1;
+		while (depth > 0 && e->lex.cur.type != TOK_EOF) {
+			if (e->lex.cur.type == TOK_LBRACE) {
+				depth++;
+			}
+			if (e->lex.cur.type == TOK_RBRACE) {
+				depth--;
+			}
+			minic_lex_next(&e->lex);
+		}
+		return;
+	}
+
+	// Control statement: skip its own header, then its body
+	if (e->lex.cur.type == TOK_IF || e->lex.cur.type == TOK_FOR || e->lex.cur.type == TOK_WHILE) {
+		bool is_if = (e->lex.cur.type == TOK_IF);
+		minic_lex_next(&e->lex); // Consume the keyword
+		minic_skip_header(e);
+		minic_skip_block(e);
+		if (is_if && e->lex.cur.type == TOK_ELSE) {
+			minic_lex_next(&e->lex); // Consume 'else'
+			minic_skip_block(e);
+		}
+		return;
+	}
+
+	// Plain statement: up to the next ';' that is not inside parentheses
+	int depth = 0;
+	while (e->lex.cur.type != TOK_EOF && !(e->lex.cur.type == TOK_SEMICOLON && depth == 0)) {
+		if (e->lex.cur.type == TOK_LPAREN) {
+			depth++;
+		}
+		if (e->lex.cur.type == TOK_RPAREN) {
+			depth--;
+		}
+		minic_lex_next(&e->lex);
+	}
+	if (e->lex.cur.type == TOK_SEMICOLON) {
+		minic_lex_next(&e->lex); // Consume ';'
 	}
 }
 
@@ -1140,8 +1322,7 @@ static void minic_parse_for_incr(minic_env_t *e) {
 		minic_val_t ov    = minic_var_get(e, name);
 		minic_var_set(e, name, minic_val_coerce(minic_val_to_d(ov) + delta, ov.type));
 	}
-	else if (e->lex.cur.type == TOK_PLUS_ASSIGN || e->lex.cur.type == TOK_MINUS_ASSIGN || e->lex.cur.type == TOK_MUL_ASSIGN ||
-	         e->lex.cur.type == TOK_DIV_ASSIGN) {
+	else if (minic_is_compound_assign(e->lex.cur.type)) {
 		minic_tok_type_t op = e->lex.cur.type;
 		minic_lex_next(&e->lex);
 		minic_val_t dv = minic_parse_cond(e);
@@ -1315,7 +1496,9 @@ static void minic_parse_stmt(minic_env_t *e) {
 				minic_expect(e, TOK_RBRACKET);
 				minic_expect(e, TOK_ASSIGN);
 				minic_val_t v = minic_parse_cond(e);
-				minic_ptr_index_set(minic_struct_field_get_base(e, base, def, field), idx, v);
+				if (minic_index_in_range(e, base, def, field, idx)) {
+					minic_ptr_index_set(minic_struct_field_get_base(e, base, def, field), idx, v);
+				}
 			}
 			else if (e->lex.cur.type == TOK_INC || e->lex.cur.type == TOK_DEC) {
 				double delta = MINIC_INC_DELTA(&e->lex);
@@ -1323,8 +1506,7 @@ static void minic_parse_stmt(minic_env_t *e) {
 				minic_val_t ov = minic_struct_field_get_base(e, base, def, field);
 				minic_struct_field_set_base(e, base, def, field, minic_val_coerce(minic_val_to_d(ov) + delta, ov.type));
 			}
-			else if (e->lex.cur.type == TOK_PLUS_ASSIGN || e->lex.cur.type == TOK_MINUS_ASSIGN || e->lex.cur.type == TOK_MUL_ASSIGN ||
-			         e->lex.cur.type == TOK_DIV_ASSIGN) {
+			else if (minic_is_compound_assign(e->lex.cur.type)) {
 				minic_tok_type_t op = e->lex.cur.type;
 				minic_lex_next(&e->lex);
 				minic_val_t dv = minic_parse_cond(e);
@@ -1355,8 +1537,7 @@ static void minic_parse_stmt(minic_env_t *e) {
 			return;
 		}
 
-		if (e->lex.cur.type == TOK_PLUS_ASSIGN || e->lex.cur.type == TOK_MINUS_ASSIGN || e->lex.cur.type == TOK_MUL_ASSIGN ||
-		    e->lex.cur.type == TOK_DIV_ASSIGN) {
+		if (minic_is_compound_assign(e->lex.cur.type)) {
 			minic_tok_type_t op = e->lex.cur.type;
 			minic_lex_next(&e->lex);
 			minic_val_t dv = minic_parse_cond(e);
@@ -1438,16 +1619,30 @@ static void minic_parse_stmt(minic_env_t *e) {
 			tmp.src           = e->lex.src;
 			tmp.pos           = cond_pos;
 			minic_lex_next(&tmp);
-			while (tmp.cur.type != TOK_SEMICOLON && tmp.cur.type != TOK_EOF) {
+			int depth = 0;
+			while (tmp.cur.type != TOK_EOF && !(tmp.cur.type == TOK_SEMICOLON && depth == 0)) {
+				if (tmp.cur.type == TOK_LPAREN) {
+					depth++;
+				}
+				if (tmp.cur.type == TOK_RPAREN) {
+					depth--;
+				}
 				minic_lex_next(&tmp);
 			}
 			incr_pos = tmp.pos;
 			minic_lex_next(&tmp);
-			while (tmp.cur.type != TOK_RPAREN && tmp.cur.type != TOK_EOF) {
+			depth = 0;
+			while (tmp.cur.type != TOK_EOF && !(tmp.cur.type == TOK_RPAREN && depth == 0)) {
+				if (tmp.cur.type == TOK_LPAREN) {
+					depth++;
+				}
+				if (tmp.cur.type == TOK_RPAREN) {
+					depth--;
+				}
 				minic_lex_next(&tmp);
 			}
-			minic_lex_next(&tmp);
-			body_pos = tmp.pos - 1;
+			// tmp.pos sits just past ')', where the body starts
+			body_pos = tmp.pos;
 		}
 
 		for (;;) {
@@ -1851,8 +2046,12 @@ static void minic_register_funcs(minic_env_t *e) {
 minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	minic_register_builtins();
 
-	minic_ctx_t *ctx = (minic_ctx_t *)calloc(1, sizeof(minic_ctx_t));
-	ctx->mem         = (minic_u8 *)malloc(MINIC_MEM_SIZE);
+	// The arena stores every script variable, including pointers to GC-managed host objects
+	minic_ctx_t *ctx = (minic_ctx_t *)gc_alloc(sizeof(minic_ctx_t));
+	gc_root(ctx);
+	ctx->mem = (minic_u8 *)gc_alloc(MINIC_MEM_SIZE);
+	gc_root(ctx->mem);
+	gc_resize(ctx->mem, 0);
 	// Copy the source so the context stays valid after the caller frees its buffer
 	int src_len   = (int)strlen(src);
 	ctx->src_copy = (char *)malloc(src_len + 1);
@@ -1911,9 +2110,11 @@ minic_ctx_t *minic_eval(const char *src) {
 
 void minic_ctx_free(minic_ctx_t *ctx) {
 	if (ctx != NULL) {
-		free(ctx->mem);
+		gc_unroot(ctx->mem);
+		gc_free(ctx->mem);
 		free(ctx->src_copy);
-		free(ctx);
+		gc_unroot(ctx);
+		gc_free(ctx);
 	}
 }
 
