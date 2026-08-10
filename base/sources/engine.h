@@ -104,6 +104,7 @@ typedef struct mesh_data_runtime {
 	gpu_buffer_t          *vertex_buffer;
 	gpu_buffer_t          *index_buffer;
 	gpu_vertex_structure_t structure;
+	buffer_t              *skin_blob; // Source file bytes
 } mesh_data_runtime_t;
 
 typedef struct mesh_data {
