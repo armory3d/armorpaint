@@ -392,6 +392,15 @@ static void tab_timeline_save_mesh_origins() {
 	}
 }
 
+static void tab_timeline_sync_mesh_body(mesh_object_t *o) {
+	asim_body_t *body = o->base->_->body;
+	if (body == NULL) {
+		return;
+	}
+	asim_body_set_velocity(body->_body, 0.0f, 0.0f, 0.0f);
+	asim_body_sync_transform(body);
+}
+
 static void tab_timeline_load_mesh_origins() {
 	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
 		i32 oi = tab_timeline_find_mesh_origin(mi);
@@ -401,6 +410,7 @@ static void tab_timeline_load_mesh_origins() {
 		tab_timeline_mesh_origin_t *orig = tab_timeline_mesh_origins->buffer[oi];
 		mesh_object_t              *o    = g_project->_->paint_objects->buffer[mi];
 		transform_set_matrix(o->base->transform, orig->transform);
+		tab_timeline_sync_mesh_body(o);
 	}
 	g_context->ddirty = 2;
 }
@@ -449,6 +459,7 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 					float  t      = (frame_f - (float)from_frame) / (float)(nxt->frame - from_frame);
 					mat4_t result = mat4_tween(from_mat, nxt->transform, t);
 					transform_set_matrix(o->base->transform, result);
+					tab_timeline_sync_mesh_body(o);
 					any = true;
 					continue;
 				}
@@ -457,12 +468,16 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 
 		if (act_kfi >= 0) {
 			transform_set_matrix(o->base->transform, ((tab_timeline_mesh_keyframe_t *)tab_timeline_mesh_keyframes->buffer[act_kfi])->transform);
+			tab_timeline_sync_mesh_body(o);
 			any = true;
 		}
 		else {
 			i32 oi = tab_timeline_find_mesh_origin(mi);
 			if (oi >= 0) {
 				transform_set_matrix(o->base->transform, ((tab_timeline_mesh_origin_t *)tab_timeline_mesh_origins->buffer[oi])->transform);
+				if (nxt_kfi >= 0) {
+					tab_timeline_sync_mesh_body(o);
+				}
 				any = true;
 			}
 		}
@@ -863,6 +878,10 @@ void tab_timeline_player_update() {
 		return;
 	}
 	iron_delay_idle_sleep();
+
+	if (tab_timeline_last_frame < 0) {
+		tab_timeline_save_current(0);
+	}
 
 	f64   elapsed = sys_time() - tab_timeline_play_time;
 	float frame_f = (float)fmod(elapsed * tab_timeline_frame_rate, tab_timeline_max_frames);
