@@ -118,5 +118,4 @@ void sim_delete() {
 	mesh_object_t *so = g_context->paint_object;
 	array_remove(g_project->_->paint_objects, so);
 	mesh_object_remove(so);
-	asim_body_remove(so->base->_->body);
 }
