@@ -83,6 +83,11 @@ void object_remove_super(object_t *raw) {
 	if (raw->is_empty) {
 		array_remove(scene_empties, raw);
 	}
+#ifdef WITH_PHYSICS
+	if (raw->_ != NULL && raw->_->body != NULL) {
+		asim_body_remove(raw->_->body);
+	}
+#endif
 	while (raw->children->length > 0) {
 		object_remove((object_t *)raw->children->buffer[0]);
 	}
