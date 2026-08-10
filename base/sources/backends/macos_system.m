@@ -1160,10 +1160,19 @@ char        *iron_exec_async_output_file = NULL;
 
 void iron_exec_async(const char *path, char *argv[]) {
 	iron_exec_async_done = 0;
-	NSTask *task         = [[NSTask alloc] init];
-	[task setLaunchPath:[NSString stringWithUTF8String:path]];
-	NSMutableArray *args = [NSMutableArray array];
-	int             i    = 1;
+	NSTask         *task   = [[NSTask alloc] init];
+	NSString       *launch = [NSString stringWithUTF8String:path];
+	NSMutableArray *args   = [NSMutableArray array];
+	if (![launch containsString:@"/"]) {
+		[args addObject:launch];
+		launch                    = @"/usr/bin/env";
+		NSMutableDictionary *env  = [NSMutableDictionary dictionaryWithDictionary:[[NSProcessInfo processInfo] environment]];
+		NSString            *home = NSHomeDirectory();
+		env[@"PATH"]              = [NSString stringWithFormat:@"%@/.local/bin:%@/bin:/usr/local/bin:%@", home, home, env[@"PATH"]];
+		[task setEnvironment:env];
+	}
+	[task setLaunchPath:launch];
+	int i = 1;
 	while (argv[i] != NULL) {
 		[args addObject:[NSString stringWithUTF8String:argv[i]]];
 		i++;
