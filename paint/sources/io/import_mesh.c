@@ -19,12 +19,6 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 	import_mesh_no_reset     = keep_camera;
 	g_context->layer_filter  = 0;
 
-#ifdef WITH_PLUGINS
-	if (replace_existing) {
-		plugins_skin_data_clear();
-	}
-#endif
-
 	char *p = to_lower_case(path);
 	if (ends_with(p, ".obj")) {
 		import_obj_run(path, replace_existing);
@@ -155,6 +149,9 @@ char *_import_mesh_number_ext(i32 i) {
 
 void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	if (mesh == NULL || mesh->posa == NULL || mesh->nora == NULL || mesh->inda == NULL || mesh->posa->length == 0) {
+		if (mesh != NULL) {
+			gc_unroot(mesh->blob);
+		}
 		console_error(strings_failed_to_read_mesh_data());
 		return;
 	}
@@ -167,7 +164,10 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *raw = import_mesh_raw_mesh(mesh);
 
-	mesh_data_t *md         = mesh_data_create(raw);
+	mesh_data_t *md  = mesh_data_create(raw);
+	md->_->skin_blob = mesh->blob;
+	gc_unroot(mesh->blob);
+
 	g_context->paint_object = context_main_object();
 
 	context_select_paint_object(context_main_object());
@@ -236,7 +236,9 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *raw = import_mesh_raw_mesh(mesh);
 	// util_mesh_pack_uvs(mesh->texa);
-	mesh_data_t *md = mesh_data_create(raw);
+	mesh_data_t *md  = mesh_data_create(raw);
+	md->_->skin_blob = mesh->blob;
+	gc_unroot(mesh->blob);
 
 	mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, g_context->paint_object->base);
 	object->base->name    = mesh->name;

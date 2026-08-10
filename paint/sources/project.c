@@ -378,14 +378,14 @@ void project_reimport_mesh() {
 
 bool project_reskin_mesh(int frame) {
 #ifdef WITH_PLUGINS
-	if (!plugins_skin_data_exists()) {
+	mesh_data_t *md = context_main_object()->data;
+	if (md->_->skin_blob == NULL) {
 		return false;
 	}
 
-	mesh_data_t    *md  = context_main_object()->data;
 	vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
 	vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
-	if (!plugins_skin_data_apply(frame, pos->values, nor->values, &md->scale_pos)) {
+	if (!plugins_skin_data_apply(md->_->skin_blob, frame, pos->values, nor->values, &md->scale_pos)) {
 		return false;
 	}
 
