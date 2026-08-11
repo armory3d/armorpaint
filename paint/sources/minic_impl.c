@@ -619,6 +619,22 @@ object_t *script_shape_add(char *name) {
 	return mo->base;
 }
 
+object_t *script_object_duplicate(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return NULL;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	mesh_object_t *dup = sim_duplicate_object(o->ext);
+	script_gpu_end(current, in_use);
+
+	g_context->ddirty                                 = 2;
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	return dup->base;
+}
+
 static asim_body_t *script_physics_body(object_t *o) {
 	return o != NULL && o->_ != NULL ? o->_->body : NULL;
 }

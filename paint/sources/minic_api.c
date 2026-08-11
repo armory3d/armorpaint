@@ -1232,6 +1232,7 @@ void minic_register_builtins() {
 	R(script_get_project, "p()");
 	R(script_get_object, "p(p s)");
 	R(script_shape_add, "p(p name)");
+	R(script_object_duplicate, "p(p o)");
 	R(script_physics_set_shape, "v(p o,i shape)");
 	R(script_physics_set_mass, "v(p o,f mass)");
 	R(script_physics_apply_impulse, "v(p o,f x,f y,f z)");

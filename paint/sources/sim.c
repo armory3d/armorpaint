@@ -78,11 +78,10 @@ void sim_add_body(object_t *o, asim_shape_t shape, f32 mass) {
 	asim_body_create(o, shape, mass);
 }
 
-void sim_duplicate() {
+mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	// Mesh
-	mesh_object_t *so = g_context->paint_object;
 	if (so == NULL) {
-		return;
+		return NULL;
 	}
 
 	mesh_data_t   *data = util_mesh_data_duplicate(so->data);
@@ -112,6 +111,12 @@ void sim_duplicate() {
 	if (pb != NULL) {
 		asim_body_create(dup->base, pb->shape, pb->mass);
 	}
+
+	return dup;
+}
+
+void sim_duplicate() {
+	sim_duplicate_object(g_context->paint_object);
 }
 
 void sim_delete() {
