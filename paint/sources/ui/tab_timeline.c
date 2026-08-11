@@ -391,6 +391,11 @@ static void tab_timeline_sync_mesh_body(mesh_object_t *o) {
 	asim_body_sync_transform(body);
 }
 
+static bool tab_timeline_dynamic_body(mesh_object_t *o) {
+	asim_body_t *body = o->base->_->body;
+	return body != NULL && body->mass > 0.0;
+}
+
 static void tab_timeline_load_mesh_origins() {
 	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
 		i32 oi = tab_timeline_find_mesh_origin(mi);
@@ -399,6 +404,9 @@ static void tab_timeline_load_mesh_origins() {
 		}
 		tab_timeline_mesh_origin_t *orig = tab_timeline_mesh_origins->buffer[oi];
 		mesh_object_t              *o    = g_project->_->paint_objects->buffer[mi];
+		if (tab_timeline_dynamic_body(o)) {
+			continue;
+		}
 		transform_set_matrix(o->base->transform, orig->transform);
 		tab_timeline_sync_mesh_body(o);
 	}
@@ -421,9 +429,12 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 	bool any     = false;
 	i32  frame_i = (i32)frame_f;
 	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
-		mesh_object_t *o       = g_project->_->paint_objects->buffer[mi];
-		i32            act_kfi = tab_timeline_find_active_mesh_keyframe(frame_i, mi);
-		i32            nxt_kfi = tab_timeline_find_next_mesh_keyframe(frame_i, mi);
+		mesh_object_t *o = g_project->_->paint_objects->buffer[mi];
+		if (tab_timeline_dynamic_body(o)) {
+			continue;
+		}
+		i32 act_kfi = tab_timeline_find_active_mesh_keyframe(frame_i, mi);
+		i32 nxt_kfi = tab_timeline_find_next_mesh_keyframe(frame_i, mi);
 
 		if (nxt_kfi >= 0) {
 			tab_timeline_mesh_keyframe_t *nxt = tab_timeline_mesh_keyframes->buffer[nxt_kfi];
