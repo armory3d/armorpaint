@@ -48,7 +48,6 @@ static i32 tab_timeline_pending_kf_frame       = -1;
 static i32 tab_timeline_pending_kf_layer       = -1;
 static i32 tab_timeline_pending_rm_frame       = -1;
 static i32 tab_timeline_pending_rm_layer       = -1;
-static f32 tab_timeline_pending_tween_f        = -1.0f;
 static i32 tab_timeline_pending_mesh_add_frame = -1;
 static i32 tab_timeline_pending_mesh_add_index = -1;
 static i32 tab_timeline_pending_mesh_rm_frame  = -1;
@@ -319,15 +318,6 @@ static void tab_timeline_tween_from_keyframes(f32 frame_f) {
 		g_context->ddirty               = 2;
 		g_context->layers_preview_dirty = true;
 	}
-}
-
-static void tab_timeline_tween_on_next_frame(void *_) {
-	f32 frame_f                  = tab_timeline_pending_tween_f;
-	tab_timeline_pending_tween_f = -1.0f;
-	if (frame_f < 0.0f) {
-		return;
-	}
-	tab_timeline_tween_from_keyframes(frame_f);
 }
 
 static i32 tab_timeline_find_mesh_keyframe(i32 frame, i32 mesh_index) {
@@ -872,7 +862,7 @@ void tab_timeline_play() {
 	tab_timeline_last_frame = -1; // Ensure frame 0 scripts run
 }
 
-void tab_timeline_player_update() {
+void tab_timeline_update() {
 	tab_timeline_init();
 	if (!tab_timeline_playing) {
 		return;
@@ -889,6 +879,10 @@ void tab_timeline_player_update() {
 
 	tab_timeline_selected_frame = frame_i;
 
+	if (g_config->workspace != WORKSPACE_PLAYER) {
+		ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	}
+
 	if (tab_timeline_mesh_keyframes != NULL) {
 		tab_timeline_load_mesh_from_keyframes(frame_f);
 	}
@@ -897,6 +891,7 @@ void tab_timeline_player_update() {
 		tab_timeline_last_frame = frame_i;
 		tab_timeline_load_from_keyframes(frame_i);
 		tab_timeline_run_frame_scripts(frame_i);
+		project_reskin_mesh(frame_i);
 	}
 
 	if (tab_timeline_keyframes != NULL) {
@@ -1126,21 +1121,6 @@ void tab_timeline_draw(ui_handle_t *htab) {
 		i32 visible         = (i32)(track_w / frame_w);
 		i32 max_scroll      = math_max(tab_timeline_max_frames - visible, 0);
 		tab_timeline_scroll = (i32)math_min(math_max(tab_timeline_scroll, 0), max_scroll);
-
-		if (tab_timeline_playing) {
-			iron_delay_idle_sleep();
-			f64   elapsed                                   = sys_time() - tab_timeline_play_time;
-			float frame_f                                   = (float)fmod(elapsed * tab_timeline_frame_rate, tab_timeline_max_frames);
-			tab_timeline_selected_frame                     = (i32)frame_f;
-			ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
-			if (tab_timeline_mesh_keyframes != NULL) {
-				tab_timeline_load_mesh_from_keyframes(frame_f);
-			}
-			if (tab_timeline_keyframes != NULL && tab_timeline_pending_tween_f < 0.0f) {
-				tab_timeline_pending_tween_f = frame_f;
-				sys_notify_on_next_frame(&tab_timeline_tween_on_next_frame, NULL);
-			}
-		}
 
 		// Frame number labels every 5 frames
 		draw_set_color(g_theme->LABEL_COL);

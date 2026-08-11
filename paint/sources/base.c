@@ -398,9 +398,11 @@ void base_update(void *_) {
 
 	render_compass_update();
 
-	// if (g_config->workspace == WORKSPACE_PLAYER) {
 	if (args_player) {
 		player_update();
+	}
+	else {
+		tab_timeline_update();
 	}
 
 	ui_view2d_update(NULL);
