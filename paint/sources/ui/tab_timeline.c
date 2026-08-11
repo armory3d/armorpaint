@@ -1020,6 +1020,14 @@ void tab_timeline_draw_stage_menu() {
 	}
 }
 
+static bool tab_timeline_input_in_rect(f32 x, f32 y, f32 w, f32 h) {
+	if (g_ui->scissor && g_ui->input_y < g_ui->_window_y + g_ui->window_header_h) {
+		return false;
+	}
+	return g_ui->input_x > g_ui->_window_x + x && g_ui->input_x < g_ui->_window_x + x + w && g_ui->input_y > g_ui->_window_y + y &&
+	       g_ui->input_y < g_ui->_window_y + y + h;
+}
+
 void tab_timeline_draw(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Timeline"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
@@ -1160,8 +1168,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 			f32     eye_y = row_y + (strip_h - eye_size) / 2.0f;
 			draw_set_color(g_theme->HOVER_COL + 0x00282828);
 			draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
-			bool eye_hover = !tab_timeline_scrolling && g_ui->input_x > g_ui->_window_x + g_ui->_x && g_ui->input_x < g_ui->_window_x + g_ui->_x + eye_size &&
-			                 g_ui->input_y > g_ui->_window_y + row_y && g_ui->input_y < g_ui->_window_y + row_y + strip_h;
+			bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
 			if (eye_hover && g_ui->input_released) {
 				layer->visible = !layer->visible;
 				make_material_parse_mesh_material();
@@ -1195,8 +1202,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 					draw_filled_circle(x + frame_w / 2.0f, row_y + strip_h / 2.0f, 3.0f * UI_SCALE(), 12);
 				}
 
-				bool in_cell = !tab_timeline_scrolling && g_ui->input_x > g_ui->_window_x + x && g_ui->input_x < g_ui->_window_x + x + frame_w &&
-				               g_ui->input_y > g_ui->_window_y + row_y && g_ui->input_y < g_ui->_window_y + row_y + strip_h;
+				bool in_cell = !tab_timeline_scrolling && tab_timeline_input_in_rect(x, row_y, frame_w, strip_h);
 				if (in_cell && g_ui->input_started) {
 					f64  now          = sys_time();
 					bool double_click = now - tab_timeline_last_click_time < 0.3 && tab_timeline_last_click_frame == i && tab_timeline_last_click_row == ri;
@@ -1236,8 +1242,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 			f32     eye_y = row_y + (strip_h - eye_size) / 2.0f;
 			draw_set_color(g_theme->HOVER_COL + 0x00282828);
 			draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
-			bool eye_hover = !tab_timeline_scrolling && g_ui->input_x > g_ui->_window_x + g_ui->_x && g_ui->input_x < g_ui->_window_x + g_ui->_x + eye_size &&
-			                 g_ui->input_y > g_ui->_window_y + row_y && g_ui->input_y < g_ui->_window_y + row_y + strip_h;
+			bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
 			if (eye_hover && g_ui->input_released) {
 				mesh->base->visible = !mesh->base->visible;
 
@@ -1275,8 +1280,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 					draw_filled_circle(x + frame_w / 2.0f, row_y + strip_h / 2.0f, 3.0f * UI_SCALE(), 12);
 				}
 
-				bool in_cell = !tab_timeline_scrolling && g_ui->input_x > g_ui->_window_x + x && g_ui->input_x < g_ui->_window_x + x + frame_w &&
-				               g_ui->input_y > g_ui->_window_y + row_y && g_ui->input_y < g_ui->_window_y + row_y + strip_h;
+				bool in_cell = !tab_timeline_scrolling && tab_timeline_input_in_rect(x, row_y, frame_w, strip_h);
 				if (in_cell && g_ui->input_started) {
 					f64  now          = sys_time();
 					bool double_click = now - tab_timeline_last_click_time < 0.3 && tab_timeline_last_click_frame == i && tab_timeline_last_click_row == ri;
@@ -1312,8 +1316,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 		draw_set_color(g_theme->BUTTON_COL + 0x00202020);
 		draw_filled_rect(handle_x, scrollbar_y, handle_w, scrollbar_h);
 
-		if (g_ui->input_started && g_ui->input_x > g_ui->_window_x + start_x && g_ui->input_x < g_ui->_window_x + start_x + track_w &&
-		    g_ui->input_y > g_ui->_window_y + scrollbar_y && g_ui->input_y < g_ui->_window_y + scrollbar_y + scrollbar_h) {
+		if (g_ui->input_started && tab_timeline_input_in_rect(start_x, scrollbar_y, track_w, scrollbar_h)) {
 			tab_timeline_scrolling     = true;
 			tab_timeline_scroll_drag_x = g_ui->input_x;
 			tab_timeline_scroll_drag_v = tab_timeline_scroll;
