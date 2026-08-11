@@ -361,7 +361,8 @@ void render_path_paint_commands_paint(bool dilation) {
 #endif
 				i32 index = r_byte - 1;
 				if (index >= 0 && index < g_project->_->paint_objects->length) {
-					g_context->paint_object = g_project->_->paint_objects->buffer[index];
+					g_context->paint_object   = g_project->_->paint_objects->buffer[index];
+					ui_header_handle->redraws = 2;
 
 					// g_context->layer->object_mask = index + 1;
 					// context_set_layer(g_context->layer);

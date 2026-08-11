@@ -88,6 +88,7 @@ void render_gizmo_update() {
 			g_context->gizmo_drag_last = g_context->gizmo_drag;
 
 			transform_build_matrix(paint_object->transform);
+			ui_header_handle->redraws = 2;
 
 			asim_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {

@@ -563,6 +563,7 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	mo->base->raw = o;
 	any_map_set(data_cached_meshes, md->_->handle, md);
 	any_array_push(g_project->_->paint_objects, mo);
+	tab_stages_add_object(mo->base->name);
 	g_context->paint_object = mo;
 	return mo;
 }
@@ -879,7 +880,8 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 		if (hovered) {
 			ui_tooltip(o->base->name);
 			if (g_ui->input_started) {
-				g_context->paint_object = o;
+				g_context->paint_object   = o;
+				ui_header_handle->redraws = 2;
 				tab_meshes_set_drag_mesh(o, -(mouse_x - uix - g_ui->_window_x - 3), -(mouse_y - uiy - g_ui->_window_y + 1));
 			}
 			if (g_ui->input_released) {
@@ -900,8 +902,9 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 				}
 			}
 			if (g_ui->input_released_r) {
-				g_context->paint_object = o;
-				_tab_meshes_draw_i      = i;
+				g_context->paint_object   = o;
+				ui_header_handle->redraws = 2;
+				_tab_meshes_draw_i        = i;
 				ui_menu_draw(&tab_meshes_draw_context_menu, -1, -1);
 			}
 		}

@@ -418,6 +418,7 @@ char                     *strings_graphics_api();
 stage_t                  *tab_stages_create_stage(char *name);
 stage_t                  *tab_stages_get_stage();
 void                      tab_stages_apply(stage_t *stage);
+void                      tab_stages_add_object(char *name);
 void                      tab_stages_rename_object(char *old_name, char *new_name);
 void                      tab_stages_rename_layer(char *old_name, char *new_name);
 void                      script_set_stage(char *name);

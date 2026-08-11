@@ -98,6 +98,7 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	}
 	dup->base->name = string("%s%s", oname, ext);
 	dup->data->name = dup->base->name;
+	tab_stages_add_object(dup->base->name);
 
 	// Material override
 	i32 mat_index = tab_meshes_get_override(so);

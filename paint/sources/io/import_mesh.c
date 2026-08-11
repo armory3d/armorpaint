@@ -255,6 +255,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	raw->name          = string("%s%s", raw->name, ext);
 
 	any_array_push(g_project->_->paint_objects, object);
+	tab_stages_add_object(object->base->name);
 	md->_->handle = string_copy(raw->name);
 	any_map_set(data_cached_meshes, md->_->handle, md);
 

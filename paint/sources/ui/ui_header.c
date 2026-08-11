@@ -595,7 +595,7 @@ void ui_header_draw_tool_properties() {
 		cursor_mode_handle->i           = 0;
 		ui_combo(cursor_mode_handle, cursor_mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
 
-		mesh_object_t *o = context_main_object();
+		mesh_object_t *o = g_context->paint_object != NULL ? g_context->paint_object : context_main_object();
 		if (o != NULL && o->base != NULL && o->base->transform != NULL) {
 			i32 _w = g_ui->_w;
 			f32 sc = UI_SCALE();
