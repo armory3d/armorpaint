@@ -7,6 +7,8 @@ gpu_texture_t      *tab_scripts_minimap_tex      = NULL;
 i32                 tab_scripts_minimap_selected = -1;
 extern bool         tab_scripts_minimap_dirty;
 bool                tab_scripts_minimap_scrolling = false;
+bool                tab_scripts_search_show       = false;
+bool                tab_scripts_search_focus      = false;
 
 void tab_scripts_prepare() {
 	if (g_project->script_datas == NULL) {
@@ -158,6 +160,16 @@ void main() {\n\
 ");
 		}
 		ui_menu_sub_end();
+	}
+
+	ui_menu_separator();
+	g_ui->changed           = false;
+	ui_handle_t *h_search   = ui_handle(__ID__);
+	h_search->b             = tab_scripts_search_show;
+	tab_scripts_search_show = ui_check(h_search, tr("Search"), "");
+	if (g_ui->changed) {
+		ui_menu_keep_open                                 = true;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 	}
 }
 
@@ -485,6 +497,15 @@ void tab_scripts_draw(ui_handle_t *htab) {
 			minic_register_builtins();     // Ensure the script api is registered
 		}
 
+		// Open the search box on ctrl+f
+		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F &&
+		    ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h)) {
+			tab_scripts_search_show  = true;
+			tab_scripts_search_focus = true;
+			g_ui->is_key_pressed     = false;
+			g_ui->key_code           = 0;
+		}
+
 		// Toggle line comment on ctrl+/
 		if (ac_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SLASH) {
 			tab_scripts_toggle_comment();
@@ -533,13 +554,22 @@ void tab_scripts_draw(ui_handle_t *htab) {
 			tab_scripts_minimap_scrolling = false;
 		}
 
-		// Prevent text area clicks while scrolling the minimap
+		// Search box
+		ui_handle_t *search_handle = ui_handle(__ID__);
+		f32          sb_h          = UI_ELEMENT_H() + UI_ELEMENT_OFFSET() * 2;
+		f32          sb_y          = g_ui->_window_h - sb_h;
+		f32          sb_w          = minimap_on ? mm_x : g_ui->_window_w;
+		bool         sb_hover      = tab_scripts_search_show && ui_input_in_rect(g_ui->_window_x, g_ui->_window_y + sb_y, sb_w, sb_h);
+		ui_text_area_search        = tab_scripts_search_show ? search_handle->text : NULL;
+
+		// Prevent text area clicks while scrolling the minimap or using the search box
 		bool _input_enabled = g_ui->input_enabled;
-		if (tab_scripts_minimap_scrolling) {
+		if (tab_scripts_minimap_scrolling || sb_hover) {
 			g_ui->input_enabled = false;
 		}
 		ui_text_area(tab_scripts_hscript, UI_ALIGN_LEFT, true, "", false);
 		g_ui->input_enabled                                   = _input_enabled;
+		ui_text_area_search                                   = NULL;
 		g_project->script_datas->buffer[tab_scripts_selected] = tab_scripts_hscript->text;
 
 		if (minimap_on) {
@@ -603,6 +633,33 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		ui_text_area_coloring = NULL;
 		ui_set_font(g_ui, _font);
 		g_ui->font_size = _font_size;
+
+		if (tab_scripts_search_show) {
+			f32 _x = g_ui->_x;
+			f32 _y = g_ui->_y;
+			f32 _w = g_ui->_w;
+			draw_set_color(g_theme->WINDOW_BG_COL);
+			draw_filled_rect(0, sb_y, sb_w, sb_h);
+			draw_set_color(g_theme->SEPARATOR_COL);
+			draw_filled_rect(0, sb_y, sb_w, 1);
+			bool search_selected = g_ui->text_selected_handle == search_handle;
+			g_ui->_x             = 0;
+			g_ui->_y             = sb_y + UI_ELEMENT_OFFSET();
+			g_ui->_w             = sb_w;
+			search_handle->text  = string_copy(ui_text_input(search_handle, tr("Search"), UI_ALIGN_LEFT, true, true));
+			if (tab_scripts_search_focus) { // Ctrl+f to open
+				tab_scripts_search_focus = false;
+				ui_start_text_edit(search_handle, UI_ALIGN_LEFT);
+				g_ui->cursor_x         = string_length(search_handle->text);
+				g_ui->highlight_anchor = 0;
+			}
+			if (search_selected && g_ui->is_escape_down) { // Esc to close
+				tab_scripts_search_show = false;
+			}
+			g_ui->_x = _x;
+			g_ui->_y = _y;
+			g_ui->_w = _w;
+		}
 	}
 }
 
