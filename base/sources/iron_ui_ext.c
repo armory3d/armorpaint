@@ -19,6 +19,7 @@ static int          text_area_selection_start_col = 0;
 bool                ui_text_area_line_numbers     = false;
 bool                ui_text_area_scroll_past_end  = false;
 ui_text_coloring_t *ui_text_area_coloring         = NULL;
+char               *ui_text_area_search           = NULL;
 bool (*ui_picker_button)(void)                    = NULL;
 
 float ui_dist(float x1, float y1, float x2, float y2) {
@@ -566,6 +567,49 @@ void ui_text_area_draw_line_numbers(int line_count) {
 	current->_w -= numbers_w - UI_SCROLL_W();
 }
 
+static char ui_text_area_lower(char c) {
+	return c >= 'A' && c <= 'Z' ? c + 32 : c;
+}
+
+static int ui_text_area_search_next(char *line, char *search, int from) {
+	int len = strlen(search);
+	if (len == 0) {
+		return -1;
+	}
+	for (int i = from; line[i] != '\0'; ++i) {
+		int j = 0;
+		while (j < len && ui_text_area_lower(line[i + j]) == ui_text_area_lower(search[j])) {
+			j++;
+		}
+		if (j == len) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void ui_text_area_draw_search(char *line) {
+	// Highlight the occurrences of ui_text_area_search
+	if (ui_text_area_search == NULL || ui_text_area_search[0] == '\0') {
+		return;
+	}
+	ui_t *current = ui_get_current();
+	if (!ui_is_visible(UI_ELEMENT_H())) {
+		return;
+	}
+	int   len = strlen(ui_text_area_search);
+	float off = UI_TEXT_OFFSET();
+	float h   = UI_ELEMENT_H() - current->button_offset_y * 3.0;
+	int   i   = ui_text_area_search_next(line, ui_text_area_search, 0);
+	while (i >= 0) {
+		float x = current->_x + off + draw_sub_string_width(current->ops->font, current->font_size, line, 0, i);
+		float w = draw_sub_string_width(current->ops->font, current->font_size, line, i, i + len);
+		draw_set_color(0x77ffee00);
+		draw_filled_rect(x, current->_y + current->button_offset_y * 1.5, w, h);
+		i = ui_text_area_search_next(line, ui_text_area_search, i + len);
+	}
+}
+
 char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, bool word_wrap) {
 	ui_t *current = ui_get_current();
 	handle->text  = string_replace_all(handle->text, "\t", "    ");
@@ -615,6 +659,7 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 	edit_new_text[0] = '\0';
 	for (int i = 0; i < line_count; ++i) { // Draw lines
 		char *line = ui_extract_line_off(lines, 0, &lines_off);
+		ui_text_area_draw_search(line);
 		// Text input
 		if ((!selected && ui_get_hover(UI_ELEMENT_H())) || (selected && i == handle->i)) {
 			handle->i = i; // Set active line

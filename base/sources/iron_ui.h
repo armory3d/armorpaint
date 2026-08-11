@@ -419,6 +419,7 @@ uint32_t ui_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 extern bool                ui_text_area_line_numbers;
 extern bool                ui_text_area_scroll_past_end;
 extern ui_text_coloring_t *ui_text_area_coloring;
+extern char               *ui_text_area_search;
 
 typedef struct ui_canvas_control {
 	float pan_x;
