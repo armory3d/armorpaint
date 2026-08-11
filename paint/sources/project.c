@@ -378,20 +378,28 @@ void project_reimport_mesh() {
 
 bool project_reskin_mesh(int frame) {
 #ifdef WITH_PLUGINS
-	mesh_data_t *md = context_main_object()->data;
-	if (md->_->skin_blob == NULL) {
+	bool any = false;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
+		if (md->_->skin_blob == NULL) {
+			continue;
+		}
+
+		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
+		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
+		if (!plugins_skin_data_apply(md->_->skin_blob, frame, pos->values, nor->values, &md->scale_pos)) {
+			continue;
+		}
+
+		mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+		any = true;
+	}
+
+	if (!any) {
 		return false;
 	}
 
-	vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
-	vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
-	if (!plugins_skin_data_apply(md->_->skin_blob, frame, pos->values, nor->values, &md->scale_pos)) {
-		return false;
-	}
-
-	mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
-
-	if (g_context->merged_object != NULL) {
+	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
 		util_mesh_merge(NULL);
 	}
 	g_context->ddirty          = 4;

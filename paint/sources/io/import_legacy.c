@@ -245,6 +245,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	project->mesh_parents        = any_map_get(old, "mesh_parents");
 	project->mesh_physics_shapes = any_map_get(old, "mesh_physics_shapes");
 	project->mesh_physics_masses = any_map_get(old, "mesh_physics_masses");
+	project->mesh_skins          = any_map_get(old, "mesh_skins");
 	project->atlas_objects       = any_map_get(old, "atlas_objects");
 	project->atlas_names         = any_map_get(old, "atlas_names");
 	project->script_datas        = any_map_get(old, "script_datas");
@@ -302,10 +303,15 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	return project;
 }
 
+project_t *import_arm_from_version_12(any_map_t *old) {
+	any_map_set(old, "mesh_skins", NULL);
+	return import_arm_from_map_to_arm(old);
+}
+
 project_t *import_arm_from_version_11(any_map_t *old) {
 	any_map_set(old, "mesh_physics_shapes", NULL);
 	any_map_set(old, "mesh_physics_masses", NULL);
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_12(old);
 }
 
 project_t *import_arm_from_version_10(any_map_t *old) {
@@ -429,6 +435,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	    import_arm_from_version_0, import_arm_from_version_1, import_arm_from_version_2,  import_arm_from_version_3,
 	    import_arm_from_version_4, import_arm_from_version_5, import_arm_from_version_6,  import_arm_from_version_7,
 	    import_arm_from_version_8, import_arm_from_version_9, import_arm_from_version_10, import_arm_from_version_11,
+	    import_arm_from_version_12,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

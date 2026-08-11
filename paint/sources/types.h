@@ -571,6 +571,7 @@ typedef struct project {
 	struct i32_array                            *mesh_parents;
 	struct i32_array                            *mesh_physics_shapes; // -1 = no physics
 	struct f32_array                            *mesh_physics_masses;
+	struct buffer_t_array                       *mesh_skins; // NULL = no skin
 	struct i32_array                            *atlas_objects;
 	struct string_array                         *atlas_names;
 	struct string_array                         *script_datas;
