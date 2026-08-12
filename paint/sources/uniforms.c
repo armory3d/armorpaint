@@ -119,7 +119,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	}
 	else if (string_equals(link, "_particle_radius")) {
 		i32 idx           = g_context->particle_index;
-		f32 speed         = g_context->particles[idx].body != NULL ? asim_body_get_speed(g_context->particles[idx].body) : 0.0f;
+		f32 speed         = g_context->particles[idx].body != NULL ? physics_body_get_speed(g_context->particles[idx].body) : 0.0f;
 		f32 vel_scale     = fminf(speed / 0.12f, 1.0f);
 		f32 contact_scale = 1.0f - fminf(g_context->particles[idx].contact_time, 1.0f);
 		return fmaxf(g_context->brush_radius * vel_scale * contact_scale, 0.1f);

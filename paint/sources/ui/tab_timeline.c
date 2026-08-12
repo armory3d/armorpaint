@@ -388,16 +388,16 @@ static void tab_timeline_save_mesh_origins() {
 }
 
 static void tab_timeline_sync_mesh_body(mesh_object_t *o) {
-	asim_body_t *body = o->base->_->body;
+	physics_body_t *body = o->base->_->body;
 	if (body == NULL) {
 		return;
 	}
-	asim_body_set_velocity(body->_body, 0.0f, 0.0f, 0.0f);
-	asim_body_sync_transform(body);
+	physics_body_set_velocity(body->_body, 0.0f, 0.0f, 0.0f);
+	physics_body_sync_transform(body);
 }
 
 static bool tab_timeline_dynamic_body(mesh_object_t *o) {
-	asim_body_t *body = o->base->_->body;
+	physics_body_t *body = o->base->_->body;
 	return body != NULL && body->mass > 0.0;
 }
 

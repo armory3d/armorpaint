@@ -50,7 +50,7 @@ static bool pac_inside(pac_rect_t *r, vec4_t p) {
 	return p.x > r->min_x && p.x < r->max_x && p.y > r->min_y && p.y < r->max_y;
 }
 
-static void pac_gather_rects(asim_body_t *self) {
+static void pac_gather_rects(physics_body_t *self) {
 	pac_rect_count = 0;
 	f32 grow       = math_sqrt(self->dimx * self->dimx + self->dimy * self->dimy) / 2.0 + PAC_CLEARANCE;
 
@@ -60,8 +60,8 @@ static void pac_gather_rects(asim_body_t *self) {
 		if (o->_ == NULL || string_equals(o->name, PAC_TERRAIN)) {
 			continue;
 		}
-		asim_body_t *body = o->_->body;
-		if (body == NULL || body == self || body->shape != ASIM_SHAPE_BOX || body->mass > 0.0) {
+		physics_body_t *body = o->_->body;
+		if (body == NULL || body == self || body->shape != PHYSICS_SHAPE_BOX || body->mass > 0.0) {
 			continue;
 		}
 
@@ -252,9 +252,9 @@ static bool pac_search() {
 	return true;
 }
 
-static bool pac_plan(asim_body_t *body, vec4_t goal) {
+static bool pac_plan(physics_body_t *body, vec4_t goal) {
 	vec4_t pos;
-	asim_body_get_pos(body->_body, &pos);
+	physics_body_get_pos(body->_body, &pos);
 
 	pac_gather_rects(body);
 	vec4_t start = pac_push_out((vec4_t){pos.x, pos.y, 0.0, 1.0});
@@ -293,7 +293,7 @@ static void trait_point_and_click_controller_set_moving(object_t *o, bool moving
 	run->visible                            = moving;
 }
 
-static void trait_point_and_click_controller_place(asim_body_t *body) {
+static void trait_point_and_click_controller_place(physics_body_t *body) {
 	if (!trait_point_and_click_controller_moving) {
 		return;
 	}
@@ -303,7 +303,7 @@ static void trait_point_and_click_controller_place(asim_body_t *body) {
 	}
 
 	vec4_t pos;
-	asim_body_get_pos(body->_body, &pos);
+	physics_body_get_pos(body->_body, &pos);
 	quat_t rot = trait_point_and_click_controller_rot;
 	vec4_t off = vec4_apply_quat(body->offset, rot);
 
@@ -318,9 +318,9 @@ static void trait_point_and_click_controller_terrain() {
 	if (o == NULL || o->_ == NULL) {
 		return;
 	}
-	asim_body_t *body = o->_->body;
-	if (body == NULL || body->shape != ASIM_SHAPE_TERRAIN) {
-		script_physics_set_shape(o, ASIM_SHAPE_TERRAIN);
+	physics_body_t *body = o->_->body;
+	if (body == NULL || body->shape != PHYSICS_SHAPE_TERRAIN) {
+		script_physics_set_shape(o, PHYSICS_SHAPE_TERRAIN);
 	}
 }
 
@@ -333,20 +333,20 @@ static bool trait_point_and_click_controller_pick(vec4_t *target) {
 
 	trait_point_and_click_controller_terrain();
 	ray_t *ray = raycast_get_ray(mx, my, scene_camera);
-	return asim_terrain_raycast(ray->origin, ray->dir, target);
+	return physics_terrain_raycast(ray->origin, ray->dir, target);
 }
 
-static bool trait_point_and_click_controller_move(asim_body_t *body) {
+static bool trait_point_and_click_controller_move(physics_body_t *body) {
 	vec4_t vel;
-	asim_body_get_velocity(body->_body, &vel);
+	physics_body_get_velocity(body->_body, &vel);
 	vec4_t pos;
-	asim_body_get_pos(body->_body, &pos);
+	physics_body_get_pos(body->_body, &pos);
 
 	while (pac_path_index < pac_path_count && pac_dist(pac_path[pac_path_index], pos) <= PAC_ARRIVE) {
 		pac_path_index++;
 	}
 	if (pac_path_index >= pac_path_count) {
-		asim_body_set_velocity(body->_body, 0.0, 0.0, vel.z);
+		physics_body_set_velocity(body->_body, 0.0, 0.0, vel.z);
 		return false;
 	}
 
@@ -359,19 +359,19 @@ static bool trait_point_and_click_controller_move(asim_body_t *body) {
 	if (pac_path_index == pac_path_count - 1 && delta > 0.0 && dist / delta < speed) {
 		speed = dist / delta;
 	}
-	asim_body_set_velocity(body->_body, dir.x * speed, dir.y * speed, vel.z);
+	physics_body_set_velocity(body->_body, dir.x * speed, dir.y * speed, vel.z);
 
 	trait_point_and_click_controller_rot = trait_point_and_click_controller_facing(dir);
-	asim_body_set_rotation(body, trait_point_and_click_controller_rot);
+	physics_body_set_rotation(body, trait_point_and_click_controller_rot);
 	return true;
 }
 
-static asim_body_t *trait_point_and_click_controller_body(object_t *o) {
-	asim_body_t *body = o->_->body;
-	if (body != NULL && body->shape == ASIM_SHAPE_BOX && body->mass > 0.0) {
+static physics_body_t *trait_point_and_click_controller_body(object_t *o) {
+	physics_body_t *body = o->_->body;
+	if (body != NULL && body->shape == PHYSICS_SHAPE_BOX && body->mass > 0.0) {
 		return body;
 	}
-	script_physics_set_shape(o, ASIM_SHAPE_BOX);
+	script_physics_set_shape(o, PHYSICS_SHAPE_BOX);
 	return o->_->body;
 }
 
@@ -381,7 +381,7 @@ void trait_point_and_click_controller_run() {
 		return;
 	}
 
-	asim_body_t *body = trait_point_and_click_controller_body(o);
+	physics_body_t *body = trait_point_and_click_controller_body(o);
 	if (body == NULL) {
 		return;
 	}

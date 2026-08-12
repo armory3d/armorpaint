@@ -530,7 +530,7 @@ void                      sim_init();
 void                      sim_update();
 void                      sim_play();
 void                      sim_stop();
-void                      sim_add_body(object_t *o, asim_shape_t shape, f32 mass);
+void                      sim_add_body(object_t *o, physics_shape_t shape, f32 mass);
 mesh_object_t            *sim_duplicate_object(mesh_object_t *so);
 void                      sim_duplicate();
 void                      sim_delete();

@@ -672,7 +672,7 @@ void import_arm_run_project(char *path) {
 				continue; // No physics
 			}
 			f32 mass = g_project->mesh_physics_masses != NULL && i < g_project->mesh_physics_masses->length ? g_project->mesh_physics_masses->buffer[i] : 0.0;
-			sim_add_body(g_project->_->paint_objects->buffer[i]->base, (asim_shape_t)shape, mass);
+			sim_add_body(g_project->_->paint_objects->buffer[i]->base, (physics_shape_t)shape, mass);
 		}
 	}
 

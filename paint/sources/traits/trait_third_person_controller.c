@@ -64,7 +64,7 @@ static void trait_third_person_controller_set_moving(object_t *o, bool moving) {
 	run->visible                         = moving;
 }
 
-static void trait_third_person_controller_place(asim_body_t *body) {
+static void trait_third_person_controller_place(physics_body_t *body) {
 	if (!trait_third_person_controller_moving) {
 		return;
 	}
@@ -74,7 +74,7 @@ static void trait_third_person_controller_place(asim_body_t *body) {
 	}
 
 	vec4_t pos;
-	asim_body_get_pos(body->_body, &pos);
+	physics_body_get_pos(body->_body, &pos);
 	quat_t rot = trait_third_person_controller_facing();
 	vec4_t off = vec4_apply_quat(body->offset, rot);
 
@@ -84,7 +84,7 @@ static void trait_third_person_controller_place(asim_body_t *body) {
 	transform_build_matrix(t);
 }
 
-static bool trait_third_person_controller_move(asim_body_t *body) {
+static bool trait_third_person_controller_move(physics_body_t *body) {
 	f32    s       = math_sin(trait_third_person_controller_yaw);
 	f32    c       = math_cos(trait_third_person_controller_yaw);
 	vec4_t forward = (vec4_t){-s, c, 0.0, 0.0};
@@ -105,23 +105,23 @@ static bool trait_third_person_controller_move(asim_body_t *body) {
 	}
 
 	vec4_t vel;
-	asim_body_get_velocity(body->_body, &vel);
+	physics_body_get_velocity(body->_body, &vel);
 	bool moving = dir.x != 0.0 || dir.y != 0.0;
 	if (moving) {
 		dir = vec4_norm(dir);
-		asim_body_set_velocity(body->_body, dir.x * TPC_SPEED, dir.y * TPC_SPEED, vel.z);
+		physics_body_set_velocity(body->_body, dir.x * TPC_SPEED, dir.y * TPC_SPEED, vel.z);
 	}
 	else {
-		asim_body_set_velocity(body->_body, 0.0, 0.0, vel.z);
+		physics_body_set_velocity(body->_body, 0.0, 0.0, vel.z);
 	}
 
-	asim_body_set_rotation(body, trait_third_person_controller_facing());
+	physics_body_set_rotation(body, trait_third_person_controller_facing());
 	return moving;
 }
 
-static void trait_third_person_controller_follow(asim_body_t *body) {
+static void trait_third_person_controller_follow(physics_body_t *body) {
 	vec4_t pos;
-	asim_body_get_pos(body->_body, &pos);
+	physics_body_get_pos(body->_body, &pos);
 
 	f32    size  = math_sqrt(body->dimx * body->dimx + body->dimy * body->dimy + body->dimz * body->dimz);
 	f32    dist  = (size > 0.0 ? size : 1.0) * TPC_CAMERA_DIST;
@@ -136,12 +136,12 @@ static void trait_third_person_controller_follow(asim_body_t *body) {
 	g_context->ddirty = 2;
 }
 
-static asim_body_t *trait_third_person_controller_body(object_t *o) {
-	asim_body_t *body = o->_->body;
-	if (body != NULL && body->shape == ASIM_SHAPE_BOX && body->mass > 0.0) {
+static physics_body_t *trait_third_person_controller_body(object_t *o) {
+	physics_body_t *body = o->_->body;
+	if (body != NULL && body->shape == PHYSICS_SHAPE_BOX && body->mass > 0.0) {
 		return body;
 	}
-	script_physics_set_shape(o, ASIM_SHAPE_BOX);
+	script_physics_set_shape(o, PHYSICS_SHAPE_BOX);
 	return o->_->body;
 }
 
@@ -151,7 +151,7 @@ void trait_third_person_controller_run() {
 		return;
 	}
 
-	asim_body_t *body = trait_third_person_controller_body(o);
+	physics_body_t *body = trait_third_person_controller_body(o);
 	if (body == NULL) {
 		return;
 	}

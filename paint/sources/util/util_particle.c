@@ -9,7 +9,7 @@ void util_particle_init_mesh() {
 		util_mesh_merge(NULL);
 	}
 
-	g_context->paint_body = asim_body_create(g_context->merged_object->base, ASIM_SHAPE_MESH, 0.0);
+	g_context->paint_body = physics_body_create(g_context->merged_object->base, PHYSICS_SHAPE_MESH, 0.0);
 }
 
 void util_particle_init_physics() {
@@ -24,11 +24,11 @@ void util_particle_update() {
 
 	util_particle_init_physics();
 	make_particle_get_bullet_material();
-	asim_world_update();
+	physics_world_update();
 
 	for (i32 i = 0; i < 32; ++i) {
 		if (g_context->particles[i].timer != NULL && g_context->particles[i].timer->delay <= 0) {
-			asim_body_remove(g_context->particles[i].body);
+			physics_body_remove(g_context->particles[i].body);
 			mesh_object_remove((mesh_object_t *)g_context->particles[i].bullet->ext);
 			memset(&g_context->particles[i], 0, sizeof(g_context->particles[i]));
 		}
@@ -82,7 +82,7 @@ void util_particle_update() {
 			mo->base->transform->scale = (vec4_t){g_context->brush_radius * 0.2, g_context->brush_radius * 0.2, g_context->brush_radius * 0.2, 1.0};
 			transform_build_matrix(mo->base->transform);
 
-			asim_body_t *body = asim_body_create(mo->base, ASIM_SHAPE_SPHERE, g_context->particle_mass);
+			physics_body_t *body = physics_body_create(mo->base, PHYSICS_SHAPE_SPHERE, g_context->particle_mass);
 
 			// Random direction
 			f32 rx   = math_random() * 2.0f - 1.0f;
@@ -104,7 +104,7 @@ void util_particle_update() {
 			f32 dy      = ny + (ry - ny) * r;
 			f32 dz      = nz + (rz - nz) * r;
 			f32 impulse = g_context->particle_spawn_distance * 30.0f;
-			asim_body_apply_impulse(body->_body, (vec4_t){dx * impulse, dy * impulse, dz * impulse, 0.0});
+			physics_body_apply_impulse(body->_body, (vec4_t){dx * impulse, dy * impulse, dz * impulse, 0.0});
 
 			g_context->particles[slot].body   = body;
 			g_context->particles[slot].bullet = mo->base;
@@ -123,9 +123,9 @@ void util_particle_update() {
 			if (g_context->particles[i].timer == NULL) {
 				continue;
 			}
-			asim_pair_t_array_t *pairs = asim_get_contact_pairs(g_context->particles[i].body);
+			physics_pair_t_array_t *pairs = physics_get_contact_pairs(g_context->particles[i].body);
 			if (pairs != NULL && pairs->length > 0) {
-				asim_pair_t *p                     = pairs->buffer[0];
+				physics_pair_t *p                     = pairs->buffer[0];
 				g_context->particles[i].hit_last_x = g_context->particles[i].hit_x != 0 ? g_context->particles[i].hit_x : p->pos_a_x;
 				g_context->particles[i].hit_last_y = g_context->particles[i].hit_y != 0 ? g_context->particles[i].hit_y : p->pos_a_y;
 				g_context->particles[i].hit_last_z = g_context->particles[i].hit_z != 0 ? g_context->particles[i].hit_z : p->pos_a_z;

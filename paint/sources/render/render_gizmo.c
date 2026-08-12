@@ -90,9 +90,9 @@ void render_gizmo_update() {
 			transform_build_matrix(paint_object->transform);
 			ui_header_handle->redraws = 2;
 
-			asim_body_t *pb = paint_object->_->body;
+			physics_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {
-				asim_body_sync_transform(pb);
+				physics_body_sync_transform(pb);
 			}
 		}
 	}

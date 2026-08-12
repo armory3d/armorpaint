@@ -635,7 +635,7 @@ object_t *script_object_duplicate(object_t *o) {
 	return dup->base;
 }
 
-static asim_body_t *script_physics_body(object_t *o) {
+static physics_body_t *script_physics_body(object_t *o) {
 	return o != NULL && o->_ != NULL ? o->_->body : NULL;
 }
 
@@ -644,45 +644,45 @@ void script_physics_set_shape(object_t *o, i32 shape) {
 		return;
 	}
 
-	asim_body_t *body = script_physics_body(o);
+	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
-		asim_body_remove(body);
+		physics_body_remove(body);
 	}
 	g_project->mesh_physics_shapes = i32_array_create(0);
 	if (shape < 0) {
 		return;
 	}
 
-	bool dynamic = shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE;
-	sim_add_body(o, (asim_shape_t)shape, dynamic ? 1.0 : 0.0);
+	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+	sim_add_body(o, (physics_shape_t)shape, dynamic ? 1.0 : 0.0);
 }
 
 void script_physics_set_mass(object_t *o, f32 mass) {
-	asim_body_t *body = script_physics_body(o);
+	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
-		asim_body_set_mass(body, mass);
+		physics_body_set_mass(body, mass);
 		g_project->mesh_physics_shapes = i32_array_create(0);
 	}
 }
 
 void script_physics_apply_impulse(object_t *o, f32 x, f32 y, f32 z) {
-	asim_body_t *body = script_physics_body(o);
+	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
-		asim_body_apply_impulse(body->_body, (vec4_t){x, y, z, 0.0});
+		physics_body_apply_impulse(body->_body, (vec4_t){x, y, z, 0.0});
 	}
 }
 
 void script_physics_set_velocity(object_t *o, f32 x, f32 y, f32 z) {
-	asim_body_t *body = script_physics_body(o);
+	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
-		asim_body_set_velocity(body->_body, x, y, z);
+		physics_body_set_velocity(body->_body, x, y, z);
 	}
 }
 
 void script_physics_sync_transform(object_t *o) {
-	asim_body_t *body = script_physics_body(o);
+	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
-		asim_body_sync_transform(body);
+		physics_body_sync_transform(body);
 	}
 }
 

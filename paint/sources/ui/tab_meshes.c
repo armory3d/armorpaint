@@ -392,7 +392,7 @@ void tab_meshes_draw_context_menu() {
 
 	// Physics
 	if (g_config->experimental) {
-		asim_body_t    *pb         = o->base->_->body;
+		physics_body_t    *pb         = o->base->_->body;
 		string_array_t *phys_combo = string_array_create(0);
 		string_array_push(phys_combo, ""); // Empty = no physics
 		string_array_push(phys_combo, tr("Box"));
@@ -405,12 +405,12 @@ void tab_meshes_draw_context_menu() {
 		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
 		if (hphys->changed) {
 			if (pb != NULL) {
-				asim_body_remove(pb);
+				physics_body_remove(pb);
 				pb = NULL;
 			}
 			if (hphys->i > 0) {
-				asim_shape_t shape   = (asim_shape_t)(hphys->i - 1);
-				bool         dynamic = shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE;
+				physics_shape_t shape   = (physics_shape_t)(hphys->i - 1);
+				bool         dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
 				sim_add_body(o->base, shape, dynamic ? 1.0 : 0.0);
 				pb = o->base->_->body;
 			}
@@ -422,7 +422,7 @@ void tab_meshes_draw_context_menu() {
 			hmass->f           = pb->mass;
 			ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
 			if (hmass->changed) {
-				asim_body_set_mass(pb, hmass->f); // Zero mass = static
+				physics_body_set_mass(pb, hmass->f); // Zero mass = static
 				g_project->mesh_physics_shapes = i32_array_create(0);
 				ui_menu_keep_open              = true;
 			}

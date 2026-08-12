@@ -8,7 +8,7 @@ void sim_init() {
 	if (sim_initialized) {
 		return;
 	}
-	asim_world_create();
+	physics_world_create();
 	sim_initialized = true;
 }
 
@@ -17,7 +17,7 @@ void sim_update() {
 
 	if (sim_running) {
 		trait_update();
-		asim_world_update();
+		physics_world_update();
 		iron_delay_idle_sleep();
 		if (sim_record) {
 			render_target_t *rt     = any_map_get(render_path_render_targets, "last");
@@ -68,16 +68,16 @@ void sim_stop() {
 	mesh_object_t_array_t *pos = g_project->_->paint_objects;
 	for (i32 i = 0; i < pos->length; ++i) {
 		transform_set_matrix(pos->buffer[i]->base->transform, *(mat4_t *)sim_transforms->buffer[i]);
-		asim_body_t *pb = pos->buffer[i]->base->_->body;
+		physics_body_t *pb = pos->buffer[i]->base->_->body;
 		if (pb != NULL) {
-			asim_body_sync_transform(pb);
+			physics_body_sync_transform(pb);
 		}
 	}
 }
 
-void sim_add_body(object_t *o, asim_shape_t shape, f32 mass) {
+void sim_add_body(object_t *o, physics_shape_t shape, f32 mass) {
 	sim_init();
-	asim_body_create(o, shape, mass);
+	physics_body_create(o, shape, mass);
 }
 
 mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
@@ -110,9 +110,9 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	}
 
 	// Physics
-	asim_body_t *pb = so->base->_->body;
+	physics_body_t *pb = so->base->_->body;
 	if (pb != NULL) {
-		asim_body_create(dup->base, pb->shape, pb->mass);
+		physics_body_create(dup->base, pb->shape, pb->mass);
 	}
 
 	return dup;
