@@ -478,6 +478,12 @@ void ui_header_draw_tool_properties() {
 			}
 		}
 
+		if (g_context->tool == TOOL_TYPE_CLONE) {
+			if (ui_button(g_context->clone_set_source ? tr("Setting Source") : tr("Set Source"), UI_ALIGN_CENTER, "")) {
+				g_context->clone_set_source = !g_context->clone_set_source;
+			}
+		}
+
 		if (g_context->tool == TOOL_TYPE_BLUR) {
 			string_array_t *blur_type_combo = any_array_create_from_raw(
 			    (void *[]){
