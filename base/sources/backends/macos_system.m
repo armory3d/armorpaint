@@ -1159,7 +1159,7 @@ volatile int iron_exec_async_done        = 1;
 char        *iron_exec_async_output_file = NULL;
 
 void iron_exec_async(const char *path, char *argv[]) {
-	iron_exec_async_done = 0;
+	iron_exec_async_done   = 0;
 	NSTask         *task   = [[NSTask alloc] init];
 	NSString       *launch = [NSString stringWithUTF8String:path];
 	NSMutableArray *args   = [NSMutableArray array];

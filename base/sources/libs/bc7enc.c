@@ -479,7 +479,7 @@ static uint64_t evaluate_solution(const color_quad_u8 *pLow, const color_quad_u8
 		}
 	}
 
-	// 16 scalar extractions — only done once per evaluate_solution call.
+	// 16 scalar extractions
 	for (uint32_t i = 0; i < pParams->m_num_pixels; i++) {
 		total_err += (uint64_t)best_err_f[i];
 		pResults->m_pSelectors_temp[i] = (uint8_t)(int)best_sel_f[i];

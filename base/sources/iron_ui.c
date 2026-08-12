@@ -323,14 +323,14 @@ void ui_draw_string(char *text, float x_offset, float y_offset, int align, bool 
 		return;
 	}
 	if (truncation) {
-		char *full_text = text;
-		size_t len = strlen(text);
+		char  *full_text = text;
+		size_t len       = strlen(text);
 		if (len > sizeof(truncated) - 3) {
 			len = sizeof(truncated) - 3;
 		}
 		memcpy(truncated, text, len);
 		truncated[len] = '\0';
-		text = &truncated[0];
+		text           = &truncated[0];
 		while (strlen(text) > 0 && draw_string_width(current->ops->font, current->font_size, text) > current->_w - 6.0 * UI_SCALE()) {
 			text[strlen(text) - 1] = 0;
 		}
@@ -2450,7 +2450,7 @@ void ui_tooltip(char *text) {
 	}
 	memcpy(current->tooltip_text, text, len);
 	current->tooltip_text[len] = '\0';
-	current->tooltip_y = current->_y + current->_window_y;
+	current->tooltip_y         = current->_y + current->_window_y;
 }
 
 void ui_tooltip_image(gpu_texture_t *image, int max_width) {

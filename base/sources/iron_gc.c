@@ -72,7 +72,7 @@ typedef struct garbage_collector {
 	void                     *bos;    // bottom of stack
 } garbage_collector_t;
 
-static garbage_collector_t _gc;
+static garbage_collector_t  _gc;
 static garbage_collector_t *gc = &_gc;
 
 static gc_allocation_t *gc_allocation_new(void *ptr, size_t size) {

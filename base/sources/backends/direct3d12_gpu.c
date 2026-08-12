@@ -290,8 +290,8 @@ void gpu_render_target_init2(gpu_texture_t *render_target, uint32_t width, uint3
 }
 
 void create_root_signature(bool linear_sampling) {
-	ID3DBlob              *root_blob  = NULL;
-	ID3DBlob              *error_blob = NULL;
+	ID3DBlob              *root_blob     = NULL;
+	ID3DBlob              *error_blob    = NULL;
 	D3D12_ROOT_PARAMETER   parameters[3] = {0};
 	D3D12_DESCRIPTOR_RANGE range         = {
 	            .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,

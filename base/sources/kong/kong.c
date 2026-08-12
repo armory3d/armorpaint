@@ -2048,7 +2048,7 @@ void functions_init(void) {
 	function     *new_functions = realloc(functions, functions_size * sizeof(function));
 	debug_context context       = {0};
 	check(new_functions != NULL, context, "Could not allocate functions");
-	functions           = new_functions;
+	functions = new_functions;
 	zero_new_function_slots();
 	next_function_index = 0;
 
@@ -2679,7 +2679,7 @@ function_id add_function(name_id name) {
 	init_type_ref(&functions[f].return_type, NO_NAME);
 	functions[f].parameters_size = 0;
 	memset(functions[f].parameter_attributes, 0, sizeof(functions[f].parameter_attributes));
-	functions[f].block = NULL;
+	functions[f].block                      = NULL;
 	functions[f].code.size                  = 0;
 	functions[f].descriptor_set_group_index = UINT32_MAX;
 	functions[f].used_builtins              = (builtins){0};
