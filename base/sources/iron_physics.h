@@ -29,6 +29,10 @@ typedef struct {
 	float *heights;
 	int    res_x;
 	int    res_y;
+	float  min_x;
+	float  min_y;
+	float  size_x;
+	float  size_y;
 } asim_heightfield_t;
 
 struct object;
@@ -40,6 +44,7 @@ typedef struct asim_body {
 	float          dimx;
 	float          dimy;
 	float          dimz;
+	vec4_t         offset;
 	struct object *obj;
 } asim_body_t;
 
@@ -57,9 +62,11 @@ void         asim_body_get_rot(void *body, quat_t *rot);
 void         asim_body_get_velocity(void *body, vec4_t *vel);
 void         asim_body_set_velocity(void *body, float x, float y, float z);
 void         asim_body_sync_transform(asim_body_t *body);
+void         asim_body_set_rotation(asim_body_t *body, quat_t rot);
 void         asim_body_update(asim_body_t *body);
 void         asim_body_remove(asim_body_t *body);
 float        asim_body_get_speed(asim_body_t *body);
+int          asim_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit);
 void         asim_set_friction(float v);
 void         asim_set_bounciness(float v);
 void         asim_set_gravity(float x, float y, float z);

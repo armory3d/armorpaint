@@ -2,16 +2,18 @@
 
 #include "iron_physics.h"
 #include "engine.h"
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define GRAVITY       -9.81f
-#define MAX_BVH_DEPTH 20
-#define MAX_SPHERES   32
-#define MAX_BOXES     32
-#define MAX_BODIES    (MAX_SPHERES + MAX_BOXES)
+#define GRAVITY         -9.81f
+#define MAX_BVH_DEPTH   20
+#define MAX_SPHERES     32
+#define MAX_BOXES       32
+#define MAX_BODIES      (MAX_SPHERES + MAX_BOXES)
+#define MAX_TERRAIN_RES 1024
 
 #define SPHERE_TAG  0x10000
 #define BOX_TAG     0x20000
@@ -77,6 +79,8 @@ typedef struct {
 	vec4_t min;
 	float  size_x;
 	float  size_y;
+	float  min_h;
+	float  max_h;
 	int    active;
 } terrain_t;
 
@@ -686,6 +690,108 @@ static int terrain_sample(float x, float y, float *out_height, vec4_t *out_norma
 	return 1;
 }
 
+static int ray_clip_slab(float origin, float dir, float lo, float hi, float *t0, float *t1) {
+	if (fabsf(dir) < 1e-6f) {
+		return origin >= lo && origin <= hi;
+	}
+
+	float ta = (lo - origin) / dir;
+	float tb = (hi - origin) / dir;
+	if (ta > tb) {
+		float tmp = ta;
+		ta        = tb;
+		tb        = tmp;
+	}
+	if (ta > *t0) {
+		*t0 = ta;
+	}
+	if (tb < *t1) {
+		*t1 = tb;
+	}
+	return *t0 <= *t1;
+}
+
+int asim_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit) {
+	if (!terrain.active) {
+		return 0;
+	}
+
+	float len = vec4_len(dir);
+	if (len == 0.0f) {
+		return 0;
+	}
+	vec4_t d = vec4_mult(dir, 1.0f / len);
+
+	const float pad = 0.001f;
+	float       t0  = 0.0f;
+	float       t1  = FLT_MAX;
+	if (!ray_clip_slab(origin.x, d.x, terrain.min.x - pad, terrain.min.x + terrain.size_x + pad, &t0, &t1) ||
+	    !ray_clip_slab(origin.y, d.y, terrain.min.y - pad, terrain.min.y + terrain.size_y + pad, &t0, &t1) ||
+	    !ray_clip_slab(origin.z, d.z, terrain.min.z + terrain.min_h - pad, terrain.min.z + terrain.max_h + pad, &t0, &t1)) {
+		return 0;
+	}
+	if (t1 < 0.0f) {
+		return 0;
+	}
+	if (t0 < 0.0f) {
+		t0 = 0.0f;
+	}
+
+	float cell_x = terrain.size_x / (terrain.res_x - 1);
+	float cell_y = terrain.size_y / (terrain.res_y - 1);
+	float step   = cell_x < cell_y ? cell_x : cell_y;
+	if (step <= 0.0f) {
+		return 0;
+	}
+
+	float  ground = 0.0f;
+	vec4_t normal;
+	float  above       = t0;
+	int    above_valid = 0;
+
+	for (float t = t0;; t += step) {
+		if (t > t1) {
+			t = t1;
+		}
+
+		vec4_t p = vec4_add(origin, vec4_mult(d, t));
+		if (terrain_sample(p.x, p.y, &ground, &normal)) {
+			if (p.z <= ground) {
+				if (above_valid) {
+					float lo = above;
+					float hi = t;
+					for (int i = 0; i < 24; ++i) {
+						float  mid = (lo + hi) * 0.5f;
+						vec4_t q   = vec4_add(origin, vec4_mult(d, mid));
+						if (terrain_sample(q.x, q.y, &ground, &normal) && q.z <= ground) {
+							hi = mid;
+						}
+						else {
+							lo = mid;
+						}
+					}
+					p = vec4_add(origin, vec4_mult(d, hi));
+					if (!terrain_sample(p.x, p.y, &ground, &normal)) {
+						return 0;
+					}
+				}
+				*hit = (vec4_t){p.x, p.y, ground, 1.0f};
+				return 1;
+			}
+			above       = t;
+			above_valid = 1;
+		}
+		else {
+			above_valid = 0;
+		}
+
+		if (t >= t1) {
+			break;
+		}
+	}
+	return 0;
+}
+
 static inline float depth_along_normal(float drop, vec4_t normal) {
 	return drop * normal.z;
 }
@@ -913,19 +1019,127 @@ static inline vec4_t mesh_vertex(i16_array_t *pa, uint32_t index, float scale) {
 	return (vec4_t){pa->buffer[index * 4] * scale, pa->buffer[index * 4 + 1] * scale, pa->buffer[index * 4 + 2] * scale};
 }
 
-static asim_heightfield_t heightfield_from_mesh(i16_array_t *pa, float scale, float dimz) {
-	int num_verts = pa->length / 4;
-	int res       = (int)(sqrtf((float)num_verts) + 0.5f);
-	if (res < 2) {
+static inline vec4_t mesh_vertex_scaled(i16_array_t *pa, uint32_t index, float sx, float sy, float sz) {
+	return (vec4_t){pa->buffer[index * 4] * sx, pa->buffer[index * 4 + 1] * sy, pa->buffer[index * 4 + 2] * sz};
+}
+
+static void heightfield_fill_holes(float *heights, int res_x, int res_y) {
+	int  count = res_x * res_y;
+	int *queue = (int *)malloc(sizeof(int) * count);
+	int  head = 0, tail = 0;
+
+	for (int i = 0; i < count; i++) {
+		if (heights[i] > -FLT_MAX) {
+			queue[tail++] = i;
+		}
+	}
+	if (tail == 0) {
+		free(queue);
+		for (int i = 0; i < count; i++) {
+			heights[i] = 0.0f;
+		}
+		return;
+	}
+
+	while (head < tail) {
+		int   i = queue[head++];
+		int   x = i % res_x;
+		int   y = i / res_x;
+		float h = heights[i];
+
+		int neighbors[4] = {x > 0 ? i - 1 : -1, x < res_x - 1 ? i + 1 : -1, y > 0 ? i - res_x : -1, y < res_y - 1 ? i + res_x : -1};
+		for (int n = 0; n < 4; n++) {
+			int ni = neighbors[n];
+			if (ni >= 0 && heights[ni] == -FLT_MAX) {
+				heights[ni]   = h;
+				queue[tail++] = ni;
+			}
+		}
+	}
+
+	free(queue);
+}
+
+static asim_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t *ia, float scale_x, float scale_y, float scale_z) {
+	if (pa == NULL || ia == NULL) {
 		return (asim_heightfield_t){0};
 	}
 
-	float *heights = (float *)malloc(sizeof(float) * res * res);
-	for (int i = 0; i < res * res; i++) {
-		heights[i] = dimz > 0.0f ? (mesh_vertex(pa, i, scale).z + dimz / 2.0f) / dimz : 0.0f;
+	int num_verts = pa->length / 4;
+	int num_tris  = ia->length / 3;
+	if (num_verts < 3 || num_tris < 1) {
+		return (asim_heightfield_t){0};
 	}
 
-	return (asim_heightfield_t){.heights = heights, .res_x = res, .res_y = res};
+	float min_x = FLT_MAX, min_y = FLT_MAX, max_x = -FLT_MAX, max_y = -FLT_MAX;
+	for (int i = 0; i < num_verts; i++) {
+		vec4_t v = mesh_vertex_scaled(pa, i, scale_x, scale_y, scale_z);
+		min_x    = fminf(min_x, v.x);
+		min_y    = fminf(min_y, v.y);
+		max_x    = fmaxf(max_x, v.x);
+		max_y    = fmaxf(max_y, v.y);
+	}
+
+	float size_x = max_x - min_x;
+	float size_y = max_y - min_y;
+	if (size_x <= 0.0f || size_y <= 0.0f) {
+		return (asim_heightfield_t){0};
+	}
+
+	int res = (int)(sqrtf(num_tris / 2.0f) + 0.5f) * 2 + 1;
+	if (res > MAX_TERRAIN_RES) {
+		res = MAX_TERRAIN_RES;
+	}
+
+	float  cell_x  = size_x / (res - 1);
+	float  cell_y  = size_y / (res - 1);
+	float *heights = (float *)malloc(sizeof(float) * res * res);
+	for (int i = 0; i < res * res; i++) {
+		heights[i] = -FLT_MAX;
+	}
+
+	for (int t = 0; t < num_tris; t++) {
+		vec4_t v0 = mesh_vertex_scaled(pa, ia->buffer[t * 3], scale_x, scale_y, scale_z);
+		vec4_t v1 = mesh_vertex_scaled(pa, ia->buffer[t * 3 + 1], scale_x, scale_y, scale_z);
+		vec4_t v2 = mesh_vertex_scaled(pa, ia->buffer[t * 3 + 2], scale_x, scale_y, scale_z);
+
+		float area = (v1.y - v2.y) * (v0.x - v2.x) + (v2.x - v1.x) * (v0.y - v2.y);
+		if (fabsf(area) < 1e-12f) {
+			continue;
+		}
+
+		int ix0 = (int)ceilf((min3(v0.x, v1.x, v2.x) - min_x) / cell_x);
+		int ix1 = (int)floorf((max3(v0.x, v1.x, v2.x) - min_x) / cell_x);
+		int iy0 = (int)ceilf((min3(v0.y, v1.y, v2.y) - min_y) / cell_y);
+		int iy1 = (int)floorf((max3(v0.y, v1.y, v2.y) - min_y) / cell_y);
+		ix0     = ix0 < 0 ? 0 : ix0;
+		iy0     = iy0 < 0 ? 0 : iy0;
+		ix1     = ix1 > res - 1 ? res - 1 : ix1;
+		iy1     = iy1 > res - 1 ? res - 1 : iy1;
+
+		for (int iy = iy0; iy <= iy1; iy++) {
+			for (int ix = ix0; ix <= ix1; ix++) {
+				float px = min_x + ix * cell_x;
+				float py = min_y + iy * cell_y;
+
+				float b0 = ((v1.y - v2.y) * (px - v2.x) + (v2.x - v1.x) * (py - v2.y)) / area;
+				float b1 = ((v2.y - v0.y) * (px - v2.x) + (v0.x - v2.x) * (py - v2.y)) / area;
+				float b2 = 1.0f - b0 - b1;
+				if (b0 < -1e-5f || b1 < -1e-5f || b2 < -1e-5f) {
+					continue;
+				}
+
+				float h = b0 * v0.z + b1 * v1.z + b2 * v2.z;
+				if (h > heights[iy * res + ix]) {
+					heights[iy * res + ix] = h;
+				}
+			}
+		}
+	}
+
+	heightfield_fill_holes(heights, res, res);
+
+	return (asim_heightfield_t){.heights = heights, .res_x = res, .res_y = res, .min_x = min_x, .min_y = min_y, .size_x = size_x, .size_y = size_y};
 }
 
 static void *body_create(int shape, float mass, float dimx, float dimy, float dimz, float x, float y, float z, void *posa, void *inda, float scale_pos) {
@@ -938,17 +1152,28 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 
 		int    count   = field->res_x * field->res_y;
 		float *heights = (float *)malloc(sizeof(float) * count);
-		for (int i = 0; i < count; i++) {
-			heights[i] = field->heights[i] * dimz;
+		memcpy(heights, field->heights, sizeof(float) * count);
+
+		float min_h = heights[0];
+		float max_h = heights[0];
+		for (int i = 1; i < count; ++i) {
+			if (heights[i] < min_h) {
+				min_h = heights[i];
+			}
+			if (heights[i] > max_h) {
+				max_h = heights[i];
+			}
 		}
 
 		terrain_clear();
 		terrain = (terrain_t){.heights = heights,
 		                      .res_x   = field->res_x,
 		                      .res_y   = field->res_y,
-		                      .min     = {x - dimx / 2.0f, y - dimy / 2.0f, z - dimz / 2.0f},
-		                      .size_x  = dimx,
-		                      .size_y  = dimy,
+		                      .min     = {x + field->min_x, y + field->min_y, z},
+		                      .size_x  = field->size_x,
+		                      .size_y  = field->size_y,
+		                      .min_h   = min_h,
+		                      .max_h   = max_h,
 		                      .active  = 1};
 
 		return (void *)(uintptr_t)TERRAIN_TAG;
@@ -1058,6 +1283,48 @@ static void wake_all() {
 	}
 }
 
+static vec4_t object_world_scale(object_t *obj) {
+	vec4_t scale = obj->transform->scale;
+	if (obj->parent != NULL) {
+		scale.x *= obj->parent->transform->scale.x;
+		scale.y *= obj->parent->transform->scale.y;
+		scale.z *= obj->parent->transform->scale.z;
+	}
+	return scale;
+}
+
+static bool mesh_bounds(object_t *obj, vec4_t *center, vec4_t *extent) {
+	// The object origin is not necessarily the middle of the geometry
+	if (obj->ext == NULL || !string_equals(obj->ext_type, "mesh_object_t")) {
+		return false;
+	}
+
+	mesh_object_t *mo        = obj->ext;
+	i16_array_t   *pa        = mesh_data_get_vertex_array(mo->data, "pos")->values;
+	int            num_verts = pa->length / 4;
+	if (num_verts < 1) {
+		return false;
+	}
+
+	int16_t min[3] = {pa->buffer[0], pa->buffer[1], pa->buffer[2]};
+	int16_t max[3] = {pa->buffer[0], pa->buffer[1], pa->buffer[2]};
+	for (int i = 1; i < num_verts; i++) {
+		for (int c = 0; c < 3; c++) {
+			int16_t v = pa->buffer[i * 4 + c];
+			min[c]    = v < min[c] ? v : min[c];
+			max[c]    = v > max[c] ? v : max[c];
+		}
+	}
+
+	vec4_t scale  = object_world_scale(obj);
+	float  unpack = (1.0f / 32767.0f) * mo->data->scale_pos;
+	float  sc[3]  = {unpack * scale.x, unpack * scale.y, unpack * scale.z};
+
+	*center = (vec4_t){(min[0] + max[0]) * 0.5f * sc[0], (min[1] + max[1]) * 0.5f * sc[1], (min[2] + max[2]) * 0.5f * sc[2], 0.0f};
+	*extent = (vec4_t){(max[0] - min[0]) * sc[0], (max[1] - min[1]) * sc[1], (max[2] - min[2]) * sc[2], 0.0f};
+	return true;
+}
+
 asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	asim_body_t *body = GC_ALLOC_INIT(asim_body_t, {0});
 	body->shape       = shape;
@@ -1070,6 +1337,16 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	body->dimy = obj->transform->dim.y;
 	body->dimz = obj->transform->dim.z;
 
+	if (shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE) {
+		vec4_t center, extent;
+		if (mesh_bounds(obj, &center, &extent)) {
+			body->dimx   = extent.x;
+			body->dimy   = extent.y;
+			body->dimz   = extent.z;
+			body->offset = center;
+		}
+	}
+
 	float              scale_pos = 1.0f;
 	void              *posa      = NULL;
 	u32_array_t       *inda      = NULL;
@@ -1078,21 +1355,16 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	if (shape == ASIM_SHAPE_MESH || shape == ASIM_SHAPE_TERRAIN) {
 		mesh_object_t *mo    = obj->ext;
 		mesh_data_t   *data  = mo->data;
-		vec4_t         scale = obj->transform->scale;
-
-		if (obj->parent != NULL) {
-			scale.x *= obj->parent->transform->scale.x;
-			scale.y *= obj->parent->transform->scale.y;
-			scale.z *= obj->parent->transform->scale.z;
-		}
+		vec4_t         scale = object_world_scale(obj);
 
 		i16_array_t *pa = mesh_data_get_vertex_array(data, "pos")->values;
 		inda            = data->index_array;
 		scale_pos       = scale.x * data->scale_pos;
 
 		if (shape == ASIM_SHAPE_TERRAIN) {
-			field = heightfield_from_mesh(pa, (1.0f / 32767.0f) * scale_pos, body->dimz);
-			posa  = &field;
+			float unpack = (1.0f / 32767.0f) * data->scale_pos;
+			field        = heightfield_from_mesh(pa, inda, unpack * scale.x, unpack * scale.y, unpack * scale.z);
+			posa         = &field;
 		}
 		else {
 			posa = pa;
@@ -1100,7 +1372,8 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	}
 
 	vec4_t loc  = obj->transform->loc;
-	body->_body = body_create(shape, mass, body->dimx, body->dimy, body->dimz, loc.x, loc.y, loc.z, posa, inda, scale_pos);
+	vec4_t off  = vec4_apply_quat(body->offset, obj->transform->rot);
+	body->_body = body_create(shape, mass, body->dimx, body->dimy, body->dimz, loc.x + off.x, loc.y + off.y, loc.z + off.z, posa, inda, scale_pos);
 	free(field.heights);
 
 	if (shape == ASIM_SHAPE_BOX) { // Start out at the object rotation
@@ -1153,13 +1426,24 @@ void asim_body_set_velocity(void *body, float x, float y, float z) {
 
 void asim_body_sync_transform(asim_body_t *body) {
 	transform_t *transform = body->obj->transform;
+	vec4_t       off       = vec4_apply_quat(body->offset, transform->rot);
 	vec4_t      *p         = body_ref(body->_body).position;
-	p->x                   = transform->loc.x;
-	p->y                   = transform->loc.y;
-	p->z                   = transform->loc.z;
+	p->x                   = transform->loc.x + off.x;
+	p->y                   = transform->loc.y + off.y;
+	p->z                   = transform->loc.z + off.z;
 	if (body_is_box(body->_body)) {
 		boxes[body_slot(body->_body)].rotation = transform->rot;
 	}
+	body_wake(body->_body);
+}
+
+void asim_body_set_rotation(asim_body_t *body, quat_t rot) {
+	if (!body_is_box(body->_body)) {
+		return;
+	}
+	box_t *b    = &boxes[body_slot(body->_body)];
+	b->rotation = rot;
+	b->angular  = (vec4_t){0.0f, 0.0f, 0.0f};
 	body_wake(body->_body);
 }
 
@@ -1169,8 +1453,14 @@ void asim_body_update(asim_body_t *body) {
 	}
 
 	transform_t *transform = body->obj->transform;
-	asim_body_get_pos(body->_body, &transform->loc);
+	vec4_t       pos       = transform->loc;
+	asim_body_get_pos(body->_body, &pos);
 	asim_body_get_rot(body->_body, &transform->rot);
+
+	vec4_t off       = vec4_apply_quat(body->offset, transform->rot);
+	transform->loc.x = pos.x - off.x;
+	transform->loc.y = pos.y - off.y;
+	transform->loc.z = pos.z - off.z;
 	transform_build_matrix(transform);
 }
 
