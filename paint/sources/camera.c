@@ -34,7 +34,7 @@ static bool camera_wrap_mouse() {
 static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
-	f32              move_y = ruler ? 0.0 : mouse_movement_y;
+	f32 move_y              = ruler ? 0.0 : mouse_movement_y;
 
 	if (g_context->camera_pivot == CAMERA_PIVOT_CURSOR) {
 		static f32  pivot_x     = 0;
@@ -95,9 +95,9 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
-	f32              move_y = ruler ? 0.0 : mouse_movement_y;
-	transform_t     *t      = context_main_object()->base->transform;
-	vec4_t           up     = transform_up(t);
+	f32          move_y     = ruler ? 0.0 : mouse_movement_y;
+	transform_t *t          = context_main_object()->base->transform;
+	vec4_t       up         = transform_up(t);
 
 	if (g_context->camera_pivot == CAMERA_PIVOT_CURSOR) {
 		static f32  pivot_x     = 0;

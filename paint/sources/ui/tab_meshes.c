@@ -394,7 +394,7 @@ void tab_meshes_draw_context_menu() {
 	if (g_config->experimental) {
 		asim_body_t    *pb         = o->base->_->body;
 		string_array_t *phys_combo = string_array_create(0);
-		string_array_push(phys_combo, "");        // Empty = no physics
+		string_array_push(phys_combo, ""); // Empty = no physics
 		string_array_push(phys_combo, tr("Box"));
 		string_array_push(phys_combo, tr("Sphere"));
 		string_array_push(phys_combo, tr("Terrain"));

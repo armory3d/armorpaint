@@ -142,8 +142,8 @@
 #include "render/render_path_raytrace_bake.c"
 #include "render/render_pathsphere.c"
 
-#include "traits/trait_third_person_controller.c"
 #include "traits/trait_point_and_click_controller.c"
+#include "traits/trait_third_person_controller.c"
 
 #include "ui/box_export.c"
 #include "ui/box_import_mesh.c"

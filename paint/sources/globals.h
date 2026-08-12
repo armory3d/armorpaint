@@ -214,20 +214,20 @@ f32                       parser_material_eps = 0.000001;
 any_map_t                *parser_material_node_values;
 any_map_t                *parser_material_node_vectors;
 any_map_t                *parser_material_custom_nodes;
-bool                      parser_material_parse_height            = false;
-bool                      parser_material_parse_emission          = false;
-bool                      parser_material_parse_subsurface        = false;
-bool                      parser_material_parsing_basecolor       = false;
-bool                      parser_material_triplanar               = false; // Sample using tex_coord/1/2 & tex_coord_blend
-bool                      parser_material_sample_keep_aspect      = false; // Adjust uvs to preserve texture aspect ratio
-char                     *parser_material_sample_uv_scale         = "1.0";
-bool                      parser_material_transform_color_space   = true;
-bool                      parser_material_blur_passthrough        = false;
-bool                      parser_material_warp_passthrough        = false;
-bool                      parser_material_bake_passthrough        = false;
-ui_node_canvas_t         *parser_material_start_group             = NULL;
-ui_node_t_array_t        *parser_material_start_parents           = NULL;
-ui_node_t                *parser_material_start_node              = NULL;
+bool                      parser_material_parse_height          = false;
+bool                      parser_material_parse_emission        = false;
+bool                      parser_material_parse_subsurface      = false;
+bool                      parser_material_parsing_basecolor     = false;
+bool                      parser_material_triplanar             = false; // Sample using tex_coord/1/2 & tex_coord_blend
+bool                      parser_material_sample_keep_aspect    = false; // Adjust uvs to preserve texture aspect ratio
+char                     *parser_material_sample_uv_scale       = "1.0";
+bool                      parser_material_transform_color_space = true;
+bool                      parser_material_blur_passthrough      = false;
+bool                      parser_material_warp_passthrough      = false;
+bool                      parser_material_bake_passthrough      = false;
+ui_node_canvas_t         *parser_material_start_group           = NULL;
+ui_node_t_array_t        *parser_material_start_parents         = NULL;
+ui_node_t                *parser_material_start_node            = NULL;
 char                     *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
 any_map_t                *parser_material_script_links = NULL;
 any_map_t                *parser_material_parsed_map;

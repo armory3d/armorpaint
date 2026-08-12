@@ -401,8 +401,8 @@ void import_arm_run_project(char *path) {
         1);
 
 	for (i32 i = 1; i < g_project->mesh_datas->length; ++i) {
-		mesh_data_t   *raw    = g_project->mesh_datas->buffer[i];
-		mesh_data_t   *md     = mesh_data_create(raw);
+		mesh_data_t *raw      = g_project->mesh_datas->buffer[i];
+		mesh_data_t *md       = mesh_data_create(raw);
 		md->_->skin_blob      = import_arm_get_mesh_skin(i);
 		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, g_context->paint_object->base);
 		object->base->name    = md->name;

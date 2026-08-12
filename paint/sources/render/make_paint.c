@@ -321,28 +321,28 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		}
 	}
 	else {
-		parser_material_parse_emission          = g_context->material->paint_emis;
-		parser_material_parse_subsurface        = g_context->material->paint_subs;
-		parser_material_parse_height            = g_context->material->paint_height;
-		uv_type_t uv_type                       = g_context->layer->fill_material != NULL ? g_context->layer->uv_type : g_context->brush_paint;
-		parser_material_triplanar               = uv_type == UV_TYPE_TRIPLANAR && !decal;
-		parser_material_sample_keep_aspect      = decal;
+		parser_material_parse_emission     = g_context->material->paint_emis;
+		parser_material_parse_subsurface   = g_context->material->paint_subs;
+		parser_material_parse_height       = g_context->material->paint_height;
+		uv_type_t uv_type                  = g_context->layer->fill_material != NULL ? g_context->layer->uv_type : g_context->brush_paint;
+		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
+		parser_material_sample_keep_aspect = decal;
 		gc_unroot(parser_material_sample_uv_scale);
 		parser_material_sample_uv_scale = "constants.brush_scale";
 		gc_root(parser_material_sample_uv_scale);
-		shader_out_t *sout                      = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
-		parser_material_parse_emission          = false;
-		parser_material_parse_subsurface        = false;
-		parser_material_parse_height            = false;
-		char *base                              = sout->out_basecol;
-		char *rough                             = sout->out_roughness;
-		char *met                               = sout->out_metallic;
-		char *occ                               = sout->out_occlusion;
-		char *nortan                            = parser_material_out_normaltan;
-		char *height                            = sout->out_height;
-		char *opac                              = sout->out_opacity;
-		char *emis                              = sout->out_emission;
-		char *subs                              = sout->out_subsurface;
+		shader_out_t *sout               = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
+		parser_material_parse_emission   = false;
+		parser_material_parse_subsurface = false;
+		parser_material_parse_height     = false;
+		char *base                       = sout->out_basecol;
+		char *rough                      = sout->out_roughness;
+		char *met                        = sout->out_metallic;
+		char *occ                        = sout->out_occlusion;
+		char *nortan                     = parser_material_out_normaltan;
+		char *height                     = sout->out_height;
+		char *opac                       = sout->out_opacity;
+		char *emis                       = sout->out_emission;
+		char *subs                       = sout->out_subsurface;
 		node_shader_write_frag(kong, string("var basecol: float3 = %s;", base));
 		node_shader_write_frag(kong, string("var roughness: float = %s;", rough));
 		node_shader_write_frag(kong, string("var metallic: float = %s;", met));

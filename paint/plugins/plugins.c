@@ -56,7 +56,7 @@ static void *import_psd(char *path) {
 	char *filename = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path));
 
 	// Delete existing layers so they can be re-imported
-	char *prefix = string("%s.", filename);
+	char        *prefix         = string("%s.", filename);
 	any_array_t *project_assets = project_get_assets();
 	for (int i = project_assets->length - 1; i >= 0; --i) {
 		asset_t *a = project_assets->buffer[i];
@@ -128,7 +128,7 @@ static void *import_gltf_glb(char *path) {
 	}
 	else {
 		raw_mesh_t *raw = io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
-		raw->blob = b;
+		raw->blob       = b;
 		gc_root(b);
 		return raw;
 	}

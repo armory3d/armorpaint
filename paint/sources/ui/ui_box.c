@@ -12,12 +12,12 @@ f32         ui_box_tween_alpha     = 0.0;
 static bool ui_box_ignore_release  = false;
 
 void ui_box_init() {
-	ui_box_hwnd->redraws = 2;
-	ui_box_hwnd->drag_x  = 0;
-	ui_box_hwnd->drag_y  = 0;
-	ui_box_show          = true;
-	ui_box_draws         = 0;
-	ui_box_click_to_hide = true;
+	ui_box_hwnd->redraws  = 2;
+	ui_box_hwnd->drag_x   = 0;
+	ui_box_hwnd->drag_y   = 0;
+	ui_box_show           = true;
+	ui_box_draws          = 0;
+	ui_box_click_to_hide  = true;
 	ui_box_ignore_release = g_ui->input_down; // Box may open on mouse down
 }
 

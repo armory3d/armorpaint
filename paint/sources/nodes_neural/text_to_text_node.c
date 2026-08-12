@@ -24,41 +24,41 @@ static char *text_to_text_node_project_contents(void) {
 string_array_t *text_to_text_node_qwen_args(char *dir) {
 	char           *prompt_file = string("%s%sprompt.txt", dir, PATH_SEP);
 	string_array_t *argv        = any_array_create_from_raw(
-	    (void *[]){
-	        string("%s/%s", dir, neural_node_llama_bin()),
-	        "-m",
-	        string("%s/Qwen3.6-27B-Q4_K_M.gguf", dir),
-	        "-ngl",
-	        "99",
-	        "-c",
-	        "20000",
-	        "--single-turn",
-	        "--prompt-cache",
-	        string("%s/context.bin", dir),
-	        "--file",
-	        prompt_file,
-	        NULL,
-	    },
-	    13);
+        (void *[]){
+            string("%s/%s", dir, neural_node_llama_bin()),
+            "-m",
+            string("%s/Qwen3.6-27B-Q4_K_M.gguf", dir),
+            "-ngl",
+            "99",
+            "-c",
+            "20000",
+            "--single-turn",
+            "--prompt-cache",
+            string("%s/context.bin", dir),
+            "--file",
+            prompt_file,
+            NULL,
+        },
+        13);
 	return argv;
 }
 
 string_array_t *text_to_text_node_grok_args(char *dir) {
 	char           *prompt_file = string("%s%sprompt.txt", dir, PATH_SEP);
 	string_array_t *argv        = any_array_create_from_raw(
-	    (void *[]){
-	        "grok",
-	        "--prompt-file",
-	        prompt_file,
-	        "--output-format",
-	        "plain",
-	        "--tools",
-	        "todo_write", // An empty list is ignored
-	        "--cwd",
-	        dir, // Pick up AGENTS.md
-	        NULL,
-	    },
-	    10);
+        (void *[]){
+            "grok",
+            "--prompt-file",
+            prompt_file,
+            "--output-format",
+            "plain",
+            "--tools",
+            "todo_write", // An empty list is ignored
+            "--cwd",
+            dir, // Pick up AGENTS.md
+            NULL,
+        },
+        10);
 	return argv;
 }
 
