@@ -280,7 +280,7 @@ static void path_repaint(slot_layer_t *l) {
 		return;
 	}
 	f32_array_t *points_world = l->path_points_world;
-	if (points_world == NULL || points_world->length == 0) {
+	if (points_world == NULL) {
 		return;
 	}
 
@@ -319,11 +319,13 @@ static void path_repaint(slot_layer_t *l) {
 	f32 r_world     = g_context->brush_radius * g_context->brush_nodes_radius / 15.0f * 2.0f;
 	f32 dot_spacing = sphere_mode ? g_context->brush_lazy_radius * g_context->brush_lazy_step * r_world * 3.0 : 0.0f;
 
-	if (l->path_curved && num_world >= 1) {
-		path_paint_curved(points, points_world, points_camera, points_parent, num_world, num_camera, num_parent, sphere_mode, dot_spacing);
-	}
-	else {
-		path_paint_straight(points, points_world, points_camera, points_parent, num_world, num_camera, sphere_mode, dot_spacing);
+	if (num_world >= 1) {
+		if (l->path_curved) {
+			path_paint_curved(points, points_world, points_camera, points_parent, num_world, num_camera, num_parent, sphere_mode, dot_spacing);
+		}
+		else {
+			path_paint_straight(points, points_world, points_camera, points_parent, num_world, num_camera, sphere_mode, dot_spacing);
+		}
 	}
 
 	scene_camera->base->transform->loc = _camera_loc;
@@ -354,6 +356,107 @@ void util_layer_clear_path_points(slot_layer_t *l) {
 	l->path_points_parent->length = 0;
 	l->path_tool                  = -1;
 	path_layer_last_active        = -1;
+}
+
+static void path_array_remove_f32(f32_array_t *ar, i32 stride, i32 start, i32 count) {
+	i32 n = ar->length / stride;
+	if (start >= n) {
+		return;
+	}
+	if (start + count > n) {
+		count = n - start;
+	}
+	i32 tail = (n - start - count) * stride;
+	if (tail > 0) {
+		memmove(&ar->buffer[start * stride], &ar->buffer[(start + count) * stride], tail * sizeof(f32));
+	}
+	ar->length -= count * stride;
+}
+
+static void path_array_remove_i32(i32_array_t *ar, i32 start, i32 count) {
+	i32 n = ar->length;
+	if (start >= n) {
+		return;
+	}
+	if (start + count > n) {
+		count = n - start;
+	}
+	i32 tail = n - start - count;
+	if (tail > 0) {
+		memmove(&ar->buffer[start], &ar->buffer[start + count], tail * sizeof(i32));
+	}
+	ar->length -= count;
+}
+
+void util_layer_remove_path_point(slot_layer_t *l) {
+	if (!slot_layer_is_path(l)) {
+		return;
+	}
+
+	i32 num_points = l->path_points->length / 2;
+	i32 idx        = path_layer_last_active;
+	if (idx < 0 || idx >= num_points) {
+		return;
+	}
+
+	// Anchors sit at even indices, their control points at the odd index before them
+	i32 start = idx;
+	i32 count = 1;
+	if (l->path_curved) {
+		if (idx % 2 == 1) {
+			// Control point - remove the anchor it belongs to as well
+			start = idx;
+			count = idx + 1 < num_points ? 2 : 1;
+		}
+		else if (idx > 0) {
+			start = idx - 1;
+			count = 2;
+		}
+		else {
+			start = 0;
+			count = num_points > 1 ? 2 : 1;
+		}
+	}
+
+	i32_array_t *points_parent = l->path_points_parent;
+	i32          last          = start + count - 1;
+	i32          new_parent    = last < (i32)points_parent->length ? points_parent->buffer[last] : -1;
+	if (new_parent >= start && new_parent <= last) {
+		new_parent = -1;
+	}
+	else if (new_parent > last) {
+		new_parent -= count;
+	}
+
+	// Reparent orphaned points and shift the indices of the remaining ones
+	for (i32 i = 0; i < (i32)points_parent->length; i++) {
+		i32 p = points_parent->buffer[i];
+		if (p >= start && p <= last) {
+			p = new_parent;
+		}
+		else if (p > last) {
+			p -= count;
+		}
+		points_parent->buffer[i] = p;
+	}
+
+	path_array_remove_f32(l->path_points, 2, start, count);
+	path_array_remove_f32(l->path_points_world, 3, start, count);
+	path_array_remove_f32(l->path_points_camera, 9, start, count);
+	path_array_remove_i32(points_parent, start, count);
+
+	i32 left               = l->path_points->length / 2;
+	path_layer_last_active = left > 0 ? (new_parent >= 0 ? new_parent : left - 1) : -1;
+	path_point_dragging    = -1;
+
+	util_layer_repaint_path(l);
+
+	if (left == 0) {
+		util_layer_clear_path_points(l);
+	}
+
+	g_context->layer_preview_dirty  = true;
+	g_context->layers_preview_dirty = true;
 }
 
 void util_layer_add_path_point(slot_layer_t *l, f32 screen_x, f32 screen_y) {
@@ -540,6 +643,10 @@ void util_layer_update_path() {
 
 	if (!is_path) {
 		return;
+	}
+
+	if (keyboard_started("delete") && !g_ui->is_typing && context_in_3d_view()) {
+		util_layer_remove_path_point(l);
 	}
 
 	f32_array_t *points       = l->path_points;
