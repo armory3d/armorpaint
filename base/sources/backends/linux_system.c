@@ -1212,6 +1212,10 @@ void iron_copy_to_clipboard(const char *text) {
 		clipboardString     = (char *)malloc(clipboardStringSize);
 	}
 	strcpy(clipboardString, text);
+
+	struct iron_x11_window *window = &x11_ctx.windows[0];
+	XSetSelectionOwner(x11_ctx.display, CLIPBOARD, window->window, CurrentTime);
+	XFlush(x11_ctx.display);
 }
 
 int iron_hardware_threads(void) {
