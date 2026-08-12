@@ -10,6 +10,7 @@
 static bool  has_next     = false;
 static int   current_node = 0;
 static float scale_pos    = 1.0;
+static int   frame_count  = 0;
 
 void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, float *scale) {
 	cgltf_primitive *prim = NULL;
@@ -261,6 +262,10 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 	return raw;
 }
 
+int io_gltf_frame_count() {
+	return frame_count;
+}
+
 void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame) {
 	cgltf_options options = {0};
 	cgltf_data   *data    = NULL;
@@ -269,12 +274,15 @@ void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame)
 	cgltf_load_buffers(&options, data, path);
 
 	// Apply animation at the given frame index by directly writing TRS on each target node
+	frame_count = 0;
 	if (data->animations_count > 0) {
 		cgltf_animation *anim = &data->animations[0];
 		for (cgltf_size c = 0; c < anim->channels_count; c++) {
 			cgltf_animation_channel *ch = &anim->channels[c];
 			if (ch->target_node == NULL)
 				continue;
+			if ((int)ch->sampler->output->count > frame_count)
+				frame_count = (int)ch->sampler->output->count;
 			cgltf_size fi = (cgltf_size)frame;
 			if (fi >= ch->sampler->output->count)
 				fi = ch->sampler->output->count - 1;

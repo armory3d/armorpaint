@@ -14,6 +14,7 @@ void *io_psd_parse(uint8_t *buf, size_t len, const char *filename);
 void *io_tiff_parse(uint8_t *buf, size_t len);
 void *io_gltf_parse(char *buf, size_t size, const char *path);
 void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame);
+int   io_gltf_frame_count();
 void *io_fbx_parse(char *buf, size_t size);
 void *io_fbx_parse_skinned(char *buf, size_t size, int frame);
 void  proc_uv_unwrap(void *mesh);
@@ -113,6 +114,10 @@ bool plugins_skin_data_apply(buffer_t *blob, int frame, i16_array_t *posa, i16_a
 
 	plugins_free_raw_mesh(raw);
 	return true;
+}
+
+int plugins_skin_frame_count() {
+	return io_gltf_frame_count();
 }
 
 static void *import_gltf_glb(char *path) {

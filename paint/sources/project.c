@@ -376,6 +376,17 @@ void project_reimport_mesh() {
 	}
 }
 
+i32 project_skin_frames() {
+	i32 frames = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
+		if (md->_->skin_frames > frames) {
+			frames = md->_->skin_frames;
+		}
+	}
+	return frames;
+}
+
 bool project_reskin_mesh(int frame) {
 #ifdef WITH_PLUGINS
 	bool any = false;
@@ -385,11 +396,16 @@ bool project_reskin_mesh(int frame) {
 			continue;
 		}
 
+		// Each mesh loops over its own animation length
+		i32 mesh_frame = md->_->skin_frames > 0 ? frame % md->_->skin_frames : frame;
+
 		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
 		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
-		if (!plugins_skin_data_apply(md->_->skin_blob, frame, pos->values, nor->values, &md->scale_pos)) {
+		if (!plugins_skin_data_apply(md->_->skin_blob, mesh_frame, pos->values, nor->values, &md->scale_pos)) {
 			continue;
 		}
+
+		md->_->skin_frames = plugins_skin_frame_count();
 
 		mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
 		any = true;
