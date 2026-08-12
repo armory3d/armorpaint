@@ -481,6 +481,7 @@ static minic_var_t *minic_var_find(minic_env_t *e, const char *name) {
 
 static minic_var_t *minic_var_push(minic_env_t *e, const char *name, minic_val_t val) {
 	if (e->var_count >= e->var_cap) {
+		minic_error(e, "too many local variables (max %d), cannot declare '%s'", e->var_cap, name);
 		return NULL;
 	}
 	minic_var_t *v = &e->vars[e->var_count++];
@@ -698,11 +699,13 @@ static minic_struct_t *minic_struct_get(minic_env_t *e, const char *name) {
 }
 
 static void minic_vartype_set(minic_env_t *e, const char *var_name, const char *struct_name) {
-	if (e->vartype_count < e->vartype_cap) {
-		strncpy(e->vartypes[e->vartype_count].var_name, var_name, MINIC_MAX_NAME - 1);
-		strncpy(e->vartypes[e->vartype_count].struct_name, struct_name, MINIC_MAX_NAME - 1);
-		e->vartype_count++;
+	if (e->vartype_count >= e->vartype_cap) {
+		minic_error(e, "too many struct-typed variables (max %d), cannot type '%s' as '%s'", e->vartype_cap, var_name, struct_name);
+		return;
 	}
+	strncpy(e->vartypes[e->vartype_count].var_name, var_name, MINIC_MAX_NAME - 1);
+	strncpy(e->vartypes[e->vartype_count].struct_name, struct_name, MINIC_MAX_NAME - 1);
+	e->vartype_count++;
 }
 
 static minic_struct_t *minic_var_struct(minic_env_t *e, const char *var_name) {
@@ -815,7 +818,7 @@ static minic_val_t minic_call(minic_env_t *e, minic_func_t *fn, minic_val_t *arg
 	child.lex.src       = e->lex.src;
 	child.lex.pos       = fn->body_pos;
 	child.filename      = e->filename;
-	child.var_cap       = 64;
+	child.var_cap       = MINIC_MAX_VARS;
 	child.vars          = minic_alloc(child.var_cap * (int)sizeof(minic_var_t));
 	child.global_env    = e->global_env != NULL ? e->global_env : e;
 	child.arr_cap       = 32;
@@ -828,7 +831,7 @@ static minic_val_t minic_call(minic_env_t *e, minic_func_t *fn, minic_val_t *arg
 	child.struct_count  = e->struct_count;
 	child.struct_cap    = e->struct_cap;
 	child.structs       = e->structs;
-	child.vartype_cap   = 32;
+	child.vartype_cap   = MINIC_MAX_VARTYPES;
 	child.vartypes      = minic_alloc(child.vartype_cap * (int)sizeof(minic_vartype_t));
 	// Bind parameters
 	for (int i = 0; i < argc && i < fn->param_count; ++i) {
@@ -2066,7 +2069,7 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	minic_env_t *e    = &ctx->e;
 	e->lex.src        = ctx->src_copy;
 	e->filename       = filename;
-	e->var_cap        = 64;
+	e->var_cap        = MINIC_MAX_VARS;
 	e->vars           = minic_alloc(e->var_cap * (int)sizeof(minic_var_t));
 	e->arr_cap        = 32;
 	e->arrs           = minic_alloc(e->arr_cap * (int)sizeof(minic_arr_t));
@@ -2077,7 +2080,7 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	e->funcs          = minic_alloc(e->func_cap * (int)sizeof(minic_func_t));
 	e->struct_cap     = MINIC_MAX_STRUCTS;
 	e->structs        = minic_alloc(e->struct_cap * (int)sizeof(minic_struct_t));
-	e->vartype_cap    = 64;
+	e->vartype_cap    = MINIC_MAX_VARTYPES;
 	e->vartypes       = minic_alloc(e->vartype_cap * (int)sizeof(minic_vartype_t));
 
 	// Seed env with globally pre-registered struct definitions

@@ -6,6 +6,8 @@
 
 #define MINIC_MEM_SIZE          (8 * 1024 * 1024)
 #define MINIC_MAX_PARAMS        20
+#define MINIC_MAX_VARS          128 // locals per scope
+#define MINIC_MAX_VARTYPES      128 // struct-typed locals per scope
 #define MINIC_MAX_EXTFUNS       1024
 #define MINIC_MAX_SIG           64
 #define MINIC_MAX_ENUM_CONSTS   512
