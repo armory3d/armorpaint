@@ -19,7 +19,7 @@ if (fs_exists(locale_path)) {
 	old = JSON.parse(fs_readfile(locale_path).toString());
 }
 
-let source_paths = [ "paint/sources", "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/io", "paint/sources/render", "paint/sources/ui", "paint/sources/util" ];
+let source_paths = [ "paint/sources", "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/io", "paint/sources/render", "paint/sources/traits", "paint/sources/ui", "paint/sources/util" ];
 
 for (let path of source_paths) {
 	if (!fs_exists(path)) {
