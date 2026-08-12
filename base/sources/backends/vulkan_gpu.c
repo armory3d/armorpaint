@@ -52,8 +52,9 @@ static VkSurfaceKHR       surface;
 static VkSurfaceFormatKHR surface_format;
 static VkSwapchainKHR     swapchain;
 static VkImage            window_images[GPU_FRAMEBUFFER_COUNT];
-static uint32_t           framebuffer_count;
 static bool               framebuffer_acquired = false;
+static bool               framebuffer_undefined[GPU_FRAMEBUFFER_COUNT];
+static bool               framebuffer_wait_pending = false;
 static VkBuffer           readback_buffer;
 static int                readback_buffer_size = 0;
 static VkDeviceMemory     readback_mem;
@@ -230,11 +231,20 @@ void gpu_barrier(gpu_texture_t *render_target, gpu_texture_state_t state_after) 
 		return;
 	}
 
+	VkImageLayout old_layout = convert_texture_state(render_target->state);
+	for (int i = 0; i < GPU_FRAMEBUFFER_COUNT; ++i) {
+		if (framebuffer_undefined[i] && render_target == &framebuffers[i]) {
+			old_layout               = VK_IMAGE_LAYOUT_UNDEFINED;
+			framebuffer_undefined[i] = false;
+			break;
+		}
+	}
+
 	VkImageMemoryBarrier barrier = {
 	    .sType         = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-	    .srcAccessMask = access_mask(convert_texture_state(render_target->state)),
+	    .srcAccessMask = access_mask(old_layout),
 	    .dstAccessMask = access_mask(convert_texture_state(state_after)),
-	    .oldLayout     = convert_texture_state(render_target->state),
+	    .oldLayout     = old_layout,
 	    .newLayout     = convert_texture_state(state_after),
 	    .image         = render_target->impl.image,
 	    .subresourceRange =
@@ -553,7 +563,9 @@ static void create_swapchain() {
 
 	for (uint32_t i = 0; i < framebuffer_count; i++) {
 		framebuffers[i].impl.image = window_images[i];
-		set_image_layout(window_images[i], VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+		framebuffers[i].state      = GPU_TEXTURE_STATE_PRESENT;
+		framebuffer_undefined[i]   = true;
+
 		VkImageViewCreateInfo color_attachment_view = {
 		    .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		    .format                          = surface_format.format,
@@ -626,12 +638,15 @@ static void create_swapchain() {
 static void acquire_next_image() {
 	VkResult err = vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, framebuffer_available_semaphore, VK_NULL_HANDLE, (uint32_t *)&framebuffer_index);
 	if (err == VK_ERROR_SURFACE_LOST_KHR || err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR || surface_destroyed) {
-		surface_destroyed = surface_destroyed || (err == VK_ERROR_SURFACE_LOST_KHR);
-		gpu_in_use        = false;
+		surface_destroyed        = surface_destroyed || (err == VK_ERROR_SURFACE_LOST_KHR);
+		framebuffer_wait_pending = false;
+		gpu_in_use               = false;
 		create_swapchain();
 		gpu_in_use = true;
 		acquire_next_image();
+		return;
 	}
+	framebuffer_wait_pending = true;
 }
 
 void gpu_resize_internal(int width, int height) {
@@ -787,26 +802,6 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 		iron_error("No Vulkan device found");
 	}
 
-	static const char *wanted_device_layers[64];
-	int                wanted_device_layer_count = 0;
-
-	uint32_t device_layer_count = 0;
-	vkEnumerateDeviceLayerProperties(gpu, &device_layer_count, NULL);
-
-	if (device_layer_count > 0) {
-		VkLayerProperties *device_layers = (VkLayerProperties *)malloc(sizeof(VkLayerProperties) * device_layer_count);
-		vkEnumerateDeviceLayerProperties(gpu, &device_layer_count, device_layers);
-
-#ifndef NDEBUG
-		validation_found = find_layer(device_layers, device_layer_count, "VK_LAYER_KHRONOS_validation");
-		if (validation_found) {
-			wanted_device_layers[wanted_device_layer_count++] = "VK_LAYER_KHRONOS_validation";
-		}
-#endif
-
-		free(device_layers);
-	}
-
 	const char *wanted_device_extensions[64];
 	int         wanted_device_extension_count = 0;
 
@@ -912,8 +907,8 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 		    .pNext                   = &dynamic_rendering_features,
 		    .queueCreateInfoCount    = 1,
 		    .pQueueCreateInfos       = &queue,
-		    .enabledLayerCount       = wanted_device_layer_count,
-		    .ppEnabledLayerNames     = (const char *const *)wanted_device_layers,
+		    .enabledLayerCount       = 0,
+		    .ppEnabledLayerNames     = NULL,
 		    .enabledExtensionCount   = wanted_device_extension_count,
 		    .ppEnabledExtensionNames = (const char *const *)wanted_device_extensions,
 		    .pEnabledFeatures        = &enabled_features,
@@ -1124,6 +1119,14 @@ void gpu_execute_and_wait() {
 	    .commandBufferCount = 1,
 	    .pCommandBuffers    = &command_buffer,
 	};
+
+	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	if (framebuffer_wait_pending) {
+		submit_info.waitSemaphoreCount = 1;
+		submit_info.pWaitSemaphores    = &framebuffer_available_semaphore;
+		submit_info.pWaitDstStageMask  = &wait_stage;
+		framebuffer_wait_pending       = false;
+	}
 	vkQueueSubmit(queue, 1, &submit_info, fence);
 	vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
 
@@ -1157,10 +1160,15 @@ void gpu_present_internal() {
 	    .pCommandBuffers      = &command_buffer,
 	    .signalSemaphoreCount = 1,
 	    .pSignalSemaphores    = &rendering_finished_semaphores[framebuffer_index],
-	    .waitSemaphoreCount   = 1,
-	    .pWaitSemaphores      = &framebuffer_available_semaphore,
-	    .pWaitDstStageMask    = (VkPipelineStageFlags[]){VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
 	};
+
+	VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	if (framebuffer_wait_pending) {
+		submit_info.waitSemaphoreCount = 1;
+		submit_info.pWaitSemaphores    = &framebuffer_available_semaphore;
+		submit_info.pWaitDstStageMask  = &wait_stage;
+		framebuffer_wait_pending       = false;
+	}
 	vkQueueSubmit(queue, 1, &submit_info, fence);
 	vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
 
