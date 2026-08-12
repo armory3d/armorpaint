@@ -346,7 +346,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 			}
 		}
 
-		if (in_focus) {
+		if (in_focus && !g_ui->is_typing) {
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_LEFT)
 				ui_files_navigate(-1, 0);
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_RIGHT)
