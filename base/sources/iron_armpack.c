@@ -743,7 +743,9 @@ any_map_t *armpack_decode_to_map(buffer_t *b) {
 }
 
 static char *armpack_to_json_value();
-static bool  json_omit_buffers;
+static bool  json_omit_large_arrays;
+
+#define JSON_OMIT_LARGE_ARRAYS_MAX_ELEMENTS 64
 
 static const char *peek_typed_array_suffix() {
 	if (encoded[ei] != 0xdd)
@@ -807,7 +809,7 @@ static char *armpack_to_json_value() {
 			return "[]";
 		}
 		uint8_t flag2 = read_u8();
-		if (json_omit_buffers) {
+		if (json_omit_large_arrays && count > JSON_OMIT_LARGE_ARRAYS_MAX_ELEMENTS) {
 			uint32_t elem_size = flag2 == 0xca || flag2 == 0xd2 ? 4 : flag2 == 0xd1 ? 2 : flag2 == 0xc4 ? 1 : 0;
 			if (elem_size > 0) {
 				ei += count * elem_size;
@@ -865,13 +867,13 @@ char *armpack_decode_to_json(buffer_t *b) {
 	return armpack_to_json_map(read_i32());
 }
 
-char *armpack_decode_to_json_omit_buffers(buffer_t *b) {
-	encoded           = b->buffer;
-	ei                = 0;
-	json_omit_buffers = true;
+char *armpack_decode_to_json_omit_large_arrays(buffer_t *b) {
+	encoded                = b->buffer;
+	ei                     = 0;
+	json_omit_large_arrays = true;
 	read_u8(); // Must be 0xdf for a map
-	char *result      = armpack_to_json_map(read_i32());
-	json_omit_buffers = false;
+	char *result           = armpack_to_json_map(read_i32());
+	json_omit_large_arrays = false;
 	return result;
 }
 
