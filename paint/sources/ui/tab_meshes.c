@@ -29,6 +29,7 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	array_remove(g_project->_->paint_objects, mesh);
 	i32 new_pos = dest > pos ? dest - 1 : dest;
 	array_insert(g_project->_->paint_objects, new_pos, mesh);
+	tab_timeline_sync();
 }
 
 void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, material_data_t *data) {
@@ -137,7 +138,9 @@ static void tab_meshes_reparent_keep_world(object_t *child, object_t *parent) {
 }
 
 void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
+	char *mesh_name = o->base->name;
 	array_remove(g_project->_->paint_objects, o);
+	tab_timeline_on_mesh_deleted(mesh_name);
 
 	object_t *new_root = g_project->_->paint_objects->buffer[0]->base;
 	if (new_root->parent == o->base) {

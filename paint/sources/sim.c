@@ -16,6 +16,7 @@ void sim_update() {
 	render_path_raytrace_ready = false;
 
 	if (sim_running) {
+		trait_update();
 		asim_world_update();
 		iron_delay_idle_sleep();
 		if (sim_record) {
@@ -57,6 +58,7 @@ void sim_play() {
 
 void sim_stop() {
 	sim_running = false;
+	trait_stop();
 
 	if (sim_record) {
 		// iron_mp4_end();
@@ -121,7 +123,9 @@ void sim_duplicate() {
 }
 
 void sim_delete() {
-	mesh_object_t *so = g_context->paint_object;
+	mesh_object_t *so        = g_context->paint_object;
+	char          *mesh_name = so->base->name;
 	array_remove(g_project->_->paint_objects, so);
+	tab_timeline_on_mesh_deleted(mesh_name);
 	mesh_object_remove(so);
 }

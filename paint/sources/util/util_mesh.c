@@ -240,8 +240,10 @@ void util_mesh_merge_geometry() {
 	mesh_data_t *raw = util_mesh_build_merged_data(objects, main_object->data->name);
 	util_mesh_remove_merged();
 
+	string_array_t *merged_names = string_array_create(0);
 	for (i32 i = 1; i < objects->length; ++i) {
 		mesh_object_t *o = objects->buffer[i];
+		string_array_push(merged_names, string_copy(o->base->name));
 		object_set_parent(o->base, NULL);
 		data_delete_mesh(o->data->_->handle);
 		mesh_object_remove(o);
@@ -259,6 +261,10 @@ void util_mesh_merge_geometry() {
 	    },
 	    1);
 	context_select_paint_object(main_object);
+
+	for (i32 i = 0; i < merged_names->length; ++i) {
+		tab_timeline_on_mesh_deleted(merged_names->buffer[i]);
+	}
 
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		g_project->_->layers->buffer[i]->object_mask = 0;

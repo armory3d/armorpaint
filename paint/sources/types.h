@@ -232,6 +232,7 @@ typedef struct context {
 	f32                         clone_start_y;
 	f32                         clone_delta_x;
 	f32                         clone_delta_y;
+	bool                        clone_set_source;
 	f32                         grab_start_x;
 	f32                         grab_start_y;
 	bool                        show_compass;
