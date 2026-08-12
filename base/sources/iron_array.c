@@ -589,10 +589,10 @@ u8_array_t *u8_array_create_from_raw(uint8_t *raw, uint32_t length) {
 }
 
 u8_array_t *u8_array_create_from_string(char *s) {
-	u8_array_t *a = u8_array_create(strlen(s) + 1);
-	for (uint32_t i = 0; i < strlen(s); ++i) {
-		a->buffer[i] = s[i];
-	}
+	uint32_t    length = (uint32_t)strlen(s);
+	u8_array_t *a      = u8_array_create(length + 1);
+	memcpy(a->buffer, s, length);
+	a->buffer[length] = '\0';
 	return a;
 }
 
