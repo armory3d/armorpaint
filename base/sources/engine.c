@@ -85,7 +85,7 @@ void object_remove_super(object_t *raw) {
 	}
 #ifdef WITH_PHYSICS
 	if (raw->_ != NULL && raw->_->body != NULL) {
-		asim_body_remove(raw->_->body);
+		physics_body_remove(raw->_->body);
 	}
 #endif
 	while (raw->children->length > 0) {

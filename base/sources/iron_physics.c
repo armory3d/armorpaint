@@ -86,15 +86,15 @@ typedef struct {
 
 static sphere_t    spheres[MAX_SPHERES];
 static box_t       boxes[MAX_BOXES];
-static asim_pair_t pairs[MAX_BODIES];
+static physics_pair_t pairs[MAX_BODIES];
 static float       pair_best[MAX_BODIES];
-static asim_pair_t null_pair;
+static physics_pair_t null_pair;
 static mesh_t      mesh;
 static terrain_t   terrain;
 static aabb_t      root_bounds     = {{-10, -10, -10}, {10, 10, 10}};
-static float       asim_bounciness = 0.0f;
-static float       asim_friction   = 0.01f;
-static vec4_t      asim_gravity    = {0.0f, 0.0f, GRAVITY};
+static float       physics_bounciness = 0.0f;
+static float       physics_friction   = 0.01f;
+static vec4_t      physics_gravity    = {0.0f, 0.0f, GRAVITY};
 
 static inline int box_pair(int slot) {
 	return MAX_SPHERES + slot;
@@ -164,7 +164,7 @@ static void report_contact(int index, float depth, vec4_t point, vec4_t normal) 
 		return;
 	}
 	pair_best[index] = depth;
-	pairs[index]     = (asim_pair_t){point.x, point.y, point.z, normal.x, normal.y, normal.z};
+	pairs[index]     = (physics_pair_t){point.x, point.y, point.z, normal.x, normal.y, normal.z};
 }
 
 static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
@@ -193,7 +193,7 @@ static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
 			if (v_dot_n < 0.0f) {
 				vec4_t n_vel = vec4_mult(t->normal, v_dot_n);
 				vec4_t t_vel = vec4_sub(s->velocity, n_vel);
-				s->velocity  = vec4_add(vec4_mult(n_vel, -asim_bounciness), vec4_mult(t_vel, 1.0f - asim_friction));
+				s->velocity  = vec4_add(vec4_mult(n_vel, -physics_bounciness), vec4_mult(t_vel, 1.0f - physics_friction));
 			}
 		}
 
@@ -387,7 +387,7 @@ static void resolve_contact_pair(rigid_t a, rigid_t b, vec4_t point, vec4_t n, f
 	vec4_t ran     = vec4_cross(ra, n);
 	vec4_t rbn     = vec4_cross(rb, n);
 	float  denom   = inv_sum + a.inv_inertia * vec4_dot(ran, ran) + b.inv_inertia * vec4_dot(rbn, rbn);
-	float  impulse = -(1.0f + asim_bounciness) * closing / denom;
+	float  impulse = -(1.0f + physics_bounciness) * closing / denom;
 	apply_impulse(a, ra, vec4_mult(n, impulse));
 	apply_impulse(b, rb, vec4_mult(n, -impulse));
 
@@ -711,7 +711,7 @@ static int ray_clip_slab(float origin, float dir, float lo, float hi, float *t0,
 	return *t0 <= *t1;
 }
 
-int asim_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit) {
+int physics_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit) {
 	if (!terrain.active) {
 		return 0;
 	}
@@ -866,19 +866,19 @@ static void mesh_clear() {
 	mesh.root = NULL;
 }
 
-void asim_world_create() {
-	asim_world_destroy();
+void physics_world_create() {
+	physics_world_destroy();
 	memset(spheres, 0, sizeof(spheres));
 	memset(boxes, 0, sizeof(boxes));
 	memset(pairs, 0, sizeof(pairs));
 }
 
-void asim_world_destroy() {
+void physics_world_destroy() {
 	mesh_clear();
 	terrain_clear();
 }
 
-void asim_world_update() {
+void physics_world_update() {
 	const int sub_steps = 8;
 	float     dt        = sys_delta() / sub_steps;
 
@@ -893,7 +893,7 @@ void asim_world_update() {
 				continue;
 			}
 			if (!s->sleeping) { // A sleeping body still collides, it just no longer moves
-				s->velocity = vec4_add(s->velocity, vec4_mult(asim_gravity, dt));
+				s->velocity = vec4_add(s->velocity, vec4_mult(physics_gravity, dt));
 				s->position = vec4_add(s->position, vec4_mult(s->velocity, dt));
 			}
 			query_bvh(s, i, mesh.root);
@@ -918,7 +918,7 @@ void asim_world_update() {
 				continue;
 			}
 			if (!b->sleeping) { // A sleeping body still collides, it just no longer moves
-				b->velocity = vec4_add(b->velocity, vec4_mult(asim_gravity, dt));
+				b->velocity = vec4_add(b->velocity, vec4_mult(physics_gravity, dt));
 				b->position = vec4_add(b->position, vec4_mult(b->velocity, dt));
 
 				// Turn the orientation by the angular velocity
@@ -988,14 +988,14 @@ void asim_world_update() {
 	// Write the simulated state back into the scene
 	for (int i = 0; i < scene_meshes->length; i++) {
 		mesh_object_t *mo   = scene_meshes->buffer[i];
-		asim_body_t   *body = mo->base->_->body;
+		physics_body_t   *body = mo->base->_->body;
 		if (body != NULL) {
-			asim_body_update(body);
+			physics_body_update(body);
 		}
 	}
 }
 
-asim_pair_t *asim_world_get_contact(void *body) {
+physics_pair_t *physics_world_get_contact(void *body) {
 	int slot = body_slot(body);
 	if (body_is_box(body)) {
 		return &pairs[box_pair(slot)];
@@ -1006,9 +1006,9 @@ asim_pair_t *asim_world_get_contact(void *body) {
 	return &null_pair;
 }
 
-asim_pair_t_array_t *asim_get_contact_pairs(asim_body_t *body) {
-	asim_pair_t_array_t *result = any_array_create_from_raw((void *[]){}, 0);
-	asim_pair_t         *p      = asim_world_get_contact(body->_body);
+physics_pair_t_array_t *physics_get_contact_pairs(physics_body_t *body) {
+	physics_pair_t_array_t *result = any_array_create_from_raw((void *[]){}, 0);
+	physics_pair_t         *p      = physics_world_get_contact(body->_body);
 	if (p->pos_a_x != 0 || p->pos_a_y != 0 || p->pos_a_z != 0) {
 		any_array_push(result, p);
 	}
@@ -1060,15 +1060,15 @@ static void heightfield_fill_holes(float *heights, int res_x, int res_y) {
 	free(queue);
 }
 
-static asim_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t *ia, float scale_x, float scale_y, float scale_z) {
+static physics_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t *ia, float scale_x, float scale_y, float scale_z) {
 	if (pa == NULL || ia == NULL) {
-		return (asim_heightfield_t){0};
+		return (physics_heightfield_t){0};
 	}
 
 	int num_verts = pa->length / 4;
 	int num_tris  = ia->length / 3;
 	if (num_verts < 3 || num_tris < 1) {
-		return (asim_heightfield_t){0};
+		return (physics_heightfield_t){0};
 	}
 
 	float min_x = FLT_MAX, min_y = FLT_MAX, max_x = -FLT_MAX, max_y = -FLT_MAX;
@@ -1083,7 +1083,7 @@ static asim_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t *ia
 	float size_x = max_x - min_x;
 	float size_y = max_y - min_y;
 	if (size_x <= 0.0f || size_y <= 0.0f) {
-		return (asim_heightfield_t){0};
+		return (physics_heightfield_t){0};
 	}
 
 	int res = (int)(sqrtf(num_tris / 2.0f) + 0.5f) * 2 + 1;
@@ -1139,13 +1139,13 @@ static asim_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t *ia
 
 	heightfield_fill_holes(heights, res, res);
 
-	return (asim_heightfield_t){.heights = heights, .res_x = res, .res_y = res, .min_x = min_x, .min_y = min_y, .size_x = size_x, .size_y = size_y};
+	return (physics_heightfield_t){.heights = heights, .res_x = res, .res_y = res, .min_x = min_x, .min_y = min_y, .size_x = size_x, .size_y = size_y};
 }
 
 static void *body_create(int shape, float mass, float dimx, float dimy, float dimz, float x, float y, float z, void *posa, void *inda, float scale_pos) {
 
-	if (shape == ASIM_SHAPE_TERRAIN) {
-		asim_heightfield_t *field = posa;
+	if (shape == PHYSICS_SHAPE_TERRAIN) {
+		physics_heightfield_t *field = posa;
 		if (field == NULL || field->heights == NULL || field->res_x < 2 || field->res_y < 2) {
 			return NULL;
 		}
@@ -1179,7 +1179,7 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 		return (void *)(uintptr_t)TERRAIN_TAG;
 	}
 
-	if (shape == ASIM_SHAPE_BOX && posa == NULL) {
+	if (shape == PHYSICS_SHAPE_BOX && posa == NULL) {
 		int slot = 0;
 		while (slot < MAX_BOXES && boxes[slot].active) {
 			slot++;
@@ -1201,7 +1201,7 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 		return (void *)(uintptr_t)(slot | BOX_TAG);
 	}
 
-	if (shape == ASIM_SHAPE_SPHERE) {
+	if (shape == PHYSICS_SHAPE_SPHERE) {
 		int slot = 0;
 		while (slot < MAX_SPHERES && spheres[slot].active) {
 			slot++;
@@ -1325,8 +1325,8 @@ static bool mesh_bounds(object_t *obj, vec4_t *center, vec4_t *extent) {
 	return true;
 }
 
-asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
-	asim_body_t *body = GC_ALLOC_INIT(asim_body_t, {0});
+physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float mass) {
+	physics_body_t *body = GC_ALLOC_INIT(physics_body_t, {0});
 	body->shape       = shape;
 	body->mass        = mass;
 	body->obj         = obj;
@@ -1337,7 +1337,7 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	body->dimy = obj->transform->dim.y;
 	body->dimz = obj->transform->dim.z;
 
-	if (shape == ASIM_SHAPE_BOX || shape == ASIM_SHAPE_SPHERE) {
+	if (shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE) {
 		vec4_t center, extent;
 		if (mesh_bounds(obj, &center, &extent)) {
 			body->dimx   = extent.x;
@@ -1350,9 +1350,9 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	float              scale_pos = 1.0f;
 	void              *posa      = NULL;
 	u32_array_t       *inda      = NULL;
-	asim_heightfield_t field     = {0};
+	physics_heightfield_t field     = {0};
 
-	if (shape == ASIM_SHAPE_MESH || shape == ASIM_SHAPE_TERRAIN) {
+	if (shape == PHYSICS_SHAPE_MESH || shape == PHYSICS_SHAPE_TERRAIN) {
 		mesh_object_t *mo    = obj->ext;
 		mesh_data_t   *data  = mo->data;
 		vec4_t         scale = object_world_scale(obj);
@@ -1361,7 +1361,7 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 		inda            = data->index_array;
 		scale_pos       = scale.x * data->scale_pos;
 
-		if (shape == ASIM_SHAPE_TERRAIN) {
+		if (shape == PHYSICS_SHAPE_TERRAIN) {
 			float unpack = (1.0f / 32767.0f) * data->scale_pos;
 			field        = heightfield_from_mesh(pa, inda, unpack * scale.x, unpack * scale.y, unpack * scale.z);
 			posa         = &field;
@@ -1376,19 +1376,19 @@ asim_body_t *asim_body_create(object_t *obj, asim_shape_t shape, float mass) {
 	body->_body = body_create(shape, mass, body->dimx, body->dimy, body->dimz, loc.x + off.x, loc.y + off.y, loc.z + off.z, posa, inda, scale_pos);
 	free(field.heights);
 
-	if (shape == ASIM_SHAPE_BOX) { // Start out at the object rotation
-		asim_body_sync_transform(body);
+	if (shape == PHYSICS_SHAPE_BOX) { // Start out at the object rotation
+		physics_body_sync_transform(body);
 	}
 	return body;
 }
 
-void asim_body_set_mass(asim_body_t *body, float mass) {
+void physics_body_set_mass(physics_body_t *body, float mass) {
 	body->mass                  = mass;
 	*body_ref(body->_body).mass = mass;
 	body_wake(body->_body);
 }
 
-void asim_body_apply_impulse(void *body, vec4_t impulse) {
+void physics_body_apply_impulse(void *body, vec4_t impulse) {
 	vec4_t *vel = body_ref(body).velocity;
 	vel->x += impulse.x;
 	vel->y += impulse.y;
@@ -1396,27 +1396,27 @@ void asim_body_apply_impulse(void *body, vec4_t impulse) {
 	body_wake(body);
 }
 
-void asim_body_get_pos(void *body, vec4_t *pos) {
+void physics_body_get_pos(void *body, vec4_t *pos) {
 	vec4_t *p = body_ref(body).position;
 	pos->x    = p->x;
 	pos->y    = p->y;
 	pos->z    = p->z;
 }
 
-void asim_body_get_rot(void *body, quat_t *rot) {
+void physics_body_get_rot(void *body, quat_t *rot) {
 	if (body_is_box(body)) {
 		*rot = boxes[body_slot(body)].rotation;
 	}
 }
 
-void asim_body_get_velocity(void *body, vec4_t *vel) {
+void physics_body_get_velocity(void *body, vec4_t *vel) {
 	vec4_t *v = body_ref(body).velocity;
 	vel->x    = v->x;
 	vel->y    = v->y;
 	vel->z    = v->z;
 }
 
-void asim_body_set_velocity(void *body, float x, float y, float z) {
+void physics_body_set_velocity(void *body, float x, float y, float z) {
 	vec4_t *vel = body_ref(body).velocity;
 	vel->x      = x;
 	vel->y      = y;
@@ -1424,7 +1424,7 @@ void asim_body_set_velocity(void *body, float x, float y, float z) {
 	body_wake(body);
 }
 
-void asim_body_sync_transform(asim_body_t *body) {
+void physics_body_sync_transform(physics_body_t *body) {
 	transform_t *transform = body->obj->transform;
 	vec4_t       off       = vec4_apply_quat(body->offset, transform->rot);
 	vec4_t      *p         = body_ref(body->_body).position;
@@ -1437,7 +1437,7 @@ void asim_body_sync_transform(asim_body_t *body) {
 	body_wake(body->_body);
 }
 
-void asim_body_set_rotation(asim_body_t *body, quat_t rot) {
+void physics_body_set_rotation(physics_body_t *body, quat_t rot) {
 	if (!body_is_box(body->_body)) {
 		return;
 	}
@@ -1447,15 +1447,15 @@ void asim_body_set_rotation(asim_body_t *body, quat_t rot) {
 	body_wake(body->_body);
 }
 
-void asim_body_update(asim_body_t *body) {
-	if (body->shape == ASIM_SHAPE_MESH || body->shape == ASIM_SHAPE_TERRAIN) {
+void physics_body_update(physics_body_t *body) {
+	if (body->shape == PHYSICS_SHAPE_MESH || body->shape == PHYSICS_SHAPE_TERRAIN) {
 		return; // Static collider, the object drives the shape
 	}
 
 	transform_t *transform = body->obj->transform;
 	vec4_t       pos       = transform->loc;
-	asim_body_get_pos(body->_body, &pos);
-	asim_body_get_rot(body->_body, &transform->rot);
+	physics_body_get_pos(body->_body, &pos);
+	physics_body_get_rot(body->_body, &transform->rot);
 
 	vec4_t off       = vec4_apply_quat(body->offset, transform->rot);
 	transform->loc.x = pos.x - off.x;
@@ -1464,13 +1464,13 @@ void asim_body_update(asim_body_t *body) {
 	transform_build_matrix(transform);
 }
 
-void asim_body_remove(asim_body_t *body) {
+void physics_body_remove(physics_body_t *body) {
 	if (body == NULL) {
 		return;
 	}
 	body->obj->_->body = NULL;
 	wake_all(); // Whatever was resting on this body has to fall now
-	if (body->shape == ASIM_SHAPE_MESH) {
+	if (body->shape == PHYSICS_SHAPE_MESH) {
 		mesh_clear();
 		return;
 	}
@@ -1481,20 +1481,20 @@ void asim_body_remove(asim_body_t *body) {
 	*body_ref(body->_body).active = 0;
 }
 
-float asim_body_get_speed(asim_body_t *body) {
+float physics_body_get_speed(physics_body_t *body) {
 	return vec4_len(*body_ref(body->_body).velocity);
 }
 
-void asim_set_friction(float v) {
-	asim_friction = v * 0.1f;
+void physics_set_friction(float v) {
+	physics_friction = v * 0.1f;
 }
 
-void asim_set_bounciness(float v) {
-	asim_bounciness = v;
+void physics_set_bounciness(float v) {
+	physics_bounciness = v;
 }
 
-void asim_set_gravity(float x, float y, float z) {
-	asim_gravity = (vec4_t){x, y, z};
+void physics_set_gravity(float x, float y, float z) {
+	physics_gravity = (vec4_t){x, y, z};
 	wake_all();
 }
 

@@ -4,7 +4,7 @@
 #include "camera.c"
 #include <iron.h>
 
-asim_body_t *body;
+physics_body_t *body;
 
 void render_commands() {
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0xff6495ed, 1.0);
@@ -12,14 +12,14 @@ void render_commands() {
 }
 
 void scene_update(void *_) {
-	asim_world_update();
+	physics_world_update();
 	camera_update();
 
 	if (keyboard_started("space")) {
 		transform_t *t = body->obj->transform;
 		t->loc         = (vec4_t){0, 0, 5, 1.0};
 		t->rot         = (quat_t){0, 0, 0, 1};
-		asim_body_sync_transform(body);
+		physics_body_sync_transform(body);
 	}
 }
 
@@ -34,14 +34,14 @@ void scene_ready() {
 
 	object_t *cube = scene_get_child("Cube");
 
-	asim_world_create();
+	physics_world_create();
 
 	object_t *sphere       = scene_get_child("Sphere");
 	sphere->transform->loc = (vec4_t){0, 0, 5, 1.0};
 	transform_build_matrix(sphere->transform);
-	body = asim_body_create(sphere, ASIM_SHAPE_SPHERE, 1);
+	body = physics_body_create(sphere, PHYSICS_SHAPE_SPHERE, 1);
 
-	asim_body_create(cube, ASIM_SHAPE_MESH, 1);
+	physics_body_create(cube, PHYSICS_SHAPE_MESH, 1);
 }
 
 void ready() {

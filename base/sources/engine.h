@@ -314,7 +314,7 @@ typedef struct transform {
 typedef struct {
 	int empty;
 #ifdef WITH_PHYSICS
-	asim_body_t *body;
+	physics_body_t *body;
 #endif
 } object_runtime_t;
 
