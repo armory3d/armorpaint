@@ -1995,17 +1995,15 @@ static gpu_texture_t                *texenv;
 static gpu_texture_t                *texsobol;
 static gpu_texture_t                *texscramble;
 static gpu_texture_t                *texrank;
-static gpu_buffer_t                 *vb[16];
-static gpu_buffer_t                 *vb_last[16];
-static gpu_buffer_t                 *ib[16];
+static gpu_buffer_t                 *vb[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *vb_last[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           vb_count      = 0;
 static int                           vb_count_last = 0;
 static inst_t                        instances[1024];
 static int                           instances_count = 0;
 static VkBuffer                      vb_full         = VK_NULL_HANDLE;
 static VkBuffer                      ib_full         = VK_NULL_HANDLE;
-static VkDeviceMemory                vb_full_mem     = VK_NULL_HANDLE;
-static VkDeviceMemory                ib_full_mem     = VK_NULL_HANDLE;
 
 static PFN_vkGetBufferDeviceAddressKHR                _vkGetBufferDeviceAddressKHR                = NULL;
 static PFN_vkCreateAccelerationStructureKHR           _vkCreateAccelerationStructureKHR           = NULL;
@@ -2154,7 +2152,12 @@ void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *acce
 
 	vb_count        = 0;
 	instances_count = 0;
-	memset(vb_last, 0, sizeof(vb_last));
+	if (gpu_raytrace_multi) {
+		memset(vb, 0, sizeof(vb));
+	}
+	else {
+		memset(vb_last, 0, sizeof(vb_last));
+	}
 }
 
 void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb, gpu_buffer_t *_ib, mat4_t _transform) {
@@ -2166,10 +2169,17 @@ void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel
 		}
 	}
 	if (vb_i == -1) {
+		if (vb_count >= GPU_RAYTRACE_MAX_OBJECTS) {
+			return;
+		}
 		vb_i         = vb_count;
 		vb[vb_count] = _vb;
 		ib[vb_count] = _ib;
 		vb_count++;
+	}
+
+	if (instances_count >= (int)(sizeof(instances) / sizeof(instances[0]))) {
+		return;
 	}
 
 	inst_t inst                = {.i = vb_i, .m = _transform};
@@ -2199,7 +2209,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 	gpu_execute_and_wait();
 
 	bool build_bottom = false;
-	for (int i = 0; i < 16; ++i) {
+	for (int i = 0; i < GPU_RAYTRACE_MAX_OBJECTS; ++i) {
 		if (vb_last[i] != vb[i]) {
 			build_bottom = true;
 		}
@@ -2430,7 +2440,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 		vkBindBufferMemory(device, instances_buffer, instances_mem, 0);
 		void *data;
-		vkMapMemory(device, instances_mem, 0, sizeof(VkAccelerationStructureInstanceKHR), 0, (void **)&data);
+		vkMapMemory(device, instances_mem, 0, (gpu_raytrace_multi ? instances_count : 1) * sizeof(VkAccelerationStructureInstanceKHR), 0, (void **)&data);
 
 		for (int i = 0; i < instances_count; ++i) {
 			VkTransformMatrixKHR               transform_matrix = {instances[i].m.m[0], instances[i].m.m[4], instances[i].m.m[8],  instances[i].m.m[12],
@@ -2442,7 +2452,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 			int ib_off = 0;
 			for (int j = 0; j < instances[i].i; ++j) {
-				ib_off += ib[j]->count * 4;
+				ib_off += ib[j]->count;
 			}
 			instance.instanceCustomIndex = ib_off;
 
@@ -2619,128 +2629,8 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 		accel->impl.instances_mem    = instances_mem;
 	}
 
-	{
-		// if (vb_full != NULL) {
-		// 	vkFreeMemory(device, vb_full_mem, NULL);
-		// 	vkDestroyBuffer(device, vb_full, NULL);
-		// }
-
-		// VkBufferCreateInfo buf_info = {
-		// .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		// .pNext = NULL,
-		// .size = vert_count * vb[0]->stride,
-		// .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		// .usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-		// .usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-		// .usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-		// .flags = 0,
-		// };
-
-		// VkMemoryAllocateInfo mem_alloc = {
-		// .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		// .pNext = NULL,
-		// .allocationSize = 0,
-		// .memoryTypeIndex = 0,
-		// };
-
-		// vkCreateBuffer(device, &buf_info, NULL, &vb_full);
-
-		// VkMemoryRequirements mem_reqs = {0};
-		// vkGetBufferMemoryRequirements(device, vb_full, &mem_reqs);
-
-		// mem_alloc.allocationSize = mem_reqs.size;
-		// mem_alloc.memoryTypeIndex = memory_type_from_properties(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-		// VkMemoryAllocateFlagsInfo memory_allocate_flags_info = {
-		// .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-		// .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-		// };
-		// mem_alloc.pNext = &memory_allocate_flags_info;
-
-		// vkAllocateMemory(device, &mem_alloc, NULL, &vb_full_mem);
-		// vkBindBufferMemory(device, vb_full, vb_full_mem, 0);
-
-		// float *data;
-		// vkMapMemory(device, vb_full_mem, 0, vert_count * vb[0]->stride, 0, (void **)&data);
-		// vkUnmapMemory(device, vb_full_mem);
-
-		////
-
-#ifdef is_forge
-
-		vb_full     = _vb_full->impl.buf;
-		vb_full_mem = _vb_full->impl.mem;
-
-#else
-
-		vb_full     = vb[0]->impl.buf;
-		vb_full_mem = vb[0]->impl.mem;
-
-#endif
-	}
-
-	{
-		// if (ib_full != NULL) {
-		// 	vkFreeMemory(device, ib_full_mem, NULL);
-		// 	vkDestroyBuffer(device, ib_full, NULL);
-		// }
-
-		// VkBufferCreateInfo buf_info = {
-		// .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		// .pNext = NULL,
-		// .size = prim_count * 3 * sizeof(uint32_t),
-		// .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		// .usage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-		// .usage |= VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-		// .usage |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR,
-		// .flags = 0,
-		// };
-
-		// VkMemoryAllocateInfo mem_alloc = {
-		// .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		// .pNext = NULL,
-		// .allocationSize = 0,
-		// .memoryTypeIndex = 0,
-		// };
-
-		// vkCreateBuffer(device, &buf_info, NULL, &ib_full);
-
-		// VkMemoryRequirements mem_reqs = {0};
-		// vkGetBufferMemoryRequirements(device, ib_full, &mem_reqs);
-
-		// mem_alloc.allocationSize = mem_reqs.size;
-		// mem_alloc.memoryTypeIndex = memory_type_from_properties(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-
-		// VkMemoryAllocateFlagsInfo memory_allocate_flags_info = {
-		// .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-		// .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
-		// };
-		// mem_alloc.pNext = &memory_allocate_flags_info;
-
-		// vkAllocateMemory(device, &mem_alloc, NULL, &ib_full_mem);
-		// vkBindBufferMemory(device, ib_full, ib_full_mem, 0);
-
-		// uint8_t *data;
-		// vkMapMemory(device, ib_full_mem, 0, mem_alloc.allocationSize, 0, (void **)&data);
-		// for (int i = 0; i < instances_count; ++i) {
-		// 	memcpy(data, ib[i]->impl., sizeof(VkAccelerationStructureInstanceKHR));
-		// }
-		// vkUnmapMemory(device, ib_full_mem);
-
-		////
-
-#ifdef is_forge
-
-		ib_full     = _ib_full->impl.buf;
-		ib_full_mem = _ib_full->impl.mem;
-
-#else
-
-		ib_full     = ib[0]->impl.buf;
-		ib_full_mem = ib[0]->impl.mem;
-
-#endif
-	}
+	vb_full = gpu_raytrace_multi ? _vb_full->impl.buf : vb[0]->impl.buf;
+	ib_full = gpu_raytrace_multi ? _ib_full->impl.buf : ib[0]->impl.buf;
 }
 
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel) {

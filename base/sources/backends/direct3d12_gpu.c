@@ -1254,9 +1254,9 @@ static D3D12_GPU_DESCRIPTOR_HANDLE   dxr_texscramblegpu_descriptor_handle;
 static D3D12_GPU_DESCRIPTOR_HANDLE   dxr_texrankgpu_descriptor_handle;
 static int                           dxr_descriptors_allocated = 0;
 static UINT                          dxr_descriptor_size;
-static gpu_buffer_t                 *dxr_vb[16];
-static gpu_buffer_t                 *dxr_vb_last[16];
-static gpu_buffer_t                 *dxr_ib[16];
+static gpu_buffer_t                 *dxr_vb[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *dxr_vb_last[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *dxr_ib[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           dxr_vb_count      = 0;
 static int                           dxr_vb_count_last = 0;
 static inst_t                        dxr_instances[1024];
@@ -1434,7 +1434,12 @@ UINT create_srv_ib(gpu_buffer_t *ib, UINT num_elements, UINT element_size) {
 void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *accel) {
 	dxr_vb_count        = 0;
 	dxr_instances_count = 0;
-	memset(dxr_vb_last, 0, sizeof(dxr_vb_last));
+	if (gpu_raytrace_multi) {
+		memset(dxr_vb, 0, sizeof(dxr_vb));
+	}
+	else {
+		memset(dxr_vb_last, 0, sizeof(dxr_vb_last));
+	}
 }
 
 void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb, gpu_buffer_t *ib, mat4_t transform) {
@@ -1446,10 +1451,17 @@ void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel
 		}
 	}
 	if (vb_i == -1) {
+		if (dxr_vb_count >= GPU_RAYTRACE_MAX_OBJECTS) {
+			return;
+		}
 		vb_i                 = dxr_vb_count;
 		dxr_vb[dxr_vb_count] = vb;
 		dxr_ib[dxr_vb_count] = ib;
 		dxr_vb_count++;
+	}
+
+	if (dxr_instances_count >= (int)(sizeof(dxr_instances) / sizeof(dxr_instances[0]))) {
+		return;
 	}
 
 	inst_t inst                        = {.i = vb_i, .m = transform};
@@ -1469,7 +1481,7 @@ void _gpu_raytrace_acceleration_structure_destroy_top(gpu_acceleration_structure
 
 void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb_full, gpu_buffer_t *ib_full) {
 	bool build_bottom = false;
-	for (int i = 0; i < 16; ++i) {
+	for (int i = 0; i < GPU_RAYTRACE_MAX_OBJECTS; ++i) {
 		if (dxr_vb_last[i] != dxr_vb[i]) {
 			build_bottom = true;
 		}
@@ -1491,20 +1503,21 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 	dxr_descriptors_allocated = 1; // 1 descriptor already allocated in gpu_raytrace_pipeline_init
 
-#ifdef is_forge
-	create_srv_ib(ib_full, ib_full->count, 0);
-	create_srv_vb(vb_full, vb_full->count, dxr_vb[0]->stride);
-#else
-	create_srv_ib(dxr_ib[0], dxr_ib[0]->count, 0);
-	create_srv_vb(dxr_vb[0], dxr_vb[0]->count, dxr_vb[0]->stride);
-#endif
+	if (gpu_raytrace_multi) {
+		create_srv_ib(ib_full, ib_full->count, 0);
+		create_srv_vb(vb_full, vb_full->count, dxr_vb[0]->stride);
+	}
+	else {
+		create_srv_ib(dxr_ib[0], dxr_ib[0]->count, 0);
+		create_srv_vb(dxr_vb[0], dxr_vb[0]->count, dxr_vb[0]->stride);
+	}
 
 	command_list->lpVtbl->Reset(command_list, command_allocator, NULL);
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS top_level_inputs = {
 	    .DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY,
 	    .Flags       = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
-	    .NumDescs    = 1,
+	    .NumDescs    = gpu_raytrace_multi ? dxr_instances_count : 1,
 	    .Type        = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL,
 	};
 
@@ -1514,8 +1527,8 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 	UINT64 scratch_size = top_level_prebuild_info.ScratchDataSizeInBytes;
 
 	// Bottom AS
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottom_level_inputs[16];
-	D3D12_RAYTRACING_GEOMETRY_DESC                       geometry_descs[16];
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS bottom_level_inputs[GPU_RAYTRACE_MAX_OBJECTS];
+	D3D12_RAYTRACING_GEOMETRY_DESC                       geometry_descs[GPU_RAYTRACE_MAX_OBJECTS];
 	if (build_bottom) {
 		for (int i = 0; i < dxr_vb_count; ++i) {
 			D3D12_RAYTRACING_GEOMETRY_DESC geometry_desc = {

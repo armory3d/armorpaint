@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define GPU_RAYTRACE_MAX_OBJECTS 64
+
 struct ID3D12Resource;
 struct ID3D12DescriptorHeap;
 struct ID3D12PipelineState;
@@ -66,6 +68,6 @@ typedef struct {
 } gpu_buffer_impl_t;
 
 typedef struct {
-	struct ID3D12Resource *bottom_level_accel[16];
+	struct ID3D12Resource *bottom_level_accel[GPU_RAYTRACE_MAX_OBJECTS];
 	struct ID3D12Resource *top_level_accel;
 } gpu_acceleration_structure_impl_t;
