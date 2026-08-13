@@ -115,7 +115,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 			}
 
 			uint base = q.CommittedPrimitiveIndex() * 12;
-			#ifdef _FORGE
+			#ifdef _MULTI
 			base += q.CommittedInstanceID(); // Offset to index buffer of this instance
 			#endif
 			uint3 idx = indices.Load3(base);
@@ -154,7 +154,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 			};
 			float3 n = normalize(hit_attribute(vn, attr));
 
-			#ifdef _FORGE
+			#ifdef _MULTI
 			float3x4 objToWorld = q.CommittedObjectToWorld3x4();
 			n = normalize(mul(float3x3(objToWorld[0].xyz, objToWorld[1].xyz, objToWorld[2].xyz), n));
 			#endif

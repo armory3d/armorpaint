@@ -168,12 +168,11 @@ Vertex get_vertex(uint index) {
 
 bool process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, int sample_index) {
     uint triangle_index = rayQueryGetIntersectionPrimitiveIndexEXT(query, true);
-    uint instance_id = rayQueryGetIntersectionInstanceIdEXT(query, true);
 
     uint base_index = triangle_index * 3u;
 
-    #ifdef _FORGE
-    base_index += instance_id;
+    #ifdef _MULTI
+    base_index += uint(rayQueryGetIntersectionInstanceCustomIndexEXT(query, true));
     #endif
 
     uvec3 indices_sample = uvec3(
@@ -218,7 +217,7 @@ bool process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord,
                        vertex_normals[1] * barycentrics.y +
                        vertex_normals[2] * barycentrics.z);
 
-    #ifdef _FORGE
+    #ifdef _MULTI
     mat4x3 obj_to_world = rayQueryGetIntersectionObjectToWorldEXT(query, true);
     n = normalize(mat3(obj_to_world) * n);
     #endif
