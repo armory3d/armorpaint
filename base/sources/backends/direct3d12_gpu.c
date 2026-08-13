@@ -1480,6 +1480,8 @@ void _gpu_raytrace_acceleration_structure_destroy_top(gpu_acceleration_structure
 }
 
 void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb_full, gpu_buffer_t *ib_full) {
+	gpu_execute_and_wait();
+
 	bool build_bottom = false;
 	for (int i = 0; i < GPU_RAYTRACE_MAX_OBJECTS; ++i) {
 		if (dxr_vb_last[i] != dxr_vb[i]) {
@@ -1511,8 +1513,6 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 		create_srv_ib(dxr_ib[0], dxr_ib[0]->count, 0);
 		create_srv_vb(dxr_vb[0], dxr_vb[0]->count, dxr_vb[0]->stride);
 	}
-
-	command_list->lpVtbl->Reset(command_list, command_allocator, NULL);
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS top_level_inputs = {
 	    .DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY,
@@ -1625,6 +1625,12 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 			    .DestAccelerationStructureData    = accel->impl.bottom_level_accel[i]->lpVtbl->GetGPUVirtualAddress(accel->impl.bottom_level_accel[i]),
 			};
 			dxr_command_list->lpVtbl->BuildRaytracingAccelerationStructure(dxr_command_list, &bottom_level_build_desc, 0, NULL);
+
+			D3D12_RESOURCE_BARRIER scratch_barrier = {
+			    .Type          = D3D12_RESOURCE_BARRIER_TYPE_UAV,
+			    .UAV.pResource = scratch_resource,
+			};
+			command_list->lpVtbl->ResourceBarrier(command_list, 1, &scratch_barrier);
 		}
 	}
 
@@ -1713,7 +1719,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 	D3D12_RESOURCE_BARRIER barrier = {
 	    .Type          = D3D12_RESOURCE_BARRIER_TYPE_UAV,
-	    .UAV.pResource = accel->impl.bottom_level_accel[0],
+	    .UAV.pResource = NULL,
 	};
 	command_list->lpVtbl->ResourceBarrier(command_list, 1, &barrier);
 	dxr_command_list->lpVtbl->BuildRaytracingAccelerationStructure(dxr_command_list, &top_level_build_desc, 0, NULL);
