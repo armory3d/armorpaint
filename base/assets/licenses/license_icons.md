@@ -1,9 +1,6 @@
 
-Toolbar icons are courtesy of Sven Möller.
-
-ArmorForge icons courtesy of Matvey Dolgachyov.
-
-Material icons: https://github.com/google/material-design-icons
+Toolbar icons are courtesy of Sven Möller
+Material icons by https://github.com/google/material-design-icons
 
 
                                  Apache License
