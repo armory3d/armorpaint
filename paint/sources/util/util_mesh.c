@@ -64,25 +64,53 @@ static mesh_data_t *util_mesh_atlas_slot_data[ATLAS_MAX_SLOTS];
 static i32          util_mesh_atlas_slot_count  = 0;
 static bool         util_mesh_atlas_slots_spent = false;
 
-i32 util_mesh_atlas_stride() {
-	return util_mesh_atlas_stride_merged;
-}
-
-i32 util_mesh_atlas_slot(object_t *object) {
-	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
-	mesh_data_t *data = NULL;
-	for (i32 i = 0; i < paint_objects->length; ++i) {
-		if (paint_objects->buffer[i]->base == object) {
-			data = paint_objects->buffer[i]->data;
-			break;
-		}
-	}
+static i32 _util_mesh_atlas_slot_for_data(mesh_data_t *data) {
 	for (i32 i = 0; i < util_mesh_atlas_slot_count; ++i) {
 		if (util_mesh_atlas_slot_data[i] == data) {
 			return i;
 		}
 	}
 	return util_mesh_atlas_slots_spent ? ATLAS_MAX_SLOTS - 1 : 0;
+}
+
+static void _util_mesh_atlas_build_slots() {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	i32                    unique        = 0;
+	util_mesh_atlas_slot_count           = 0;
+
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		mesh_data_t *data = paint_objects->buffer[i]->data;
+		bool         seen = false;
+		for (i32 j = 0; j < i && !seen; ++j) {
+			seen = paint_objects->buffer[j]->data == data;
+		}
+		if (seen) {
+			continue;
+		}
+		unique++;
+		if (util_mesh_atlas_slot_count < ATLAS_MAX_SLOTS) {
+			util_mesh_atlas_slot_data[util_mesh_atlas_slot_count++] = data;
+		}
+	}
+
+	util_mesh_atlas_slots_spent   = unique > ATLAS_MAX_SLOTS;
+	util_mesh_atlas_stride_merged = _util_mesh_atlas_stride_for(unique);
+}
+
+i32 util_mesh_atlas_stride() {
+	return util_mesh_atlas_stride_merged;
+}
+
+i32 util_mesh_atlas_slot(object_t *object) {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	mesh_data_t           *data          = NULL;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		if (paint_objects->buffer[i]->base == object) {
+			data = paint_objects->buffer[i]->data;
+			break;
+		}
+	}
+	return _util_mesh_atlas_slot_for_data(data);
 }
 
 mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
@@ -126,10 +154,16 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	i32          coli   = vatex1 != NULL ? 4 : 3;
 	u32_array_t *ia     = u32_array_create(ilen);
 
-	i32 atlas_stride              = config_is_raytrace_multi() ? _util_mesh_atlas_stride_for(paint_objects->length) : 1;
-	util_mesh_atlas_stride_merged = atlas_stride;
-	util_mesh_atlas_slot_count    = 0;
-	util_mesh_atlas_slots_spent   = paint_objects->length > ATLAS_MAX_SLOTS;
+	i32 atlas_stride = 1;
+	if (config_is_raytrace_multi()) {
+		_util_mesh_atlas_build_slots();
+		atlas_stride = util_mesh_atlas_stride_merged;
+	}
+	else {
+		util_mesh_atlas_stride_merged = 1;
+		util_mesh_atlas_slot_count    = 0;
+		util_mesh_atlas_slots_spent   = false;
+	}
 
 	i32 voff = 0;
 	i32 ioff = 0;
@@ -162,11 +196,7 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 			va1->buffer[j + voff * 2] = vas->buffer[1]->values->buffer[j];
 		}
 		// Tex
-		i32 slot = i < ATLAS_MAX_SLOTS ? i : ATLAS_MAX_SLOTS - 1;
-		if (i < ATLAS_MAX_SLOTS) {
-			util_mesh_atlas_slot_data[slot] = paint_objects->buffer[i]->data;
-			util_mesh_atlas_slot_count      = slot + 1;
-		}
+		i32 slot      = _util_mesh_atlas_slot_for_data(paint_objects->buffer[i]->data);
 		f32 tile_step = 32767.0f / atlas_stride;
 		f32 tile_x    = atlas_stride > 1 ? (slot % atlas_stride) * tile_step : 0.0f;
 		f32 tile_y    = atlas_stride > 1 ? (slot / atlas_stride) * tile_step : 0.0f;
@@ -239,6 +269,14 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	g_context->merged_object->force_context = "paint";
 	object_set_parent(g_context->merged_object->base, context_main_object()->base);
 	render_path_raytrace_ready = false;
+}
+
+void util_mesh_visibility_changed() {
+	util_mesh_merge(config_is_raytrace_multi() ? NULL : util_mesh_get_visible());
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_dilatemap_cached   = false;
+	g_context->ddirty          = 2;
 }
 
 static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {

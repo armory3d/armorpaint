@@ -772,11 +772,7 @@ void tab_meshes_apply_visible(mesh_object_t *o) {
 		}
 	}
 
-	util_mesh_merge(util_mesh_get_visible());
-	util_uv_uvmap_cached       = false;
-	util_uv_trianglemap_cached = false;
-	util_uv_dilatemap_cached   = false;
-	g_context->ddirty          = 2;
+	util_mesh_visibility_changed();
 }
 
 void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {

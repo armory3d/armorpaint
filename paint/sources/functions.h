@@ -600,6 +600,7 @@ void   tab_browser_draw(ui_handle_t *htab);
 mesh_object_t_array_t       *util_mesh_get_visible();
 mesh_data_t                 *util_mesh_data_duplicate(mesh_data_t *source);
 void                         util_mesh_merge(mesh_object_t_array_t *paint_objects);
+void                         util_mesh_visibility_changed();
 void                         util_mesh_merge_geometry();
 void                         util_mesh_swap_axis(i32 a, i32 b);
 void                         util_mesh_flip_normals();

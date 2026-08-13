@@ -291,6 +291,7 @@ static void trait_point_and_click_controller_set_moving(object_t *o, bool moving
 	trait_point_and_click_controller_moving = moving;
 	o->visible                              = !moving;
 	run->visible                            = moving;
+	util_mesh_visibility_changed();
 }
 
 static void trait_point_and_click_controller_place(physics_body_t *body) {

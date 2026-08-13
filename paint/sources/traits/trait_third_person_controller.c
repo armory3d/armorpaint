@@ -62,6 +62,7 @@ static void trait_third_person_controller_set_moving(object_t *o, bool moving) {
 	trait_third_person_controller_moving = moving;
 	o->visible                           = !moving;
 	run->visible                         = moving;
+	util_mesh_visibility_changed();
 }
 
 static void trait_third_person_controller_place(physics_body_t *body) {
