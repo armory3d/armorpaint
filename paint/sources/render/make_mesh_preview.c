@@ -149,13 +149,48 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	shader_context_load(con->data);
 	material_context_load(mcon);
 
+	tool_type_t    _tool                = g_context->tool;
+	i32            _fill_type           = g_context->fill_type;
+	slot_layer_t  *_layer               = g_context->layer;
+	bool           _select_active       = g_context->select_active;
+	bool           _colorid_picked      = g_context->colorid_picked;
+	bool           _picker_paint_mask   = g_context->picker_paint_mask;
+	gpu_texture_t *_brush_stencil_image = g_context->brush_stencil_image;
+	gpu_texture_t *_brush_mask_image    = g_context->brush_mask_image;
+	blend_type_t   _brush_blending      = g_context->brush_blending;
+	g_context->tool                     = TOOL_TYPE_FILL;
+	g_context->fill_type                = FILL_TYPE_OBJECT;
+	g_context->layer                    = GC_ALLOC_INIT(slot_layer_t, {.fill_material = slot, .uv_type = UV_TYPE_UVMAP, .scale = 1.0, .visible = true});
+	g_context->select_active            = false;
+	g_context->colorid_picked           = false;
+	g_context->picker_paint_mask        = false;
+	g_context->brush_stencil_image      = NULL;
+	g_context->brush_mask_image         = NULL;
+	g_context->brush_blending           = BLEND_TYPE_MIX;
+
+	material_context_t    *amcon = GC_ALLOC_INIT(material_context_t, {.name = "atlas", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
+	material_t            *amm   = GC_ALLOC_INIT(material_t, {.name = "Material", .canvas = slot->canvas});
+	node_shader_context_t *acon  = make_paint_run_context(amm, amcon, "atlas");
+	shader_context_load(acon->data);
+	material_context_load(amcon);
+
+	g_context->tool                = _tool;
+	g_context->fill_type           = _fill_type;
+	g_context->layer               = _layer;
+	g_context->select_active       = _select_active;
+	g_context->colorid_picked      = _colorid_picked;
+	g_context->picker_paint_mask   = _picker_paint_mask;
+	g_context->brush_stencil_image = _brush_stencil_image;
+	g_context->brush_mask_image    = _brush_mask_image;
+	g_context->brush_blending      = _brush_blending;
+
 	shader_data_t *sd = GC_ALLOC_INIT(shader_data_t, {0});
 	sd->name          = string("_material_%s", i32_to_string(slot->id));
-	sd->contexts      = any_array_create_from_raw((void *[]){con->data}, 1);
+	sd->contexts      = any_array_create_from_raw((void *[]){con->data, acon->data}, 2);
 
 	material_data_t *md = GC_ALLOC_INIT(material_data_t, {0});
 	md->name            = sd->name;
-	md->contexts        = any_array_create_from_raw((void *[]){mcon}, 1);
+	md->contexts        = any_array_create_from_raw((void *[]){mcon, amcon}, 2);
 	md->_               = GC_ALLOC_INIT(material_data_runtime_t, {0});
 	md->_->shader       = sd;
 	md->_->uid          = 0;

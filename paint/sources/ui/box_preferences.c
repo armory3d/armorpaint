@@ -413,10 +413,6 @@ void box_preferences_usage_tab() {
 	    4);
 	g_config->layer_res = ui_combo(h_layer_res, res_combo, tr("Default Layer Resolution"), true, UI_ALIGN_LEFT, true);
 
-	ui_handle_t *h_scene_atlas_res = ui_handle(__ID__);
-	h_scene_atlas_res->i           = g_config->scene_atlas_res;
-	g_config->scene_atlas_res      = ui_combo(h_scene_atlas_res, res_combo, tr("Scene Atlas Resolution"), true, UI_ALIGN_LEFT, true);
-
 	ui_handle_t *h_server = ui_handle(__ID__);
 	h_server->text        = string_copy(g_config->server);
 	g_config->server      = string_copy(ui_text_input(h_server, tr("Cloud Server"), UI_ALIGN_LEFT, true, false));
@@ -615,13 +611,16 @@ void box_preferences_viewport_tab() {
 	    (void *[]){
 	        tr("Fast"),
 	        tr("Quality"),
+	        tr("Multi Fast"),
+	        tr("Multi Quality"),
 	    },
-	    2);
+	    4);
 	g_config->pathtrace_mode = ui_combo(h_pathtrace_mode, pathtrace_mode_combo, tr("Path Tracer"), true, UI_ALIGN_LEFT, true);
 	if (h_pathtrace_mode->changed) {
 		render_path_raytrace_ready       = false;
 		render_path_raytrace_init_shader = true;
 		g_context->ddirty                = 2;
+		util_mesh_merge(NULL);
 	}
 
 	ui_handle_t *h_render_mode        = ui_handle(__ID__);

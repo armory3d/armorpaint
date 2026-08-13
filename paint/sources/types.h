@@ -139,7 +139,6 @@ typedef struct config {
 	f32                  brush_alpha_discard;
 	i32                  dilate_radius;
 	char                *blender;
-	i32                  scene_atlas_res;
 	bool                 grid_snap;
 	bool                 experimental;
 	i32                  neural_res;

@@ -703,10 +703,6 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 }
 
 void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position) {
-	// if (g_context->tool == TOOL_TYPE_CURSOR) {
-	// 	return;
-	// }
-
 	_layers_uv_type   = uv_type;
 	_layers_decal_mat = decal_mat;
 	_layers_position  = position;
@@ -1049,6 +1045,31 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 	}
 }
 
+void layers_draw_mesh_materials() {
+	bool any = false;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (tab_meshes_get_override(g_project->_->paint_objects->buffer[i]) >= 0) {
+			any = true;
+			break;
+		}
+	}
+	if (!any) {
+		return;
+	}
+
+	string_array_t *additional = any_array_create_from_raw(
+	    (void *[]){
+	        "expb",
+	        "expc",
+	        "texpaint_blend0",
+	    },
+	    3);
+	render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target("main", "gbufferD");
+	render_path_bind_target("texpaint_blend1", "paintmask");
+	render_path_draw_meshes("atlas");
+}
+
 slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers) {
 	if (layers == NULL) {
 		layers = g_project->_->layers;
@@ -1170,6 +1191,8 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			}
 		}
 	}
+
+	layers_draw_mesh_materials();
 
 	slot_layer_t *l0 = GC_ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
 

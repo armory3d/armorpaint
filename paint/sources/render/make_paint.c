@@ -98,33 +98,39 @@ string_array_t *make_paint_color_attachments() {
 }
 
 node_shader_context_t *make_paint_run(material_t *data, material_context_t *matcon) {
+	return make_paint_run_context(data, matcon, "paint");
+}
+
+node_shader_context_t *make_paint_run_context(material_t *data, material_context_t *matcon, char *context_id) {
 	bool picking_tool = g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL ||
 	                    g_context->tool == TOOL_TYPE_CURSOR;
+	bool is_atlas = string_equals(context_id, "atlas");
 	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool) {
 		return sculpt_make_sculpt_run(data, matcon);
 	}
 
-	char                  *context_id = "paint";
-	shader_context_t      *props      = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                     .depth_write     = false,
-	                                                                     .compare_mode    = "always",
-	                                                                     .cull_mode       = "none",
-	                                                                     .vertex_elements = any_array_create_from_raw(
+	shader_context_t      *props     = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
+	                                                                    .depth_write     = false,
+	                                                                    .compare_mode    = "always",
+	                                                                    .cull_mode       = "none",
+	                                                                    .vertex_elements = any_array_create_from_raw(
                                                                    (void *[]){
                                                                        GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
                                                                        GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
                                                                        GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
                                                                    },
                                                                    3),
-	                                                                     .color_attachments = make_paint_color_attachments()});
-	node_shader_context_t *con_paint  = node_shader_context_create(data, props);
+	                                                                    .color_attachments = make_paint_color_attachments()});
+	node_shader_context_t *con_paint = node_shader_context_create(data, props);
 
-	if (mesh_data_get_vertex_array(g_context->paint_object->data, "col") != NULL) {
-		node_shader_context_add_elem(con_paint, "col", "short4norm");
-	}
+	if (!is_atlas) {
+		if (mesh_data_get_vertex_array(g_context->paint_object->data, "col") != NULL) {
+			node_shader_context_add_elem(con_paint, "col", "short4norm");
+		}
 
-	if (mesh_data_get_vertex_array(g_context->paint_object->data, "tex1") != NULL) {
-		node_shader_context_add_elem(con_paint, "tex1", "short2norm");
+		if (mesh_data_get_vertex_array(g_context->paint_object->data, "tex1") != NULL) {
+			node_shader_context_add_elem(con_paint, "tex1", "short2norm");
+		}
 	}
 
 	con_paint->data->color_writes_red = u8_array_create_from_raw(
@@ -159,7 +165,7 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 	        true,
 	    },
 	    4);
-	con_paint->allow_vcols = mesh_data_get_vertex_array(g_context->paint_object->data, "col") != NULL;
+	con_paint->allow_vcols = !is_atlas && mesh_data_get_vertex_array(g_context->paint_object->data, "col") != NULL;
 
 	node_shader_t *kong = node_shader_context_make_kong(con_paint);
 
@@ -189,12 +195,13 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 	bool uv_island_fill = g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_UV_ISLAND;
 	bool decal          = context_is_decal();
 
-	if (g_context->layer->uv_map == 1) {
-		node_shader_write_vert(kong, "var tpos: float2 = float2(input.tex1.x * 2.0 - 1.0, (1.0 - input.tex1.y) * 2.0 - 1.0);");
+	char *tuv = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
+	if (is_atlas) {
+		node_shader_add_constant(kong, "atlas_transform: float3", "_atlas_transform");
+		node_shader_write_vert(kong, string("var atlas_uv: float2 = %s * constants.atlas_transform.z + constants.atlas_transform.xy;", tuv));
+		tuv = "atlas_uv";
 	}
-	else {
-		node_shader_write_vert(kong, "var tpos: float2 = float2(input.tex.x * 2.0 - 1.0, (1.0 - input.tex.y) * 2.0 - 1.0);");
-	}
+	node_shader_write_vert(kong, string("var tpos: float2 = float2(%s.x * 2.0 - 1.0, (1.0 - %s.y) * 2.0 - 1.0);", tuv, tuv));
 
 	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
 
@@ -304,7 +311,7 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		make_discard_material_id(kong, NULL);
 	}
 
-	make_texcoord_run(kong);
+	make_texcoord_run(kong, is_atlas);
 
 	if (g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_texture(kong, "gbuffer2", NULL);
@@ -328,7 +335,7 @@ node_shader_context_t *make_paint_run(material_t *data, material_context_t *matc
 		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect = decal;
 		gc_unroot(parser_material_sample_uv_scale);
-		parser_material_sample_uv_scale = "constants.brush_scale";
+		parser_material_sample_uv_scale = is_atlas ? "1.0" : "constants.brush_scale";
 		gc_root(parser_material_sample_uv_scale);
 		shader_out_t *sout               = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
 		parser_material_parse_emission   = false;

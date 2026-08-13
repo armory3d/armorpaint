@@ -126,7 +126,6 @@ void config_save() {
 	json_encode_f32("brush_alpha_discard", g_config->brush_alpha_discard);
 	json_encode_i32("dilate_radius", g_config->dilate_radius);
 	json_encode_string("blender", g_config->blender);
-	json_encode_i32("scene_atlas_res", g_config->scene_atlas_res);
 	json_encode_bool("grid_snap", g_config->grid_snap);
 	json_encode_bool("experimental", g_config->experimental);
 	json_encode_i32("neural_res", g_config->neural_res);
@@ -255,7 +254,6 @@ void config_init() {
 		g_config->show_asset_names    = false;
 		g_config->dilate_radius       = 2;
 		g_config->blender             = "";
-		g_config->scene_atlas_res     = TEXTURE_RES_RES8192;
 		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;
 		g_config->grid_snap           = false;
 		g_config->view2d_grid_show    = false;
@@ -436,11 +434,6 @@ i32 config_get_layer_res() {
 	return config_texture_res_size(res);
 }
 
-i32 config_get_scene_atlas_res() {
-	i32 res = g_config->scene_atlas_res;
-	return config_texture_res_size(res);
-}
-
 void config_set_texture_res(i32 pos) {
 	if (pos != TEXTURE_RES_CUSTOM) {
 		f32 res              = (f32)config_texture_res_size(pos);
@@ -517,3 +510,16 @@ bool config_is_iphone() {
 	return sys_display_ppi() > 330;
 }
 #endif
+
+bool config_is_raytrace_fast() {
+	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST;
+}
+
+bool config_is_raytrace_multi() {
+	bool multi = g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_QUALITY;
+	return multi && g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE;
+}
+
+void config_apply_raytrace_multi() {
+	gpu_raytrace_multi = config_is_raytrace_multi();
+}

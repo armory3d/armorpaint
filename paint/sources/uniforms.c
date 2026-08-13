@@ -87,12 +87,6 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		return val;
 	}
 	else if (string_equals(link, "_brush_scale")) {
-		// if (g_context->tool == TOOL_TYPE_CURSOR) {
-		// 	i32 atlas_w      = config_get_scene_atlas_res();
-		// 	i32 item_w       = config_get_layer_res();
-		// 	i32 atlas_stride = atlas_w / (float)item_w;
-		// 	return atlas_stride;
-		// }
 		bool fill = g_context->layer->fill_material != NULL;
 		f32  val  = (fill ? g_context->layer->scale : g_context->brush_scale) * g_context->brush_nodes_scale;
 		return val;
@@ -222,6 +216,14 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 		g_context->prev_paint_vec_x = g_context->last_paint_vec_x;
 		g_context->prev_paint_vec_y = g_context->last_paint_vec_y;
 		return v;
+	}
+	else if (string_equals(link, "_atlas_transform")) {
+		if (!config_is_raytrace_multi()) {
+			return (vec4_t){0.0, 0.0, 1.0, 1.0};
+		}
+		i32 stride = util_mesh_atlas_stride();
+		i32 slot   = util_mesh_atlas_slot(object);
+		return (vec4_t){(slot % stride) / (f32)stride, (slot / stride) / (f32)stride, 1.0 / stride, 1.0};
 	}
 	else if (string_equals(link, "_decal_layer_loc")) {
 		v = (vec4_t){g_context->layer->decal_mat.m30, g_context->layer->decal_mat.m31, g_context->layer->decal_mat.m32, 1.0};
@@ -364,26 +366,29 @@ void uniforms_ext_cache_uv_map(void *_) {
 	util_uv_cache_uv_map();
 }
 
+static gpu_texture_t *_uniforms_ext_undo_target(char *name) {
+	render_target_t *rt = any_map_get(render_path_render_targets, name);
+	if (rt == NULL) {
+		rt = any_map_get(render_path_render_targets, "empty_black");
+	}
+	return rt->_image;
+}
+
 gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_undo_target(string("texpaint_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_nor_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_nor_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_undo_target(string("texpaint_nor_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_pack_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_pack_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_undo_target(string("texpaint_pack_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
-		// Per-frame accumulation reference
-		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_sculpt_ref");
-		return rt->_image;
+		return _uniforms_ext_undo_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {

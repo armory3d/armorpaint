@@ -85,6 +85,7 @@ void tab_meshes_on_material_deleted(i32 deleted_index) {
 	if (changed) {
 		g_project->mesh_materials = i32_array_create(0);
 		g_context->ddirty         = 2;
+		g_context->rtdirty        = 2;
 	}
 }
 
@@ -117,6 +118,7 @@ void tab_meshes_on_material_reordered(i32 old_index, i32 new_index) {
 	if (changed) {
 		g_project->mesh_materials = i32_array_create(0);
 		g_context->ddirty         = 2;
+		g_context->rtdirty        = 2;
 	}
 }
 
@@ -366,6 +368,7 @@ void tab_meshes_draw_context_menu() {
 	if (hmat->changed) {
 		tab_meshes_set_override(o, hmat->i - 1);
 		g_context->ddirty         = 2;
+		g_context->rtdirty        = 2;
 		g_project->mesh_materials = i32_array_create(0);
 	}
 
@@ -392,7 +395,7 @@ void tab_meshes_draw_context_menu() {
 
 	// Physics
 	if (g_config->experimental) {
-		physics_body_t    *pb         = o->base->_->body;
+		physics_body_t *pb         = o->base->_->body;
 		string_array_t *phys_combo = string_array_create(0);
 		string_array_push(phys_combo, ""); // Empty = no physics
 		string_array_push(phys_combo, tr("Box"));
@@ -410,7 +413,7 @@ void tab_meshes_draw_context_menu() {
 			}
 			if (hphys->i > 0) {
 				physics_shape_t shape   = (physics_shape_t)(hphys->i - 1);
-				bool         dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+				bool            dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
 				sim_add_body(o->base, shape, dynamic ? 1.0 : 0.0);
 				pb = o->base->_->body;
 			}
@@ -548,7 +551,6 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 		raw         = scene_raw->mesh_datas->buffer[0];
 	}
 
-	// util_mesh_pack_uvs(raw->vertex_arrays->buffer[2]->values);
 	mesh_data_t *md   = mesh_data_create(raw);
 	md->_->handle     = md->name;
 	mesh_object_t *mo = scene_add_mesh_object(md, g_project->_->paint_objects->buffer[0]->material, NULL);
@@ -568,6 +570,7 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	any_array_push(g_project->_->paint_objects, mo);
 	tab_stages_add_object(mo->base->name);
 	g_context->paint_object = mo;
+	util_mesh_merge(NULL);
 	return mo;
 }
 

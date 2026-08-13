@@ -235,7 +235,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	}
 
 	mesh_data_t *raw = import_mesh_raw_mesh(mesh);
-	// util_mesh_pack_uvs(mesh->texa);
+
 	mesh_data_t *md  = mesh_data_create(raw);
 	md->_->skin_blob = mesh->blob;
 	gc_unroot(mesh->blob);

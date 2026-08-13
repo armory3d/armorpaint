@@ -108,8 +108,10 @@ typedef enum {
 } export_destination_t;
 
 typedef enum {
-	PATHTRACE_MODE_FAST    = 0,
-	PATHTRACE_MODE_QUALITY = 1,
+	PATHTRACE_MODE_FAST          = 0,
+	PATHTRACE_MODE_QUALITY       = 1,
+	PATHTRACE_MODE_MULTI_FAST    = 2,
+	PATHTRACE_MODE_MULTI_QUALITY = 3,
 } pathtrace_mode_t;
 
 typedef enum {

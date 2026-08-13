@@ -325,10 +325,6 @@ void context_select_paint_object(mesh_object_t *o) {
 		p->skip_context  = "paint";
 	}
 
-	// #ifdef is_forge
-	// g_context->paint_object->skip_context = "";
-	// #endif
-
 	g_context->paint_object = o;
 
 	i32 mask = slot_layer_get_object_mask(g_context->layer);
@@ -466,6 +462,10 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 		gc_root(render_path_commands);
 	}
 	make_material_parse_mesh_material();
+
+	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+		util_mesh_merge(NULL);
+	}
 
 	// Rotate mode is not supported for path tracing yet
 	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->camera_controls == CAMERA_CONTROLS_ROTATE) {
