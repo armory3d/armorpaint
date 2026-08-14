@@ -90,6 +90,9 @@ void base_material_dropped() {
 	else if (context_in_materials()) {
 		tab_materials_accept_material_drop(base_drag_material);
 	}
+	else if (context_in_meshes()) {
+		tab_meshes_accept_material_drop(base_drag_material);
+	}
 	gc_unroot(base_drag_material);
 	base_drag_material = NULL;
 }
