@@ -73,7 +73,7 @@ void object_set_parent(object_t *raw, object_t *parent_object) {
 	}
 
 	if (parent_object == NULL) {
-		parent_object = _scene_scene_parent;
+		parent_object = _scene_root;
 	}
 	raw->parent = parent_object;
 	any_array_push(raw->parent->children, raw);
@@ -2152,7 +2152,6 @@ i32              _scene_uid_counter       = 0;
 i32              _scene_uid               = 0;
 scene_t         *_scene_raw               = NULL;
 object_t        *_scene_root              = NULL;
-object_t        *_scene_scene_parent      = NULL;
 i32              _scene_objects_traversed = 0;
 i32              _scene_objects_count     = 0;
 
@@ -2178,7 +2177,7 @@ object_t *scene_create(scene_t *format) {
 	gc_unroot(_scene_root);
 	_scene_root = object_create(true);
 	gc_root(_scene_root);
-	_scene_root->name = "Root";
+	_scene_root->name = format->name;
 
 	gc_unroot(_scene_raw);
 	_scene_raw = format;
@@ -2189,17 +2188,13 @@ object_t *scene_create(scene_t *format) {
 	gc_root(scene_world);
 
 	// Startup scene
-	object_t *scene_object = scene_add_scene(format->name, NULL);
+	scene_add_scene(format->name);
 
 	gc_unroot(scene_camera);
 	scene_camera = (camera_object_t *)scene_cameras->buffer[0]; // format->camera_ref
 	gc_root(scene_camera);
 
-	gc_unroot(_scene_scene_parent);
-	_scene_scene_parent = scene_object;
-	gc_root(_scene_scene_parent);
-
-	return scene_object;
+	return _scene_root;
 }
 
 void scene_remove(void) {
@@ -2295,20 +2290,15 @@ void scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *obje
 	}
 }
 
-object_t *scene_add_scene(char *scene_name, object_t *parent) {
-	if (parent == NULL) {
-		parent       = scene_add_object(NULL);
-		parent->name = scene_name;
-	}
+void scene_add_scene(char *scene_name) {
 	scene_t *format = data_get_scene_raw(scene_name);
 	scene_load_embedded_data(format->embedded_datas); // Additional scene assets
 	_scene_objects_traversed = 0;
 	_scene_objects_count     = scene_get_objects_count(format->objects);
 
 	if (format->objects != NULL && format->objects->length > 0) {
-		scene_traverse_objects(format, parent, format->objects); // Scene objects
+		scene_traverse_objects(format, _scene_root, format->objects); // Scene objects
 	}
-	return parent;
 }
 
 i32 scene_get_objects_count(any_array_t *objects) {

@@ -604,7 +604,6 @@ extern i32              _scene_uid_counter;
 extern i32              _scene_uid;
 extern scene_t         *_scene_raw;
 extern object_t        *_scene_root;
-extern object_t        *_scene_scene_parent;
 extern i32              _scene_objects_traversed;
 extern i32              _scene_objects_count;
 
@@ -617,7 +616,7 @@ object_t        *scene_get_child(char *name);
 mesh_object_t   *scene_add_mesh_object(mesh_data_t *data, material_data_t *material, object_t *parent);
 camera_object_t *scene_add_camera_object(camera_data_t *data, object_t *parent);
 void             scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *objects);
-object_t        *scene_add_scene(char *scene_name, object_t *parent);
+void             scene_add_scene(char *scene_name);
 i32              scene_get_objects_count(any_array_t *objects);
 object_t        *_scene_spawn_object_tree(obj_t *obj, object_t *parent, bool spawn_children);
 object_t        *scene_spawn_object(char *name, object_t *parent, bool spawn_children);
