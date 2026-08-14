@@ -15,10 +15,83 @@ static char *text_to_text_node_grok_dir(void) {
 #endif
 }
 
+static char *text_to_text_node_shapes(void) {
+	string_array_t *shapes = script_shape_list();
+	if (shapes == NULL || shapes->length == 0 || string_equals(shapes->buffer[0], "")) {
+		return "";
+	}
+
+	buffer_t sb;
+	string_buffer_init(&sb);
+	string_buffer_append(&sb, "\nscript_shape_add() shapes:\n");
+	for (i32 i = 0; i < shapes->length; ++i) {
+		string_buffer_append(&sb, string("\"%s\"\n", shapes->buffer[i]));
+	}
+
+	char *result = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return result;
+}
+
+static char *text_to_text_node_scene_bounds(void) {
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->paint_objects == NULL) {
+		return "";
+	}
+
+	buffer_t sb;
+	string_buffer_init(&sb);
+	string_buffer_append(&sb, "\nScene objects in world space, z axis up:\n");
+
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (o->data == NULL) {
+			continue;
+		}
+
+		vec4_t local_min;
+		vec4_t local_max;
+		mesh_data_calculate_aabb_min_max(o->data, &local_min, &local_max);
+
+		transform_t *t = o->base->transform;
+		transform_update(t);
+		vec4_t min = {0.0, 0.0, 0.0, 0.0};
+		vec4_t max = {0.0, 0.0, 0.0, 0.0};
+		for (i32 c = 0; c < 8; ++c) {
+			vec4_t p;
+			p.x = (c & 1) ? local_max.x : local_min.x;
+			p.y = (c & 2) ? local_max.y : local_min.y;
+			p.z = (c & 4) ? local_max.z : local_min.z;
+			p.w = 1.0;
+			p   = vec4_apply_mat4(p, t->world);
+			if (c == 0) {
+				min = p;
+				max = p;
+				continue;
+			}
+			min.x = p.x < min.x ? p.x : min.x;
+			min.y = p.y < min.y ? p.y : min.y;
+			min.z = p.z < min.z ? p.z : min.z;
+			max.x = p.x > max.x ? p.x : max.x;
+			max.y = p.y > max.y ? p.y : max.y;
+			max.z = p.z > max.z ? p.z : max.z;
+		}
+
+		char *parent = o->base->parent != NULL ? string(", parent \"%s\"", o->base->parent->name) : "";
+		string_buffer_append(&sb, string("\"%s\": location (%.3f, %.3f, %.3f), size (%.3f, %.3f, %.3f), "
+		                                 "bounds min (%.3f, %.3f, %.3f) max (%.3f, %.3f, %.3f)%s%s\n",
+		                                 o->base->name, t->loc.x, t->loc.y, t->loc.z, max.x - min.x, max.y - min.y, max.z - min.z, min.x, min.y, min.z,
+		                                 max.x, max.y, max.z, parent, o->base->visible ? "" : ", hidden"));
+	}
+
+	char *result = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return result;
+}
+
 static char *text_to_text_node_project_contents(void) {
 	buffer_t *encoded = util_encode_project(g_project);
 	char     *json    = armpack_decode_to_json_omit_large_arrays(encoded);
-	return string("/* Current project state:\n%s\n*/\n", json);
+	return string("/* Current project state:\n%s\n%s%s*/\n", json, text_to_text_node_scene_bounds(), text_to_text_node_shapes());
 }
 
 string_array_t *text_to_text_node_qwen_args(char *dir) {
