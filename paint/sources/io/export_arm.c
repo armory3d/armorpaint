@@ -1,11 +1,30 @@
 
 #include "../global.h"
 
+static mesh_data_t *export_arm_named_mesh_data(mesh_object_t *p) {
+	// Mesh data shared by linked duplicates is named after the object holding it
+	if (string_equals(p->data->name, p->base->name)) {
+		return p->data;
+	}
+	mesh_data_t *renamed = gc_alloc(sizeof(mesh_data_t));
+	*renamed             = *p->data;
+	renamed->name        = string_copy(p->base->name);
+	return renamed;
+}
+
+static mesh_data_t *export_arm_linked_mesh_data(mesh_object_t *p, i32 source_index) {
+	return GC_ALLOC_INIT(mesh_data_t, {.name          = util_mesh_link_name(source_index, p->base->name),
+	                                   .scale_pos     = p->data->scale_pos,
+	                                   .scale_tex     = p->data->scale_tex,
+	                                   .vertex_arrays = any_array_create_from_raw((void *[]){}, 0),
+	                                   .index_array   = u32_array_create(0)});
+}
+
 void export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects) {
 	mesh_data_t_array_t *mesh_datas = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < paint_objects->length; ++i) {
 		mesh_object_t *p = paint_objects->buffer[i];
-		any_array_push(mesh_datas, p->data);
+		any_array_push(mesh_datas, export_arm_named_mesh_data(p));
 	}
 
 	scene_t  *raw = GC_ALLOC_INIT(scene_t, {.mesh_datas = mesh_datas});
@@ -186,8 +205,9 @@ void export_arm_run_project() {
 
 	mesh_data_t_array_t *md = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		any_array_push(md, p->data);
+		mesh_object_t *p      = g_project->_->paint_objects->buffer[i];
+		i32            source = util_mesh_data_owner(p->data);
+		any_array_push(md, source >= 0 && source < i ? export_arm_linked_mesh_data(p, source) : export_arm_named_mesh_data(p));
 	}
 
 	string_array_t *texture_files = export_arm_assets_to_files(g_project->_->filepath, g_project->_->assets);
@@ -305,7 +325,7 @@ void export_arm_run_project() {
 		for (i32 i = 0; i < g_project->mesh_parents->length; ++i) {
 			object_t *parent                   = g_project->_->paint_objects->buffer[i]->base->parent;
 			g_project->mesh_parents->buffer[i] = -1; // No parent
-			if (parent != NULL && parent != _scene_scene_parent) {
+			if (parent != NULL && parent != _scene_root) {
 				for (i32 j = 0; j < g_project->mesh_parents->length; ++j) {
 					if (g_project->_->paint_objects->buffer[j]->base == parent) {
 						g_project->mesh_parents->buffer[i] = j;

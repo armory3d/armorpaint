@@ -48,6 +48,88 @@ mesh_object_t_array_t *util_mesh_get_visible() {
 	return ar;
 }
 
+mesh_object_t_array_t *util_mesh_dedup_data(mesh_object_t_array_t *objects) {
+	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *p    = objects->buffer[i];
+		bool           seen = false;
+		for (i32 j = 0; j < ar->length && !seen; ++j) {
+			seen = ar->buffer[j]->data == p->data;
+		}
+		if (!seen) {
+			any_array_push(ar, p);
+		}
+	}
+	return ar;
+}
+
+mesh_object_t_array_t *util_mesh_get_unique_data() {
+	return util_mesh_dedup_data(g_project->_->paint_objects);
+}
+
+i32 util_mesh_data_owner(mesh_data_t *data) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (g_project->_->paint_objects->buffer[i]->data == data) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool util_mesh_data_is_shared(mesh_data_t *data) {
+	i32 users = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (g_project->_->paint_objects->buffer[i]->data == data) {
+			users++;
+		}
+	}
+	return users > 1;
+}
+
+void util_mesh_sync_scale_world(mesh_data_t *data) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p->data == data && p->base->transform->scale_world != data->scale_pos) {
+			p->base->transform->scale_world = data->scale_pos;
+			transform_build_matrix(p->base->transform);
+		}
+	}
+}
+
+void util_mesh_unshare_data(mesh_object_t *o) {
+	if (!util_mesh_data_is_shared(o->data)) {
+		return;
+	}
+	mesh_object_set_data(o, util_mesh_data_duplicate(o->data));
+	o->data->name = string_copy(o->base->name);
+}
+
+char *util_mesh_link_name(i32 source_index, char *object_name) {
+	return string("%s@%d", object_name, source_index);
+}
+
+bool util_mesh_link_parse(char *name, i32 *source_index, char **object_name) {
+	if (name == NULL) {
+		return false;
+	}
+	i32 sep = string_last_index_of(name, "@");
+	if (sep < 0) {
+		return false;
+	}
+	i32 len = string_length(name);
+	if (sep + 1 == len) {
+		return false;
+	}
+	for (i32 i = sep + 1; i < len; ++i) {
+		if (name[i] < '0' || name[i] > '9') {
+			return false;
+		}
+	}
+	*source_index = parse_int(substring(name, sep + 1, len));
+	*object_name  = substring(name, 0, sep);
+	return true;
+}
+
 #define ATLAS_MAX_STRIDE 8
 #define ATLAS_MAX_SLOTS  (ATLAS_MAX_STRIDE * ATLAS_MAX_STRIDE)
 
@@ -255,6 +337,9 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 			paint_objects = g_project->_->paint_objects;
 		}
 	}
+	else if (config_is_raytrace_multi()) {
+		paint_objects = util_mesh_dedup_data(paint_objects);
+	}
 	if (paint_objects->length == 0) {
 		return;
 	}
@@ -326,6 +411,9 @@ void util_mesh_merge_geometry() {
 	mesh_object_t *main_object = objects->buffer[0];
 	mat4_t         inv_world   = mat4_inv(main_object->base->transform->world);
 	for (i32 i = 0; i < objects->length; ++i) {
+		util_mesh_unshare_data(objects->buffer[i]);
+	}
+	for (i32 i = 0; i < objects->length; ++i) {
 		util_mesh_bake_transform(objects->buffer[i], inv_world);
 	}
 
@@ -374,7 +462,7 @@ void util_mesh_merge_geometry() {
 }
 
 void util_mesh_swap_axis(i32 a, i32 b) {
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t *o = objects->buffer[i];
 		// Remapping vertices, buckle up
@@ -403,7 +491,7 @@ void util_mesh_swap_axis(i32 a, i32 b) {
 }
 
 void util_mesh_flip_normals() {
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t          *o   = objects->buffer[i];
 		vertex_array_t_array_t *vas = o->data->vertex_arrays;
@@ -438,7 +526,7 @@ void util_mesh_calc_normals(bool smooth) {
 	vec4_t                 vc      = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	vec4_t                 cb      = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	vec4_t                 ab      = (vec4_t){0.0, 0.0, 0.0, 1.0};
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t *o           = objects->buffer[i];
 		mesh_data_t   *g           = o->data;
@@ -548,11 +636,12 @@ void util_mesh_calc_normals(bool smooth) {
 }
 
 void util_mesh_to_origin() {
-	f32 dx = 0.0;
-	f32 dy = 0.0;
-	f32 dz = 0.0;
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o    = g_project->_->paint_objects->buffer[i];
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
+	f32                    dx      = 0.0;
+	f32                    dy      = 0.0;
+	f32                    dz      = 0.0;
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *o    = objects->buffer[i];
 		i32            l    = 4;
 		f32            sc   = o->data->scale_pos / 32767.0;
 		i16_array_t   *va   = o->data->vertex_arrays->buffer[0]->values;
@@ -586,12 +675,12 @@ void util_mesh_to_origin() {
 		dy += (miny + maxy) / 2.0 * sc;
 		dz += (minz + maxz) / 2.0 * sc;
 	}
-	dx /= g_project->_->paint_objects->length;
-	dy /= g_project->_->paint_objects->length;
-	dz /= g_project->_->paint_objects->length;
+	dx /= objects->length;
+	dy /= objects->length;
+	dz /= objects->length;
 
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o         = g_project->_->paint_objects->buffer[i];
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *o         = objects->buffer[i];
 		mesh_data_t   *g         = o->data;
 		f32            sc        = o->data->scale_pos / 32767.0;
 		i16_array_t   *va        = o->data->vertex_arrays->buffer[0]->values;
@@ -609,6 +698,7 @@ void util_mesh_to_origin() {
 		}
 		o->base->transform->scale_world = o->data->scale_pos = o->data->scale_pos = max_scale;
 		transform_build_matrix(o->base->transform);
+		util_mesh_sync_scale_world(o->data);
 
 		for (i32 i = 0; i < math_floor(va->length / 4.0); ++i) {
 			va->buffer[i * 4]     = math_floor((va->buffer[i * 4] * sc - dx) / (float)max_scale * 32767);

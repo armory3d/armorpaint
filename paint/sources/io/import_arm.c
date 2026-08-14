@@ -387,25 +387,49 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
-	mesh_data_t *md  = mesh_data_create(g_project->mesh_datas->buffer[0]);
-	md->_->skin_blob = import_arm_get_mesh_skin(0);
+	mesh_data_t_array_t *mesh_datas = any_array_create_from_raw((void *[]){}, 0);
+	string_array_t      *mesh_names = string_array_create(0);
+	for (i32 i = 0; i < g_project->mesh_datas->length; ++i) {
+		mesh_data_t *raw = g_project->mesh_datas->buffer[i];
+		i32          source_index;
+		char        *object_name;
+		if (i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name)) {
+			any_array_push(mesh_datas, NULL);
+			string_array_push(mesh_names, object_name);
+		}
+		else {
+			mesh_data_t *md  = mesh_data_create(raw);
+			md->_->skin_blob = import_arm_get_mesh_skin(i);
+			any_array_push(mesh_datas, md);
+			string_array_push(mesh_names, md->name);
+		}
+	}
+	for (i32 i = 1; i < mesh_datas->length; ++i) {
+		if (mesh_datas->buffer[i] != NULL) {
+			continue;
+		}
+		i32   source_index;
+		char *object_name;
+		util_mesh_link_parse(((mesh_data_t *)g_project->mesh_datas->buffer[i])->name, &source_index, &object_name);
+		bool linked           = source_index >= 0 && source_index < mesh_datas->length && mesh_datas->buffer[source_index] != NULL;
+		mesh_datas->buffer[i] = linked ? mesh_datas->buffer[source_index] : mesh_datas->buffer[0];
+	}
+
+	mesh_data_t *md = mesh_datas->buffer[0];
 
 	mesh_object_set_data(g_context->paint_object, md);
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
-	g_context->paint_object->base->name = md->name;
+	g_context->paint_object->base->name = mesh_names->buffer[0];
 	g_project->_->paint_objects         = any_array_create_from_raw(
         (void *[]){
             g_context->paint_object,
         },
         1);
 
-	for (i32 i = 1; i < g_project->mesh_datas->length; ++i) {
-		mesh_data_t *raw      = g_project->mesh_datas->buffer[i];
-		mesh_data_t *md       = mesh_data_create(raw);
-		md->_->skin_blob      = import_arm_get_mesh_skin(i);
-		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, g_context->paint_object->base);
-		object->base->name    = md->name;
+	for (i32 i = 1; i < mesh_datas->length; ++i) {
+		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
+		object->base->name    = mesh_names->buffer[i];
 		object->skip_context  = "paint";
 		any_array_push(g_project->_->paint_objects, object);
 	}
@@ -663,6 +687,7 @@ void import_arm_run_project(char *path) {
 			object_t *parent       = parent_index >= 0 ? g_project->_->paint_objects->buffer[parent_index]->base : NULL;
 			object_set_parent(g_project->_->paint_objects->buffer[i]->base, parent);
 		}
+		transform_build_matrix(_scene_root->transform);
 	}
 
 	if (g_project->mesh_physics_shapes != NULL) {

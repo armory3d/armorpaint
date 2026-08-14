@@ -86,7 +86,7 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 		return NULL;
 	}
 
-	mesh_data_t   *data = util_mesh_data_duplicate(so->data);
+	mesh_data_t   *data = so->data;
 	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
 	transform_set_matrix(dup->base->transform, so->base->transform->local);
 	any_array_push(g_project->_->paint_objects, dup);
@@ -99,7 +99,6 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 		ext = string_copy(_import_mesh_number_ext(++i));
 	}
 	dup->base->name = string("%s%s", oname, ext);
-	dup->data->name = dup->base->name;
 	tab_stages_add_object(dup->base->name);
 
 	// Material override
@@ -120,6 +119,8 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 
 void sim_duplicate() {
 	sim_duplicate_object(g_context->paint_object);
+	util_mesh_merge(NULL);
+	g_context->ddirty = 2;
 }
 
 void sim_delete() {
