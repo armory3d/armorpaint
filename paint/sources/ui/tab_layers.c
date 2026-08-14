@@ -5,6 +5,10 @@ i32  tab_layers_layer_name_edit   = -1;
 bool tab_layers_show_context_menu = false;
 bool tab_layers_mini;
 
+bool         tab_layers_search_show   = false;
+bool         tab_layers_search_focus  = false;
+ui_handle_t *tab_layers_search_handle = NULL;
+
 void tab_layers_button_2d_view() {
 	if (ui_button(tr("2D View"), UI_ALIGN_CENTER, "")) {
 		ui_base_show_2d_view(VIEW_2D_TYPE_LAYER);
@@ -904,28 +908,43 @@ void tab_layers_draw_layer_context_menu(slot_layer_t *l, bool mini) {
 	ui_menu_draw(&tab_layers_draw_layer_context_menu_draw, -1, -1);
 }
 
-void tab_layers_draw_layer_slot(slot_layer_t *l, i32 i, bool mini) {
+static bool tab_layers_slot_hidden(slot_layer_t *l) {
 	stage_t *stage = tab_stages_get_stage();
 	if (stage != NULL && string_array_index_of(stage->layers, l->name) < 0) {
-		return;
+		return true;
 	}
 
 	if (g_context->layer_filter > 0 && slot_layer_get_object_mask(l) > 0 && slot_layer_get_object_mask(l) != g_context->layer_filter) {
-		return;
+		return true;
 	}
 
 	bool is_sculpt_layer = l->texpaint_sculpt != NULL;
 	if (g_config->workflow == WORKFLOW_SCULPT && !is_sculpt_layer && !slot_layer_is_group(l) && !slot_layer_is_mask(l)) {
-		return;
+		return true;
 	}
 	if (g_config->workflow != WORKFLOW_SCULPT && is_sculpt_layer) {
-		return;
+		return true;
 	}
 
 	if (l->parent != NULL && !l->parent->show_panel) { // Group closed
-		return;
+		return true;
 	}
 	if (l->parent != NULL && l->parent->parent != NULL && !l->parent->parent->show_panel) {
+		return true;
+	}
+
+	if (tab_layers_search_show && tab_layers_search_handle != NULL) {
+		char *search = tab_layers_search_handle->text;
+		if (search != NULL && !string_equals(search, "") && string_index_of(to_lower_case(l->name), to_lower_case(search)) < 0) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void tab_layers_draw_layer_slot(slot_layer_t *l, i32 i, bool mini) {
+	if (tab_layers_slot_hidden(l)) {
 		return;
 	}
 
@@ -1183,8 +1202,41 @@ void tab_layers_draw_mini(ui_handle_t *htab) {
 	g_theme->ELEMENT_H = _ELEMENT_H;
 }
 
+static void tab_layers_scroll_to_layer(slot_layer_t *l) {
+	i32 row = 0;
+	for (i32 i = g_project->_->layers->length - 1; i >= 0; --i) {
+		slot_layer_t *c = g_project->_->layers->buffer[i];
+		if (tab_layers_slot_hidden(c)) {
+			continue;
+		}
+		if (c == l) {
+			break;
+		}
+		++row;
+	}
+
+	// Scroll the row into view
+	f32 slot_h = g_theme->ELEMENT_H * 2 * UI_SCALE();
+	f32 top    = g_ui->window_header_h + g_ui->current_window->scroll_offset + 2 + row * slot_h;
+	if (top < g_ui->window_header_h) {
+		g_ui->current_window->scroll_offset += g_ui->window_header_h - top;
+	}
+	else if (top + slot_h > g_ui->_window_h) {
+		g_ui->current_window->scroll_offset -= top + slot_h - g_ui->_window_h;
+	}
+}
+
 void tab_layers_draw_full(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Layers"), false, -1, false)) {
+		bool in_window = ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h);
+
+		if (in_window && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
+			tab_layers_search_show  = true;
+			tab_layers_search_focus = true;
+			g_ui->is_key_pressed    = false;
+			g_ui->key_code          = 0;
+		}
+
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw(
 		    (f32[]){
@@ -1199,26 +1251,39 @@ void tab_layers_draw_full(ui_handle_t *htab) {
 		tab_layers_button_2d_view();
 		tab_layers_combo_filter();
 
+		tab_layers_search_handle = ui_handle(__ID__);
+		if (tab_layers_search_show) {
+			bool search_selected           = g_ui->text_selected_handle == tab_layers_search_handle;
+			tab_layers_search_handle->text = string_copy(ui_text_input(tab_layers_search_handle, tr("Search"), UI_ALIGN_LEFT, true, true));
+			if (tab_layers_search_focus) { // Ctrl+f to open
+				tab_layers_search_focus = false;
+				ui_start_text_edit(tab_layers_search_handle, UI_ALIGN_LEFT);
+				g_ui->cursor_x         = string_length(tab_layers_search_handle->text);
+				g_ui->highlight_anchor = 0;
+			}
+			if ((search_selected || in_window) && g_ui->is_escape_down) {
+				tab_layers_search_show         = false;
+				tab_layers_search_handle->text = "";
+			}
+		}
+
 		ui_end_sticky();
 		g_ui->_y += 2;
 
 		tab_layers_highlight_odd_lines();
 		tab_layers_draw_slots(false);
 
-		bool in_focus = g_ui->input_x > g_ui->_window_x && g_ui->input_x < g_ui->_window_x + g_ui->_window_w && g_ui->input_y > g_ui->_window_y &&
-		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
-		if (in_focus) {
+		if (in_window && !g_ui->is_typing) {
 			// Layer selection
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_UP) {
 				i32 i = array_index_of(g_project->_->layers, g_context->layer);
 				while (++i < g_project->_->layers->length) {
 					slot_layer_t *candidate = g_project->_->layers->buffer[i];
-					if (candidate->parent != NULL && !candidate->parent->show_panel)
-						continue;
-					if (candidate->parent != NULL && candidate->parent->parent != NULL && !candidate->parent->parent->show_panel)
+					if (tab_layers_slot_hidden(candidate))
 						continue;
 					context_set_layer(candidate);
 					ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+					tab_layers_scroll_to_layer(candidate);
 					break;
 				}
 			}
@@ -1226,12 +1291,11 @@ void tab_layers_draw_full(ui_handle_t *htab) {
 				i32 i = array_index_of(g_project->_->layers, g_context->layer);
 				while (--i >= 0) {
 					slot_layer_t *candidate = g_project->_->layers->buffer[i];
-					if (candidate->parent != NULL && !candidate->parent->show_panel)
-						continue;
-					if (candidate->parent != NULL && candidate->parent->parent != NULL && !candidate->parent->parent->show_panel)
+					if (tab_layers_slot_hidden(candidate))
 						continue;
 					context_set_layer(candidate);
 					ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+					tab_layers_scroll_to_layer(candidate);
 					break;
 				}
 			}
