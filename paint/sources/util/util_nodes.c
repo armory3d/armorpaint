@@ -336,6 +336,7 @@ void ui_nodes_recompile() {
 				layers_update_path_layers();
 				util_render_make_material_preview();
 			}
+			tab_meshes_refresh_overrides(ui_nodes_is_tab_selected() ? ui_nodes_tabs->buffer[ui_nodes_tab_index()] : g_context->material);
 		}
 
 		bool decal = context_is_decal();
