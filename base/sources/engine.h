@@ -491,6 +491,7 @@ void                   mesh_data_build_indices(gpu_buffer_t *index_buffer, u32_a
 vertex_array_t        *mesh_data_get_vertex_array(mesh_data_t *raw, char *name);
 void                   mesh_data_build(mesh_data_t *raw);
 vec4_t                 mesh_data_calculate_aabb(mesh_data_t *raw);
+void                   mesh_data_calculate_aabb_min_max(mesh_data_t *raw, vec4_t *out_min, vec4_t *out_max);
 void                   mesh_data_delete(mesh_data_t *raw);
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗     ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗

@@ -898,10 +898,10 @@ void mesh_data_build(mesh_data_t *raw) {
 	mesh_data_build_indices(raw->_->index_buffer, raw->index_array);
 }
 
-vec4_t mesh_data_calculate_aabb(mesh_data_t *raw) {
+void mesh_data_calculate_aabb_min_max(mesh_data_t *raw, vec4_t *out_min, vec4_t *out_max) {
+	// Bounds relative to origin
 	vec4_t          aabb_min  = (vec4_t){-0.01, -0.01, -0.01, 0.0};
 	vec4_t          aabb_max  = (vec4_t){0.01, 0.01, 0.01, 0.0};
-	vec4_t          aabb      = (vec4_t){0.0, 0.0, 0.0, 0.0};
 	i32             i         = 0;
 	vertex_array_t *positions = mesh_data_get_vertex_array(raw, "pos");
 	while (i < positions->values->length) {
@@ -925,10 +925,16 @@ vec4_t mesh_data_calculate_aabb(mesh_data_t *raw) {
 		}
 		i += 4;
 	}
-	aabb.x = (fabsf(aabb_min.x) + fabsf(aabb_max.x)) / 32767 * raw->scale_pos;
-	aabb.y = (fabsf(aabb_min.y) + fabsf(aabb_max.y)) / 32767 * raw->scale_pos;
-	aabb.z = (fabsf(aabb_min.z) + fabsf(aabb_max.z)) / 32767 * raw->scale_pos;
-	return aabb;
+	f32 f    = raw->scale_pos / 32767.0f;
+	*out_min = (vec4_t){aabb_min.x * f, aabb_min.y * f, aabb_min.z * f, 0.0};
+	*out_max = (vec4_t){aabb_max.x * f, aabb_max.y * f, aabb_max.z * f, 0.0};
+}
+
+vec4_t mesh_data_calculate_aabb(mesh_data_t *raw) {
+	vec4_t aabb_min;
+	vec4_t aabb_max;
+	mesh_data_calculate_aabb_min_max(raw, &aabb_min, &aabb_max);
+	return (vec4_t){aabb_max.x - aabb_min.x, aabb_max.y - aabb_min.y, aabb_max.z - aabb_min.z, 0.0};
 }
 
 void mesh_data_delete(mesh_data_t *raw) {
