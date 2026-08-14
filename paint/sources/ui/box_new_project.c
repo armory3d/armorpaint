@@ -14,6 +14,10 @@ void project_fetch_default_meshes() {
 		any_array_push(project_default_mesh_list, "plane_2048");
 		any_array_push(project_default_mesh_list, "sphere");
 		any_array_push(project_default_mesh_list, "sphere_2048");
+
+		if (g_context->project_type == -1) {
+			g_context->project_type = string_array_index_of(project_default_mesh_list, "cube_bevel");
+		}
 	}
 }
 

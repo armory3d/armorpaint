@@ -192,7 +192,7 @@ void main() {
 
     setup_colors();
 
-    object_t *proto = script_shape_add("box");
+    object_t *proto = script_shape_add("cube");
     mesh_object_t *proto_mo = proto->ext;
     mesh_data_t *shared_data = proto_mo->data;
     material_data_t *shared_mat = proto_mo->material;

@@ -136,8 +136,9 @@ void project_new(bool reset_layers) {
 	g_context->texture             = NULL;
 	g_project->mesh_assets         = any_array_create_from_raw((void *[]){}, 0);
 
-	mesh_data_t *raw       = NULL;
-	char        *mesh_name = project_default_mesh_list == NULL ? "box_bevel" : project_default_mesh_list->buffer[g_context->project_type];
+	mesh_data_t *raw        = NULL;
+	bool         no_default = project_default_mesh_list == NULL || g_context->project_type == -1;
+	char        *mesh_name  = no_default ? "cube_bevel" : project_default_mesh_list->buffer[g_context->project_type];
 
 	if (string_equals(mesh_name, "sphere")) {
 		raw_mesh_t *mesh = geom_make_uv_sphere(1, 128, 64, true, 1.0);

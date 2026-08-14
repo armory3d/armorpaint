@@ -171,6 +171,7 @@ void context_init() {
 	g_context->color_picker_previous_tool   = TOOL_TYPE_BRUSH;
 	g_context->brush_radius                 = 0.5;
 	g_context->brush_hardness               = 1.0;
+	g_context->project_type                 = -1;
 }
 
 bool context_use_deferred() {
