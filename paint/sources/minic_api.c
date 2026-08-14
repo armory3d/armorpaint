@@ -848,7 +848,7 @@ void minic_register_builtins() {
 	R(scene_get_child, "p:object_t(p:char name)");
 	R(scene_add_mesh_object, "p:mesh_object_t(p:mesh_data_t data,p:material_data_t material,p:object_t parent)");
 	R(scene_add_camera_object, "p:camera_object_t(p:camera_data_t data,p:object_t parent)");
-	R(scene_add_scene, "p:object_t(p:char scene_name,p:object_t parent)");
+	R(scene_add_scene, "v(p:char scene_name)");
 	R(scene_spawn_object, "p:object_t(p:char name,p:object_t parent,i spawn_children)");
 	R(scene_get_raw_object_by_name, "p:obj_t(p:scene_t format,p:char name)");
 	R(scene_create_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent)");
