@@ -37,19 +37,40 @@ void tab_sounds_draw(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Sounds"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
-		    (f32[]){
-		        -100,
-		    },
-		    1);
+
+		ui_handle_t *hsearch = ui_handle(__ID__);
+
+		f32_array_t *row = string_equals(hsearch->text, "") ? f32_array_create_from_raw(
+		                                                          (f32[]){
+		                                                              -100,
+		                                                              -200,
+		                                                          },
+		                                                          2)
+		                                                    : f32_array_create_from_raw(
+		                                                          (f32[]){
+		                                                              -100,
+		                                                              -200,
+		                                                              -40,
+		                                                          },
+		                                                          3);
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			project_import_asset("wav,ogg", true);
 		}
 
+		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
+		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
+			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
+		}
+		if (!string_equals(hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
+			hsearch->text = "";
+		}
+
 		ui_end_sticky();
 		ui_separator(3, false);
+
+		char *search = to_lower_case(hsearch->text);
 
 		i32 slotw = math_floor(51 * UI_SCALE());
 		i32 num   = math_floor(g_ui->_window_w / (float)slotw);
@@ -57,12 +78,19 @@ void tab_sounds_draw(ui_handle_t *htab) {
 			return;
 		}
 
+		i32_array_t *filtered = i32_array_create_from_raw((i32[]){}, 0);
+		for (i32 i = 0; i < g_project->_->sounds->length; ++i) {
+			if (string_equals(search, "") || string_index_of(to_lower_case(g_project->_->sounds->buffer[i]->name), search) >= 0) {
+				i32_array_push(filtered, i);
+			}
+		}
+
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
 		f32  uiy          = 0.0;
 		i32  imgw_val     = math_floor(50 * UI_SCALE());
 
-		for (i32 row = 0; row < math_floor(math_ceil(g_project->_->sounds->length / (float)num)); ++row) {
+		for (i32 row = 0; row < math_floor(math_ceil(filtered->length / (float)num)); ++row) {
 			i32          mult = g_config->show_asset_names ? 2 : 1;
 			f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
 			for (i32 i = 0; i < num * mult; ++i) {
@@ -78,14 +106,16 @@ void tab_sounds_draw(ui_handle_t *htab) {
 
 			for (i32 j = 0; j < num; ++j) {
 				i32 imgw = math_floor(50 * UI_SCALE());
-				i32 i    = j + row * num;
-				if (i >= g_project->_->sounds->length) {
+				i32 fi   = j + row * num;
+				if (fi >= filtered->length) {
 					ui_end_element_of_size(imgw);
 					if (g_config->show_asset_names) {
 						ui_end_element_of_size(0);
 					}
 					continue;
 				}
+				i32 i = filtered->buffer[fi];
+
 				gpu_texture_t *img = g_project->_->sounds->buffer[i]->image;
 
 				if (g_context->sound == g_project->_->sounds->buffer[i]) {
@@ -117,7 +147,7 @@ void tab_sounds_draw(ui_handle_t *htab) {
 				state = ui_sub_image(resource_get("icons.k"), -1, -1.0, tile * 7, tile * 9, tile, tile);
 				// }
 
-				if (state == UI_STATE_HOVERED && base_drag_sound != NULL) {
+				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "")) {
 					tab_sounds_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
 					drag_pos_set        = true;
 				}
@@ -163,7 +193,7 @@ void tab_sounds_draw(ui_handle_t *htab) {
 						ui_tooltip(g_project->_->sounds->buffer[i]->name);
 					}
 					g_ui->_y -= slotw * 0.9;
-					if (i == g_project->_->sounds->length - 1) {
+					if (fi == filtered->length - 1) {
 						g_ui->_y += j == num - 1 ? imgw : imgw + UI_ELEMENT_H() + UI_ELEMENT_OFFSET();
 					}
 				}
