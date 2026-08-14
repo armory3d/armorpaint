@@ -1231,6 +1231,7 @@ void minic_register_builtins() {
 	R(script_get_config, "p:config_t()");
 	R(script_get_project, "p:project_t()");
 	R(script_get_object, "p:object_t(p:char s)");
+	R(script_get_material, "p:slot_material_t(p:char s)");
 	R(script_shape_add, "p:object_t(p:char name)");
 	R(script_object_duplicate, "p:object_t(p:object_t o)");
 	R(script_add_trait, "v(p:char object,p:char trait)");

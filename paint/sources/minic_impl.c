@@ -164,6 +164,15 @@ object_t *script_get_object(char *s) {
 	return NULL;
 }
 
+slot_material_t *script_get_material(char *s) {
+	for (int i = 0; i < g_project->_->materials->length; ++i) {
+		if (string_equals(g_project->_->materials->buffer[i]->canvas->name, s)) {
+			return g_project->_->materials->buffer[i];
+		}
+	}
+	return NULL;
+}
+
 static bool script_paint_active = false;
 static bool script_paint_first  = true;
 
