@@ -83,9 +83,8 @@ void tab_debug_draw(ui_handle_t *htab) {
 		if (ui_panel(h1, "Scene", false, false, false)) {
 			tab_debug_line_counter = 0;
 
-			object_t *scene = _scene_root->children->buffer[0];
-			for (i32 i = 0; i < scene->children->length; ++i) {
-				object_t *c = scene->children->buffer[i];
+			for (i32 i = 0; i < _scene_root->children->length; ++i) {
+				object_t *c = _scene_root->children->buffer[i];
 				tab_debug_draw_list(ui_handle(__ID__), c);
 			}
 		}
