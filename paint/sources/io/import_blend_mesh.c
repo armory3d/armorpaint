@@ -38,11 +38,12 @@ void import_blend_mesh_run(char *path, bool replace_existing) {
 		return;
 	}
 
-	char *save       = "tmp.obj";
-	char *bpy_folder = "data/";
-	if (path_is_protected()) {
-		save       = string("%s%s", iron_internal_save_path(), save);
-		bpy_folder = "";
+	// Blender must write the temporary OBJ to a user-writable location. The
+	// working directory can be read-only on Linux and in installed builds.
+	char *save       = string("%stmp.obj", iron_internal_save_path());
+	char *bpy_folder = "";
+	if (iron_file_exists(save)) {
+		iron_delete_file(save);
 	}
 
 	// Have to use ; instead of \n on windows
@@ -54,5 +55,9 @@ void import_blend_mesh_run(char *path, bool replace_existing) {
 	char *bl = string_replace_all(g_config->blender, " ", "\\ ");
 #endif
 	iron_sys_command(string("%s \"%s\" -b --python-expr \"%s\"", bl, path, py));
+	if (!iron_file_exists(save)) {
+		console_error(tr("Error: Blender did not create the temporary OBJ"));
+		return;
+	}
 	import_obj_run(save, replace_existing);
 }

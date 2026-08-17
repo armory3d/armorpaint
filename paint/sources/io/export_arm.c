@@ -380,7 +380,10 @@ void export_arm_run_project() {
 #endif
 
 	if (g_context->pack_assets_on_save) { // Pack textures
-		export_arm_pack_assets(g_project, g_project->_->assets);
+		if (!export_arm_pack_assets(g_project, g_project->_->assets)) {
+			console_error(tr("Error: Could not pack project assets"));
+			return;
+		}
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
@@ -509,7 +512,10 @@ void export_arm_run_material(char *path) {
 	}
 
 	if (g_context->pack_assets_on_export) { // Pack textures
-		export_arm_pack_assets(raw, assets);
+		if (!export_arm_pack_assets(raw, assets)) {
+			console_error(tr("Error: Could not pack material assets"));
+			return;
+		}
 	}
 
 	buffer_t *buffer = util_encode_project(raw);
@@ -561,27 +567,45 @@ void export_arm_run_brush(char *path) {
 	}
 
 	if (g_context->pack_assets_on_export) { // Pack textures
-		export_arm_pack_assets(raw, assets);
+		if (!export_arm_pack_assets(raw, assets)) {
+			console_error(tr("Error: Could not pack brush assets"));
+			return;
+		}
 	}
 
 	buffer_t *buffer = util_encode_project(raw);
 	iron_file_save_bytes(path, buffer, buffer->length + 1);
 }
 
-void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
+bool export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
+	if (raw == NULL || assets == NULL) {
+		return raw != NULL;
+	}
 	if (raw->packed_assets == NULL) {
 		raw->packed_assets = any_array_create_from_raw((void *[]){}, 0);
 	}
+	bool                  success     = true;
 	gpu_texture_t_array_t *temp_images = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < assets->length; ++i) {
-		if (!project_packed_asset_exists(raw->packed_assets, assets->buffer[i]->file)) {
-			gpu_texture_t *image = project_get_image(assets->buffer[i]);
+		asset_t *asset = assets->buffer[i];
+		if (asset == NULL || asset->file == NULL || string_equals(asset->file, "")) {
+			console_error(tr("Error: Invalid texture asset"));
+			success = false;
+			continue;
+		}
+		if (!project_packed_asset_exists(raw->packed_assets, asset->file)) {
+			gpu_texture_t *image = project_get_image(asset);
+			if (image == NULL) {
+				console_error(tr("Error: Texture asset is not loaded"));
+				success = false;
+				continue;
+			}
 			gpu_texture_t *temp  = gpu_create_render_target(image->width, image->height, GPU_TEXTURE_FORMAT_RGBA32);
 			draw_begin(temp, false, 0);
 			draw_image(image, 0, 0);
 			draw_end();
 			any_array_push(temp_images, temp);
-			packed_asset_t *pa = GC_ALLOC_INIT(packed_asset_t, {.name  = assets->buffer[i]->file,
+			packed_asset_t *pa = GC_ALLOC_INIT(packed_asset_t, {.name  = asset->file,
 			                                                    .bytes = ends_with(assets->buffer[i]->file, ".jpg")
 			                                                                 ? iron_encode_jpg(gpu_get_texture_pixels(temp), temp->width, temp->height, 0, 80)
 			                                                                 : iron_encode_png(gpu_get_texture_pixels(temp), temp->width, temp->height, 0)});
@@ -593,6 +617,7 @@ void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
 		gpu_texture_t *image = temp_images->buffer[i];
 		gpu_delete_texture(image);
 	}
+	return success;
 }
 
 void export_arm_run_swatches(char *path) {

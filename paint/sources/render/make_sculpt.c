@@ -1018,6 +1018,9 @@ void sculpt_init() {
 
 void sculpt_layers_create_sculpt_layer() {
 	slot_layer_t *l = layers_new_layer(true, -1, NULL);
+	if (l == NULL) {
+		return;
+	}
 	l->name         = string("Sculpt %d", l->id + 1);
 	sculpt_init_meshes();
 	sculpt_init_sculpt_texture(l);

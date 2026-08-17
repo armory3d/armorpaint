@@ -162,6 +162,12 @@ void tab_layers_draw_layer_slot_mini(slot_layer_t *l, i32 i) {
 }
 
 void tab_layers_delete_layer(slot_layer_t *l) {
+	if (l == NULL) {
+		return;
+	}
+	bool          l_is_mask        = slot_layer_is_mask(l);
+	slot_layer_t *l_parent        = l->parent;
+	slot_layer_t *l_group_parent  = slot_layer_is_in_group(l) ? slot_layer_get_containing_group(l) : NULL;
 	i32_map_t *pointers = tab_layers_init_layer_map();
 
 	if (slot_layer_is_layer(l) && slot_layer_has_masks(l, false)) {
@@ -204,14 +210,14 @@ void tab_layers_delete_layer(slot_layer_t *l) {
 	history_delete_layer();
 	slot_layer_delete(l);
 
-	if (slot_layer_is_mask(l)) {
-		g_context->layer = l->parent;
+	if (l_is_mask && l_parent != NULL) {
+		g_context->layer = l_parent;
 		layers_update_fill_layers();
 	}
 
 	// Remove empty group
-	if (slot_layer_is_in_group(l) && slot_layer_get_children(slot_layer_get_containing_group(l)) == NULL) {
-		slot_layer_t *g = slot_layer_get_containing_group(l);
+	if (l_group_parent != NULL && slot_layer_get_children(l_group_parent) == NULL) {
+		slot_layer_t *g = l_group_parent;
 		// Maybe some group masks are left
 		if (slot_layer_has_masks(g, true)) {
 			for (i32 i = 0; i < slot_layer_get_masks(g, true)->length; ++i) {
@@ -221,9 +227,9 @@ void tab_layers_delete_layer(slot_layer_t *l) {
 				slot_layer_delete(m);
 			}
 		}
-		g_context->layer = l->parent;
+		g_context->layer = l_parent != NULL ? l_parent : g;
 		history_delete_layer();
-		slot_layer_delete(l->parent);
+		slot_layer_delete(g);
 	}
 	g_context->ddirty = 2;
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -1048,7 +1054,10 @@ void tab_layers_button_new_menu() {
 	}
 	else {
 		if (ui_menu_button(tr("Paint Layer"), "", ICON_PAINT)) {
-			layers_new_layer(true, -1, NULL);
+			slot_layer_t *new_layer = layers_new_layer(true, -1, NULL);
+			if (new_layer == NULL) {
+				return;
+			}
 			history_new_layer();
 		}
 	}
@@ -1059,11 +1068,15 @@ void tab_layers_button_new_menu() {
 		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1);
 	}
 	if (ui_menu_button(tr("Path"), "", ICON_PATH)) {
-		layers_new_path_layer(false);
+		if (layers_new_path_layer(false) == NULL) {
+			return;
+		}
 		history_new_layer();
 	}
 	if (ui_menu_button(tr("Curve"), "", ICON_CURVE)) {
-		layers_new_path_layer(true);
+		if (layers_new_path_layer(true) == NULL) {
+			return;
+		}
 		history_new_layer();
 	}
 	if (ui_menu_button(tr("Black Mask"), "", ICON_MASK)) {
@@ -1074,6 +1087,9 @@ void tab_layers_button_new_menu() {
 
 		i32_map_t    *pointers = tab_layers_init_layer_map();
 		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		if (m == NULL) {
+			return;
+		}
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1091,6 +1107,9 @@ void tab_layers_button_new_menu() {
 
 		i32_map_t    *pointers = tab_layers_init_layer_map();
 		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		if (m == NULL) {
+			return;
+		}
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1108,6 +1127,9 @@ void tab_layers_button_new_menu() {
 
 		i32_map_t    *pointers = tab_layers_init_layer_map();
 		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		if (m == NULL) {
+			return;
+		}
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1135,6 +1157,9 @@ void tab_layers_button_new_menu() {
 
 		i32_map_t    *pointers = tab_layers_init_layer_map();
 		slot_layer_t *group    = layers_new_group();
+		if (group == NULL) {
+			return;
+		}
 		context_set_layer(l);
 		array_remove(g_project->_->layers, group);
 		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);

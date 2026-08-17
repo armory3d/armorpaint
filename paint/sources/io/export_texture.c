@@ -47,7 +47,9 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		        asset,
 		    },
 		    1);
-		export_arm_pack_assets(g_project, assets);
+		if (!export_arm_pack_assets(g_project, assets)) {
+			console_error(tr("Error: Could not pack exported texture"));
+		}
 		return;
 	}
 
@@ -145,6 +147,10 @@ static void export_texture_set_channel(i32 value, buffer_t *to, i32 to_channel, 
 }
 
 static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, char *object_name, bool bake_material) {
+	if (layers == NULL || layers->length == 0 || layers->buffer[0] == NULL || layers->buffer[0]->texpaint == NULL) {
+		console_error(tr("Error: No paint layer available for texture export"));
+		return;
+	}
 	i32 texture_size_x = config_get_texture_res_x();
 	i32 texture_size_y = config_get_texture_res_y();
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
@@ -494,7 +500,13 @@ void export_texture_run(char *path, bool bake_material) {
 	////
 	if (box_export_files == NULL) {
 		box_export_fetch_presets();
+	}
+	if (box_export_preset == NULL) {
 		box_export_parse_preset();
+	}
+	if (box_export_preset == NULL || box_export_preset->textures == NULL) {
+		console_error(tr("Error: No valid export preset available"));
+		return;
 	}
 	////
 
