@@ -419,6 +419,7 @@ char                     *strings_arm_file_expected();
 char                     *strings_unknown_asset_format();
 char                     *strings_could_not_locate_texture();
 char                     *strings_failed_to_read_mesh_data();
+char                     *strings_udim_face_spans_tiles();
 char                     *strings_check_internet_connection();
 char                     *strings_asset_already_imported();
 char                     *strings_graphics_api();

@@ -10,6 +10,10 @@ void import_obj_run(char *path, bool replace_existing) {
 
 	if (is_udim) {
 		raw_mesh_t *part = obj_parse(b, split_code, 0, is_udim);
+		if (part->udim_split_invalid) {
+			console_error(strings_udim_face_spans_tiles());
+			return;
+		}
 		char       *name = part->name;
 		for (i32 i = 0; i < part->udims->length; ++i) {
 			u32_array_t *a = part->udims->buffer[i];

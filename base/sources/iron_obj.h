@@ -20,6 +20,7 @@ typedef struct raw_mesh {
 	bool              has_next; // File contains multiple objects
 	uint64_t          pos;
 	struct any_array *udims;   // u32_array_t[] - Indices split per udim tile
+	bool              udim_split_invalid;
 	int               udims_u; // Number of horizontal udim tiles
 	int               udims_v;
 	void             *vertex_arrays; // vertex_array_t[]

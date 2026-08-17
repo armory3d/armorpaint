@@ -192,6 +192,16 @@ static int get_tile(int i1, int i2, int i3, i32_array_t *uv_indices, int tiles_u
 	return tile_u + tile_v * tiles_u;
 }
 
+static bool face_spans_udim_tiles(int i1, int i2, int i3, i32_array_t *uv_indices) {
+	int u1 = (int)uv_temp.buffer[uv_indices->buffer[i1] * 2];
+	int v1 = (int)uv_temp.buffer[uv_indices->buffer[i1] * 2 + 1];
+	int u2 = (int)uv_temp.buffer[uv_indices->buffer[i2] * 2];
+	int v2 = (int)uv_temp.buffer[uv_indices->buffer[i2] * 2 + 1];
+	int u3 = (int)uv_temp.buffer[uv_indices->buffer[i3] * 2];
+	int v3 = (int)uv_temp.buffer[uv_indices->buffer[i3] * 2 + 1];
+	return u1 != u2 || u1 != u3 || v1 != v2 || v1 != v3;
+}
+
 static bool pnpoly(float v0x, float v0y, float v1x, float v1y, float v2x, float v2y, float px, float py) {
 	// https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
 	bool c = false;
@@ -558,7 +568,15 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			uint32_t *num = (uint32_t *)malloc(tiles_u * tiles_v * sizeof(uint32_t));
 			memset(num, 0, tiles_u * tiles_v * sizeof(uint32_t));
 			for (int i = 0; i < (int)(inda_length / 3); ++i) {
-				int tile = get_tile(part->inda->buffer[i * 3], part->inda->buffer[i * 3 + 1], part->inda->buffer[i * 3 + 2], &uv_indices, tiles_u);
+				int i1 = part->inda->buffer[i * 3];
+				int i2 = part->inda->buffer[i * 3 + 1];
+				int i3 = part->inda->buffer[i * 3 + 2];
+				if (face_spans_udim_tiles(i1, i2, i3, &uv_indices)) {
+					part->udim_split_invalid = true;
+					free(num);
+					return part;
+				}
+				int tile = get_tile(i1, i2, i3, &uv_indices, tiles_u);
 				num[tile] += 3;
 			}
 
