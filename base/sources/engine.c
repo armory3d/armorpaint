@@ -235,11 +235,11 @@ void transform_compute_radius(transform_t *raw) {
 
 void transform_compute_dim(transform_t *raw) {
 	if (raw->object->raw == NULL && string_equals(raw->object->ext_type, "mesh_object_t")) {
-		mesh_object_t *mo    = (mesh_object_t *)raw->object->ext;
-		vec4_t         aabb  = mesh_data_calculate_aabb(mo->data);
-		obj_t         *o_raw = calloc(1, sizeof(obj_t));
-		o_raw->dimensions    = f32_array_create_xyz(aabb.x, aabb.y, aabb.z);
-		raw->object->raw     = o_raw;
+		mesh_object_t *mo     = (mesh_object_t *)raw->object->ext;
+		vec4_t         aabb   = mesh_data_calculate_aabb(mo->data);
+		obj_t         *o_raw  = calloc(1, sizeof(obj_t));
+		o_raw->dimensions     = f32_array_create_xyz(aabb.x, aabb.y, aabb.z);
+		raw->object->raw      = o_raw;
 		raw->object->owns_raw = true;
 	}
 
@@ -1894,7 +1894,7 @@ gpu_texture_t *iron_load_texture(char *file);
 void           gpu_delete_texture(gpu_texture_t *texture);
 void          *iron_load_sound(char *file);
 #ifdef WITH_EMBED
-bool           embed_owns(uint8_t *buffer);
+bool embed_owns(uint8_t *buffer);
 #endif
 
 char *data_path(void) {
@@ -2205,7 +2205,7 @@ object_t *scene_create(scene_t *format) {
 
 	scene_embedded = any_map_create();
 
-	_scene_root = object_create(true);
+	_scene_root       = object_create(true);
 	_scene_root->name = format->name;
 
 	_scene_raw = format;
@@ -2531,8 +2531,8 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 		gpu_viewport(sys_x(), render_path_current_h - (sys_h() - sys_y()), sys_w(), sys_h());
 	}
 	else { // Render target
-		render_target_t *rt = (render_target_t *)any_map_get(render_path_render_targets, target);
-		_render_path_current_target = rt;
+		render_target_t *rt                          = (render_target_t *)any_map_get(render_path_render_targets, target);
+		_render_path_current_target                  = rt;
 		static any_array_t additional_images_scratch = {0};
 		any_array_t       *additional_images         = NULL;
 		if (additional != NULL) {
@@ -2544,9 +2544,9 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 			}
 			additional_images = &additional_images_scratch;
 		}
-		render_path_current_w = rt->_image->width;
-		render_path_current_h = rt->_image->height;
-		render_target_t *db   = depth_buffer != NULL ? (render_target_t *)any_map_get(render_path_render_targets, depth_buffer) : NULL;
+		render_path_current_w      = rt->_image->width;
+		render_path_current_h      = rt->_image->height;
+		render_target_t *db        = depth_buffer != NULL ? (render_target_t *)any_map_get(render_path_render_targets, depth_buffer) : NULL;
 		_render_path_current_image = rt->_image;
 		_gpu_begin(rt->_image, additional_images, db != NULL ? db->_image : NULL, flags, color, depth);
 	}
@@ -2556,7 +2556,7 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 void render_path_end(void) {
 	gpu_end();
 	_render_path_current_image = NULL;
-	_render_path_bind_params = NULL;
+	_render_path_bind_params   = NULL;
 }
 
 void render_path_draw_meshes(char *context) {

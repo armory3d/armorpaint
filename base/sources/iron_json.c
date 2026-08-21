@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #ifdef IRON_WASM
 #define PTR_SIZE 4
 #else

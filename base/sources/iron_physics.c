@@ -84,17 +84,17 @@ typedef struct {
 	int    active;
 } terrain_t;
 
-static sphere_t    spheres[MAX_SPHERES];
-static box_t       boxes[MAX_BOXES];
+static sphere_t       spheres[MAX_SPHERES];
+static box_t          boxes[MAX_BOXES];
 static physics_pair_t pairs[MAX_BODIES];
-static float       pair_best[MAX_BODIES];
+static float          pair_best[MAX_BODIES];
 static physics_pair_t null_pair;
-static mesh_t      mesh;
-static terrain_t   terrain;
-static aabb_t      root_bounds     = {{-10, -10, -10}, {10, 10, 10}};
-static float       physics_bounciness = 0.0f;
-static float       physics_friction   = 0.01f;
-static vec4_t      physics_gravity    = {0.0f, 0.0f, GRAVITY};
+static mesh_t         mesh;
+static terrain_t      terrain;
+static aabb_t         root_bounds        = {{-10, -10, -10}, {10, 10, 10}};
+static float          physics_bounciness = 0.0f;
+static float          physics_friction   = 0.01f;
+static vec4_t         physics_gravity    = {0.0f, 0.0f, GRAVITY};
 
 static inline int box_pair(int slot) {
 	return MAX_SPHERES + slot;
@@ -987,8 +987,8 @@ void physics_world_update() {
 
 	// Write the simulated state back into the scene
 	for (int i = 0; i < scene_meshes->length; i++) {
-		mesh_object_t *mo   = scene_meshes->buffer[i];
-		physics_body_t   *body = mo->base->_->body;
+		mesh_object_t  *mo   = scene_meshes->buffer[i];
+		physics_body_t *body = mo->base->_->body;
 		if (body != NULL) {
 			physics_body_update(body);
 		}
@@ -1327,10 +1327,10 @@ static bool mesh_bounds(object_t *obj, vec4_t *center, vec4_t *extent) {
 
 physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float mass) {
 	physics_body_t *body = ALLOC_INIT(physics_body_t, {0});
-	body->shape       = shape;
-	body->mass        = mass;
-	body->obj         = obj;
-	obj->_->body      = body;
+	body->shape          = shape;
+	body->mass           = mass;
+	body->obj            = obj;
+	obj->_->body         = body;
 
 	transform_compute_dim(obj->transform);
 	body->dimx = obj->transform->dim.x;
@@ -1347,9 +1347,9 @@ physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float 
 		}
 	}
 
-	float              scale_pos = 1.0f;
-	void              *posa      = NULL;
-	u32_array_t       *inda      = NULL;
+	float                 scale_pos = 1.0f;
+	void                 *posa      = NULL;
+	u32_array_t          *inda      = NULL;
 	physics_heightfield_t field     = {0};
 
 	if (shape == PHYSICS_SHAPE_MESH || shape == PHYSICS_SHAPE_TERRAIN) {

@@ -749,7 +749,6 @@ static int xk_to_iron(KeySym symbol) {
 	return KEY_CODE_UNKNOWN;
 }
 
-
 static char *uri_decode(const char *src) {
 	char *res = calloc(1, 1024);
 	char *dst = res;

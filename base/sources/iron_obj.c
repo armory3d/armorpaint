@@ -1,7 +1,7 @@
 #include "iron_obj.h"
 
-#include "iron_array.h"
 #include "iron_alloc.h"
+#include "iron_array.h"
 #include "iron_math.h"
 #include "iron_string.h"
 #include <math.h>

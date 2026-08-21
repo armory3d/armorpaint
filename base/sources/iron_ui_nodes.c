@@ -1,9 +1,9 @@
 #include "iron_ui.h"
 
+#include "iron_alloc.h"
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_draw.h"
-#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_json.h"
 #include "iron_string.h"
@@ -1268,7 +1268,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_node_link_array_t links   = {.buffer = copy_links, .length = copy_links_count};
 			copy_canvas.nodes            = &nodes;
 			copy_canvas.links            = &links;
-			ui_clipboard = ui_node_canvas_to_json(&copy_canvas);
+			ui_clipboard                 = ui_node_canvas_to_json(&copy_canvas);
 			iron_copy_to_clipboard(ui_clipboard);
 		}
 		cut_selected = ui_is_cut;

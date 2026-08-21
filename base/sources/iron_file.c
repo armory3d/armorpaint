@@ -717,7 +717,7 @@ void file_init_cloud_bytes(void (*done)(void), char *append, char *server) {
 }
 
 void file_init_cloud(void (*done)(void), char *server) {
-	file_cloud = any_map_create();
+	file_cloud       = any_map_create();
 	file_cloud_sizes = i32_map_create();
 	file_init_cloud_bytes(done, NULL, server);
 }

@@ -111,8 +111,8 @@ void input_register(void) {
 	string_array_push(_mouse_buttons, "side1");
 	string_array_push(_mouse_buttons, "side2");
 
-	_mouse_buttons_down = u8_array_create(0);
-	_mouse_buttons_started = u8_array_create(0);
+	_mouse_buttons_down     = u8_array_create(0);
+	_mouse_buttons_started  = u8_array_create(0);
 	_mouse_buttons_released = u8_array_create(0);
 	for (i32 i = 0; i < 5; ++i) {
 		u8_array_push(_mouse_buttons_down, 0);
@@ -138,8 +138,8 @@ void input_register(void) {
 	pen_buttons = string_array_create(0);
 	string_array_push(pen_buttons, "tip");
 
-	pen_buttons_down = u8_array_create(0);
-	pen_buttons_started = u8_array_create(0);
+	pen_buttons_down     = u8_array_create(0);
+	pen_buttons_started  = u8_array_create(0);
 	pen_buttons_released = u8_array_create(0);
 	u8_array_push(pen_buttons_down, 0);
 	u8_array_push(pen_buttons_started, 0);
@@ -251,8 +251,8 @@ void input_register(void) {
 	string_array_push(keyboard_keys, "f11");
 	string_array_push(keyboard_keys, "f12");
 
-	keyboard_keys_down = i32_map_create();
-	keyboard_keys_started = i32_map_create();
+	keyboard_keys_down     = i32_map_create();
+	keyboard_keys_started  = i32_map_create();
 	keyboard_keys_released = i32_map_create();
 
 	keyboard_keys_frame = string_array_create(0);

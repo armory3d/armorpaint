@@ -3,11 +3,11 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types"
 
 #include "const_data.h"
+#include "iron_alloc.h"
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_draw.h"
 #include "iron_file.h"
-#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_json.h"
 #include "iron_lz4.h"
@@ -871,9 +871,9 @@ gpu_texture_t *iron_load_texture(char *file) {
 	iron_file_reader_read(&reader, data, size);
 	iron_file_reader_close(&reader);
 	buffer_t buf;
-	buf.buffer                = data;
-	buf.length                = size;
-	gpu_texture_t *texture    = gpu_create_texture_from_encoded_bytes(&buf, file);
+	buf.buffer             = data;
+	buf.length             = size;
+	gpu_texture_t *texture = gpu_create_texture_from_encoded_bytes(&buf, file);
 	free(data); // Encoded bytes are decoded into a separate buffer
 	return texture;
 }

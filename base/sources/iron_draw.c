@@ -1,7 +1,7 @@
 #include "iron_draw.h"
 #include "const_data.h"
-#include "iron_file.h"
 #include "iron_alloc.h"
+#include "iron_file.h"
 #include "iron_gpu.h"
 #include "iron_math.h"
 #include "iron_simd.h"
@@ -693,7 +693,6 @@ void draw_font_init_glyphs(int from, int to) {
 	draw_font_glyph_blocks->buffer[0] = from;
 	draw_font_glyph_blocks->buffer[1] = to - 1;
 	draw_glyphs_version++;
-
 }
 
 bool draw_font_has_glyph(int glyph) {

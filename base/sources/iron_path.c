@@ -3,9 +3,9 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "iron_alloc.h"
 #include "iron_array.h"
 #include "iron_file.h"
-#include "iron_alloc.h"
 #include "iron_map.h"
 #include "iron_string.h"
 
@@ -219,8 +219,8 @@ char *path_to_relative(char *from, char *to) {
 }
 
 char *path_normalize(char *path) {
-	size_t path_len  = strlen(path);
-	char  *trimmed   = NULL;
+	size_t path_len = strlen(path);
+	char  *trimmed  = NULL;
 	if (path_len > 0 && ends_with(path, PATH_SEP)) {
 		trimmed = substring(path, 0, path_len - 1);
 		path    = trimmed;

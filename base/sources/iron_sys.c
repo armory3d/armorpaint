@@ -1,8 +1,8 @@
 #include "iron_sys.h"
 
+#include "iron_alloc.h"
 #include "iron_array.h"
 #include "iron_draw.h"
-#include "iron_alloc.h"
 #include "iron_input.h"
 #include "iron_map.h"
 #include "iron_string.h"
@@ -82,12 +82,12 @@ static callback_t *_callback_create(void (*f)(void *data), void *data) {
 void sys_start(iron_window_options_t *ops) {
 	_sys_foreground_listeners = any_array_create(0);
 	_sys_background_listeners = any_array_create(0);
-	_sys_shutdown_listeners = any_array_create(0);
+	_sys_shutdown_listeners   = any_array_create(0);
 	_sys_drop_files_listeners = any_array_create(0);
-	_sys_on_next_frames = any_array_create(0);
-	_sys_on_end_frames = any_array_create(0);
-	_sys_on_updates = any_array_create(0);
-	_sys_shaders = any_map_create();
+	_sys_on_next_frames       = any_array_create(0);
+	_sys_on_end_frames        = any_array_create(0);
+	_sys_on_updates           = any_array_create(0);
+	_sys_shaders              = any_map_create();
 
 	_iron_init(ops);
 
