@@ -759,13 +759,13 @@ void minic_register_builtins() {
 	R(sinf, "f(f x)");
 
 	// object
-	R(object_create, "p:object_t(i is_empty)");
+	// R(object_create, "p:object_t(i is_empty)");
 	R(object_set_parent, "v(p:object_t raw,p:object_t parent_object)");
 	R(object_remove, "v(p:object_t raw)");
 	R(object_get_child, "p:object_t(p:object_t raw,p:char name)");
 
 	// transform
-	R(transform_create, "p:transform_t(p:object_t object)");
+	// R(transform_create, "p:transform_t(p:object_t object)");
 	R(transform_reset, "v(p:transform_t raw)");
 	R(transform_update, "v(p:transform_t raw)");
 	R(transform_build_matrix, "v(p:transform_t raw)");
@@ -775,7 +775,7 @@ void minic_register_builtins() {
 	R(transform_world_z, "f(p:transform_t raw)");
 
 	// camera_object
-	R(camera_object_create, "p:camera_object_t(p:camera_data_t data)");
+	// R(camera_object_create, "p:camera_object_t(p:camera_data_t data)");
 	R(camera_object_build_proj, "v(p:camera_object_t raw,f screen_aspect)");
 	R(camera_object_remove, "v(p:camera_object_t raw)");
 	R(camera_object_build_mat, "v(p:camera_object_t raw)");
@@ -785,13 +785,13 @@ void minic_register_builtins() {
 	R(world_data_load_envmap, "v(p:world_data_t raw)");
 
 	// material_data
-	R(material_data_create, "p:material_data_t(p:material_data_t raw,p:char file)");
+	// R(material_data_create, "p:material_data_t(p:material_data_t raw,p:char file)");
 	R(material_data_parse, "p:material_data_t(p:char file,p:char name)");
 	R(material_data_get_context, "p:material_context_t(p:material_data_t raw,p:char name)");
 	R(material_context_load, "v(p:material_context_t raw)");
 
 	// shader_data
-	R(shader_data_create, "p:shader_data_t(p:shader_data_t raw)");
+	// R(shader_data_create, "p:shader_data_t(p:shader_data_t raw)");
 	R(shader_data_parse, "p:shader_data_t(p:char file,p:char name)");
 	R(shader_data_delete, "v(p:shader_data_t raw)");
 	R(shader_data_get_context, "p:shader_context_t(p:shader_data_t raw,p:char name)");
@@ -806,7 +806,7 @@ void minic_register_builtins() {
 
 	// mesh_data
 	R(mesh_data_parse, "p:mesh_data_t(p:char name,p:char id)");
-	R(mesh_data_create, "p:mesh_data_t(p:mesh_data_t raw)");
+	// R(mesh_data_create, "p:mesh_data_t(p:mesh_data_t raw)");
 	R(mesh_data_get_vertex_size, "i(p:char vertex_data)");
 	R(mesh_data_build_vertices, "v(p:gpu_buffer_t vertex_buffer,p:any_array_t vertex_arrays)");
 	R(mesh_data_build_indices, "v(p:gpu_buffer_t index_buffer,p:u32_array_t index_array)");
@@ -815,7 +815,7 @@ void minic_register_builtins() {
 	R(mesh_data_delete, "v(p:mesh_data_t raw)");
 
 	// mesh_object
-	R(mesh_object_create, "p:mesh_object_t(p:mesh_data_t data,p:material_data_t material)");
+	// R(mesh_object_create, "p:mesh_object_t(p:mesh_data_t data,p:material_data_t material)");
 	R(mesh_object_set_data, "v(p:mesh_object_t raw,p:mesh_data_t data)");
 	R(mesh_object_remove, "v(p:mesh_object_t raw)");
 	R(mesh_object_render, "v(p:mesh_object_t raw,p:char context,p:string_array_t bind_params)");
@@ -841,7 +841,7 @@ void minic_register_builtins() {
 	R(data_path, "p:char()");
 
 	// scene
-	R(scene_create, "p:object_t(p:scene_t format)");
+	// R(scene_create, "p:object_t(p:scene_t format)");
 	R(scene_remove, "v()");
 	R(scene_set_active, "p:object_t(p:char scene_name)");
 	R(scene_add_object, "p:object_t(p:object_t parent)");
@@ -851,8 +851,8 @@ void minic_register_builtins() {
 	R(scene_add_scene, "v(p:char scene_name)");
 	R(scene_spawn_object, "p:object_t(p:char name,p:object_t parent,i spawn_children)");
 	R(scene_get_raw_object_by_name, "p:obj_t(p:scene_t format,p:char name)");
-	R(scene_create_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent)");
-	R(scene_create_mesh_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent,p:material_data_t material)");
+	// R(scene_create_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent)");
+	// R(scene_create_mesh_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent,p:material_data_t material)");
 	R(scene_gen_transform, "v(p:obj_t object,p:transform_t transform)");
 
 	// render_path
@@ -1265,6 +1265,7 @@ void minic_register_builtins() {
 	R(script_material_set_float, "v(p:ui_node_t node,i is_input,i socket,f value)");
 	R(script_material_set_color, "v(p:ui_node_t node,i is_input,i socket,f r,f g,f b,f a)");
 	R(script_material_set_vector, "v(p:ui_node_t node,i is_input,i socket,f x,f y,f z)");
+	R(script_material_set_button, "v(p:ui_node_t node,i button,f value)");
 	R(script_material_update, "v()");
 	R(context_set_viewport_shader, "v(p viewport_shader)");
 	R(context_set_viewport_mode, "v(i mode)");

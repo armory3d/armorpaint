@@ -413,14 +413,18 @@ void script_material_delete(slot_material_t *m) {
 }
 
 ui_node_t *script_material_create_node(char *type) {
-	if (type == NULL || g_context == NULL || g_context->material == NULL) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (type == NULL || canvas == NULL) {
 		return NULL;
 	}
 	nodes_material_init();
-	ui_node_t *node = nodes_material_create_node(type, NULL);
-	if (node != NULL && ui_nodes_hwnd != NULL) {
-		ui_nodes_hwnd->redraws = 2;
+	ui_node_t *n = nodes_material_get_node_t(type);
+	if (n == NULL) {
+		return NULL;
 	}
+	ui_node_t *node = ui_nodes_make_node(n, g_context->material->nodes, canvas);
+	any_array_push(canvas->nodes, node);
+	ui_nodes_hwnd->redraws = 2;
 	return node;
 }
 
@@ -563,6 +567,17 @@ void script_material_set_vector(ui_node_t *node, i32 is_input, i32 socket, f32 x
 	soc->default_value->buffer[0] = x;
 	soc->default_value->buffer[1] = y;
 	soc->default_value->buffer[2] = z;
+}
+
+void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
+	if (node == NULL || button < 0 || button >= node->buttons->length) {
+		return;
+	}
+	ui_node_button_t *but = node->buttons->buffer[button];
+	if (but->default_value == NULL || but->default_value->length < 1) {
+		return;
+	}
+	but->default_value->buffer[0] = value;
 }
 
 void script_material_update(void) {
