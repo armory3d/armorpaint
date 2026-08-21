@@ -100,6 +100,7 @@ void                      render_envsphere();
 void                      render_pathsphere();
 void                      config_load();
 void                      config_save();
+f32                       config_validate_window_scale(f32 scale);
 void                      config_init();
 void                      config_init_layout();
 char                     *config_get_sha();

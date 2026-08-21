@@ -2339,6 +2339,31 @@ int ui_combo(ui_handle_t *handle, string_array_t *texts, char *label, bool show_
 	return handle->i;
 }
 
+static char *ui_normalize_numeric_text(char *text) {
+	static char normalized[1024];
+	bool        comma   = false;
+	bool        digits  = false;
+	bool        invalid = false;
+	for (int i = 0; text[i] != 0 && i < (int)sizeof(normalized) - 1; ++i) {
+		char c = text[i];
+		if (c >= '0' && c <= '9') {
+			digits = true;
+		}
+		else if (c == ',') {
+			if (comma) {
+				invalid = true;
+			}
+			comma = true;
+		}
+		else if (c != ' ' && c != '\t' && !((c == '+' || c == '-') && i == 0)) {
+			invalid = true;
+		}
+		normalized[i] = c == ',' ? '.' : c;
+		normalized[i + 1] = 0;
+	}
+	return comma && digits && !invalid ? normalized : text;
+}
+
 float ui_slider(ui_handle_t *handle, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit) {
 	static char temp[1024];
 	if (!ui_is_visible(UI_ELEMENT_H())) {
@@ -2399,15 +2424,16 @@ float ui_slider(ui_handle_t *handle, char *text, float from, float to, bool fill
 	}
 	if (current->submit_text_handle == handle) {
 		ui_submit_text_edit();
+		char *numeric_text = ui_normalize_numeric_text(handle->text);
 #ifdef WITH_EVAL
-		if (handle->text[0] == '.') {
-			handle->text = string("0%s", handle->text);
+		if (numeric_text[0] == '.') {
+			numeric_text = string("0%s", numeric_text);
 		}
-		minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", handle->text));
+		minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", numeric_text));
 		handle->f         = minic_ctx_result(_ctx);
 		minic_ctx_free(_ctx);
 #else
-		handle->f = atof(handle->text);
+		handle->f = atof(numeric_text);
 #endif
 		handle->changed = current->changed = true;
 	}
