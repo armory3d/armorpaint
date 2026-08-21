@@ -249,7 +249,7 @@ void box_preferences_theme_tab() {
 	ui_begin_sticky();
 	ui_row4();
 
-	box_preferences_h_theme = ui_handle(__ID__);
+	box_preferences_h_theme    = ui_handle(__ID__);
 	box_preferences_h_theme->i = box_preferences_get_theme_index();
 	ui_combo(box_preferences_h_theme, box_preferences_themes, tr("Theme"), false, UI_ALIGN_LEFT, true);
 	if (box_preferences_h_theme->changed) {
@@ -304,7 +304,7 @@ void box_preferences_theme_tab() {
 			ui_row(row);
 			ui_text("", 0, val);
 			if (g_ui->is_hovered && g_ui->input_released) {
-				h->color = val;
+				h->color           = val;
 				_box_preferences_h = h;
 				_box_preferences_i = i;
 				ui_menu_draw(&box_preferences_theme_tab_theme_field_menu, -1, -1);
@@ -920,7 +920,7 @@ void box_preferences_keymap_tab() {
 	ui_begin_sticky();
 	ui_row4();
 
-	box_preferences_h_preset = ui_handle(__ID__);
+	box_preferences_h_preset    = ui_handle(__ID__);
 	box_preferences_h_preset->i = box_preferences_get_preset_index();
 	ui_combo(box_preferences_h_preset, box_preferences_files_keymap, tr("Preset"), false, UI_ALIGN_LEFT, true);
 	if (box_preferences_h_preset->changed) {

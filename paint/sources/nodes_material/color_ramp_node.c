@@ -119,10 +119,11 @@ static char *color_ramp_eval(ui_node_t *node) {
 		char *b01 = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(p0), f32_to_string_with_zeros(p1 - p0));
 		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = lerp4(%s_c0, %s_c1, %s);", store_var, base, base, b01));
 		for (i32 i = 1; i < len - 1; i++) {
-			f32   pi    = elems->buffer[sorted[i] * 5 + 4];
-			f32   pi1   = elems->buffer[sorted[i + 1] * 5 + 4];
-			char *blend = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(pi), f32_to_string_with_zeros(pi1 - pi));
-			char *pi_s  = f32_to_string_with_zeros(pi);
+			f32   pi  = elems->buffer[sorted[i] * 5 + 4];
+			f32   pi1 = elems->buffer[sorted[i + 1] * 5 + 4];
+			char *blend =
+			    string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(pi), f32_to_string_with_zeros(pi1 - pi));
+			char *pi_s = f32_to_string_with_zeros(pi);
 			parser_material_write(parser_material_kong,
 			                      string_tmp("if (%s > %s) { %s = lerp4(%s_c%d, %s_c%d, %s); }", fac_var, pi_s, store_var, base, i, base, i + 1, blend));
 		}
@@ -240,67 +241,67 @@ void nodes_material_color_ramp_button(i32 node_id) {
 
 void color_ramp_node_init() {
 
-	ui_node_t *color_ramp_node_def = ALLOC_INIT(
-	    ui_node_t,
-	    {.id     = 0,
-	     .name   = _tr("Color Ramp"),
-	     .type   = "VALTORGB",
-	     .x      = 0,
-	     .y      = 0,
-	     .color  = 0xff62676d,
-	     .inputs = any_array_create_from_raw(
-	         (void *[]){
-	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                              .node_id       = 0,
-	                                              .name          = _tr("Factor"),
-	                                              .type          = "VALUE",
-	                                              .color         = 0xffa1a1a1,
-	                                              .default_value = f32_array_create_x(0.5),
-	                                              .min           = 0.0,
-	                                              .max           = 1.0,
-	                                              .precision     = 100,
-	                                              .display       = 0}),
-	         },
-	         1),
-	     .outputs = any_array_create_from_raw(
-	         (void *[]){
-	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                              .node_id       = 0,
-	                                              .name          = _tr("Color"),
-	                                              .type          = "RGBA",
-	                                              .color         = 0xffc7c729,
-	                                              .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                              .min           = 0.0,
-	                                              .max           = 1.0,
-	                                              .precision     = 100,
-	                                              .display       = 0}),
-	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                              .node_id       = 0,
-	                                              .name          = _tr("Alpha"),
-	                                              .type          = "VALUE",
-	                                              .color         = 0xffa1a1a1,
-	                                              .default_value = f32_array_create_x(0.0),
-	                                              .min           = 0.0,
-	                                              .max           = 1.0,
-	                                              .precision     = 100,
-	                                              .display       = 0}),
-	         },
-	         2),
-	     .buttons = any_array_create_from_raw(
-	         (void *[]){
-	             ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_color_ramp_button",
-	                                              .type          = "CUSTOM",
-	                                              .output        = 0,
-	                                              .default_value = f32_array_create_from_raw((f32[]){0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0}, 10),
-	                                              .data          = u8_array_create(1),
-	                                              .min           = 0.0,
-	                                              .max           = 1.0,
-	                                              .precision     = 100,
-	                                              .height        = 4.2}),
-	         },
-	         1),
-	     .width = 0,
-	     .flags = 0});
+	ui_node_t *color_ramp_node_def =
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
+	                           .name   = _tr("Color Ramp"),
+	                           .type   = "VALTORGB",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff62676d,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Factor"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(0.5),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Color"),
+	                                                                 .type          = "RGBA",
+	                                                                 .color         = 0xffc7c729,
+	                                                                 .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Alpha"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(0.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               2),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t,
+	                                              {.name          = "nodes_material_color_ramp_button",
+	                                               .type          = "CUSTOM",
+	                                               .output        = 0,
+	                                               .default_value = f32_array_create_from_raw((f32[]){0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0}, 10),
+	                                               .data          = u8_array_create(1),
+	                                               .min           = 0.0,
+	                                               .max           = 1.0,
+	                                               .precision     = 100,
+	                                               .height        = 4.2}),
+	                               },
+	                               1),
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_color, color_ramp_node_def);
 	any_map_set(parser_material_node_vectors, "VALTORGB", color_ramp_node_vector);

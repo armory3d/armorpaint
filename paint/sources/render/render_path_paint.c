@@ -501,16 +501,17 @@ void render_path_paint_use_live_layer(bool use) {
 	i32 tid = g_context->layer->id;
 	i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
 	if (use) {
-		_render_path_paint_texpaint = any_map_get(render_path_render_targets, string_tmp("texpaint%d", tid));
-		_render_path_paint_texpaint_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_undo%d", hid));
-		_render_path_paint_texpaint_nor_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_nor_undo%d", hid));
+		_render_path_paint_texpaint           = any_map_get(render_path_render_targets, string_tmp("texpaint%d", tid));
+		_render_path_paint_texpaint_undo      = any_map_get(render_path_render_targets, string_tmp("texpaint_undo%d", hid));
+		_render_path_paint_texpaint_nor_undo  = any_map_get(render_path_render_targets, string_tmp("texpaint_nor_undo%d", hid));
 		_render_path_paint_texpaint_pack_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_pack_undo%d", hid));
-		_render_path_paint_texpaint_nor = any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid));
-		_render_path_paint_texpaint_pack = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%d", tid));
+		_render_path_paint_texpaint_nor       = any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid));
+		_render_path_paint_texpaint_pack      = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%d", tid));
 		any_map_set(render_path_render_targets, string("texpaint_undo%d", hid), any_map_get(render_path_render_targets, string_tmp("texpaint%d", tid)));
 		any_map_set(render_path_render_targets, string("texpaint%d", tid), any_map_get(render_path_render_targets, "texpaint_live"));
 		if (slot_layer_is_layer(g_context->layer)) {
-			any_map_set(render_path_render_targets, string("texpaint_nor_undo%d", hid), any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid)));
+			any_map_set(render_path_render_targets, string("texpaint_nor_undo%d", hid),
+			            any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid)));
 			any_map_set(render_path_render_targets, string("texpaint_pack_undo%d", hid),
 			            any_map_get(render_path_render_targets, string_tmp("texpaint_pack%d", tid)));
 			any_map_set(render_path_render_targets, string("texpaint_nor%d", tid), any_map_get(render_path_render_targets, "texpaint_nor_live"));
@@ -976,8 +977,8 @@ void render_path_paint_draw() {
 }
 
 void render_path_paint_set_plane_mesh() {
-	g_context->paint2d_view = true;
-	render_path_paint_painto = g_context->paint_object;
+	g_context->paint2d_view    = true;
+	render_path_paint_painto   = g_context->paint_object;
 	render_path_paint_visibles = u8_array_create_from_raw((u8[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
@@ -1050,18 +1051,17 @@ void render_path_paint_set_plane_mesh() {
 		    },
 		    54);
 		mesh_data_t *raw =
-		    ALLOC_INIT(mesh_data_t,
-		                  {.name          = ".PlaneTiled",
-		                   .vertex_arrays = any_array_create_from_raw(
-		                       (void *[]){
-		                           ALLOC_INIT(vertex_array_t, {.attrib = "pos", .values = i16_array_create_from_array(posa), .data = "short4norm"}),
-		                           ALLOC_INIT(vertex_array_t, {.attrib = "nor", .values = i16_array_create_from_array(nora), .data = "short2norm"}),
-		                           ALLOC_INIT(vertex_array_t, {.attrib = "tex", .values = i16_array_create_from_array(texa), .data = "short2norm"}),
-		                       },
-		                       3),
-		                   .index_array = u32_array_create_from_array(inda),
-		                   .scale_pos   = 1.5,
-		                   .scale_tex   = 1.0});
+		    ALLOC_INIT(mesh_data_t, {.name          = ".PlaneTiled",
+		                             .vertex_arrays = any_array_create_from_raw(
+		                                 (void *[]){
+		                                     ALLOC_INIT(vertex_array_t, {.attrib = "pos", .values = i16_array_create_from_array(posa), .data = "short4norm"}),
+		                                     ALLOC_INIT(vertex_array_t, {.attrib = "nor", .values = i16_array_create_from_array(nora), .data = "short2norm"}),
+		                                     ALLOC_INIT(vertex_array_t, {.attrib = "tex", .values = i16_array_create_from_array(texa), .data = "short2norm"}),
+		                                 },
+		                                 3),
+		                             .index_array = u32_array_create_from_array(inda),
+		                             .scale_pos   = 1.5,
+		                             .scale_tex   = 1.0});
 		mesh_data_t     *md       = mesh_data_create(raw);
 		mesh_object_t   *mo       = scene_get_child(".Plane")->ext;
 		material_data_t *material = mo->material;
@@ -1112,7 +1112,7 @@ void render_path_paint_bind_layers() {
 
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
-		char *n = string_tmp("texpaint%d", l->id);
+		char         *n = string_tmp("texpaint%d", l->id);
 		render_path_bind_target(n, n);
 
 		if (slot_layer_is_layer(l)) {

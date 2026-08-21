@@ -170,8 +170,7 @@ void ui_box_hide_internal() {
 }
 
 void ui_box_tween_out() {
-	tween_anim_t *a =
-	    ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_IN, .done = ui_box_hide_internal});
+	tween_anim_t *a = ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_IN, .done = ui_box_hide_internal});
 	tween_to(a);
 
 	a = ALLOC_INIT(tween_anim_t, {.target = &ui_box_hwnd->drag_y, .to = iron_window_height() / 2, .duration = 0.2, .ease = EASE_EXPO_IN});
@@ -180,10 +179,10 @@ void ui_box_tween_out() {
 
 void ui_box_show_message(char *title, char *text, bool copyable) {
 	ui_box_init();
-	ui_box_modalw = copyable ? 800 : 400;
-	ui_box_modalh = copyable ? 600 : 180;
-	ui_box_title = string_copy(title);
-	ui_box_text = string_copy(text);
+	ui_box_modalw    = copyable ? 800 : 400;
+	ui_box_modalh    = copyable ? 600 : 180;
+	ui_box_title     = string_copy(title);
+	ui_box_text      = string_copy(text);
 	ui_box_commands  = NULL;
 	ui_box_copyable  = copyable;
 	ui_box_draggable = true;
@@ -194,12 +193,12 @@ void ui_box_show_message(char *title, char *text, bool copyable) {
 
 void ui_box_show_custom(void (*commands)(void), i32 mw, i32 mh, void (*on_hide)(void), bool draggable, char *title) {
 	ui_box_init();
-	ui_box_modalw = mw;
-	ui_box_modalh = mh;
+	ui_box_modalw        = mw;
+	ui_box_modalh        = mh;
 	ui_box_modal_on_hide = on_hide;
-	ui_box_commands = commands;
-	ui_box_draggable = draggable;
-	ui_box_title = string_copy(title);
+	ui_box_commands      = commands;
+	ui_box_draggable     = draggable;
+	ui_box_title         = string_copy(title);
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	ui_box_tween_in();
 #endif

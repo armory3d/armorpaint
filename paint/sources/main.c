@@ -344,7 +344,7 @@ void _kickstart() {
 	ui_menubar_menu_handle = ui_handle_create();
 
 	ui_menubar_tab = ui_handle_create();
-	ui_menubar_w = ui_menubar_default_w;
+	ui_menubar_w   = ui_menubar_default_w;
 
 	translator_translations = any_map_create();
 
@@ -373,8 +373,6 @@ void _kickstart() {
 	parser_material_node_vectors = any_map_create();
 
 	parser_material_custom_nodes = any_map_create();
-
-
 
 	tab_browser_hpath = ui_handle_create();
 
@@ -450,7 +448,7 @@ void _kickstart() {
 #endif
 
 	ui_sidebar_hminimized = ui_handle_create();
-	ui_sidebar_w_mini = ui_sidebar_default_w_mini;
+	ui_sidebar_w_mini     = ui_sidebar_default_w_mini;
 
 	console_last_traces = any_array_create(0);
 
@@ -462,7 +460,7 @@ void _kickstart() {
 
 	tab_meshes_mesh_name_handle = ui_handle_create();
 
-	render_path_raytrace_f32a = f32_array_create(24);
+	render_path_raytrace_f32a     = f32_array_create(24);
 	render_path_raytrace_help_mat = mat4_identity();
 
 	neural_node_results = any_imap_create();

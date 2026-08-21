@@ -40,9 +40,9 @@ void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files
 			while (string_index_of(ui_files_path, sep2) >= 0) {
 				ui_files_path = string_copy(string_replace_all(ui_files_path, sep2, PATH_SEP));
 			}
-			ui_files_path = string_copy(string_replace_all(ui_files_path, "\r", ""));
+			ui_files_path     = string_copy(string_replace_all(ui_files_path, "\r", ""));
 			ui_files_filename = string_copy(substring(ui_files_path, string_last_index_of(ui_files_path, PATH_SEP) + 1, string_length(ui_files_path)));
-			ui_files_path = string_copy(substring(ui_files_path, 0, string_last_index_of(ui_files_path, PATH_SEP)));
+			ui_files_path     = string_copy(substring(ui_files_path, 0, string_last_index_of(ui_files_path, PATH_SEP)));
 			files_done(ui_files_path);
 		}
 	}
@@ -56,7 +56,7 @@ void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files
 				while (string_index_of(path, sep2) >= 0) {
 					path = string_copy(string_replace_all(path, sep2, PATH_SEP));
 				}
-				path = string_copy(string_replace_all(path, "\r", ""));
+				path              = string_copy(string_replace_all(path, "\r", ""));
 				ui_files_filename = string_copy(substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path)));
 				files_done(path);
 			}
@@ -238,9 +238,9 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 		}
 	}
 
-	ui_files_last_path = string_copy(handle->text);
+	ui_files_last_path   = string_copy(handle->text);
 	ui_files_last_search = string_copy(search);
-	handle->changed = false;
+	handle->changed      = false;
 
 	if (ui_files_select_pending != NULL) {
 		ui_files_selected = -1;
@@ -478,7 +478,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				if (drag_files) {
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_file = string_copy(handle->text);
+					base_drag_file  = string_copy(handle->text);
 #ifdef IRON_IOS
 					if (!is_cloud) {
 						base_drag_file = string("%s%s", document_directory, base_drag_file);
@@ -487,13 +487,13 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					if (!string_equals(char_at(base_drag_file, string_length(base_drag_file) - 1), PATH_SEP)) {
 						base_drag_file = string("%s%s", base_drag_file, PATH_SEP);
 					}
-					base_drag_file = string("%s%s", base_drag_file, f);
+					base_drag_file      = string("%s%s", base_drag_file, f);
 					base_drag_file_icon = icon;
 				}
 
 				ui_files_selected = i;
 				if (sys_time() - g_context->select_time < 0.2) {
-					base_drag_file = NULL;
+					base_drag_file      = NULL;
 					base_drag_file_icon = NULL;
 					base_is_dragging    = false;
 					handle->changed = g_ui->changed = true;
@@ -574,9 +574,9 @@ void ui_files_navigate(i32 dx, i32 dy) {
 }
 
 void ui_files_go_up(ui_handle_t *handle) {
-	i32 sep = string_last_index_of(handle->text, PATH_SEP);
+	i32 sep                 = string_last_index_of(handle->text, PATH_SEP);
 	ui_files_select_pending = string_copy(substring(handle->text, sep + 1, string_length(handle->text)));
-	handle->text = string_copy(substring(handle->text, 0, sep));
+	handle->text            = string_copy(substring(handle->text, 0, sep));
 	// Drive root
 	if (string_length(handle->text) == 2 && string_equals(char_at(handle->text, 1), ":")) {
 		handle->text = string("%s%s", handle->text, PATH_SEP);

@@ -1,6 +1,6 @@
 #include "engine.h"
-#include "iron_array.h"
 #include "iron_alloc.h"
+#include "iron_array.h"
 #include <stdbool.h>
 #include <string.h>
 

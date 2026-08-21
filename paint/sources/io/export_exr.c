@@ -304,11 +304,11 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	i32 stride = channels * byte_size;
 	i32 pos    = 0;
 
-	_export_exr_width  = width;
-	_export_exr_stride = stride;
-	_export_exr_out = out;
-	_export_exr_src_view = src;
-	_export_exr_write_line = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
+	_export_exr_width                 = width;
+	_export_exr_stride                = stride;
+	_export_exr_out                   = out;
+	_export_exr_src_view              = src;
+	_export_exr_write_line            = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
 	void (*write_data)(i32, i32, i32) = type == 1 ? export_exr_write_bgr : export_exr_write_single;
 
 	for (i32 y = 0; y < height; ++y) {

@@ -25,9 +25,9 @@ void tab_layers_repaint_text_layer(slot_layer_t *l) {
 }
 
 void tab_layers_set_drag_layer(slot_layer_t *layer, f32 off_x, f32 off_y) {
-	base_drag_off_x = off_x;
-	base_drag_off_y = off_y;
-	base_drag_layer = layer;
+	base_drag_off_x      = off_x;
+	base_drag_off_y      = off_y;
+	base_drag_layer      = layer;
 	g_context->drag_dest = array_index_of(g_project->_->layers, layer);
 }
 
@@ -455,7 +455,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 		if (in_focus && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
 			g_ui->is_key_pressed = false;
-			tab_layers_l = g_context->layer;
+			tab_layers_l         = g_context->layer;
 			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_duplicate, NULL);
 		}
 	}
@@ -907,7 +907,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 }
 
 void tab_layers_draw_layer_context_menu(slot_layer_t *l, bool mini) {
-	tab_layers_l = l;
+	tab_layers_l    = l;
 	tab_layers_mini = mini;
 
 	ui_menu_draw(&tab_layers_draw_layer_context_menu_draw, -1, -1);

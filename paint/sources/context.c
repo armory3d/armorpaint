@@ -198,7 +198,7 @@ void context_set_material(slot_material_t *m) {
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 	ui_header_handle->redraws                         = 2;
 	ui_nodes_hwnd->redraws                            = 2;
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
+	ui_nodes_group_stack                              = any_array_create_from_raw((void *[]){}, 0);
 
 	bool decal = context_is_decal();
 	if (decal) {

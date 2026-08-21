@@ -5,22 +5,22 @@ node_shader_context_t *make_node_preview_run(material_t *data, material_context_
                                              ui_node_t_array_t *parents) {
 	char                  *context_id = "mesh";
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                     .depth_write     = false,
-	                                                                     .compare_mode    = "always",
-	                                                                     .cull_mode       = "clockwise",
-	                                                                     .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
-                                                                   },
-                                                                   4),
-	                                                                     .color_attachments = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       "RGBA32",
-                                                                   },
-                                                                   1)});
+	                                                                  .depth_write     = false,
+	                                                                  .compare_mode    = "always",
+	                                                                  .cull_mode       = "clockwise",
+	                                                                  .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
+                                                                },
+                                                                4),
+	                                                                  .color_attachments = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    "RGBA32",
+                                                                },
+                                                                1)});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);
 
 	con_mesh->allow_vcols = true;
@@ -48,13 +48,13 @@ node_shader_context_t *make_node_preview_run(material_t *data, material_context_
 	}
 	ui_node_link_t_array_t *links          = parser_material_links;
 	i32                     socket_preview = i32_imap_get(g_context->node_preview_socket_map, node->id);
-	ui_node_link_t         *link           = ALLOC_INIT(
-        ui_node_link_t,
-        {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
+	ui_node_link_t         *link =
+	    ALLOC_INIT(ui_node_link_t,
+	               {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
 	any_array_push(links, link);
 
-	parser_material_con = con_mesh;
-	parser_material_kong = kong;
+	parser_material_con    = con_mesh;
+	parser_material_kong   = kong;
 	parser_material_matcon = matcon;
 
 	parser_material_transform_color_space = false;

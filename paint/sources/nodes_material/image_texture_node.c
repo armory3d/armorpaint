@@ -35,9 +35,9 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 		parser_material_write(
 		    parser_material_kong,
 		    string_tmp("var %s_uv: float2 = ((%s.xy / float(%s) - float2(0.5, 0.5)) * float2(max(%s_ay, 1.0), max(%s_ax, 1.0))) + float2(0.5, 0.5);", tex_store,
-		           uv_name, parser_material_sample_uv_scale, tex_store, tex_store));
+		               uv_name, parser_material_sample_uv_scale, tex_store, tex_store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s_uv.x < 0.0 || %s_uv.y < 0.0 || %s_uv.x > 1.0 || %s_uv.y > 1.0) { discard; }", tex_store,
-		                                                   tex_store, tex_store, tex_store));
+		                                                       tex_store, tex_store, tex_store));
 		parser_material_write(parser_material_kong, string_tmp("%s_uv = %s_uv * float(%s);", tex_store, tex_store, parser_material_sample_uv_scale));
 		uv_name = string_tmp("%s_uv", tex_store);
 	}
@@ -48,18 +48,19 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 		}
 		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = float4(0.0, 0.0, 0.0, 0.0);", tex_store));
 		parser_material_write(parser_material_kong, string_tmp("if (tex_coord_blend.x > 0.0) {%s += sample(%s, sampler_linear, %s.xy) * tex_coord_blend.x; }",
-		                                                   tex_store, tex_name, uv_name));
+		                                                       tex_store, tex_name, uv_name));
 		parser_material_write(parser_material_kong, string_tmp("if (tex_coord_blend.y > 0.0) {%s += sample(%s, sampler_linear, %s1.xy) * tex_coord_blend.y; }",
-		                                                   tex_store, tex_name, uv_name));
+		                                                       tex_store, tex_name, uv_name));
 		parser_material_write(parser_material_kong, string_tmp("if (tex_coord_blend.z > 0.0) {%s += sample(%s, sampler_linear, %s2.xy) * tex_coord_blend.z; }",
-		                                                   tex_store, tex_name, uv_name));
+		                                                       tex_store, tex_name, uv_name));
 	}
 	else {
 		if (parser_material_is_frag) {
 			parser_material_write(parser_material_kong, string_tmp("var %s: float4 = sample(%s, sampler_linear, %s.xy);", tex_store, tex_name, uv_name));
 		}
 		else {
-			parser_material_write(parser_material_kong, string_tmp("var %s: float4 = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
+			parser_material_write(parser_material_kong,
+			                      string_tmp("var %s: float4 = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
 		}
 		if (!ends_with(tex->file, ".jpg")) { // Pre-mult alpha
 			parser_material_write(parser_material_kong, string_tmp("%s.rgb = %s.rgb * %s.a;", tex_store, tex_store, tex_store));
@@ -121,73 +122,73 @@ void image_texture_node_init() {
 	char      *image_texture_color_space_data = string_tmp("%s\n%s\n%s\n%s", _tr("Auto"), _tr("Linear"), _tr("sRGB"), _tr("DirectX Normal Map"));
 	ui_node_t *image_texture_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
-	                              .name   = _tr("Image Texture"),
-	                              .type   = "TEX_IMAGE",
-	                              .x      = 0,
-	                              .y      = 0,
-	                              .color  = 0xff4982a0,
-	                              .inputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Vector"),
-	                                                                       .type          = "VECTOR",
-	                                                                       .color         = 0xff6363c7,
-	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .outputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Color"),
-	                                                                       .type          = "RGBA",
-	                                                                       .color         = 0xffc7c729,
-	                                                                       .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Alpha"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  2),
-	                              .buttons = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("File"),
-	                                                                       .type          = "ENUM",
-	                                                                       .output        = -1,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = u8_array_create_from_string(""),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 0}),
-	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Color Space"),
-	                                                                       .type          = "ENUM",
-	                                                                       .output        = -1,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = u8_array_create_from_string(image_texture_color_space_data),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 0}),
-	                                  },
-	                                  2),
-	                              .width = 0,
-	                              .flags = 0});
+	                           .name   = _tr("Image Texture"),
+	                           .type   = "TEX_IMAGE",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff4982a0,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Vector"),
+	                                                                 .type          = "VECTOR",
+	                                                                 .color         = 0xff6363c7,
+	                                                                 .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Color"),
+	                                                                 .type          = "RGBA",
+	                                                                 .color         = 0xffc7c729,
+	                                                                 .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Alpha"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               2),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("File"),
+	                                                                 .type          = "ENUM",
+	                                                                 .output        = -1,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = u8_array_create_from_string(""),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("Color Space"),
+	                                                                 .type          = "ENUM",
+	                                                                 .output        = -1,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = u8_array_create_from_string(image_texture_color_space_data),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
+	                               },
+	                               2),
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_texture, image_texture_node_def);
 	any_map_set(parser_material_node_vectors, "TEX_IMAGE", image_texture_node_vector);

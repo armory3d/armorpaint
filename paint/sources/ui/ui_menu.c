@@ -92,7 +92,7 @@ void ui_menu_render() {
 	if (ui_menu_hide_flag) {
 		ui_menu_hide();
 		ui_menu_show_first = true;
-		ui_menu_commands = NULL;
+		ui_menu_commands   = NULL;
 	}
 }
 
@@ -102,11 +102,11 @@ void ui_menu_draw(void (*commands)(void), i32 x, i32 y) {
 		ui_menu_nested    = true;
 		ui_menu_keep_open = true;
 	}
-	ui_menu_show = true;
+	ui_menu_show     = true;
 	ui_menu_commands = commands;
-	ui_menu_x = x > -1 ? x : math_floor(mouse_x + 1);
-	ui_menu_y = y > -1 ? y : math_floor(mouse_y + 1);
-	ui_menu_h = 0;
+	ui_menu_x        = x > -1 ? x : math_floor(mouse_x + 1);
+	ui_menu_y        = y > -1 ? y : math_floor(mouse_y + 1);
+	ui_menu_h        = 0;
 }
 
 void ui_menu_separator() {

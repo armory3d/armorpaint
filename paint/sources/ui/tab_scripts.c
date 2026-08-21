@@ -474,7 +474,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		g_ui->font_size              = math_floor(15 * UI_SCALE());
 		ui_text_area_line_numbers    = true;
 		ui_text_area_scroll_past_end = true;
-		ui_text_area_coloring = tab_scripts_get_text_coloring();
+		ui_text_area_coloring        = tab_scripts_get_text_coloring();
 
 		tab_scripts_prepare();
 
@@ -625,7 +625,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 
 		ui_text_area_line_numbers    = false;
 		ui_text_area_scroll_past_end = false;
-		ui_text_area_coloring = NULL;
+		ui_text_area_coloring        = NULL;
 		ui_set_font(g_ui, _font);
 		g_ui->font_size = _font_size;
 
@@ -660,7 +660,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 
 ui_text_coloring_t *tab_scripts_get_text_coloring() {
 	if (tab_scripts_text_coloring == NULL) {
-		buffer_t *blob = data_get_blob("text_coloring.json");
+		buffer_t *blob            = data_get_blob("text_coloring.json");
 		tab_scripts_text_coloring = json_parse(sys_buffer_to_string(blob));
 	}
 	return tab_scripts_text_coloring;

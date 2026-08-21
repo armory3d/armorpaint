@@ -51,8 +51,8 @@ void ui_base_on_border_hover(ui_handle_t *handle, i32 side) {
 
 	if (g_ui->input_started) {
 		ui_base_border_started = side;
-		ui_base_border_handle = handle;
-		base_is_resizing = true;
+		ui_base_border_handle  = handle;
+		base_is_resizing       = true;
 	}
 }
 

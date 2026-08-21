@@ -16,7 +16,7 @@ void plugin_start(char *plugin) {
 	if (blob == NULL) {
 		return;
 	}
-	_plugin_name = string_copy(plugin);
+	_plugin_name     = string_copy(plugin);
 	minic_ctx_t *ctx = minic_eval_named(sys_buffer_to_string(blob), plugin);
 	data_delete_blob(file);
 	// Store context on the plugin so callbacks can use it and it can be freed on stop

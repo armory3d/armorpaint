@@ -147,7 +147,8 @@ void util_shortcut_brush() {
 			g_context->brush_angle += 360;
 		make_material_parse_paint_material(true);
 	}
-	else if (decal_mask && operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "brush_radius")), SHORTCUT_TYPE_DOWN)) {
+	else if (decal_mask &&
+	         operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "brush_radius")), SHORTCUT_TYPE_DOWN)) {
 		g_context->brush_decal_mask_radius += mouse_movement_x / 150.0;
 		g_context->brush_decal_mask_radius = math_max(0.01, math_min(4.0, g_context->brush_decal_mask_radius));
 		g_context->brush_decal_mask_radius = math_round(g_context->brush_decal_mask_radius * 100) / 100.0;

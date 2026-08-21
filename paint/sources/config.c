@@ -34,7 +34,7 @@ void config_load() {
 		char *config_string = sys_buffer_to_string(blob);
 		if (starts_with(config_string, "{\"version\":")) { // Ensure valid config
 			config_loaded = true;
-			g_config = json_parse(config_string);
+			g_config      = json_parse(config_string);
 		}
 		free(config_string);
 	}
@@ -148,7 +148,7 @@ void config_save() {
 
 void config_init() {
 	if (!config_loaded || g_config == NULL) {
-		g_config = ALLOC_INIT(config_t, {0});
+		g_config                     = ALLOC_INIT(config_t, {0});
 		g_config->version            = string_copy(manifest_version_config);
 		g_config->sha                = string_copy(config_get_sha());
 		g_config->locale             = "en"; // "system";
@@ -364,19 +364,19 @@ iron_window_options_t *config_get_options() {
 	}
 	char                  *title = string("untitled - %s", manifest_title);
 	iron_window_options_t *ops   = ALLOC_INIT(iron_window_options_t, {.title     = title,
-	                                                                     .width     = g_config->window_w,
-	                                                                     .height    = g_config->window_h,
-	                                                                     .x         = g_config->window_x,
-	                                                                     .y         = g_config->window_y,
-	                                                                     .mode      = window_mode,
-	                                                                     .features  = features,
-	                                                                     .vsync     = g_config->window_vsync,
-	                                                                     .frequency = g_config->window_frequency});
+	                                                                  .width     = g_config->window_w,
+	                                                                  .height    = g_config->window_h,
+	                                                                  .x         = g_config->window_x,
+	                                                                  .y         = g_config->window_y,
+	                                                                  .mode      = window_mode,
+	                                                                  .features  = features,
+	                                                                  .vsync     = g_config->window_vsync,
+	                                                                  .frequency = g_config->window_frequency});
 	return ops;
 }
 
 void config_restore() {
-	ui_children = any_map_create(); // Reset ui handles
+	ui_children          = any_map_create(); // Reset ui handles
 	config_loaded        = false;
 	i32_array_t *_layout = g_config->layout;
 	config_init();
@@ -388,12 +388,12 @@ void config_restore() {
 }
 
 void config_import_from(config_t *from) {
-	char *_sha     = g_config->sha;
-	char *_version = g_config->version;
-	g_config = from;
+	char *_sha        = g_config->sha;
+	char *_version    = g_config->version;
+	g_config          = from;
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
-	ui_children = any_map_create(); // Reset ui handles
+	ui_children       = any_map_create(); // Reset ui handles
 	keymap_load();
 	config_init_layout();
 	translator_load_translations(g_config->locale);
@@ -460,7 +460,7 @@ void config_load_theme(char *theme, bool tag_redraw) {
 	if (!string_equals(theme, "default.json")) {
 		buffer_t   *b      = data_get_blob(string("themes/%s", theme));
 		ui_theme_t *parsed = json_parse(sys_buffer_to_string(b));
-		g_theme = parsed;
+		g_theme            = parsed;
 	}
 
 	if (tag_redraw) {

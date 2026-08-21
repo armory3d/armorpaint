@@ -309,18 +309,18 @@ node_shader_context_t *node_shader_context_create(material_t *material, shader_c
 	}
 
 	raw->data = ALLOC_INIT(shader_context_t, {.name                    = props->name,
-	                                             .depth_write             = props->depth_write,
-	                                             .compare_mode            = props->compare_mode,
-	                                             .cull_mode               = props->cull_mode,
-	                                             .blend_source            = props->blend_source,
-	                                             .blend_destination       = props->blend_destination,
-	                                             .alpha_blend_source      = props->alpha_blend_source,
-	                                             .alpha_blend_destination = props->alpha_blend_destination,
-	                                             .fragment_shader         = "",
-	                                             .vertex_shader           = "",
-	                                             .vertex_elements         = vertex_elements,
-	                                             .color_attachments       = props->color_attachments,
-	                                             .depth_attachment        = props->depth_attachment});
+	                                          .depth_write             = props->depth_write,
+	                                          .compare_mode            = props->compare_mode,
+	                                          .cull_mode               = props->cull_mode,
+	                                          .blend_source            = props->blend_source,
+	                                          .blend_destination       = props->blend_destination,
+	                                          .alpha_blend_source      = props->alpha_blend_source,
+	                                          .alpha_blend_destination = props->alpha_blend_destination,
+	                                          .fragment_shader         = "",
+	                                          .vertex_shader           = "",
+	                                          .vertex_elements         = vertex_elements,
+	                                          .color_attachments       = props->color_attachments,
+	                                          .depth_attachment        = props->depth_attachment});
 
 	shader_context_t *rw = raw->data;
 	rw->_                = ALLOC_INIT(shader_context_runtime_t, {0});

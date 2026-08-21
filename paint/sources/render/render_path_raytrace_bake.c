@@ -26,8 +26,8 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		render_path_raytrace_bake_last_bake_type = g_context->bake_type;
 		render_path_raytrace_ready               = true;
 		render_path_raytrace_is_bake             = true;
-		render_path_raytrace_last_envmap = NULL;
-		render_path_raytrace_bake_last_layer = NULL;
+		render_path_raytrace_last_envmap         = NULL;
+		render_path_raytrace_bake_last_layer     = NULL;
 
 		if (any_map_get(render_path_render_targets, "baketex0") != NULL) {
 			render_target_t *baketex0 = any_map_get(render_path_render_targets, "baketex0");
@@ -97,8 +97,8 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 
 		g_context->rtdirty = 0;
 
-		render_path_raytrace_last_envmap = saved_envmap;
-		render_path_raytrace_bake_last_layer = g_context->layer->texpaint;
+		render_path_raytrace_last_envmap          = saved_envmap;
+		render_path_raytrace_bake_last_layer      = g_context->layer->texpaint;
 		render_path_raytrace_bake_last_bake_type2 = g_context->bake_type;
 
 		gpu_texture_t *bnoise_sobol    = any_map_get(scene_embedded, "bnoise_sobol.k");

@@ -49,41 +49,41 @@ void repeat_node_button(i32 node_id) {
 void repeat_node_init() {
 
 	ui_node_t *repeat_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
-	                                                       .name    = _tr("Repeat"),
-	                                                       .type    = "NEURAL_REPEAT",
-	                                                       .x       = 0,
-	                                                       .y       = 0,
-	                                                       .color   = 0xff4982a0,
-	                                                       .inputs  = any_array_create_from_raw((void *[]){}, 0),
-	                                                       .outputs = any_array_create_from_raw(
-	                                                           (void *[]){
-	                                                               ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                                                .node_id       = 0,
-	                                                                                                .name          = _tr("Out"),
-	                                                                                                .type          = "BOOL",
-	                                                                                                .color         = 0xff6363c7,
-	                                                                                                .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .display       = 0}),
-	                                                           },
-	                                                           1),
-	                                                       .buttons = any_array_create_from_raw(
-	                                                           (void *[]){
-	                                                               ALLOC_INIT(ui_node_button_t, {.name          = "repeat_node_button",
-	                                                                                                .type          = "CUSTOM",
-	                                                                                                .output        = -1,
-	                                                                                                .default_value = f32_array_create_x(0),
-	                                                                                                .data          = NULL,
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .height        = 2}),
-	                                                           },
-	                                                           1),
-	                                                       .width = 0,
-	                                                       .flags = 0});
+	                                                    .name    = _tr("Repeat"),
+	                                                    .type    = "NEURAL_REPEAT",
+	                                                    .x       = 0,
+	                                                    .y       = 0,
+	                                                    .color   = 0xff4982a0,
+	                                                    .inputs  = any_array_create_from_raw((void *[]){}, 0),
+	                                                    .outputs = any_array_create_from_raw(
+	                                                        (void *[]){
+	                                                            ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                          .node_id       = 0,
+	                                                                                          .name          = _tr("Out"),
+	                                                                                          .type          = "BOOL",
+	                                                                                          .color         = 0xff6363c7,
+	                                                                                          .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                                          .min           = 0.0,
+	                                                                                          .max           = 1.0,
+	                                                                                          .precision     = 100,
+	                                                                                          .display       = 0}),
+	                                                        },
+	                                                        1),
+	                                                    .buttons = any_array_create_from_raw(
+	                                                        (void *[]){
+	                                                            ALLOC_INIT(ui_node_button_t, {.name          = "repeat_node_button",
+	                                                                                          .type          = "CUSTOM",
+	                                                                                          .output        = -1,
+	                                                                                          .default_value = f32_array_create_x(0),
+	                                                                                          .data          = NULL,
+	                                                                                          .min           = 0.0,
+	                                                                                          .max           = 1.0,
+	                                                                                          .precision     = 100,
+	                                                                                          .height        = 2}),
+	                                                        },
+	                                                        1),
+	                                                    .width = 0,
+	                                                    .flags = 0});
 
 	any_array_push(nodes_material_neural, repeat_node_def);
 	any_map_set(ui_nodes_custom_buttons, "repeat_node_button", repeat_node_button);

@@ -164,9 +164,9 @@ void project_new(bool reset_layers) {
 		// viewport_set_view(0, 0, 0.75, 0, 0, 0); // Top
 	}
 	else {
-		buffer_t *b = data_get_blob(string("meshes/%s.arm", mesh_name));
+		buffer_t *b            = data_get_blob(string("meshes/%s.arm", mesh_name));
 		_project_scene_mesh_gc = armpack_decode(b);
-		raw = _project_scene_mesh_gc->mesh_datas->buffer[0];
+		raw                    = _project_scene_mesh_gc->mesh_datas->buffer[0];
 	}
 
 	mesh_data_t *md = mesh_data_create(raw);
@@ -207,9 +207,9 @@ void project_new(bool reset_layers) {
 	g_context->picker_viewport_mask = false;
 	g_context->material             = g_project->_->materials->buffer[0];
 	ui_nodes_hwnd->redraws          = 2;
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->brushes         = any_array_create_from_raw(
+	ui_nodes_group_stack            = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->material_groups   = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->brushes           = any_array_create_from_raw(
         (void *[]){
             slot_brush_create(NULL),
         },
@@ -354,8 +354,8 @@ void project_import_mesh_on_file_picked(char *path) {
 
 void project_import_mesh(bool replace_existing, void (*done)(void)) {
 	_project_import_mesh_replace_existing = replace_existing;
-	_project_import_mesh_done = done;
-	char *formats = string_array_join(path_mesh_formats(), ",");
+	_project_import_mesh_done             = done;
+	char *formats                         = string_array_join(path_mesh_formats(), ",");
 	ui_files_show(formats, false, false, &project_import_mesh_on_file_picked);
 }
 
@@ -510,7 +510,7 @@ void project_reimport_texture_on_file_picked(char *path) {
 
 void project_reimport_texture(asset_t *asset) {
 	if (!iron_file_exists(asset->file)) {
-		char *filters = string_array_join(path_texture_formats(), ",");
+		char *filters                   = string_array_join(path_texture_formats(), ",");
 		_project_reimport_texture_asset = asset;
 		ui_files_show(filters, false, false, &project_reimport_texture_on_file_picked);
 	}
@@ -601,27 +601,27 @@ void project_export_swatches() {
 
 swatch_color_t *project_make_swatch(i32 base) {
 	swatch_color_t *s = ALLOC_INIT(swatch_color_t, {.base       = base,
-	                                                   .opacity    = 1.0,
-	                                                   .occlusion  = 1.0,
-	                                                   .roughness  = 0.0,
-	                                                   .metallic   = 0.0,
-	                                                   .normal     = 0xff8080ff,
-	                                                   .emission   = 0.0,
-	                                                   .height     = 0.0,
-	                                                   .subsurface = 0.0});
+	                                                .opacity    = 1.0,
+	                                                .occlusion  = 1.0,
+	                                                .roughness  = 0.0,
+	                                                .metallic   = 0.0,
+	                                                .normal     = 0xff8080ff,
+	                                                .emission   = 0.0,
+	                                                .height     = 0.0,
+	                                                .subsurface = 0.0});
 	return s;
 }
 
 swatch_color_t *project_clone_swatch(swatch_color_t *swatch) {
 	swatch_color_t *s = ALLOC_INIT(swatch_color_t, {.base       = swatch->base,
-	                                                   .opacity    = swatch->opacity,
-	                                                   .occlusion  = swatch->occlusion,
-	                                                   .roughness  = swatch->roughness,
-	                                                   .metallic   = swatch->metallic,
-	                                                   .normal     = swatch->normal,
-	                                                   .emission   = swatch->emission,
-	                                                   .height     = swatch->height,
-	                                                   .subsurface = swatch->subsurface});
+	                                                .opacity    = swatch->opacity,
+	                                                .occlusion  = swatch->occlusion,
+	                                                .roughness  = swatch->roughness,
+	                                                .metallic   = swatch->metallic,
+	                                                .normal     = swatch->normal,
+	                                                .emission   = swatch->emission,
+	                                                .height     = swatch->height,
+	                                                .subsurface = swatch->subsurface});
 	return s;
 }
 

@@ -78,24 +78,24 @@ fun env_brdf_approx(specular: float3, roughness: float, dotnv: float): float3 { 
 node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	char                  *context_id = layer_pass == 0 ? "mesh" : string_tmp("mesh%s", i32_to_string(layer_pass));
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                     .depth_write     = layer_pass == 0 ? true : false,
-	                                                                     .compare_mode    = layer_pass == 0 ? "less" : "equal",
-	                                                                     .cull_mode       = (g_context->cull_backfaces || layer_pass > 0) ? "clockwise" : "none",
-	                                                                     .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                   },
-                                                                   3),
-	                                                                     .color_attachments = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       "RGBA64",
-                                                                       "RGBA64",
-                                                                       "RGBA64",
-                                                                   },
-                                                                   3),
-	                                                                     .depth_attachment = "D32"});
+	                                                                  .depth_write     = layer_pass == 0 ? true : false,
+	                                                                  .compare_mode    = layer_pass == 0 ? "less" : "equal",
+	                                                                  .cull_mode       = (g_context->cull_backfaces || layer_pass > 0) ? "clockwise" : "none",
+	                                                                  .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                },
+                                                                3),
+	                                                                  .color_attachments = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    "RGBA64",
+                                                                    "RGBA64",
+                                                                    "RGBA64",
+                                                                },
+                                                                3),
+	                                                                  .depth_attachment = "D32"});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);
 
 	if (mesh_data_get_vertex_array(g_context->paint_object->data, "col") != NULL) {
@@ -329,11 +329,11 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 						node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(m->id)), NULL);
 						node_shader_write_frag(kong, "{"); // Group mask is sampled across multiple layers
 						node_shader_write_frag(kong, string_tmp("var texpaint_mask_sample%s: float = sample_lod(texpaint%s, sampler_linear, %s, 0.0).r;",
-						                                    i32_to_string(m->id), i32_to_string(m->id), tex_coord));
+						                                        i32_to_string(m->id), i32_to_string(m->id), tex_coord));
 
 						f32 opac = slot_layer_get_opacity(m);
 						node_shader_write_frag(kong, string_tmp("%s *= lerp(1.0, %s, float(%s));", texpaint_mask,
-						                                    string_tmp("texpaint_mask_sample%s", i32_to_string(m->id)), f32_to_string(opac)));
+						                                        string_tmp("texpaint_mask_sample%s", i32_to_string(m->id)), f32_to_string(opac)));
 						node_shader_write_frag(kong, "}");
 					}
 					node_shader_write_frag(kong, string_tmp("texpaint_opac *= clamp(%s, 0.0, 1.0);", texpaint_mask));
@@ -351,21 +351,21 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				}
 				else {
 					node_shader_write_frag(kong, string_tmp("basecol = %s;", make_material_blend_mode(kong, slot_layer_get_blending(l), "basecol",
-					                                                                              "texpaint_sample.rgb", "texpaint_opac")));
+					                                                                                  "texpaint_sample.rgb", "texpaint_opac")));
 				}
 			}
 
 			if (l->paint_nor || make_material_emis_used) {
 				node_shader_add_texture(kong, string_tmp("texpaint_nor%s", i32_to_string(l->id)), NULL);
-				node_shader_write_frag(kong,
-				                       string_tmp("texpaint_nor_sample = sample_lod(texpaint_nor%s, sampler_linear, %s, 0.0);", i32_to_string(l->id), tex_coord));
+				node_shader_write_frag(kong, string_tmp("texpaint_nor_sample = sample_lod(texpaint_nor%s, sampler_linear, %s, 0.0);", i32_to_string(l->id),
+				                                        tex_coord));
 
 				if (make_material_emis_used) {
 					node_shader_write_frag(kong, "if (texpaint_opac > 0.0) {");
 					node_shader_add_constant(kong, "texpaint_size: float2", "_texpaint_size");
 					node_shader_write_frag(kong, string_tmp("	var texpaint_nor_raw: float4 = texpaint_nor%s[uint2(uint(%s.x * constants.texpaint_size.x), "
-					                                    "uint(%s.y * constants.texpaint_size.y))];",
-					                                    i32_to_string(l->id), tex_coord, tex_coord));
+					                                        "uint(%s.y * constants.texpaint_size.y))];",
+					                                        i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(kong, "	matid = texpaint_nor_raw.a;");
 					node_shader_write_frag(kong, "}");
 				}
@@ -388,8 +388,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 
 			if (l->paint_occ || l->paint_rough || l->paint_met || (l->paint_height && make_material_height_used)) {
 				node_shader_add_texture(kong, string_tmp("texpaint_pack%s", i32_to_string(l->id)), NULL);
-				node_shader_write_frag(kong,
-				                       string_tmp("texpaint_pack_sample = sample_lod(texpaint_pack%s, sampler_linear, %s, 0.0);", i32_to_string(l->id), tex_coord));
+				node_shader_write_frag(kong, string_tmp("texpaint_pack_sample = sample_lod(texpaint_pack%s, sampler_linear, %s, 0.0);", i32_to_string(l->id),
+				                                        tex_coord));
 
 				if (l->paint_occ) {
 					node_shader_write_frag(kong, "occlusion = lerp(occlusion, texpaint_pack_sample.r, texpaint_opac);");
@@ -407,17 +407,17 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 					node_shader_add_constant(kong, "texpaint_size: float2", "_texpaint_size");
 					node_shader_write_frag(kong, "var tex_step: float = 1.0 / constants.texpaint_size.x;");
 					node_shader_write_frag(
-					    kong, string_tmp("height0 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x - tex_step, %s.y), 0.0).a * texpaint_opac;", assign,
-					                 i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height0 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x - tex_step, %s.y), 0.0).a * texpaint_opac;",
+					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height1 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x + tex_step, %s.y), 0.0).a * texpaint_opac;", assign,
-					                 i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height1 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x + tex_step, %s.y), 0.0).a * texpaint_opac;",
+					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height2 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y - tex_step), 0.0).a * texpaint_opac;", assign,
-					                 i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height2 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y - tex_step), 0.0).a * texpaint_opac;",
+					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height3 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y + tex_step), 0.0).a * texpaint_opac;", assign,
-					                 i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height3 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y + tex_step), 0.0).a * texpaint_opac;",
+					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(kong, "}");
 				}
 			}
@@ -580,8 +580,9 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_add_texture(kong, string_tmp("texpaint_nor%s", i32_to_string(id)), NULL);
 			node_shader_add_constant(kong, "texpaint_size: float2", "_texpaint_size");
 			node_shader_write_frag(kong, "var sample_matid_coord: float2 = tex_coord * constants.texpaint_size;");
-			node_shader_write_frag(kong, string_tmp("var sample_matid4: float4 = texpaint_nor%s[uint2(uint(sample_matid_coord.x), uint(sample_matid_coord.y))];",
-			                                    i32_to_string(id)));
+			node_shader_write_frag(kong,
+			                       string_tmp("var sample_matid4: float4 = texpaint_nor%s[uint2(uint(sample_matid_coord.x), uint(sample_matid_coord.y))];",
+			                                  i32_to_string(id)));
 			node_shader_write_frag(kong, "var sample_matid: float = sample_matid4.a + 1.0 / 255.0;");
 			node_shader_write_frag(kong,
 			                       "var matid_r: float = frac(sin(dot(float2(sample_matid, sample_matid * 20.0), float2(12.9898, 78.233))) * 43758.5453);");
@@ -618,7 +619,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 						continue;
 					}
 					node_shader_write_frag(kong, string_tmp("var mask_sample%s: float = sample_lod(texpaint_view_mask%s, sampler_linear, tex_coord, 0.0).r;",
-					                                    i32_to_string(m->id), i32_to_string(m->id)));
+					                                        i32_to_string(m->id), i32_to_string(m->id)));
 					f32 opac = slot_layer_get_opacity(m);
 					node_shader_write_frag(kong, string_tmp("mask_view *= lerp(1.0, mask_sample%s, float(%s));", i32_to_string(m->id), f32_to_string(opac)));
 				}

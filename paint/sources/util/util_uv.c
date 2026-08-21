@@ -102,7 +102,7 @@ void util_uv_cache_dilate_map() {
 	}
 
 	if (util_uv_pipe_dilate == NULL) {
-		util_uv_pipe_dilate = gpu_create_pipeline();
+		util_uv_pipe_dilate                  = gpu_create_pipeline();
 		util_uv_pipe_dilate->vertex_shader   = sys_get_shader("dilate_map.vert");
 		util_uv_pipe_dilate->fragment_shader = sys_get_shader("dilate_map.frag");
 		gpu_vertex_structure_t *vs           = ALLOC_INIT(gpu_vertex_structure_t, {0});
@@ -129,7 +129,7 @@ void util_uv_cache_dilate_map() {
 	gpu_draw();
 	gpu_end();
 	util_uv_dilatemap_cached = true;
-	util_uv_dilate_bytes = NULL;
+	util_uv_dilate_bytes     = NULL;
 }
 
 void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_array_t *coords_x, i32_array_t *coords_y) {
@@ -189,7 +189,7 @@ void util_uv_cache_uv_island_map() {
 	if (util_uv_uvislandmap != NULL) {
 		gpu_delete_texture(util_uv_uvislandmap);
 	}
-	util_uv_uvislandmap = gpu_create_texture_from_bytes(bytes, w, h, GPU_TEXTURE_FORMAT_R8);
+	util_uv_uvislandmap        = gpu_create_texture_from_bytes(bytes, w, h, GPU_TEXTURE_FORMAT_R8);
 	util_uv_uvislandmap_cached = true;
 
 	array_free(bytes);

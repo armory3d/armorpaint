@@ -71,13 +71,13 @@ void parse_normal_map_color_input(ui_node_socket_t *inp) {
 
 shader_out_t *parser_material_parse_shader(ui_node_t *node, ui_node_socket_t *socket) {
 	shader_out_t *sout = TMP_ALLOC_INIT(shader_out_t, {.out_basecol    = "float3(0.8, 0.8, 0.8)",
-	                                                  .out_roughness  = "0.0",
-	                                                  .out_metallic   = "0.0",
-	                                                  .out_occlusion  = "1.0",
-	                                                  .out_opacity    = "1.0",
-	                                                  .out_height     = "0.0",
-	                                                  .out_emission   = "0.0",
-	                                                  .out_subsurface = "0.0"});
+	                                                   .out_roughness  = "0.0",
+	                                                   .out_metallic   = "0.0",
+	                                                   .out_occlusion  = "1.0",
+	                                                   .out_opacity    = "1.0",
+	                                                   .out_height     = "0.0",
+	                                                   .out_emission   = "0.0",
+	                                                   .out_subsurface = "0.0"});
 	if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
 
 		// Normal - parsed first to retrieve uv coords
@@ -118,13 +118,13 @@ shader_out_t *parser_material_parse_shader_input(ui_node_socket_t *inp) {
 	}
 	else {
 		shader_out_t *sout = TMP_ALLOC_INIT(shader_out_t, {.out_basecol    = "float3(0.8, 0.8, 0.8)",
-		                                                  .out_roughness  = "0.0",
-		                                                  .out_metallic   = "0.0",
-		                                                  .out_occlusion  = "1.0",
-		                                                  .out_opacity    = "1.0",
-		                                                  .out_height     = "0.0",
-		                                                  .out_emission   = "0.0",
-		                                                  .out_subsurface = "0.0"});
+		                                                   .out_roughness  = "0.0",
+		                                                   .out_metallic   = "0.0",
+		                                                   .out_occlusion  = "1.0",
+		                                                   .out_opacity    = "1.0",
+		                                                   .out_height     = "0.0",
+		                                                   .out_emission   = "0.0",
+		                                                   .out_subsurface = "0.0"});
 		return sout;
 	}
 }
@@ -140,10 +140,10 @@ shader_out_t *parser_material_parse(ui_node_canvas_t *canvas, node_shader_contex
 	        canvas,
 	    },
 	    1);
-	parser_material_nodes = canvas->nodes;
-	parser_material_links = canvas->links;
-	parser_material_con = _con;
-	parser_material_kong = _kong;
+	parser_material_nodes  = canvas->nodes;
+	parser_material_links  = canvas->links;
+	parser_material_con    = _con;
+	parser_material_kong   = _kong;
 	parser_material_matcon = _matcon;
 
 	if (parser_material_start_group != NULL) {
@@ -154,17 +154,17 @@ shader_out_t *parser_material_parse(ui_node_canvas_t *canvas, node_shader_contex
 	}
 
 	if (parser_material_start_node != NULL) {
-		ui_node_link_t *link = TMP_ALLOC_INIT(
-		    ui_node_link_t, {.id = 99999, .from_id = parser_material_start_node->id, .from_socket = 0, .to_id = -1, .to_socket = -1});
+		ui_node_link_t *link =
+		    TMP_ALLOC_INIT(ui_node_link_t, {.id = 99999, .from_id = parser_material_start_node->id, .from_socket = 0, .to_id = -1, .to_socket = -1});
 		parser_material_write_result(link);
 		shader_out_t *sout = TMP_ALLOC_INIT(shader_out_t, {.out_basecol    = "float3(0.0, 0.0, 0.0)",
-		                                                  .out_roughness  = "0.0",
-		                                                  .out_metallic   = "0.0",
-		                                                  .out_occlusion  = "1.0",
-		                                                  .out_opacity    = "1.0",
-		                                                  .out_height     = "0.0",
-		                                                  .out_emission   = "0.0",
-		                                                  .out_subsurface = "0.0"});
+		                                                   .out_roughness  = "0.0",
+		                                                   .out_metallic   = "0.0",
+		                                                   .out_occlusion  = "1.0",
+		                                                   .out_opacity    = "1.0",
+		                                                   .out_height     = "0.0",
+		                                                   .out_emission   = "0.0",
+		                                                   .out_subsurface = "0.0"});
 		return sout;
 	}
 
@@ -287,7 +287,7 @@ void parser_material_push_group(ui_node_canvas_t *g) {
 
 void parser_material_pop_group() {
 	array_pop(parser_material_canvases);
-	ui_node_canvas_t *g = parser_material_canvases->buffer[parser_material_canvases->length - 1];
+	ui_node_canvas_t *g   = parser_material_canvases->buffer[parser_material_canvases->length - 1];
 	parser_material_nodes = g->nodes;
 	parser_material_links = g->links;
 }
@@ -436,10 +436,10 @@ char *parser_material_get_coord(ui_node_t *node) {
 }
 
 char *parser_material_safesrc(char *s) {
-	i32  len        = string_length(s);
-	bool lead_digit = len > 0 && s[0] >= '0' && s[0] <= '9';
-	i32  pos        = 0;
-	char *r         = string_tmp_alloc(len + (lead_digit ? 1 : 0) + 1);
+	i32   len        = string_length(s);
+	bool  lead_digit = len > 0 && s[0] >= '0' && s[0] <= '9';
+	i32   pos        = 0;
+	char *r          = string_tmp_alloc(len + (lead_digit ? 1 : 0) + 1);
 	if (lead_digit) {
 		r[pos++] = '_';
 	}

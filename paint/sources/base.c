@@ -136,8 +136,8 @@ gpu_texture_t *base_get_drag_image() {
 			return base_drag_file_icon;
 		}
 		gpu_texture_t *icons = resource_get("icons.k");
-		base_drag_rect = string_index_of(base_drag_file, ".") > 0 ? resource_tile50(icons, ICON_FILE) : resource_tile50(icons, ICON_FOLDER_FULL);
-		base_drag_tint = g_theme->HIGHLIGHT_COL;
+		base_drag_rect       = string_index_of(base_drag_file, ".") > 0 ? resource_tile50(icons, ICON_FILE) : resource_tile50(icons, ICON_FOLDER_FULL);
+		base_drag_tint       = g_theme->HIGHLIGHT_COL;
 		return icons;
 	}
 
@@ -154,8 +154,8 @@ gpu_texture_t *base_get_drag_image() {
 		gpu_texture_t *icons         = resource_get("icons.k");
 		rect_t        *folder_closed = resource_tile50(icons, ICON_FOLDER_FULL);
 		rect_t        *folder_open   = resource_tile50(icons, ICON_FOLDER_OPEN);
-		base_drag_rect = base_drag_layer->show_panel ? folder_open : folder_closed;
-		base_drag_tint = base_darker(g_theme->LABEL_COL, 0x00202020);
+		base_drag_rect               = base_drag_layer->show_panel ? folder_open : folder_closed;
+		base_drag_tint               = base_darker(g_theme->LABEL_COL, 0x00202020);
 		return icons;
 	}
 	if (base_drag_layer != NULL && slot_layer_is_mask(base_drag_layer) && base_drag_layer->fill_material == NULL) {
@@ -171,8 +171,8 @@ gpu_texture_t *base_get_drag_image() {
 			return preview;
 		}
 		gpu_texture_t *icons = resource_get("icons.k");
-		base_drag_rect = resource_tile50(icons, ICON_CUBE);
-		base_drag_tint = g_theme->BUTTON_COL;
+		base_drag_rect       = resource_tile50(icons, ICON_CUBE);
+		base_drag_tint       = g_theme->BUTTON_COL;
 		return icons;
 	}
 	return NULL;
@@ -222,16 +222,16 @@ void base_update(void *_) {
 		}
 		bool moved = math_abs(mouse_movement_x) > 1 && math_abs(mouse_movement_y) > 1;
 		if ((mouse_released("left") || moved) && !has_drag) {
-			base_drag_asset = NULL;
-			base_drag_swatch = NULL;
-			base_drag_file = NULL;
+			base_drag_asset     = NULL;
+			base_drag_swatch    = NULL;
+			base_drag_file      = NULL;
 			base_drag_file_icon = NULL;
 			base_is_dragging    = false;
-			base_drag_material = NULL;
-			base_drag_layer = NULL;
-			base_drag_mesh = NULL;
-			base_drag_brush = NULL;
-			base_drag_font = NULL;
+			base_drag_material  = NULL;
+			base_drag_layer     = NULL;
+			base_drag_mesh      = NULL;
+			base_drag_brush     = NULL;
+			base_drag_font      = NULL;
 		}
 		// Disable touch scrolling while dragging is active
 		ui_touch_control = !base_is_dragging;
@@ -295,7 +295,7 @@ void base_update(void *_) {
 				import_asset_run(base_drag_file, base_drop_x, base_drop_y, true, true, &base_update_import_asset_done);
 			}
 
-			base_drag_file = NULL;
+			base_drag_file      = NULL;
 			base_drag_file_icon = NULL;
 		}
 		else if (base_drag_material != NULL) {

@@ -144,8 +144,8 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		return scene_camera->frame == 0 ? 0.0 : 0.5;
 	}
 	if (parser_material_script_links != NULL) {
-		string_array_t *keys  = map_keys(parser_material_script_links);
-		bool            found = keys->length > 0;
+		string_array_t *keys   = map_keys(parser_material_script_links);
+		bool            found  = keys->length > 0;
 		char           *script = found ? any_map_get(parser_material_script_links, keys->buffer[0]) : NULL;
 		array_free(keys);
 		free(keys);
@@ -510,11 +510,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 }
 
 void uniforms_ext_init() {
-	uniforms_i32_links = uniforms_ext_i32_link;
-	uniforms_f32_links = uniforms_ext_f32_link;
+	uniforms_i32_links  = uniforms_ext_i32_link;
+	uniforms_f32_links  = uniforms_ext_f32_link;
 	uniforms_vec2_links = uniforms_ext_vec2_link;
 	uniforms_vec3_links = uniforms_ext_vec3_link;
 	uniforms_vec4_links = uniforms_ext_vec4_link;
 	uniforms_mat4_links = uniforms_ext_mat4_link;
-	uniforms_tex_links = uniforms_ext_tex_link;
+	uniforms_tex_links  = uniforms_ext_tex_link;
 }

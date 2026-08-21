@@ -101,13 +101,13 @@ static char *sculpt_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 	else if (blending == BLEND_TYPE_OVERLAY) {
 		char *res = "sculpt_overlay_res";
 		node_shader_write_frag(kong, string_tmp("var %s: float;", res));
-		node_shader_write_frag(kong, string_tmp("if (%s < 0.5) { %s = 2.0 * %s * %s; } else { %s = 1.0 - 2.0 * (1.0 - %s) * (1.0 - %s); }", cola, res, cola, colb,
-		                                    res, cola, colb));
+		node_shader_write_frag(kong, string_tmp("if (%s < 0.5) { %s = 2.0 * %s * %s; } else { %s = 1.0 - 2.0 * (1.0 - %s) * (1.0 - %s); }", cola, res, cola,
+		                                        colb, res, cola, colb));
 		return string_tmp("lerp(%s, %s, %s)", cola, res, opac);
 	}
 	else if (blending == BLEND_TYPE_SOFT_LIGHT) {
-		return string_tmp("((1.0 - %s) * %s + %s * ((1.0 - %s) * %s * %s + %s * (1.0 - (1.0 - %s) * (1.0 - %s))))", opac, cola, opac, cola, colb, cola, cola, colb,
-		              cola);
+		return string_tmp("((1.0 - %s) * %s + %s * ((1.0 - %s) * %s * %s + %s * (1.0 - (1.0 - %s) * (1.0 - %s))))", opac, cola, opac, cola, colb, cola, cola,
+		                  colb, cola);
 	}
 	else if (blending == BLEND_TYPE_LINEAR_LIGHT) {
 		return string_tmp("(%s + %s * (2.0 * (%s - 0.5)))", cola, opac, colb);
@@ -129,20 +129,20 @@ static char *sculpt_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context_t *matcon) {
 	char                  *context_id = "paint";
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                     .depth_write     = false,
-	                                                                     .compare_mode    = "always",
-	                                                                     .cull_mode       = "none",
-	                                                                     .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
-                                                                   },
-                                                                   1),
-	                                                                     .color_attachments = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       "RGBA128",
-                                                                       "R8",
-                                                                   },
-                                                                   2)});
+	                                                                  .depth_write     = false,
+	                                                                  .compare_mode    = "always",
+	                                                                  .cull_mode       = "none",
+	                                                                  .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
+                                                                },
+                                                                1),
+	                                                                  .color_attachments = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    "RGBA128",
+                                                                    "R8",
+                                                                },
+                                                                2)});
 	node_shader_context_t *con_paint  = node_shader_context_create(data, props);
 	con_paint->data->color_writes_red = u8_array_create_from_raw(
 	    (u8[]){
@@ -718,8 +718,8 @@ bool sculpt_mask_value(node_shader_t *kong, slot_layer_t *l, char *out_var, bool
 		node_shader_add_texture(kong, string_tmp("texpaint_vert%s", i32_to_string(m->id)), string_tmp("_texpaint_vert%s", i32_to_string(m->id)));
 		f32 opac = slot_layer_get_opacity(m);
 		sculpt_mesh_write(kong, attrib,
-		                  string_tmp("%s *= lerp(1.0, sample_lod(texpaint_vert%s, sampler_linear, input.tex, 0.0).r, float(%s));", out_var, i32_to_string(m->id),
-		                         f32_to_string(opac)));
+		                  string_tmp("%s *= lerp(1.0, sample_lod(texpaint_vert%s, sampler_linear, input.tex, 0.0).r, float(%s));", out_var,
+		                             i32_to_string(m->id), f32_to_string(opac)));
 	}
 	sculpt_mesh_write(kong, attrib, string_tmp("%s = clamp(%s, 0.0, 1.0);", out_var, out_var));
 	return true;
@@ -770,9 +770,9 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 		node_shader_write_vert(kong, string_tmp("var texpaint_sculpt_sample_%d: float4 = texpaint_sculpt%d[sculpt_uv];", idx, idx));
 		node_shader_write_vert(kong, string_tmp("var texpaint_sculpt_base_sample_%d: float4 = texpaint_sculpt_base[sculpt_uv];", idx));
 		if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string_tmp("sculpt_pmask_%d", idx), false, NULL)) {
-			node_shader_write_vert(kong,
-			                       string_tmp("sculpt_pos = sculpt_pos + (texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz) * sculpt_pmask_%d;",
-			                              idx, idx, idx));
+			node_shader_write_vert(
+			    kong,
+			    string_tmp("sculpt_pos = sculpt_pos + (texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz) * sculpt_pmask_%d;", idx, idx, idx));
 		}
 		else {
 			node_shader_write_vert(kong, string_tmp("sculpt_pos = sculpt_pos + texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz;", idx, idx));
@@ -846,7 +846,8 @@ void sculpt_make_paint_run(node_shader_t *kong) {
 			if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string_tmp("sculpt_pmask_%d", idx), true, g_context->layer)) {
 				node_shader_write_attrib_vert(kong, string_tmp("var psamp_%d: float4 = texpaint_sculpt%d[sculpt_uv_paint];", idx, idx));
 				node_shader_write_attrib_vert(kong, string_tmp("var pbasel_%d: float4 = texpaint_sculpt_base[sculpt_uv_paint];", idx));
-				node_shader_write_attrib_vert(kong, string_tmp("sculpt_pos_paint = sculpt_pos_paint + (psamp_%d - pbasel_%d) * sculpt_pmask_%d;", idx, idx, idx));
+				node_shader_write_attrib_vert(kong,
+				                              string_tmp("sculpt_pos_paint = sculpt_pos_paint + (psamp_%d - pbasel_%d) * sculpt_pmask_%d;", idx, idx, idx));
 			}
 			else {
 				node_shader_write_attrib_vert(
@@ -936,16 +937,16 @@ void sculpt_init_meshes() {
 			inda->buffer[i] = i;
 		}
 		mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = md->name,
-		                                               .vertex_arrays = any_array_create_from_raw(
-		                                                   (void *[]){
-		                                                       ALLOC_INIT(vertex_array_t, {.values = posa, .attrib = "pos", .data = "short4norm"}),
-		                                                       ALLOC_INIT(vertex_array_t, {.values = nora, .attrib = "nor", .data = "short2norm"}),
-		                                                       ALLOC_INIT(vertex_array_t, {.values = texa, .attrib = "tex", .data = "short2norm"}),
-		                                                   },
-		                                                   3),
-		                                               .index_array = inda,
-		                                               .scale_pos   = 1.0,
-		                                               .scale_tex   = 1.0});
+		                                            .vertex_arrays = any_array_create_from_raw(
+		                                                (void *[]){
+		                                                    ALLOC_INIT(vertex_array_t, {.values = posa, .attrib = "pos", .data = "short4norm"}),
+		                                                    ALLOC_INIT(vertex_array_t, {.values = nora, .attrib = "nor", .data = "short2norm"}),
+		                                                    ALLOC_INIT(vertex_array_t, {.values = texa, .attrib = "tex", .data = "short2norm"}),
+		                                                },
+		                                                3),
+		                                            .index_array = inda,
+		                                            .scale_pos   = 1.0,
+		                                            .scale_tex   = 1.0});
 		mesh_object_set_data(object, mesh_data_create(raw));
 	}
 

@@ -73,8 +73,8 @@ void translator_init_font_on_next_frame(void *_) {
 }
 
 void translator_init_font(bool cjk, char *font_path, f32 font_scale) {
-	_translator_init_font_cjk = cjk;
-	_translator_init_font_font_path = string_copy(font_path);
+	_translator_init_font_cjk        = cjk;
+	_translator_init_font_font_path  = string_copy(font_path);
 	_translator_init_font_font_scale = font_scale;
 
 	// Load and assign font with cjk characters
@@ -142,7 +142,7 @@ void translator_load_translations(char *new_locale) {
 
 	if (!string_equals(g_config->locale, "en")) {
 		// Load the translation file
-		char *translation_json = sys_buffer_to_string(iron_load_blob(string("data/locale/%s.json", g_config->locale)));
+		char *translation_json  = sys_buffer_to_string(iron_load_blob(string("data/locale/%s.json", g_config->locale)));
 		translator_translations = json_parse_to_map(translation_json);
 	}
 
@@ -172,14 +172,14 @@ void translator_load_translations(char *new_locale) {
 
 	if (cjk) {
 		if (path_is_protected()) {
-			_translator_load_translations_cjk_font_path = string_copy(iron_internal_save_path());
+			_translator_load_translations_cjk_font_path      = string_copy(iron_internal_save_path());
 			_translator_load_translations_cjk_font_disk_path = string_copy(iron_internal_save_path());
 		}
 		else {
-			_translator_load_translations_cjk_font_path = "";
+			_translator_load_translations_cjk_font_path      = "";
 			_translator_load_translations_cjk_font_disk_path = string("%s%s", path_data(), PATH_SEP);
 		}
-		_translator_load_translations_cjk_font_path = string("%sfont_cjk.ttc", _translator_load_translations_cjk_font_path);
+		_translator_load_translations_cjk_font_path      = string("%sfont_cjk.ttc", _translator_load_translations_cjk_font_path);
 		_translator_load_translations_cjk_font_disk_path = string("%sfont_cjk.ttc", _translator_load_translations_cjk_font_disk_path);
 
 		if (!iron_file_exists(_translator_load_translations_cjk_font_disk_path)) {

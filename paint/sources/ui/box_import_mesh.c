@@ -91,11 +91,11 @@ void project_import_mesh_box_draw() {
 }
 
 void project_import_mesh_box(char *path, bool replace_existing, bool clear_layers, bool keep_camera, void (*done)(void)) {
-	_project_import_mesh_box_path = string_copy(path);
+	_project_import_mesh_box_path             = string_copy(path);
 	_project_import_mesh_box_replace_existing = replace_existing;
 	_project_import_mesh_box_clear_layers     = clear_layers;
 	_project_import_mesh_box_keep_camera      = keep_camera;
-	_project_import_mesh_box_done = done;
+	_project_import_mesh_box_done             = done;
 	ui_box_show_custom(&project_import_mesh_box_draw, 400, 200, NULL, true, tr("Import Mesh"));
 	ui_box_click_to_hide = false; // Prevent closing when going back to window from file browser
 }

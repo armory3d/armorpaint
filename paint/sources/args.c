@@ -137,7 +137,7 @@ void args_run_on_next_frame(void *_) {
 			}
 		}
 
-		buffer_t *blob = data_get_blob(file);
+		buffer_t *blob    = data_get_blob(file);
 		box_export_preset = json_parse(sys_buffer_to_string(blob));
 		data_delete_blob(file);
 

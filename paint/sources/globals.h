@@ -229,7 +229,7 @@ ui_node_canvas_t         *parser_material_start_group           = NULL;
 ui_node_t_array_t        *parser_material_start_parents         = NULL;
 ui_node_t                *parser_material_start_node            = NULL;
 char                     *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
-any_map_t                *parser_material_script_links = NULL;
+any_map_t                *parser_material_script_links      = NULL;
 bool                      parser_material_is_frag           = true;
 bool                      args_player                       = false;
 i32                       util_render_material_preview_size = 256;

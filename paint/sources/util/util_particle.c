@@ -125,7 +125,7 @@ void util_particle_update() {
 			}
 			physics_pair_t_array_t *pairs = physics_get_contact_pairs(g_context->particles[i].body);
 			if (pairs != NULL && pairs->length > 0) {
-				physics_pair_t *p                     = pairs->buffer[0];
+				physics_pair_t *p                  = pairs->buffer[0];
 				g_context->particles[i].hit_last_x = g_context->particles[i].hit_x != 0 ? g_context->particles[i].hit_x : p->pos_a_x;
 				g_context->particles[i].hit_last_y = g_context->particles[i].hit_y != 0 ? g_context->particles[i].hit_y : p->pos_a_y;
 				g_context->particles[i].hit_last_z = g_context->particles[i].hit_z != 0 ? g_context->particles[i].hit_z : p->pos_a_z;

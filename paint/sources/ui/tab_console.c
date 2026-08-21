@@ -93,7 +93,7 @@ void tab_console_draw(ui_handle_t *htab) {
 
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
 			console_last_traces = any_array_create_from_raw((void *[]){}, 0);
-			h_input->text = "";
+			h_input->text       = "";
 			text_to_text_node_clear();
 		}
 		if (ui_icon_button(tr("Export"), ICON_EXPORT, UI_ALIGN_CENTER)) {

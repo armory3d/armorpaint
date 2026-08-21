@@ -150,9 +150,9 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool cop
 			if (!project_packed_asset_exists(g_project->packed_assets, pa->name)) {
 
 				if (copy) {
-					packed_asset_t *pa_copy =
-					    ALLOC_INIT(packed_asset_t, {.name = string_copy(pa->name), .bytes = u8_array_create_from_array(pa->bytes)}); // Project data is temporary
-					pa = pa_copy;
+					packed_asset_t *pa_copy = ALLOC_INIT(packed_asset_t, {.name  = string_copy(pa->name),
+					                                                      .bytes = u8_array_create_from_array(pa->bytes)}); // Project data is temporary
+					pa                      = pa_copy;
 				}
 
 				any_array_push(g_project->packed_assets, pa);
@@ -214,7 +214,7 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 	}
 
 	sys_notify_on_next_frame(&import_arm_run_material_from_project_on_next_frame, imported);
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
+	ui_nodes_group_stack                              = any_array_create_from_raw((void *[]){}, 0);
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 	data_delete_blob(path);
 }
@@ -252,8 +252,8 @@ void import_arm_run_project(char *path) {
 	}
 	else if (!import_arm_has_version(b)) {
 		import_as_mesh = true;
-		scene_raw_gc = armpack_decode(b);
-		project = ALLOC_INIT(project_t, {.mesh_datas = scene_raw_gc->mesh_datas});
+		scene_raw_gc   = armpack_decode(b);
+		project        = ALLOC_INIT(project_t, {.mesh_datas = scene_raw_gc->mesh_datas});
 	}
 	else {
 		project = armpack_decode(b);
@@ -280,7 +280,7 @@ void import_arm_run_project(char *path) {
 
 	project_new(import_as_mesh);
 	g_project->_->filepath = string_copy(path);
-	ui_files_filename = string_copy(substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, ".")));
+	ui_files_filename      = string_copy(substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, ".")));
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	sys_title_set(ui_files_filename);
 #else
@@ -307,8 +307,8 @@ void import_arm_run_project(char *path) {
 	array_insert(recent, 0, recent_path);
 	config_save();
 
-	project->_ = g_project->_; // Carry over runtime arrays set up by project_new
-	g_project = project;
+	project->_                           = g_project->_; // Carry over runtime arrays set up by project_new
+	g_project                            = project;
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	base_res_handle->i                   = config_get_texture_res_pos(l0->res);
 	base_res_x_handle->f                 = (f32)l0->res;
@@ -631,8 +631,8 @@ void import_arm_run_project(char *path) {
 		any_array_push(g_project->_->materials, g_context->material);
 	}
 
-	ui_nodes_hwnd->redraws = 2;
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
+	ui_nodes_hwnd->redraws        = 2;
+	ui_nodes_group_stack          = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
 	if (g_project->material_groups != NULL) {
 		for (i32 i = 0; i < g_project->material_groups->length; ++i) {

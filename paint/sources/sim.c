@@ -45,7 +45,7 @@ void sim_play() {
 	}
 
 	// Save transforms
-	sim_transforms = any_array_create_from_raw((void *[]){}, 0);
+	sim_transforms             = any_array_create_from_raw((void *[]){}, 0);
 	mesh_object_t_array_t *pos = g_project->_->paint_objects;
 	for (i32 i = 0; i < pos->length; ++i) {
 		mat4_t *m = calloc(1, sizeof(mat4_t));

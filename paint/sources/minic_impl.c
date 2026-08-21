@@ -99,8 +99,8 @@ void script_tween_to(object_t *o, vec4_t to, f32 speed) {
 	_script_tween_transform = t;
 	f32    duration         = vec4_dist(t->loc, to) / speed;
 	ease_t ease             = EASE_LINEAR;
-	tween_to(ALLOC_INIT(tween_anim_t,
-	                       {.target = &t->loc.x, .to = to.x, .duration = duration, .ease = ease, .tick = script_tween_tick, .done = script_tween_done}));
+	tween_to(
+	    ALLOC_INIT(tween_anim_t, {.target = &t->loc.x, .to = to.x, .duration = duration, .ease = ease, .tick = script_tween_tick, .done = script_tween_done}));
 	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.y, .to = to.y, .duration = duration, .ease = ease}));
 	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.z, .to = to.z, .duration = duration, .ease = ease}));
 }

@@ -42,7 +42,7 @@ void edit_uvmap_update() {
 	}
 
 	if (_selected_verts == NULL) {
-		_selected_verts = i32_array_create_from_raw((i32[]){0}, 1);
+		_selected_verts         = i32_array_create_from_raw((i32[]){0}, 1);
 		_selected_verts->length = 0;
 	}
 

@@ -110,17 +110,17 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	}
 
 	shader_context_t      *props     = ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                    .depth_write     = false,
-	                                                                    .compare_mode    = "always",
-	                                                                    .cull_mode       = "none",
-	                                                                    .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                   },
-                                                                   3),
-	                                                                    .color_attachments = make_paint_color_attachments()});
+	                                                                 .depth_write     = false,
+	                                                                 .compare_mode    = "always",
+	                                                                 .cull_mode       = "none",
+	                                                                 .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                },
+                                                                3),
+	                                                                 .color_attachments = make_paint_color_attachments()});
 	node_shader_context_t *con_paint = node_shader_context_create(data, props);
 
 	if (!is_atlas) {
@@ -334,20 +334,20 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		uv_type_t uv_type                  = g_context->layer->fill_material != NULL ? g_context->layer->uv_type : g_context->brush_paint;
 		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect = decal;
-		parser_material_sample_uv_scale = is_atlas ? "1.0" : "constants.brush_scale";
-		shader_out_t *sout               = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
-		parser_material_parse_emission   = false;
-		parser_material_parse_subsurface = false;
-		parser_material_parse_height     = false;
-		char *base                       = sout->out_basecol;
-		char *rough                      = sout->out_roughness;
-		char *met                        = sout->out_metallic;
-		char *occ                        = sout->out_occlusion;
-		char *nortan                     = parser_material_out_normaltan;
-		char *height                     = sout->out_height;
-		char *opac                       = sout->out_opacity;
-		char *emis                       = sout->out_emission;
-		char *subs                       = sout->out_subsurface;
+		parser_material_sample_uv_scale    = is_atlas ? "1.0" : "constants.brush_scale";
+		shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
+		parser_material_parse_emission     = false;
+		parser_material_parse_subsurface   = false;
+		parser_material_parse_height       = false;
+		char *base                         = sout->out_basecol;
+		char *rough                        = sout->out_roughness;
+		char *met                          = sout->out_metallic;
+		char *occ                          = sout->out_occlusion;
+		char *nortan                       = parser_material_out_normaltan;
+		char *height                       = sout->out_height;
+		char *opac                         = sout->out_opacity;
+		char *emis                         = sout->out_emission;
+		char *subs                         = sout->out_subsurface;
 		node_shader_write_frag(kong, string_tmp("var basecol: float3 = %s;", base));
 		node_shader_write_frag(kong, string_tmp("var roughness: float = %s;", rough));
 		node_shader_write_frag(kong, string_tmp("var metallic: float = %s;", met));
@@ -550,7 +550,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	}
 	else if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC || g_context->layer->fill_material != NULL) {
 		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
-		                                    make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "mat_opacity"));
+		                                        make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "mat_opacity"));
 	}
 	else if (g_context->brush_blending == BLEND_TYPE_MIX && !is_mask) {
 		node_shader_write_frag(kong, "var out_a: float = str + sample_undo.a * (1.0 - str);");
@@ -559,7 +559,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	else {
 		node_shader_write_frag(kong, "var out_a: float = str + sample_undo.a * (1.0 - str);");
 		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
-		                                    make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "out_a"));
+		                                        make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "out_a"));
 	}
 	node_shader_write_frag(kong, "output[1] = float4(lerp3(sample_nor_undo.rgb, nortan, str), matid);");
 	node_shader_write_frag(kong, "output[2] = lerp4(sample_pack_undo, float4(occlusion, roughness, metallic, height), str);");

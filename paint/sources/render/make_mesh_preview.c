@@ -4,23 +4,23 @@
 node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_t *matcon, bool viewport) {
 	char             *context_id = "mesh";
 	shader_context_t *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
-	                                                                .depth_write     = true,
-	                                                                .compare_mode    = "less",
-	                                                                .cull_mode       = "clockwise",
-	                                                                .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                   },
-                                                                   3),
-	                                                                .color_attachments = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       "RGBA64",
-                                                                       "RGBA64",
-                                                                   },
-                                                                   2),
-	                                                                .depth_attachment = "D32"});
+	                                                             .depth_write     = true,
+	                                                             .compare_mode    = "less",
+	                                                             .cull_mode       = "clockwise",
+	                                                             .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                },
+                                                                3),
+	                                                             .color_attachments = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    "RGBA64",
+                                                                    "RGBA64",
+                                                                },
+                                                                2),
+	                                                             .depth_attachment = "D32"});
 
 	if (viewport) {
 		string_array_push(props->color_attachments, "RGBA64");
@@ -42,7 +42,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 
 	bool decal                         = g_context->decal_preview;
 	parser_material_sample_keep_aspect = decal;
-	parser_material_sample_uv_scale = brush_scale;
+	parser_material_sample_uv_scale    = brush_scale;
 	parser_material_parse_height       = make_material_height_used;
 	shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_mesh, kong, matcon);
 	parser_material_parse_height       = false;
@@ -172,8 +172,8 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	shader_context_load(acon->data);
 	material_context_load(amcon);
 
-	g_context->tool                = _tool;
-	g_context->fill_type           = _fill_type;
+	g_context->tool      = _tool;
+	g_context->fill_type = _fill_type;
 	free(g_context->layer);
 	g_context->layer               = _layer;
 	g_context->select_active       = _select_active;

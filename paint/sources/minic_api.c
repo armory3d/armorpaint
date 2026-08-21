@@ -2,11 +2,11 @@
 // Exposes the engine and app api to minic scripts
 
 #include "engine.h"
+#include "iron_alloc.h"
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_draw.h"
 #include "iron_file.h"
-#include "iron_alloc.h"
 #include "iron_input.h"
 #include "iron_json.h"
 #include "iron_map.h"

@@ -287,16 +287,16 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 
 mesh_data_t *import_mesh_raw_mesh(raw_mesh_t *mesh) {
 	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = mesh->name,
-	                                               .vertex_arrays = any_array_create_from_raw(
-	                                                   (void *[]){
-	                                                       ALLOC_INIT(vertex_array_t, {.values = mesh->posa, .attrib = "pos", .data = "short4norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = mesh->nora, .attrib = "nor", .data = "short2norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = mesh->texa, .attrib = "tex", .data = "short2norm"}),
-	                                                   },
-	                                                   3),
-	                                               .index_array = mesh->inda,
-	                                               .scale_pos   = mesh->scale_pos,
-	                                               .scale_tex   = mesh->scale_tex});
+	                                            .vertex_arrays = any_array_create_from_raw(
+	                                                (void *[]){
+	                                                    ALLOC_INIT(vertex_array_t, {.values = mesh->posa, .attrib = "pos", .data = "short4norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = mesh->nora, .attrib = "nor", .data = "short2norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = mesh->texa, .attrib = "tex", .data = "short2norm"}),
+	                                                },
+	                                                3),
+	                                            .index_array = mesh->inda,
+	                                            .scale_pos   = mesh->scale_pos,
+	                                            .scale_tex   = mesh->scale_tex});
 	if (mesh->texa1 != NULL) {
 		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = mesh->texa1, .attrib = "tex1", .data = "short2norm"});
 		any_array_push(raw->vertex_arrays, va);

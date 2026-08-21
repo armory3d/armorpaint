@@ -10,11 +10,11 @@ void util_render_make_material_preview() {
 	mesh_object_t *sphere         = scene_get_child(".Sphere")->ext;
 	sphere->base->visible         = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
-	scene_meshes = any_array_create_from_raw(
-	    (void *[]){
-	        sphere,
-	    },
-	    1);
+	scene_meshes                  = any_array_create_from_raw(
+        (void *[]){
+            sphere,
+        },
+        1);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = sphere;
 
@@ -51,7 +51,7 @@ void util_render_make_material_preview() {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	render_path_commands = render_path_preview_commands_preview;
+	render_path_commands    = render_path_preview_commands_preview;
 	render_path_render_frame();
 	render_path_commands = _commands;
 
@@ -63,7 +63,7 @@ void util_render_make_material_preview() {
 	sphere->base->visible = false;
 	array_free(scene_meshes);
 	free(scene_meshes);
-	scene_meshes = meshes;
+	scene_meshes            = meshes;
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
@@ -94,11 +94,11 @@ void util_render_make_decal_preview() {
 	transform_build_matrix(plane->base->transform);
 	plane->base->visible          = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
-	scene_meshes = any_array_create_from_raw(
-	    (void *[]){
-	        plane,
-	    },
-	    1);
+	scene_meshes                  = any_array_create_from_raw(
+        (void *[]){
+            plane,
+        },
+        1);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = plane;
 
@@ -120,7 +120,7 @@ void util_render_make_decal_preview() {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	render_path_commands = render_path_preview_commands_decal;
+	render_path_commands    = render_path_preview_commands_decal;
 	render_path_render_frame();
 	render_path_commands = _commands;
 
@@ -132,7 +132,7 @@ void util_render_make_decal_preview() {
 	plane->base->visible = false;
 	array_free(scene_meshes);
 	free(scene_meshes);
-	scene_meshes = meshes;
+	scene_meshes            = meshes;
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
@@ -509,7 +509,7 @@ void util_render_create_screen_aligned_full_data() {
 	gpu_vertex_buffer_unlock(util_render_screen_aligned_full_vb);
 
 	util_render_screen_aligned_full_ib = gpu_create_index_buffer(indices->length);
-	uint32_t *id = gpu_index_buffer_lock(util_render_screen_aligned_full_ib);
+	uint32_t *id                       = gpu_index_buffer_lock(util_render_screen_aligned_full_ib);
 	for (i32 i = 0; i < indices->length; ++i) {
 		id[i] = indices->buffer[i];
 	}

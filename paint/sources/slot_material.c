@@ -34,7 +34,7 @@ slot_material_t *slot_material_create(material_data_t *m, ui_node_canvas_t *c) {
 
 	if (c == NULL) {
 		if (slot_material_default_canvas == NULL) { // Synchronous
-			buffer_t *b = data_get_blob("default_material.arm");
+			buffer_t *b                  = data_get_blob("default_material.arm");
 			slot_material_default_canvas = b;
 		}
 		ui_node_canvas_t *decoded = armpack_decode(slot_material_default_canvas);

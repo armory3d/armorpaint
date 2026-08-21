@@ -273,8 +273,8 @@ void box_export_tab_presets_new_box() {
 }
 
 void box_export_parse_preset() {
-	char     *file = string("export_presets/%s.json", box_export_files->buffer[box_export_hpreset->i]);
-	buffer_t *blob = data_get_blob(file);
+	char     *file    = string("export_presets/%s.json", box_export_files->buffer[box_export_hpreset->i]);
+	buffer_t *blob    = data_get_blob(file);
 	box_export_preset = json_parse(sys_buffer_to_string(blob));
 	data_delete_blob(file);
 }
@@ -378,15 +378,15 @@ void box_export_tab_presets() {
 		ui_row(row);
 		if (ui_icon_button(tr("Add"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			export_preset_texture_t *tex = ALLOC_INIT(export_preset_texture_t, {.name     = "base",
-			                                                                       .channels = any_array_create_from_raw(
-			                                                                           (void *[]){
-			                                                                               "base_r",
-			                                                                               "base_g",
-			                                                                               "base_b",
-			                                                                               "1.0",
-			                                                                           },
-			                                                                           4),
-			                                                                       .color_space = "linear"});
+			                                                                    .channels = any_array_create_from_raw(
+			                                                                        (void *[]){
+			                                                                            "base_r",
+			                                                                            "base_g",
+			                                                                            "base_b",
+			                                                                            "1.0",
+			                                                                        },
+			                                                                        4),
+			                                                                    .color_space = "linear"});
 			any_array_push(box_export_preset->textures, tex);
 			box_export_hpreset->children = NULL;
 			box_export_save_preset();
@@ -450,8 +450,8 @@ void box_export_tab_export_mesh(ui_handle_t *htab) {
 
 		ui_row2();
 
-		ui_handle_t *h_export_mesh_format        = ui_handle(__ID__);
-		h_export_mesh_format->i                  = g_context->export_mesh_format;
+		ui_handle_t *h_export_mesh_format = ui_handle(__ID__);
+		h_export_mesh_format->i           = g_context->export_mesh_format;
 #ifdef WITH_PLUGINS
 		string_array_t *export_mesh_format_combo = any_array_create_from_raw_tmp(
 		    (void *[]){

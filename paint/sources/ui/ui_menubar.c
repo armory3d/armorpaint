@@ -834,9 +834,9 @@ void ui_menubar_show_menu(i32 category) {
 		return;
 	}
 
-	ui_menu_show       = true;
-	ui_menu_show_first = true;
-	ui_menu_commands = ui_menubar_draw_category_items;
+	ui_menu_show        = true;
+	ui_menu_show_first  = true;
+	ui_menu_commands    = ui_menubar_draw_category_items;
 	ui_menubar_category = category;
 
 	i32 panel_x = ui_menu_panel_x();

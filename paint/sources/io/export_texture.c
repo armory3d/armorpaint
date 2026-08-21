@@ -33,8 +33,8 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 #endif
 		gpu_texture_t *image = gpu_create_texture_from_bytes(pixels, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
 		any_map_set(data_cached_textures, file, image);
-		string_array_t *ar    = string_split(file, PATH_SEP);
-		char           *name  = ar->buffer[ar->length - 1];
+		string_array_t *ar   = string_split(file, PATH_SEP);
+		char           *name = ar->buffer[ar->length - 1];
 		for (i32 i = 0; i < (i32)ar->length - 1; ++i) {
 			free(ar->buffer[i]);
 		}

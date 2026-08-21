@@ -106,8 +106,8 @@ void ui_nodes_node_search_menu() {
 
 				if (ui_button(tr(n->name), UI_ALIGN_LEFT, "") || (enter && count == ui_nodes_node_search_offset)) {
 					ui_nodes_push_undo(NULL);
-					ui_nodes_t       *nodes  = ui_nodes_get_nodes();
-					ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+					ui_nodes_t       *nodes    = ui_nodes_get_nodes();
+					ui_node_canvas_t *canvas   = ui_nodes_get_canvas(true);
 					ui_nodes_node_search_spawn = ui_nodes_make_node(n, nodes, canvas); // Spawn selected node
 					any_array_push(canvas->nodes, ui_nodes_node_search_spawn);
 					nodes->nodes_selected_id = i32_array_create_from_raw(
@@ -146,7 +146,7 @@ void ui_nodes_node_search_menu() {
 
 void ui_nodes_node_search(i32 x, i32 y, void (*done)(void)) {
 	_ui_nodes_node_search_first = true;
-	_ui_nodes_node_search_done = done;
+	_ui_nodes_node_search_done  = done;
 	ui_menu_draw(&ui_nodes_node_search_menu, x, y);
 }
 
@@ -172,7 +172,7 @@ void ui_viewnodes_on_link_drag(i32 link_drag_id, bool is_new_link) {
 	if (math_abs(mouse_x - link_x) > 5 || math_abs(mouse_y - link_y) > 5) { // Link length
 
 		_ui_nodes_on_link_drag_link_drag = link_drag;
-		_ui_nodes_on_link_drag_node = node;
+		_ui_nodes_on_link_drag_node      = node;
 		ui_nodes_node_search(-1, -1, &ui_viewnodes_on_link_drag_on_node_search_done);
 	}
 	// Selecting which node socket to preview
@@ -386,7 +386,7 @@ void ui_viewnodes_on_socket_released(i32 socket_id) {
 		if (string_equals(node->type, "GROUP_INPUT") || string_equals(node->type, "GROUP_OUTPUT")) {
 
 			_ui_nodes_on_socket_released_socket = socket;
-			_ui_nodes_on_socket_released_node = node;
+			_ui_nodes_on_socket_released_node   = node;
 			sys_notify_on_next_frame(&ui_viewnodes_on_socket_released_group_menu, NULL);
 		}
 		else {
@@ -453,9 +453,9 @@ ui_canvas_control_t *ui_nodes_get_canvas_control(bool controls_down, bool is_nod
 	bool                 pan        = g_ui->input_down_r || operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN);
 	f32                  zoom_delta = operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) ? ui_nodes_get_zoom_delta() / 100.0 : 0.0;
 	ui_canvas_control_t *control    = ALLOC_INIT(ui_canvas_control_t, {.pan_x = pan ? g_ui->input_dx : 0.0,
-	                                                                      .pan_y = pan ? g_ui->input_dy : 0.0,
-	                                                                      .zoom  = g_ui->input_wheel_delta != 0.0 ? -g_ui->input_wheel_delta / 10 : zoom_delta,
-	                                                                      .controls_down = controls_down});
+	                                                                   .pan_y = pan ? g_ui->input_dy : 0.0,
+	                                                                   .zoom  = g_ui->input_wheel_delta != 0.0 ? -g_ui->input_wheel_delta / 10 : zoom_delta,
+	                                                                   .controls_down = controls_down});
 
 	if (is_node_view && g_ui->input_x < g_ui->_window_x) {
 		control->pan_x = 0.0;
@@ -761,8 +761,8 @@ void ui_nodes_update(void *_) {
 				ui_nodes_node_search(-1, -1, NULL);
 			}
 			if (ui_nodes_node_search_spawn != NULL) {
-				g_ui->input_x = mouse_x; // Fix input_dx after popup removal
-				g_ui->input_y = mouse_y;
+				g_ui->input_x              = mouse_x; // Fix input_dx after popup removal
+				g_ui->input_y              = mouse_y;
 				ui_nodes_node_search_spawn = NULL;
 			}
 
@@ -808,7 +808,7 @@ void ui_nodes_update(void *_) {
 		if (ui_nodes_grid != NULL) {
 			gpu_delete_texture(ui_nodes_grid);
 		}
-		ui_nodes_grid = ui_nodes_draw_grid(ui_nodes->zoom);
+		ui_nodes_grid        = ui_nodes_draw_grid(ui_nodes->zoom);
 		ui_nodes_grid_redraw = false;
 	}
 
@@ -958,7 +958,7 @@ void ui_nodes_update(void *_) {
 		if (ui_nodes->color_picker_callback != NULL) {
 			g_context->color_picker_previous_tool = g_context->tool;
 			context_select_tool(TOOL_TYPE_PICKER);
-			_ui_nodes_render_tmp = ui_nodes->color_picker_callback;
+			_ui_nodes_render_tmp             = ui_nodes->color_picker_callback;
 			g_context->color_picker_callback = &ui_nodes_render_color_picker_callback;
 			ui_nodes->color_picker_callback  = NULL;
 		}

@@ -166,7 +166,7 @@ void layers_make_temp_img() {
 		t->height               = l->texpaint->height;
 		t->format               = string_copy(format);
 		render_target_t *rt     = render_path_create_render_target(t);
-		layers_temp_image = rt->_image;
+		layers_temp_image       = rt->_image;
 	}
 }
 
@@ -210,7 +210,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			layers_expa = rt->_image;
+			layers_expa         = rt->_image;
 		}
 		{
 			render_target_t *t  = render_target_create();
@@ -219,7 +219,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			layers_expb = rt->_image;
+			layers_expb         = rt->_image;
 		}
 		{
 			render_target_t *t  = render_target_create();
@@ -228,7 +228,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			layers_expc = rt->_image;
+			layers_expc         = rt->_image;
 		}
 	}
 }
@@ -1237,8 +1237,8 @@ void layers_on_resized_on_next_frame(void *_) {
 
 void layers_on_resized() {
 	sys_notify_on_next_frame(&layers_on_resized_on_next_frame, NULL);
-	util_uv_uvmap        = NULL;
-	util_uv_uvmap_cached = false;
+	util_uv_uvmap              = NULL;
+	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap        = NULL;
 	util_uv_trianglemap_cached = false;
 	util_uv_dilatemap_cached   = false;
@@ -1294,7 +1294,7 @@ void tab_layers_make_mask_preview_rgba32(slot_layer_t *l) {
 	// Convert from R8 to RGBA32 for tooltip display
 	if (g_context->mask_preview_last != l) {
 		g_context->mask_preview_last = l;
-		tab_layers_l = l;
+		tab_layers_l                 = l;
 		sys_notify_on_next_frame(&tab_layers_make_mask_preview_rgba32_on_next_frame, NULL);
 	}
 }

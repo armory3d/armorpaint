@@ -91,7 +91,7 @@ void render_compass_update() {
 
 	if (_compass_hovered_last != _compass_hovered) {
 		_compass_hovered_last = _compass_hovered;
-		g_context->ddirty = 2;
+		g_context->ddirty     = 2;
 	}
 	_compass_hovered = NULL;
 

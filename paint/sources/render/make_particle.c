@@ -6,20 +6,20 @@ static material_data_t *particle_bullet_material = NULL;
 static node_shader_context_t *make_particle_bullet_run() {
 	material_t            *mat   = ALLOC_INIT(material_t, {.name = "particle_bullet", .canvas = NULL});
 	shader_context_t      *props = ALLOC_INIT(shader_context_t, {
-	                                                                   .name            = "mesh",
-	                                                                   .depth_write     = true,
-	                                                                   .compare_mode    = "less",
-	                                                                   .cull_mode       = "clockwise",
-	                                                                   .vertex_elements = any_array_create_from_raw(
-                                                                      (void *[]){
-                                                                          ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                          ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                          ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                      },
-                                                                      3),
-	                                                                   .color_attachments = any_array_create_from_raw((void *[]){"RGBA64", "RGBA64", "RGBA64"}, 3),
-	                                                                   .depth_attachment = "D32",
-                                                              });
+	                                                                .name            = "mesh",
+	                                                                .depth_write     = true,
+	                                                                .compare_mode    = "less",
+	                                                                .cull_mode       = "clockwise",
+	                                                                .vertex_elements = any_array_create_from_raw(
+                                                                   (void *[]){
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                   },
+                                                                   3),
+	                                                                .color_attachments = any_array_create_from_raw((void *[]){"RGBA64", "RGBA64", "RGBA64"}, 3),
+	                                                                .depth_attachment  = "D32",
+                                                           });
 	node_shader_context_t *con   = node_shader_context_create(mat, props);
 	node_shader_t         *kong  = node_shader_context_make_kong(con);
 
@@ -61,21 +61,21 @@ material_data_t *make_particle_get_bullet_material() {
 	shader_context_load(con->data);
 
 	shader_data_t      *sd   = ALLOC_INIT(shader_data_t, {
-	                                                            .name     = "particle_bullet",
-	                                                            .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
-                                                     });
+	                                                         .name     = "particle_bullet",
+	                                                         .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
+                                                  });
 	material_context_t *mcon = ALLOC_INIT(material_context_t, {
-	                                                                 .name           = "mesh",
-	                                                                 .bind_constants = any_array_create_from_raw((void *[]){}, 0),
-	                                                                 .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
-	                                                             });
+	                                                              .name           = "mesh",
+	                                                              .bind_constants = any_array_create_from_raw((void *[]){}, 0),
+	                                                              .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
+	                                                          });
 	material_context_load(mcon);
 	particle_bullet_material = ALLOC_INIT(material_data_t, {
-	                                                              .name     = "particle_bullet",
-	                                                              .shader   = "",
-	                                                              .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
-	                                                              ._        = ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
-	                                                          });
+	                                                           .name     = "particle_bullet",
+	                                                           .shader   = "",
+	                                                           .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
+	                                                           ._        = ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
+	                                                       });
 	return particle_bullet_material;
 }
 

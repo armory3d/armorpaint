@@ -133,9 +133,9 @@ void box_projects_tab() {
 
 					char *name = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, "."));
 					if (g_ui->is_hovered && g_ui->input_released_r) {
-						_box_projects_path = string_copy(path);
+						_box_projects_path      = string_copy(path);
 						_box_projects_icon_path = string_copy(icon_path);
-						_box_projects_i = i;
+						_box_projects_i         = i;
 						ui_menu_draw(&box_projects_tab_menu, -1, -1);
 					}
 

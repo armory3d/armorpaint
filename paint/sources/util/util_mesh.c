@@ -217,7 +217,7 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 		vertex_array_t *src = source->vertex_arrays->buffer[i];
 		vertex_array_t *va =
 		    ALLOC_INIT(vertex_array_t,
-		                  {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
+		               {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
 		any_array_push(raw->vertex_arrays, va);
 	}
 
@@ -320,16 +320,16 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		ioff += math_floor(ias->length);
 	}
 	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = name,
-	                                               .vertex_arrays = any_array_create_from_raw(
-	                                                   (void *[]){
-	                                                       ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
-	                                                   },
-	                                                   3),
-	                                               .index_array = ia,
-	                                               .scale_pos   = max_scale,
-	                                               .scale_tex   = 1.0});
+	                                            .vertex_arrays = any_array_create_from_raw(
+	                                                (void *[]){
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
+	                                                },
+	                                                3),
+	                                            .index_array = ia,
+	                                            .scale_pos   = max_scale,
+	                                            .scale_tex   = 1.0});
 	if (vatex1 != NULL) {
 		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = vatex1, .attrib = "tex1", .data = "short2norm"});
 		any_array_push(raw->vertex_arrays, va);
@@ -360,8 +360,8 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 
 	mesh_data_t *raw = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
 	util_mesh_remove_merged();
-	mesh_data_t *md    = mesh_data_create(raw);
-	md->_->owns_arrays = true;
+	mesh_data_t *md                         = mesh_data_create(raw);
+	md->_->owns_arrays                      = true;
 	material_data_t *paint_material         = g_project->_->materials->buffer[0]->data;
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
@@ -802,7 +802,7 @@ void util_mesh_decimate(f32 strength) {
 	if (cell_size < 1)
 		cell_size = 1;
 
-	util_mesh_quantized = i32_array_create(num_verts * 3);
+	util_mesh_quantized  = i32_array_create(num_verts * 3);
 	i32_array_t *indices = i32_array_create_from_raw((i32[]){}, 0);
 
 	for (i32 i = 0; i < num_verts; ++i) {
@@ -873,16 +873,16 @@ void util_mesh_decimate(f32 strength) {
 	}
 
 	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = string("%s_decimated", o->base->name),
-	                                               .vertex_arrays = any_array_create_from_raw(
-	                                                   (void *[]){
-	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-	                                                   },
-	                                                   3),
-	                                               .index_array = u32_array_create_from_array(new_inda),
-	                                               .scale_pos   = o->data->scale_pos,
-	                                               .scale_tex   = 1.0});
+	                                            .vertex_arrays = any_array_create_from_raw(
+	                                                (void *[]){
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+	                                                },
+	                                                3),
+	                                            .index_array = u32_array_create_from_array(new_inda),
+	                                            .scale_pos   = o->data->scale_pos,
+	                                            .scale_tex   = 1.0});
 
 	mesh_data_t *new_data    = mesh_data_create(raw);
 	new_data->_->owns_arrays = true;
@@ -1276,14 +1276,14 @@ void util_mesh_bevel(f32 amount) {
 		i = j;
 	}
 
-	mesh_data_t *raw      = ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
+	mesh_data_t *raw         = ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
 	                                                    .vertex_arrays = any_array_create_from_raw(
-                                                       (void *[]){
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                       },
-                                                       3),
+                                                    (void *[]){
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                    },
+                                                    3),
 	                                                    .index_array = new_inda,
 	                                                    .scale_pos   = o->data->scale_pos,
 	                                                    .scale_tex   = 1.0});
@@ -1406,14 +1406,14 @@ void util_mesh_subdivide() {
 		new_inda->buffer[b + 11] = e2;
 	}
 
-	mesh_data_t *raw       = ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
+	mesh_data_t *raw          = ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
 	                                                     .vertex_arrays = any_array_create_from_raw(
-                                                       (void *[]){
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                       },
-                                                       3),
+                                                    (void *[]){
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                    },
+                                                    3),
 	                                                     .index_array = new_inda,
 	                                                     .scale_pos   = o->data->scale_pos,
 	                                                     .scale_tex   = 1.0});

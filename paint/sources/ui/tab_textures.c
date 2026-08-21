@@ -274,9 +274,9 @@ void tab_textures_draw(ui_handle_t *htab) {
 					}
 
 					if (_state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-						base_drag_asset = asset;
+						base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
+						base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
+						base_drag_asset    = asset;
 						g_context->texture = asset;
 						if (sys_time() - g_context->select_time < 0.2) {
 							ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
@@ -319,8 +319,8 @@ void tab_textures_draw(ui_handle_t *htab) {
 					if (g_ui->is_hovered && g_ui->input_released_r) {
 						g_context->texture = asset;
 
-						_tab_textures_draw_img = img;
-						_tab_textures_draw_asset = asset;
+						_tab_textures_draw_img       = img;
+						_tab_textures_draw_asset     = asset;
 						_tab_textures_draw_i         = i;
 						_tab_textures_draw_is_packed = is_packed;
 						ui_menu_draw(&tab_textures_draw_context_menu, -1, -1);

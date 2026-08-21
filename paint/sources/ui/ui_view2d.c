@@ -330,7 +330,7 @@ void ui_view2d_update(void *_) {
 		if (ui_view2d_grid != NULL) {
 			gpu_delete_texture(ui_view2d_grid);
 		}
-		ui_view2d_grid = ui_nodes_draw_grid(ui_view2d_pan_scale);
+		ui_view2d_grid        = ui_nodes_draw_grid(ui_view2d_pan_scale);
 		ui_view2d_grid_redraw = false;
 	}
 
@@ -489,7 +489,7 @@ void ui_view2d_update(void *_) {
 			// Texture and node preview color picking
 			if ((context_in_2d_view(VIEW_2D_TYPE_ASSET) || context_in_2d_view(VIEW_2D_TYPE_NODE)) && g_context->tool == TOOL_TYPE_PICKER && g_ui->input_down) {
 				_ui_view2d_render_tex = tex;
-				_ui_view2d_render_x = g_ui->input_x - tx - ui_view2d_wx;
+				_ui_view2d_render_x   = g_ui->input_x - tx - ui_view2d_wx;
 				;
 				_ui_view2d_render_y  = g_ui->input_y - ty - ui_view2d_wy;
 				_ui_view2d_render_tw = tw;

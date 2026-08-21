@@ -56,7 +56,7 @@ void console_progress(char *s) {
 
 void console_info(char *s) {
 	console_message_timer = 5.0;
-	console_message = string_copy(s);
+	console_message       = string_copy(s);
 	console_message_color = 0x00000000;
 	base_redraw_status();
 	console_log(s);
@@ -64,7 +64,7 @@ void console_info(char *s) {
 
 void console_error(char *s) {
 	console_message_timer = 8.0;
-	console_message = string_copy(s);
+	console_message       = string_copy(s);
 	console_message_color = 0xffaa0000;
 	base_redraw_status();
 	console_log(s);

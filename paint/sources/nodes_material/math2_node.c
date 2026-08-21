@@ -95,8 +95,8 @@ char *math2_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	else if (string_equals(op, "PING-PONG")) {
 		char *store = string_tmp("%s_pingpong", parser_material_store_var_name(node));
 		parser_material_write(parser_material_kong, string_tmp("var %s: float = 0.0;", store));
-		parser_material_write(parser_material_kong,
-		                      string_tmp("if (%s != 0.0) { %s = abs(frac((%s - %s) / (%s * 2.0)) * %s * 2.0 - %s); }", val2, store, val1, val2, val2, val2, val2));
+		parser_material_write(parser_material_kong, string_tmp("if (%s != 0.0) { %s = abs(frac((%s - %s) / (%s * 2.0)) * %s * 2.0 - %s); }", val2, store, val1,
+		                                                       val2, val2, val2, val2));
 		out_val = string_copy(store);
 	}
 	else if (string_equals(op, "SINE")) {
@@ -145,82 +145,82 @@ char *math2_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 void math2_node_init() {
 
-	char *math_operation_data =
-	    string_tmp("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
-	           _tr("Add"), _tr("Subtract"), _tr("Multiply"), _tr("Divide"), _tr("Power"), _tr("Logarithm"), _tr("Square Root"), _tr("Inverse Square Root"),
-	           _tr("Absolute"), _tr("Exponent"), _tr("Minimum"), _tr("Maximum"), _tr("Less Than"), _tr("Greater Than"), _tr("Sign"), _tr("Round"), _tr("Floor"),
-	           _tr("Ceil"), _tr("Truncate"), _tr("Fraction"), _tr("Truncated Modulo"), _tr("Floored Modulo"), _tr("Snap"), _tr("Ping-Pong"), _tr("Sine"),
-	           _tr("Cosine"), _tr("Tangent"), _tr("Arcsine"), _tr("Arccosine"), _tr("Arctangent"), _tr("Arctan2"), _tr("Hyperbolic Sine"),
-	           _tr("Hyperbolic Cosine"), _tr("Hyperbolic Tangent"), _tr("To Radians"), _tr("To Degrees"));
+	char *math_operation_data = string_tmp(
+	    "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
+	    _tr("Add"), _tr("Subtract"), _tr("Multiply"), _tr("Divide"), _tr("Power"), _tr("Logarithm"), _tr("Square Root"), _tr("Inverse Square Root"),
+	    _tr("Absolute"), _tr("Exponent"), _tr("Minimum"), _tr("Maximum"), _tr("Less Than"), _tr("Greater Than"), _tr("Sign"), _tr("Round"), _tr("Floor"),
+	    _tr("Ceil"), _tr("Truncate"), _tr("Fraction"), _tr("Truncated Modulo"), _tr("Floored Modulo"), _tr("Snap"), _tr("Ping-Pong"), _tr("Sine"),
+	    _tr("Cosine"), _tr("Tangent"), _tr("Arcsine"), _tr("Arccosine"), _tr("Arctangent"), _tr("Arctan2"), _tr("Hyperbolic Sine"), _tr("Hyperbolic Cosine"),
+	    _tr("Hyperbolic Tangent"), _tr("To Radians"), _tr("To Degrees"));
 	ui_node_t *math2_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
-	                              .name   = _tr("Math"),
-	                              .type   = "MATH",
-	                              .x      = 0,
-	                              .y      = 0,
-	                              .color  = 0xff62676d,
-	                              .inputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Value"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(0.5),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Value"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(0.5),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  2),
-	                              .outputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Value"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(0.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .buttons = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("operation"),
-	                                                                       .type          = "ENUM",
-	                                                                       .output        = 0,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = u8_array_create_from_string(math_operation_data),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 0}),
-	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Clamp"),
-	                                                                       .type          = "BOOL",
-	                                                                       .output        = 0,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = NULL,
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 0}),
-	                                  },
-	                                  2),
-	                              .width = 0,
-	                              .flags = 0});
+	                           .name   = _tr("Math"),
+	                           .type   = "MATH",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff62676d,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Value"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(0.5),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Value"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(0.5),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               2),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Value"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(0.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("operation"),
+	                                                                 .type          = "ENUM",
+	                                                                 .output        = 0,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = u8_array_create_from_string(math_operation_data),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("Clamp"),
+	                                                                 .type          = "BOOL",
+	                                                                 .output        = 0,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = NULL,
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
+	                               },
+	                               2),
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_utilities, math2_node_def);
 	any_map_set(parser_material_node_values, "MATH", math2_node_value);

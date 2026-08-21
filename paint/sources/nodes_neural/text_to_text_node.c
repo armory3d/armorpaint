@@ -5,7 +5,7 @@ static i32 text_to_text_node_backend = CONSOLE_MODEL_QWEN;
 
 static char *text_to_text_node_guide = "Reply with C code only wrapped in a ```c markdown fence. Place the code inside 'void main()' function. "
                                        "Do not chain statements - declare intermediary variables. Do not use preprocessor. "
-									   "Do not use casts - casting is implicit. Do not use comma operator. Do not use multi-dimensional arrays.\n";
+                                       "Do not use casts - casting is implicit. Do not use comma operator. Do not use multi-dimensional arrays.\n";
 
 static char *text_to_text_node_grok_dir(void) {
 #ifndef NDEBUG
@@ -80,8 +80,8 @@ static char *text_to_text_node_scene_bounds(void) {
 		char *parent = o->base->parent != NULL ? string(", parent \"%s\"", o->base->parent->name) : "";
 		string_buffer_append(&sb, string("\"%s\": location (%.3f, %.3f, %.3f), size (%.3f, %.3f, %.3f), "
 		                                 "bounds min (%.3f, %.3f, %.3f) max (%.3f, %.3f, %.3f)%s%s\n",
-		                                 o->base->name, t->loc.x, t->loc.y, t->loc.z, max.x - min.x, max.y - min.y, max.z - min.z, min.x, min.y, min.z,
-		                                 max.x, max.y, max.z, parent, o->base->visible ? "" : ", hidden"));
+		                                 o->base->name, t->loc.x, t->loc.y, t->loc.z, max.x - min.x, max.y - min.y, max.z - min.z, min.x, min.y, min.z, max.x,
+		                                 max.y, max.z, parent, o->base->visible ? "" : ", hidden"));
 	}
 
 	char *result = string_copy(string_buffer_get(&sb));

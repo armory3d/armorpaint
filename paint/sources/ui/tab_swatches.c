@@ -7,11 +7,11 @@ i32            _tab_swatches_draw_i;
 
 gpu_texture_t *tab_swatches_empty_get() {
 	if (_tab_swatches_empty == NULL) {
-		u8_array_t *b = u8_array_create(4);
-		b->buffer[0]  = 255;
-		b->buffer[1]  = 255;
-		b->buffer[2]  = 255;
-		b->buffer[3]  = 255;
+		u8_array_t *b       = u8_array_create(4);
+		b->buffer[0]        = 255;
+		b->buffer[1]        = 255;
+		b->buffer[2]        = 255;
+		b->buffer[3]        = 255;
 		_tab_swatches_empty = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
 		array_free(b);
 		free(b);
@@ -213,10 +213,10 @@ void tab_swatches_draw(ui_handle_t *htab) {
 				ui_state_t state = ui_image(tab_swatches_empty_get(), g_project->swatches->buffer[i]->base, slotw);
 
 				if (state == UI_STATE_STARTED) {
-					g_context->swatch = g_project->swatches->buffer[i];
-					base_drag_off_x   = -(mouse_x - uix - g_ui->_window_x);
-					base_drag_off_y   = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_swatch = g_context->swatch;
+					g_context->swatch         = g_project->swatches->buffer[i];
+					base_drag_off_x           = -(mouse_x - uix - g_ui->_window_x);
+					base_drag_off_y           = -(mouse_y - uiy - g_ui->_window_y + 1);
+					base_drag_swatch          = g_context->swatch;
 					g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 					ui_header_handle->redraws = 2;
 				}

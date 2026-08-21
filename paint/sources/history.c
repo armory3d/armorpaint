@@ -621,7 +621,7 @@ void history_reset() {
 	history_steps = any_array_create_from_raw(
 	    (void *[]){
 	        ALLOC_INIT(history_step_t,
-	                      {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
+	                   {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
 	    },
 	    1);
 	history_undos  = 0;
@@ -660,18 +660,18 @@ history_step_t *history_push(history_action_t action) {
 
 	history_step_t *step =
 	    ALLOC_INIT(history_step_t, {.name           = name,
-	                                   .action         = action,
-	                                   .layer          = lpos,
-	                                   .layer_type     = slot_layer_is_mask(g_context->layer)    ? LAYER_SLOT_TYPE_MASK
-	                                                     : slot_layer_is_group(g_context->layer) ? LAYER_SLOT_TYPE_GROUP
-	                                                                                             : LAYER_SLOT_TYPE_LAYER,
-	                                   .layer_parent   = g_context->layer->parent == NULL ? -1 : array_index_of(g_project->_->layers, g_context->layer->parent),
-	                                   .object         = opos,
-	                                   .material       = mpos,
-	                                   .brush          = bpos,
-	                                   .layer_opacity  = g_context->layer->mask_opacity,
-	                                   .layer_object   = g_context->layer->object_mask,
-	                                   .layer_blending = g_context->layer->blending});
+	                                .action         = action,
+	                                .layer          = lpos,
+	                                .layer_type     = slot_layer_is_mask(g_context->layer)    ? LAYER_SLOT_TYPE_MASK
+	                                                  : slot_layer_is_group(g_context->layer) ? LAYER_SLOT_TYPE_GROUP
+	                                                                                          : LAYER_SLOT_TYPE_LAYER,
+	                                .layer_parent   = g_context->layer->parent == NULL ? -1 : array_index_of(g_project->_->layers, g_context->layer->parent),
+	                                .object         = opos,
+	                                .material       = mpos,
+	                                .brush          = bpos,
+	                                .layer_opacity  = g_context->layer->mask_opacity,
+	                                .layer_object   = g_context->layer->object_mask,
+	                                .layer_blending = g_context->layer->blending});
 
 	any_array_push(history_steps, step);
 

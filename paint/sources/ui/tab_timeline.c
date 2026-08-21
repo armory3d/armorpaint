@@ -144,7 +144,7 @@ static void tab_timeline_init_tween_pipe() {
 	if (tab_timeline_tween_pipe != NULL) {
 		return;
 	}
-	tab_timeline_tween_pipe = gpu_create_pipeline();
+	tab_timeline_tween_pipe                  = gpu_create_pipeline();
 	tab_timeline_tween_pipe->vertex_shader   = sys_get_shader("layer_tween.vert");
 	tab_timeline_tween_pipe->fragment_shader = sys_get_shader("layer_tween.frag");
 	gpu_vertex_structure_t *vs               = ALLOC_INIT(gpu_vertex_structure_t, {0});
@@ -617,7 +617,7 @@ static void tab_timeline_remove_mesh_keyframe_on_next_frame(void *_) {
 }
 
 static void tab_timeline_clear_on_next_frame(void *_) {
-	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_keyframes      = any_array_create_from_raw((void *[]){}, 0);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
 	tab_timeline_load_origins();
 	tab_timeline_load_mesh_origins();
@@ -628,19 +628,19 @@ static void tab_timeline_init() {
 	if (tab_timeline_keyframes != NULL) {
 		return;
 	}
-	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	tab_timeline_origins = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_keyframes      = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_origins        = any_array_create_from_raw((void *[]){}, 0);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	tab_timeline_mesh_origins = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_mesh_origins   = any_array_create_from_raw((void *[]){}, 0);
 }
 
 void tab_timeline_reset() {
 	tab_timeline_init();
 
-	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	tab_timeline_origins = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_keyframes      = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_origins        = any_array_create_from_raw((void *[]){}, 0);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	tab_timeline_mesh_origins = any_array_create_from_raw((void *[]){}, 0);
+	tab_timeline_mesh_origins   = any_array_create_from_raw((void *[]){}, 0);
 
 	tab_timeline_selected_frame = 0;
 	tab_timeline_selected_row   = 0;
@@ -686,17 +686,17 @@ void tab_timeline_export(project_t *raw) {
 		tab_timeline_keyframe_t        *kf = tab_timeline_keyframes->buffer[i];
 		timeline_layer_keyframe_data_t *d =
 		    ALLOC_INIT(timeline_layer_keyframe_data_t, {
-		                                                      .frame              = kf->frame,
-		                                                      .layer_index        = kf->layer_index,
-		                                                      .texpaint           = lz4_encode(gpu_get_texture_pixels(kf->texpaint)),
-		                                                      .texpaint_nor       = lz4_encode(gpu_get_texture_pixels(kf->texpaint_nor)),
-		                                                      .texpaint_pack      = lz4_encode(gpu_get_texture_pixels(kf->texpaint_pack)),
-		                                                      .path_points        = kf->path_points,
-		                                                      .path_points_world  = kf->path_points_world,
-		                                                      .path_points_camera = kf->path_points_camera,
-		                                                      .path_points_parent = kf->path_points_parent,
-		                                                      .tween              = kf->tween,
-		                                                  });
+		                                                   .frame              = kf->frame,
+		                                                   .layer_index        = kf->layer_index,
+		                                                   .texpaint           = lz4_encode(gpu_get_texture_pixels(kf->texpaint)),
+		                                                   .texpaint_nor       = lz4_encode(gpu_get_texture_pixels(kf->texpaint_nor)),
+		                                                   .texpaint_pack      = lz4_encode(gpu_get_texture_pixels(kf->texpaint_pack)),
+		                                                   .path_points        = kf->path_points,
+		                                                   .path_points_world  = kf->path_points_world,
+		                                                   .path_points_camera = kf->path_points_camera,
+		                                                   .path_points_parent = kf->path_points_parent,
+		                                                   .tween              = kf->tween,
+		                                               });
 		any_array_push(layers, d);
 	}
 	raw->timeline_layers = layers;
@@ -705,11 +705,11 @@ void tab_timeline_export(project_t *raw) {
 	for (i32 i = 0; i < tab_timeline_mesh_keyframes->length; ++i) {
 		tab_timeline_mesh_keyframe_t  *kf = tab_timeline_mesh_keyframes->buffer[i];
 		timeline_mesh_keyframe_data_t *d  = ALLOC_INIT(timeline_mesh_keyframe_data_t, {
-		                                                                                     .frame      = kf->frame,
-		                                                                                     .mesh_index = kf->mesh_index,
-		                                                                                     .transform  = mat4_to_f32_array(kf->transform),
-		                                                                                     .tween      = kf->tween,
-                                                                                        });
+		                                                                                  .frame      = kf->frame,
+		                                                                                  .mesh_index = kf->mesh_index,
+		                                                                                  .transform  = mat4_to_f32_array(kf->transform),
+		                                                                                  .tween      = kf->tween,
+                                                                                     });
 		any_array_push(meshes, d);
 	}
 	raw->timeline_meshes = meshes;

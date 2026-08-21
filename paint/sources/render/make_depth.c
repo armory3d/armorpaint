@@ -3,22 +3,22 @@
 
 node_shader_context_t *make_depth_run(material_t *data, material_context_t *matcon) {
 	shader_context_t      *props     = ALLOC_INIT(shader_context_t, {.name            = "depth",
-	                                                                    .depth_write     = true,
-	                                                                    .compare_mode    = "less",
-	                                                                    .cull_mode       = g_context->cull_backfaces ? "clockwise" : "none",
-	                                                                    .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                   },
-                                                                   3),
-	                                                                    .color_attachments = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       "RGBA64",
-                                                                   },
-                                                                   1),
-	                                                                    .depth_attachment = "D32"});
+	                                                                 .depth_write     = true,
+	                                                                 .compare_mode    = "less",
+	                                                                 .cull_mode       = g_context->cull_backfaces ? "clockwise" : "none",
+	                                                                 .vertex_elements = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                },
+                                                                3),
+	                                                                 .color_attachments = any_array_create_from_raw(
+                                                                (void *[]){
+                                                                    "RGBA64",
+                                                                },
+                                                                1),
+	                                                                 .depth_attachment = "D32"});
 	node_shader_context_t *con_depth = node_shader_context_create(data, props);
 
 	node_shader_t *kong  = node_shader_context_make_kong(con_depth);

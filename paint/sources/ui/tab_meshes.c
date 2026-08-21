@@ -26,9 +26,9 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 }
 
 void tab_meshes_set_drag_mesh(mesh_object_t *o, f32 off_x, f32 off_y) {
-	base_drag_off_x = off_x;
-	base_drag_off_y = off_y;
-	base_drag_mesh = o;
+	base_drag_off_x      = off_x;
+	base_drag_off_y      = off_y;
+	base_drag_mesh       = o;
 	g_context->drag_dest = array_index_of(g_project->_->paint_objects, o);
 }
 
@@ -763,7 +763,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	g_context->material        = mat;
 
 	mesh_object_t_array_t *_scene_meshes = scene_meshes;
-	scene_meshes = any_array_create_from_raw((void *[]){o}, 1);
+	scene_meshes                         = any_array_create_from_raw((void *[]){o}, 1);
 
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = o;
@@ -815,7 +815,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	render_path_commands = render_path_preview_commands_preview;
+	render_path_commands    = render_path_preview_commands_preview;
 	render_path_render_frame();
 	render_path_commands = _commands;
 
@@ -831,7 +831,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 
 	o->material = _override;
 
-	scene_meshes = _scene_meshes;
+	scene_meshes            = _scene_meshes;
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);

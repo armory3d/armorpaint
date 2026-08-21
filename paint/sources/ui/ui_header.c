@@ -213,8 +213,8 @@ void ui_header_draw_tool_properties() {
 		h_color->color       = color_set_ab(h_color->color, 255);
 		ui_state_t state     = ui_text("", 0, h_color->color);
 		if (state == UI_STATE_STARTED) {
-			base_drag_off_x = -(mouse_x - g_ui->_x - g_ui->_window_x - 3);
-			base_drag_off_y = -(mouse_y - g_ui->_y - g_ui->_window_y + 1);
+			base_drag_off_x  = -(mouse_x - g_ui->_x - g_ui->_window_x - 3);
+			base_drag_off_y  = -(mouse_y - g_ui->_y - g_ui->_window_y + 1);
 			base_drag_swatch = project_clone_swatch(g_context->picked_color);
 		}
 		if (g_ui->is_hovered) {

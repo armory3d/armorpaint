@@ -20,7 +20,7 @@ void tab_materials_draw_slots_update_fill_layers(void *_) {
 void tab_materials_update_material() {
 	ui_header_handle->redraws = 2;
 	ui_nodes_hwnd->redraws    = 2;
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
+	ui_nodes_group_stack      = any_array_create_from_raw((void *[]){}, 0);
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
 	bool decal = context_is_decal();
@@ -269,8 +269,8 @@ void tab_materials_draw_slots(bool mini) {
 						sys_notify_on_next_frame(&tab_materials_draw_slots_update_fill_layers, NULL);
 					}
 				}
-				base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-				base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
+				base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
+				base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
 				base_drag_material = g_context->material;
 				// Double click to show nodes
 				if (sys_time() - g_context->select_time < 0.2) {
@@ -291,7 +291,8 @@ void tab_materials_draw_slots(bool mini) {
 				ui_tooltip_image(img_full, 0);
 				if (i < 9) {
 					i32 i1 = i + 1;
-					ui_tooltip(string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
+					ui_tooltip(
+					    string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
 				}
 				else {
 					ui_tooltip(g_project->_->materials->buffer[i]->canvas->name);

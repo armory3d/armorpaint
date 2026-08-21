@@ -84,7 +84,7 @@ void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 	}
 
 	if (g_ui->is_hovered) {
-		char *tooltip = tr(ui_toolbar_tool_names->buffer[tool]);
+		char *tooltip  = tr(ui_toolbar_tool_names->buffer[tool]);
 		char *key_name = string_tmp("tool_%s", ui_toolbar_tool_names->buffer[tool]);
 		for (char *c = key_name; *c != '\0'; ++c) {
 			*c = tolower(*c);
