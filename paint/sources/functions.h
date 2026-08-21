@@ -73,6 +73,7 @@ slot_layer_t             *layers_new_layer(bool clear, i32 position, slot_layer_
 slot_layer_t             *layers_new_mask(bool clear, slot_layer_t *parent, i32 position);
 slot_layer_t             *layers_new_group();
 slot_layer_t             *layers_new_path_layer(bool curved);
+slot_layer_t             *layers_new_text_layer();
 void                      layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position);
 void                      layers_create_image_mask(asset_t *asset);
 void                      layers_create_color_layer(i32 base_color, f32 occlusion, f32 roughness, f32 metallic, i32 position);

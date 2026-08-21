@@ -684,6 +684,17 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	return l;
 }
 
+slot_layer_t *layers_new_text_layer() {
+	slot_layer_t *l = layers_new_path_layer(true);
+	if (l == NULL) {
+		return NULL;
+	}
+	l->path_text = true;
+	l->path_tool = TOOL_TYPE_TEXT;
+	l->name      = string("Text %d", l->id + 1);
+	return l;
+}
+
 void layers_create_fill_layer_on_next_frame(void *_) {
 	slot_layer_t *l = layers_new_layer(false, _layers_position, NULL);
 	history_new_layer();

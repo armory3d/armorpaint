@@ -258,6 +258,7 @@ void export_arm_run_project() {
 		                                 .path_points_parent = l->path_points_parent,
 		                                 .path_tool          = l->path_tool,
 		                                 .path_curved        = l->path_curved,
+		                                 .path_text          = l->path_text,
 		                                 .path_material      = l->path_material != NULL ? array_index_of(g_project->_->materials, l->path_material) : -1});
 		any_array_push(ld, d);
 	}

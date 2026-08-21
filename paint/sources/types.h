@@ -52,6 +52,7 @@ typedef struct slot_layer {
 	i32_array_t          *path_points_parent;
 	i32                   path_tool;
 	bool                  path_curved;
+	bool                  path_text;
 	struct slot_material *path_material;
 } slot_layer_t;
 
@@ -645,6 +646,7 @@ typedef struct layer_data {
 	i32               path_tool;
 	bool              path_curved;
 	i32               path_material;
+	bool              path_text;
 } layer_data_t;
 
 typedef struct timeline_layer_keyframe_data {

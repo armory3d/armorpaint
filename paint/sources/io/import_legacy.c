@@ -210,6 +210,14 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			ld->paint_emis         = armpack_map_get_i32(old, "paint_emis") > 0;
 			ld->paint_subs         = armpack_map_get_i32(old, "paint_subs") > 0;
 			ld->uv_map             = armpack_map_get_i32(old, "uv_map");
+			ld->path_points        = any_map_get(old, "path_points");
+			ld->path_points_world  = any_map_get(old, "path_points_world");
+			ld->path_points_camera = any_map_get(old, "path_points_camera");
+			ld->path_points_parent = any_map_get(old, "path_points_parent");
+			ld->path_tool          = armpack_map_get_i32(old, "path_tool");
+			ld->path_curved        = armpack_map_get_i32(old, "path_curved") > 0;
+			ld->path_material      = ld->path_points != NULL ? armpack_map_get_i32(old, "path_material") : -1;
+			ld->path_text          = armpack_map_get_i32(old, "path_text") > 0;
 			any_array_push(project->layer_datas, ld);
 		}
 	}
@@ -303,9 +311,20 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	return project;
 }
 
+project_t *import_arm_from_version_13(any_map_t *old) {
+	any_array_t *lds = any_map_get(old, "layer_datas");
+	if (lds != NULL) {
+		for (i32 i = 0; i < lds->length; ++i) {
+			any_map_t *ld = lds->buffer[i];
+			armpack_map_set_i32(ld, "path_text", 0);
+		}
+	}
+	return import_arm_from_map_to_arm(old);
+}
+
 project_t *import_arm_from_version_12(any_map_t *old) {
 	any_map_set(old, "mesh_skins", NULL);
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_13(old);
 }
 
 project_t *import_arm_from_version_11(any_map_t *old) {
@@ -434,7 +453,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	project_t *(*fns[])(any_map_t *) = {
 	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3, import_arm_from_version_4,
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8, import_arm_from_version_9,
-	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12,
+	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

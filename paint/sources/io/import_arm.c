@@ -585,6 +585,7 @@ void import_arm_run_project(char *path) {
 			l->path_points_parent = ld->path_points_parent;
 			l->path_tool          = ld->path_tool;
 			l->path_curved        = ld->path_curved;
+			l->path_text          = ld->path_text;
 
 			gpu_delete_texture(_texpaint);
 			if (_texpaint_nor != NULL) {

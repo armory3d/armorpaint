@@ -275,6 +275,159 @@ static void path_paint_straight(f32_array_t *points, f32_array_t *points_world, 
 	render_path_paint_dilate(true, true);
 }
 
+static void path_text_stamp(char *letter, f32 px, f32 py, f32 angle, f32 *prev_px, f32 *prev_py) {
+	g_context->text_tool_text = string_copy(letter);
+	util_render_make_text_preview();
+	g_context->brush_angle      = angle;
+	g_context->prev_paint_vec_x = px;
+	g_context->prev_paint_vec_y = py;
+	path_paint(px, py, prev_px, prev_py, true);
+}
+
+static void path_paint_text(slot_layer_t *l) {
+	f32_array_t *points        = l->path_points;
+	f32_array_t *points_world  = l->path_points_world;
+	f32_array_t *points_camera = l->path_points_camera;
+	i32_array_t *points_parent = l->path_points_parent;
+	i32          num_world     = points_world->length / 3;
+	i32          num_camera    = points_camera->length / 9;
+	i32          num_parent    = points_parent->length;
+
+	char *text = l->name;
+	i32   n    = 0; // Codepoint count
+	for (i32 i = 0; text[i] != '\0'; i++) {
+		if ((text[i] & 0xc0) != 0x80) {
+			n++;
+		}
+	}
+	if (n == 0) {
+		return;
+	}
+
+	char          *_text       = g_context->text_tool_text;
+	gpu_texture_t *_image      = g_context->text_tool_image;
+	g_context->text_tool_image = NULL;
+
+	f32 prev_px = 0.5f;
+	f32 prev_py = 0.5f;
+
+	if (num_world < 3) {
+		// Single anchor
+		path_set_camera(points_camera, num_camera, 0);
+		f32 px = points->length >= 2 ? points->buffer[0] : 0.5f;
+		f32 py = points->length >= 2 ? points->buffer[1] : 0.5f;
+		path_text_stamp(text, px, py, 0.0f, &prev_px, &prev_py);
+	}
+	else {
+		// Sample the bezier segments
+		i32 num_segments = (num_world - 1) / 2;
+		i32 num_samples  = num_segments * 32 + 1;
+
+		f32_array_t *spos = f32_array_create(num_samples * 3);
+		f32_array_t *slen = f32_array_create(num_samples);
+		i32_array_t *scam = i32_array_create(num_samples);
+
+		i32 si = 0;
+		for (i32 j = 2; j < num_world; j += 2) {
+			i32 p   = (j < num_parent) ? points_parent->buffer[j] : j - 2;
+			f32 wx0 = points_world->buffer[p * 3];
+			f32 wy0 = points_world->buffer[p * 3 + 1];
+			f32 wz0 = points_world->buffer[p * 3 + 2];
+			f32 wcx = points_world->buffer[(j - 1) * 3];
+			f32 wcy = points_world->buffer[(j - 1) * 3 + 1];
+			f32 wcz = points_world->buffer[(j - 1) * 3 + 2];
+			f32 wx1 = points_world->buffer[j * 3];
+			f32 wy1 = points_world->buffer[j * 3 + 1];
+			f32 wz1 = points_world->buffer[j * 3 + 2];
+
+			if (si == 0) {
+				spos->buffer[0] = wx0;
+				spos->buffer[1] = wy0;
+				spos->buffer[2] = wz0;
+				slen->buffer[0] = 0.0f;
+				scam->buffer[0] = p;
+				si              = 1;
+			}
+			for (i32 k = 1; k <= 32; k++) {
+				f32 kt                   = k / 32.0f;
+				f32 bwx                  = bezier_eval(wx0, wcx, wx1, kt);
+				f32 bwy                  = bezier_eval(wy0, wcy, wy1, kt);
+				f32 bwz                  = bezier_eval(wz0, wcz, wz1, kt);
+				f32 dx                   = bwx - spos->buffer[(si - 1) * 3];
+				f32 dy                   = bwy - spos->buffer[(si - 1) * 3 + 1];
+				f32 dz                   = bwz - spos->buffer[(si - 1) * 3 + 2];
+				spos->buffer[si * 3]     = bwx;
+				spos->buffer[si * 3 + 1] = bwy;
+				spos->buffer[si * 3 + 2] = bwz;
+				slen->buffer[si]         = slen->buffer[si - 1] + sqrtf(dx * dx + dy * dy + dz * dz);
+				scam->buffer[si]         = (k == 32 && j + 2 >= num_world) ? j : p;
+				si++;
+			}
+		}
+
+		f32 total   = slen->buffer[num_samples - 1];
+		f32 aspect  = sys_w() / (f32)sys_h();
+		i32 cur_cam = -1;
+		i32 byte_i  = 0;
+		for (i32 i = 0; i < n; i++) {
+			// Extract letter
+			i32 start = byte_i;
+			byte_i++;
+			while (text[byte_i] != '\0' && (text[byte_i] & 0xc0) == 0x80) {
+				byte_i++;
+			}
+			char letter[8];
+			i32  len_b = byte_i - start > 7 ? 7 : byte_i - start;
+			memcpy(letter, text + start, len_b);
+			letter[len_b] = '\0';
+			if (letter[0] == ' ' || letter[0] == '\t') {
+				continue;
+			}
+
+			// Evenly spaced along the arc
+			f32 target = n == 1 ? 0.0f : total * i / (f32)(n - 1);
+			i32 k      = 1;
+			while (k < num_samples - 1 && slen->buffer[k] < target) {
+				k++;
+			}
+			f32 d  = slen->buffer[k] - slen->buffer[k - 1];
+			f32 a  = d > 0.0f ? (target - slen->buffer[k - 1]) / d : 1.0f;
+			f32 wx = spos->buffer[(k - 1) * 3] + a * (spos->buffer[k * 3] - spos->buffer[(k - 1) * 3]);
+			f32 wy = spos->buffer[(k - 1) * 3 + 1] + a * (spos->buffer[k * 3 + 1] - spos->buffer[(k - 1) * 3 + 1]);
+			f32 wz = spos->buffer[(k - 1) * 3 + 2] + a * (spos->buffer[k * 3 + 2] - spos->buffer[(k - 1) * 3 + 2]);
+
+			i32 cam = scam->buffer[k];
+			if (cam != cur_cam) {
+				path_set_camera(points_camera, num_camera, cam);
+				cur_cam = cam;
+			}
+
+			f32 px, py;
+			if (!project_to_screen((vec4_t){wx, wy, wz, 1.0f}, &px, &py)) {
+				continue;
+			}
+
+			// Rotate the letter
+			f32 ax, ay, bx, by;
+			f32 angle = 0.0f;
+			if (project_to_screen((vec4_t){spos->buffer[(k - 1) * 3], spos->buffer[(k - 1) * 3 + 1], spos->buffer[(k - 1) * 3 + 2], 1.0f}, &ax, &ay) &&
+			    project_to_screen((vec4_t){spos->buffer[k * 3], spos->buffer[k * 3 + 1], spos->buffer[k * 3 + 2], 1.0f}, &bx, &by)) {
+				angle = -atan2f(-(by - ay), (bx - ax) * aspect) * (180.0f / math_pi());
+			}
+
+			path_text_stamp(letter, px, py, angle, &prev_px, &prev_py);
+		}
+	}
+
+	if (g_context->text_tool_image != NULL) {
+		gpu_delete_texture(g_context->text_tool_image);
+	}
+	g_context->text_tool_text  = _text;
+	g_context->text_tool_image = _image;
+
+	render_path_paint_dilate(true, true);
+}
+
 static void path_repaint(slot_layer_t *l) {
 	if (l->path_material == NULL) {
 		return;
@@ -284,15 +437,20 @@ static void path_repaint(slot_layer_t *l) {
 		return;
 	}
 
-	slot_layer_t    *_layer     = g_context->layer;
-	slot_material_t *_material  = g_context->material;
-	tool_type_t      _tool      = g_context->tool;
-	f32              _last_x    = g_context->last_paint_vec_x;
-	f32              _last_y    = g_context->last_paint_vec_y;
-	vec4_t           _paint_vec = g_context->paint_vec;
-	g_context->layer            = l;
-	g_context->material         = l->path_material;
-	g_context->tool             = l->path_tool;
+	slot_layer_t    *_layer       = g_context->layer;
+	slot_material_t *_material    = g_context->material;
+	tool_type_t      _tool        = g_context->tool;
+	f32              _last_x      = g_context->last_paint_vec_x;
+	f32              _last_y      = g_context->last_paint_vec_y;
+	vec4_t           _paint_vec   = g_context->paint_vec;
+	f32              _brush_angle = g_context->brush_angle;
+	g_context->layer              = l;
+	g_context->material           = l->path_material;
+	g_context->tool               = l->path_tool;
+	if (l->path_text) {
+		// Add rotation uniform to paint shader
+		g_context->brush_angle = 0.001f;
+	}
 
 	make_material_save_paint_material();
 	make_material_parse_paint_material(false);
@@ -320,7 +478,10 @@ static void path_repaint(slot_layer_t *l) {
 	f32 dot_spacing = sphere_mode ? g_context->brush_lazy_radius * g_context->brush_lazy_step * r_world * 3.0 : 0.0f;
 
 	if (num_world >= 1) {
-		if (l->path_curved) {
+		if (l->path_text) {
+			path_paint_text(l);
+		}
+		else if (l->path_curved) {
 			path_paint_curved(points, points_world, points_camera, points_parent, num_world, num_camera, num_parent, sphere_mode, dot_spacing);
 		}
 		else {
@@ -343,6 +504,7 @@ static void path_repaint(slot_layer_t *l) {
 	g_context->last_paint_vec_x = _last_x;
 	g_context->last_paint_vec_y = _last_y;
 	g_context->paint_vec        = _paint_vec;
+	g_context->brush_angle      = _brush_angle;
 	make_material_restore_paint_material();
 }
 
@@ -354,7 +516,7 @@ void util_layer_clear_path_points(slot_layer_t *l) {
 	l->path_points_world->length  = 0;
 	l->path_points_camera->length = 0;
 	l->path_points_parent->length = 0;
-	l->path_tool                  = -1;
+	l->path_tool                  = l->path_text ? TOOL_TYPE_TEXT : -1;
 	path_layer_last_active        = -1;
 }
 
@@ -463,7 +625,7 @@ void util_layer_add_path_point(slot_layer_t *l, f32 screen_x, f32 screen_y) {
 	if (l->path_tool == -1) {
 		l->path_tool = g_context->tool;
 	}
-	if ((i32)g_context->tool != l->path_tool) {
+	if (!l->path_text && (i32)g_context->tool != l->path_tool) {
 		return;
 	}
 

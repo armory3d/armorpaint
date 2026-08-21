@@ -18,6 +18,12 @@ void tab_layers_button_2d_view() {
 	}
 }
 
+void tab_layers_repaint_text_layer(slot_layer_t *l) {
+	util_layer_repaint_path(l);
+	g_context->layer_preview_dirty  = true;
+	g_context->layers_preview_dirty = true;
+}
+
 void tab_layers_set_drag_layer(slot_layer_t *layer, f32 off_x, f32 off_y) {
 	base_drag_off_x = off_x;
 	base_drag_off_y = off_y;
@@ -409,6 +415,9 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		tab_layers_layer_name_handle->text = string_copy(l->name);
 		char *new_name                     = string_copy(ui_text_input(tab_layers_layer_name_handle, "", UI_ALIGN_LEFT, true, false));
 		tab_stages_rename_layer(l->name, new_name);
+		if (l->path_text && slot_layer_is_path(l) && !string_equals(l->name, new_name)) {
+			sys_notify_on_next_frame(&tab_layers_repaint_text_layer, l);
+		}
 		l->name = new_name;
 		if (g_ui->text_selected_handle != tab_layers_layer_name_handle) {
 			tab_layers_layer_name_edit = -1;
@@ -1057,6 +1066,10 @@ void tab_layers_button_new_menu() {
 	}
 	if (ui_menu_button(tr("Decal"), "", ICON_DECAL)) {
 		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1);
+	}
+	if (ui_menu_button(tr("Text"), "", ICON_FONT)) {
+		layers_new_text_layer();
+		history_new_layer();
 	}
 	if (ui_menu_button(tr("Path"), "", ICON_PATH)) {
 		layers_new_path_layer(false);

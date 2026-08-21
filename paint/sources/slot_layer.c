@@ -372,6 +372,7 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 		l->path_points_parent = i32_array_create_from_raw(raw->path_points_parent->buffer, raw->path_points_parent->length);
 		l->path_tool          = raw->path_tool;
 		l->path_curved        = raw->path_curved;
+		l->path_text          = raw->path_text;
 		l->path_material      = raw->path_material;
 	}
 
@@ -488,6 +489,7 @@ void slot_layer_to_paint_layer(slot_layer_t *raw) {
 	if (raw->path_material != NULL) {
 		raw->path_material = NULL;
 		raw->path_points   = NULL;
+		raw->path_text     = false;
 		util_layer_update_path();
 	}
 	make_material_parse_paint_material(true);
