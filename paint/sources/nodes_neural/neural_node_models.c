@@ -57,16 +57,15 @@ void neural_node_models_init() {
 	                                            .license = "hunyuan3d"}),
 
 	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
-	                                            .memory = "16GB",
-	                                            .size   = "15.7GB",
+	                                            .memory = "20GB",
+	                                            .size   = "15.3GB",
 	                                            .nodes  = "Text to Text, Console",
 	                                            .urls   = any_array_create_from_raw(
                                                     (void *[]){
-                                                        "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/Qwen3.6-27B-Q4_K_M.gguf",
-                                                        // "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF/resolve/main/mmproj-F16.gguf",
+                                                        "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf",
                                                     },
                                                     1),
-	                                            .web     = "https://huggingface.co/unsloth/Qwen3.6-27B-GGUF",
+	                                            .web     = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
 	                                            .license = "apache-2.0"}),
 	    },
 	    5);
