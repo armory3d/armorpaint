@@ -33,14 +33,14 @@ char *rgb_curves_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	i32   nb   = (i32)curves->buffer[131]; // B
 
 	// Apply C curve to each channel, then per-channel curves
-	char *cr = vector_curves_eval(string("%s_cr", name), string("%s.x", col), curves->buffer + 32 * 0, nc);
-	char *cg = vector_curves_eval(string("%s_cg", name), string("%s.y", col), curves->buffer + 32 * 0, nc);
-	char *cb = vector_curves_eval(string("%s_cb", name), string("%s.z", col), curves->buffer + 32 * 0, nc);
-	char *rr = vector_curves_eval(string("%s_rr", name), cr, curves->buffer + 32 * 1, nr);
-	char *gg = vector_curves_eval(string("%s_gg", name), cg, curves->buffer + 32 * 2, ng);
-	char *bb = vector_curves_eval(string("%s_bb", name), cb, curves->buffer + 32 * 3, nb);
+	char *cr = vector_curves_eval(string_tmp("%s_cr", name), string_tmp("%s.x", col), curves->buffer + 32 * 0, nc);
+	char *cg = vector_curves_eval(string_tmp("%s_cg", name), string_tmp("%s.y", col), curves->buffer + 32 * 0, nc);
+	char *cb = vector_curves_eval(string_tmp("%s_cb", name), string_tmp("%s.z", col), curves->buffer + 32 * 0, nc);
+	char *rr = vector_curves_eval(string_tmp("%s_rr", name), cr, curves->buffer + 32 * 1, nr);
+	char *gg = vector_curves_eval(string_tmp("%s_gg", name), cg, curves->buffer + 32 * 2, ng);
+	char *bb = vector_curves_eval(string_tmp("%s_bb", name), cb, curves->buffer + 32 * 3, nb);
 
-	return string("lerp3(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
+	return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
 }
 
 void nodes_material_rgb_curves_button(i32 node_id) {
@@ -98,7 +98,7 @@ void nodes_material_rgb_curves_button(i32 node_id) {
 	g_ui->_y += UI_LINE_H() * 4;
 
 	// Edit controls
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 5.0,
 	        1 / 5.0,
@@ -134,7 +134,7 @@ void nodes_material_rgb_curves_button(i32 node_id) {
 void rgb_curves_node_init() {
 
 	ui_node_t *rgb_curves_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("RGB Curves"),
 	                              .type   = "CURVE_RGB",
 	                              .x      = 0,
@@ -142,7 +142,7 @@ void rgb_curves_node_init() {
 	                              .color  = 0xff448c6d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Fac"),
 	                                                                       .type          = "VALUE",
@@ -152,7 +152,7 @@ void rgb_curves_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -166,7 +166,7 @@ void rgb_curves_node_init() {
 	                                  2),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -180,7 +180,7 @@ void rgb_curves_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_rgb_curves_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_rgb_curves_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create(128 + 4),

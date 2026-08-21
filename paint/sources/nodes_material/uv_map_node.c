@@ -17,8 +17,8 @@ char *uv_map_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 
 void uv_map_node_init() {
 
-	char      *uv_map_data     = string("%s\n%s", "uv0", "uv1");
-	ui_node_t *uv_map_node_def = GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	char      *uv_map_data     = string_tmp("%s\n%s", "uv0", "uv1");
+	ui_node_t *uv_map_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
 	                                                       .name    = _tr("UV Map"),
 	                                                       .type    = "UVMAP",
 	                                                       .x       = 0,
@@ -27,7 +27,7 @@ void uv_map_node_init() {
 	                                                       .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                                                       .outputs = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                               ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                .node_id       = 0,
 	                                                                                                .name          = _tr("UV"),
 	                                                                                                .type          = "VECTOR",
@@ -41,7 +41,7 @@ void uv_map_node_init() {
 	                                                           1),
 	                                                       .buttons = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("UV Map"),
+	                                                               ALLOC_INIT(ui_node_button_t, {.name          = _tr("UV Map"),
 	                                                                                                .type          = "ENUM",
 	                                                                                                .output        = -1,
 	                                                                                                .default_value = f32_array_create_x(0),

@@ -14,9 +14,7 @@ static f32   trait_third_person_controller_pitch  = 0.0;
 static bool  trait_third_person_controller_moving = false;
 
 void trait_third_person_controller_init(char *object) {
-	gc_unroot(trait_third_person_controller_object);
 	trait_third_person_controller_object = string_copy(object);
-	gc_root(trait_third_person_controller_object);
 	trait_third_person_controller_moving = false;
 }
 

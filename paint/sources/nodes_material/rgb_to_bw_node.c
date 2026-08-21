@@ -3,13 +3,13 @@
 
 char *rgb_to_bw_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *col = parser_material_parse_vector_input(node->inputs->buffer[0]);
-	return string("(((%s.r * 0.3 + %s.g * 0.59 + %s.b * 0.11) / 3.0) * 2.5)", col, col, col);
+	return string_tmp("(((%s.r * 0.3 + %s.g * 0.59 + %s.b * 0.11) / 3.0) * 2.5)", col, col, col);
 }
 
 void rgb_to_bw_node_init() {
 
 	ui_node_t *rgb_to_bw_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("RGB to BW"),
 	                              .type   = "RGBTOBW",
 	                              .x      = 0,
@@ -17,7 +17,7 @@ void rgb_to_bw_node_init() {
 	                              .color  = 0xff62676d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -31,7 +31,7 @@ void rgb_to_bw_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Val"),
 	                                                                       .type          = "VALUE",

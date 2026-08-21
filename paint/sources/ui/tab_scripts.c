@@ -337,9 +337,7 @@ static void tab_scripts_cache_minimap() {
 		if (tab_scripts_minimap_tex != NULL) {
 			gpu_delete_texture(tab_scripts_minimap_tex);
 		}
-		gc_unroot(tab_scripts_minimap_tex);
 		tab_scripts_minimap_tex = gpu_create_render_target(tex_w, tex_h, GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(tab_scripts_minimap_tex);
 	}
 
 	// Render each word as a small rect
@@ -431,7 +429,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -476,9 +474,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		g_ui->font_size              = math_floor(15 * UI_SCALE());
 		ui_text_area_line_numbers    = true;
 		ui_text_area_scroll_past_end = true;
-		gc_unroot(ui_text_area_coloring);
 		ui_text_area_coloring = tab_scripts_get_text_coloring();
-		gc_root(ui_text_area_coloring);
 
 		tab_scripts_prepare();
 
@@ -629,7 +625,6 @@ void tab_scripts_draw(ui_handle_t *htab) {
 
 		ui_text_area_line_numbers    = false;
 		ui_text_area_scroll_past_end = false;
-		gc_unroot(ui_text_area_coloring);
 		ui_text_area_coloring = NULL;
 		ui_set_font(g_ui, _font);
 		g_ui->font_size = _font_size;
@@ -666,9 +661,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 ui_text_coloring_t *tab_scripts_get_text_coloring() {
 	if (tab_scripts_text_coloring == NULL) {
 		buffer_t *blob = data_get_blob("text_coloring.json");
-		gc_unroot(tab_scripts_text_coloring);
 		tab_scripts_text_coloring = json_parse(sys_buffer_to_string(blob));
-		gc_root(tab_scripts_text_coloring);
 	}
 	return tab_scripts_text_coloring;
 }

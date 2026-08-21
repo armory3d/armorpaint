@@ -12,15 +12,9 @@ static void _compass_init_hitbox() {
 		return;
 	}
 
-	gc_unroot(_compass_hitbox_x);
 	_compass_hitbox_x = object_create(true);
-	gc_root(_compass_hitbox_x);
-	gc_unroot(_compass_hitbox_y);
 	_compass_hitbox_y = object_create(true);
-	gc_root(_compass_hitbox_y);
-	gc_unroot(_compass_hitbox_z);
 	_compass_hitbox_z = object_create(true);
-	gc_root(_compass_hitbox_z);
 
 	_compass_hitbox_x->transform->scale = (vec4_t){0.15, 0.15, 0.15, 1.0};
 	_compass_hitbox_y->transform->scale = (vec4_t){0.15, 0.15, 0.15, 1.0};
@@ -96,12 +90,9 @@ void render_compass_update() {
 	}
 
 	if (_compass_hovered_last != _compass_hovered) {
-		gc_unroot(_compass_hovered_last);
 		_compass_hovered_last = _compass_hovered;
-		gc_root(_compass_hovered_last);
 		g_context->ddirty = 2;
 	}
-	gc_unroot(_compass_hovered);
 	_compass_hovered = NULL;
 
 	f32  x     = mouse_view_x() / (float)sys_w();
@@ -138,9 +129,7 @@ void render_compass_update() {
 					    ? viewport_set_view(-1, 0, 0, math_pi() / 2.0, 0, -math_pi() / 2.0) // Left
 					    : viewport_set_view(1, 0, 0, math_pi() / 2.0, 0, math_pi() / 2.0);  // Right
 				}
-				gc_unroot(_compass_hovered);
 				_compass_hovered = _compass_hitbox_x;
-				gc_root(_compass_hovered);
 			}
 
 			else if (t == _compass_hitbox_y->transform) {
@@ -149,9 +138,7 @@ void render_compass_update() {
 					    ? viewport_set_view(0, -1, 0, math_pi() / 2.0, 0, 0)         // Front
 					    : viewport_set_view(0, 1, 0, math_pi() / 2.0, 0, math_pi()); // Back
 				}
-				gc_unroot(_compass_hovered);
 				_compass_hovered = _compass_hitbox_y;
-				gc_root(_compass_hovered);
 			}
 
 			else {
@@ -159,9 +146,7 @@ void render_compass_update() {
 					_compass_compare_quat(quat_from_euler(0, 0, 0), cq) ? viewport_set_view(0, 0, -1, math_pi(), 0, math_pi()) // Bottom
 					                                                    : viewport_set_view(0, 0, 1, 0, 0, 0);                 // Top
 				}
-				gc_unroot(_compass_hovered);
 				_compass_hovered = _compass_hitbox_z;
-				gc_root(_compass_hovered);
 			}
 		}
 		scene_camera->p = _P;

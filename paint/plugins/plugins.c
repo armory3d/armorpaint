@@ -129,7 +129,6 @@ static void *import_gltf_glb(char *path) {
 	else {
 		raw_mesh_t *raw = io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
 		raw->blob       = b;
-		gc_root(b);
 		return raw;
 	}
 }

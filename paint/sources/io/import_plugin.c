@@ -10,7 +10,6 @@ void import_plugin_run(char *path) {
 	char *filename = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path));
 	char *dst_path = string("%s%splugins%s%s", path_data(), PATH_SEP, PATH_SEP, filename);
 	file_copy(path, dst_path); // Copy to plugin folder
-	gc_unroot(box_preferences_files_plugin);
 	box_preferences_files_plugin = NULL; // Refresh file list
 	console_info(string("%s %s", tr("Plugin imported:"), filename));
 }

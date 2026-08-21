@@ -91,14 +91,12 @@ f32_array_t *import_envmap_get_spherical_harmonics(buffer_t *source, i32 source_
 void import_envmap_run(char *path, gpu_texture_t *image) {
 	// Init
 	if (import_envmap_pipeline == NULL) {
-		gc_unroot(import_envmap_pipeline);
 		import_envmap_pipeline = gpu_create_pipeline();
-		gc_root(import_envmap_pipeline);
 		import_envmap_pipeline->vertex_shader     = sys_get_shader("prefilter_envmap.vert");
 		import_envmap_pipeline->fragment_shader   = sys_get_shader("prefilter_envmap.frag");
 		import_envmap_pipeline->blend_source      = GPU_BLEND_SOURCE_ALPHA;
 		import_envmap_pipeline->blend_destination = GPU_BLEND_ONE;
-		gpu_vertex_structure_t *vs                = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+		gpu_vertex_structure_t *vs                = ALLOC_INIT(gpu_vertex_structure_t, {0});
 		gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
 		import_envmap_pipeline->input_layout           = vs;
 		import_envmap_pipeline->color_attachment_count = 1;
@@ -109,13 +107,9 @@ void import_envmap_run(char *path, gpu_texture_t *image) {
 		import_envmap_radiance_loc = 0;
 		import_envmap_noise_loc    = 1;
 
-		gc_unroot(import_envmap_radiance);
 		import_envmap_radiance = gpu_create_render_target(1024, 512, GPU_TEXTURE_FORMAT_RGBA64);
-		gc_root(import_envmap_radiance);
 
-		gc_unroot(import_envmap_mips);
 		import_envmap_mips = any_array_create_from_raw((void *[]){}, 0);
-		gc_root(import_envmap_mips);
 		i32 w = 512;
 		for (i32 i = 0; i < 5; ++i) {
 			any_array_push(import_envmap_mips, gpu_create_render_target(w, w > 1 ? math_floor(w / 2.0) : 1, GPU_TEXTURE_FORMAT_RGBA64));

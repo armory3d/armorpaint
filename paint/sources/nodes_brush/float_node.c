@@ -6,7 +6,7 @@ logic_node_value_t *float_node_get(float_node_t *self, i32 from) {
 		return logic_node_input_get(self->base->inputs->buffer[0]);
 	}
 	else {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._f32 = self->value});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = self->value});
 		return v;
 	}
 }
@@ -24,6 +24,8 @@ gpu_texture_t *float_node_get_as_image(float_node_t *self, i32 from) {
 	buffer_set_f32(b, 8, self->value);
 	buffer_set_f32(b, 12, 1.0);
 	self->image = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA128);
+	array_free(b);
+	free(b);
 	return self->image;
 }
 
@@ -37,7 +39,7 @@ void float_node_set(float_node_t *self, f32_array_t *value) {
 }
 
 void *float_node_create(ui_node_t *raw, f32_array_t *args) {
-	float_node_t *n       = GC_ALLOC_INIT(float_node_t, {0});
+	float_node_t *n       = ALLOC_INIT(float_node_t, {0});
 	n->base               = logic_node_create(n);
 	n->base->get          = float_node_get;
 	n->base->get_as_image = float_node_get_as_image;
@@ -48,7 +50,7 @@ void *float_node_create(ui_node_t *raw, f32_array_t *args) {
 
 void float_node_init() {
 	ui_node_t *float_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Value"),
 	                              .type   = "float_node",
 	                              .x      = 0,
@@ -56,7 +58,7 @@ void float_node_init() {
 	                              .color  = 0xffb34f5a,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -70,7 +72,7 @@ void float_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",

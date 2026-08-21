@@ -39,7 +39,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 
 		ui_row2();
 
-		string_array_t *base_res_combo = any_array_create_from_raw(
+		string_array_t *base_res_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        "2048",
 		        "4096",
@@ -56,13 +56,13 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		}
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		string_array_t *base_bits_combo = any_array_create_from_raw(
+		string_array_t *base_bits_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        "8bit",
 		    },
 		    1);
 #else
-		string_array_t *base_bits_combo = any_array_create_from_raw(
+		string_array_t *base_bits_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        "8bit",
 		        "16bit",
@@ -94,7 +94,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		if (base_bits_handle->i == TEXTURE_BITS_BITS8) {
 			ui_handle_t *h               = ui_handle(__ID__);
 			h->i                         = g_context->format_type;
-			string_array_t *format_combo = any_array_create_from_raw(
+			string_array_t *format_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        "png",
 			        "jpg",
@@ -105,7 +105,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		else {
 			ui_handle_t *h               = ui_handle(__ID__);
 			h->i                         = g_context->format_type;
-			string_array_t *format_combo = any_array_create_from_raw(
+			string_array_t *format_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        "exr",
 			    },
@@ -125,7 +125,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		g_ui->enabled                       = !bake_material;
 		ui_handle_t *layers_export_handle   = ui_handle(__ID__);
 		layers_export_handle->i             = g_context->layers_export;
-		string_array_t *layers_export_combo = any_array_create_from_raw(
+		string_array_t *layers_export_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Visible"),
 		        tr("Selected"),
@@ -138,7 +138,6 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 
 		ui_combo(box_export_hpreset, box_export_files, tr("Preset"), true, UI_ALIGN_LEFT, true);
 		if (box_export_hpreset->changed) {
-			gc_unroot(box_export_preset);
 			box_export_preset = NULL;
 		}
 
@@ -147,7 +146,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		ui_handle_t *layers_destination_handle = ui_handle(__ID__);
 		layers_destination_handle->i           = g_context->layers_destination;
 
-		string_array_t *layers_destination_combo = any_array_create_from_raw(
+		string_array_t *layers_destination_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Disk"),
 		        tr("Pack into Project"),
@@ -178,7 +177,7 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		}
 		if (g_ui->is_hovered) {
 			char *key = any_map_get(g_keymap, "file_export_textures");
-			char *tip = string("%s (%s)", tr("Export texture files"), key);
+			char *tip = string_tmp("%s (%s)", tr("Export texture files"), key);
 			ui_tooltip(tip);
 		}
 	}
@@ -215,9 +214,7 @@ void box_export_tab_presets_menu_draw() {
 }
 
 void box_export_fetch_presets() {
-	gc_unroot(box_export_files);
 	box_export_files = file_read_directory(string("%s%sexport_presets", path_data(), PATH_SEP));
-	gc_root(box_export_files);
 	for (i32 i = 0; i < box_export_files->length; ++i) {
 		char *s                     = box_export_files->buffer[i];
 		box_export_files->buffer[i] = substring(s, 0, string_length(s) - 5); // Strip .json
@@ -231,7 +228,6 @@ void box_export_tab_presets_import(char *path) {
 		char *dst_path = string("%s%sexport_presets%s%s", path_data(), PATH_SEP, PATH_SEP, filename);
 		file_copy(path, dst_path); // Copy to presets folder
 		box_export_fetch_presets();
-		gc_unroot(box_export_preset);
 		box_export_preset     = NULL;
 		box_export_hpreset->i = string_array_index_of(box_export_files, substring(filename, 0, string_length(filename) - 5)); // Strip .json
 		console_info(string("%s %s", tr("Preset imported:"), filename));
@@ -267,7 +263,6 @@ void box_export_tab_presets_new_box() {
 		if (ui_icon_button(tr("OK"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) {
 			box_export_new_preset(preset_name);
 			box_export_fetch_presets();
-			gc_unroot(box_export_preset);
 			box_export_preset     = NULL;
 			box_export_hpreset->i = string_array_index_of(box_export_files, preset_name);
 			ui_box_hide();
@@ -280,9 +275,7 @@ void box_export_tab_presets_new_box() {
 void box_export_parse_preset() {
 	char     *file = string("export_presets/%s.json", box_export_files->buffer[box_export_hpreset->i]);
 	buffer_t *blob = data_get_blob(file);
-	gc_unroot(box_export_preset);
 	box_export_preset = json_parse(sys_buffer_to_string(blob));
-	gc_root(box_export_preset);
 	data_delete_blob(file);
 }
 
@@ -290,7 +283,7 @@ void box_export_tab_presets() {
 	bool tab_vertical = g_config->touch_ui;
 	if (ui_tab(box_export_htab, tr("Presets"), tab_vertical, -1, false)) {
 
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        3 / 5.0,
 		        1 / 5.0,
@@ -301,7 +294,6 @@ void box_export_tab_presets() {
 
 		ui_combo(box_export_hpreset, box_export_files, tr("Preset"), false, UI_ALIGN_LEFT, true);
 		if (box_export_hpreset->changed) {
-			gc_unroot(box_export_preset);
 			box_export_preset = NULL;
 		}
 
@@ -336,9 +328,7 @@ void box_export_tab_presets() {
 			t->name           = string_copy(ui_text_input(htex, "", UI_ALIGN_LEFT, true, false));
 
 			if (g_ui->is_hovered && g_ui->input_released_r) {
-				gc_unroot(_box_export_t);
 				_box_export_t = t;
-				gc_root(_box_export_t);
 				ui_menu_draw(&box_export_tab_presets_menu_draw, -1, -1);
 			}
 
@@ -380,14 +370,14 @@ void box_export_tab_presets() {
 			box_export_save_preset();
 		}
 
-		row = f32_array_create_from_raw(
+		row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        1 / 6.0,
 		    },
 		    1);
 		ui_row(row);
 		if (ui_icon_button(tr("Add"), ICON_PLUS, UI_ALIGN_CENTER)) {
-			export_preset_texture_t *tex = GC_ALLOC_INIT(export_preset_texture_t, {.name     = "base",
+			export_preset_texture_t *tex = ALLOC_INIT(export_preset_texture_t, {.name     = "base",
 			                                                                       .channels = any_array_create_from_raw(
 			                                                                           (void *[]){
 			                                                                               "base_r",
@@ -462,15 +452,21 @@ void box_export_tab_export_mesh(ui_handle_t *htab) {
 
 		ui_handle_t *h_export_mesh_format        = ui_handle(__ID__);
 		h_export_mesh_format->i                  = g_context->export_mesh_format;
-		string_array_t *export_mesh_format_combo = any_array_create_from_raw(
+#ifdef WITH_PLUGINS
+		string_array_t *export_mesh_format_combo = any_array_create_from_raw_tmp(
+		    (void *[]){
+		        "obj",
+		        "arm",
+		        "glb",
+		    },
+		    3);
+#else
+		string_array_t *export_mesh_format_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        "obj",
 		        "arm",
 		    },
 		    2);
-
-#ifdef WITH_PLUGINS
-		string_array_push(export_mesh_format_combo, "glb");
 #endif
 
 		g_context->export_mesh_format = ui_combo(h_export_mesh_format, export_mesh_format_combo, tr("Format"), true, UI_ALIGN_LEFT, true);
@@ -510,7 +506,7 @@ void box_export_tab_export_mesh(ui_handle_t *htab) {
 			mesh_object_t *po = paint_objects->buffer[i];
 			tris += math_floor(po->data->index_array->length / 3.0);
 		}
-		ui_text(string("%s %s", i32_to_string(tris), tr("triangles")), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%s %s", i32_to_string(tris), tr("triangles")), UI_ALIGN_LEFT, 0x00000000);
 
 		ui_row2();
 		if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
@@ -661,7 +657,7 @@ void box_export_show_player_box() {
 	bool         tab_vertical = g_config->touch_ui;
 	if (ui_tab(htab, tr("Export Player"), tab_vertical, -1, false)) {
 
-		string_array_t *export_player_target_combo = any_array_create_from_raw((void *[]){"Web", "Windows", "Linux", "MacOS"}, 4);
+		string_array_t *export_player_target_combo = any_array_create_from_raw_tmp((void *[]){"Web", "Windows", "Linux", "MacOS"}, 4);
 		ui_combo(box_export_h_export_player_target, export_player_target_combo, tr("Target"), true, UI_ALIGN_LEFT, true);
 
 		ui_row2();

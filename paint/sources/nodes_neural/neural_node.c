@@ -6,7 +6,7 @@ char *neural_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	if (result == NULL) {
 		return "float3(0.0, 0.0, 0.0)";
 	}
-	char *tex_name = parser_material_node_name(node, NULL);
+	char *tex_name = string_copy(parser_material_node_name(node, NULL));
 	any_map_set(data_cached_textures, tex_name, result);
 	bind_tex_t *tex      = parser_material_make_bind_tex(tex_name, tex_name);
 	char       *texstore = parser_material_texture_store(node, tex, tex_name, COLOR_SPACE_AUTO);
@@ -18,7 +18,7 @@ char *neural_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	if (result == NULL) {
 		return "0.0";
 	}
-	char *tex_name = parser_material_node_name(node, NULL);
+	char *tex_name = string_copy(parser_material_node_name(node, NULL));
 	any_map_set(data_cached_textures, tex_name, result);
 	bind_tex_t *tex      = parser_material_make_bind_tex(tex_name, tex_name);
 	char       *texstore = parser_material_texture_store(node, tex, tex_name, COLOR_SPACE_AUTO);
@@ -87,9 +87,7 @@ void neural_node_load_result(ui_node_t *node) {
 }
 
 void neural_node_check_result(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		neural_node_load_result(node);

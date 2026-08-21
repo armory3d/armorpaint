@@ -52,7 +52,7 @@ void tab_brushes_draw_context_menu() {
 void tab_brushes_draw(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Brushes"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -149,12 +149,9 @@ void tab_brushes_draw(ui_handle_t *htab) {
 					}
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					gc_unroot(base_drag_brush);
 					base_drag_brush = g_context->brush;
-					gc_root(base_drag_brush);
 					if (sys_time() - g_context->select_time < 0.2) {
 						ui_base_show_brush_nodes();
-						gc_unroot(base_drag_brush);
 						base_drag_brush  = NULL;
 						base_is_dragging = false;
 					}

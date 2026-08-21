@@ -45,12 +45,10 @@ void sim_play() {
 	}
 
 	// Save transforms
-	gc_unroot(sim_transforms);
 	sim_transforms = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(sim_transforms);
 	mesh_object_t_array_t *pos = g_project->_->paint_objects;
 	for (i32 i = 0; i < pos->length; ++i) {
-		mat4_t *m = gc_alloc(sizeof(mat4_t));
+		mat4_t *m = calloc(1, sizeof(mat4_t));
 		memcpy(m->m, pos->buffer[i]->base->transform->local.m, sizeof(m->m));
 		any_array_push(sim_transforms, m);
 	}
@@ -124,9 +122,8 @@ void sim_duplicate() {
 }
 
 void sim_delete() {
-	mesh_object_t *so        = g_context->paint_object;
-	char          *mesh_name = so->base->name;
-	array_remove(g_project->_->paint_objects, so);
-	tab_timeline_on_mesh_deleted(mesh_name);
-	mesh_object_remove(so);
+	if (g_project->_->paint_objects->length < 2) {
+		return;
+	}
+	tab_meshes_draw_context_menu_delete(g_context->paint_object);
 }

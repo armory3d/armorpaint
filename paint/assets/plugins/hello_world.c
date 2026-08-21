@@ -50,13 +50,5 @@ void main() {
 	h4 = ui_handle_create();
 	h5 = ui_handle_create();
 	h6 = ui_handle_create();
-	gc_root(plugin);
-	gc_root(h0);
-	gc_root(h1);
-	gc_root(h2);
-	gc_root(h3);
-	gc_root(h4);
-	gc_root(h5);
-	gc_root(h6);
 	plugin_notify_on_ui(plugin, on_ui);
 }

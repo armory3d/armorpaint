@@ -7,7 +7,7 @@ void make_discard_color_id(node_shader_t *kong, char *tex_coord) {
 	// node_shader_write_frag(kong, "var colorid_c1: float3 = texpaint_colorid[uint2(0, 0)].rgb;");
 	node_shader_write_frag(kong, "var colorid_c14: float4 = texpaint_colorid[uint2(uint(0), uint(0))];");
 	node_shader_write_frag(kong, "var colorid_c1: float3 = colorid_c14.rgb;");
-	node_shader_write_frag(kong, string("var colorid_c2: float3 = sample_lod(texcolorid, sampler_linear, input.%s, 0.0).rgb;", tex_coord));
+	node_shader_write_frag(kong, string_tmp("var colorid_c2: float3 = sample_lod(texcolorid, sampler_linear, input.%s, 0.0).rgb;", tex_coord));
 	// node_shader_write_frag(kong, "if (any(colorid_c1 != colorid_c2)) { discard };");
 	node_shader_write_frag(kong, "if (colorid_c1.r != colorid_c2.r || colorid_c1.g != colorid_c2.g || colorid_c1.b != colorid_c2.b) { discard; }");
 }
@@ -45,11 +45,11 @@ void make_discard_material_id(node_shader_t *kong, char *tex_coord) {
 		tc = "picker_sample_tc";
 	}
 	else {
-		tc = string("input.%s", tex_coord);
+		tc = string_tmp("input.%s", tex_coord);
 	}
 	node_shader_add_texture(kong, "texpaint_nor_undo", "_texpaint_nor_undo");
-	node_shader_write_frag(kong, string("var picker_sample_a: float = sample_lod(texpaint_nor_undo, sampler_linear, %s, 0.0).a;", tc));
+	node_shader_write_frag(kong, string_tmp("var picker_sample_a: float = sample_lod(texpaint_nor_undo, sampler_linear, %s, 0.0).a;", tc));
 	// material_id * 3 + (0 - normal, 1 - emission, 2 - subsurface)
 	node_shader_write_frag(kong, "var picker_sample_id: float = floor(floor(picker_sample_a * 255.0 + 0.5) / 3.0);");
-	node_shader_write_frag(kong, string("if (abs(picker_sample_id - %s) > 0.5) { discard; }", f32_to_string_with_zeros((f32)g_context->materialid_picked)));
+	node_shader_write_frag(kong, string_tmp("if (abs(picker_sample_id - %s) > 0.5) { discard; }", f32_to_string_with_zeros((f32)g_context->materialid_picked)));
 }

@@ -25,7 +25,7 @@ char *attribute_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void attribute_node_init() {
 
 	ui_node_t *attribute_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Attribute"),
 	                              .type    = "ATTRIBUTE",
 	                              .x       = 0,
@@ -34,7 +34,7 @@ void attribute_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -44,7 +44,7 @@ void attribute_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -54,7 +54,7 @@ void attribute_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -64,7 +64,7 @@ void attribute_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Alpha"),
 	                                                                       .type          = "VALUE",
@@ -78,7 +78,7 @@ void attribute_node_init() {
 	                                  4),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Name"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Name"),
 	                                                                       .type          = "STRING",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

@@ -31,20 +31,20 @@ char *geometry_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 		f32   offset                 = 0.0;
 		char *store                  = parser_material_store_var_name(node);
 		parser_material_kong->frag_n = true;
-		parser_material_write(parser_material_kong, string("var %s_dx: float3 = ddx3(n);", store));
-		parser_material_write(parser_material_kong, string("var %s_dy: float3 = ddy3(n);", store));
+		parser_material_write(parser_material_kong, string_tmp("var %s_dx: float3 = ddx3(n);", store));
+		parser_material_write(parser_material_kong, string_tmp("var %s_dy: float3 = ddy3(n);", store));
 		parser_material_write(parser_material_kong,
-		                      string("var %s_curvature: float = max(dot(%s_dx, %s_dx), dot(%s_dy, %s_dy));", store, store, store, store, store));
-		parser_material_write(parser_material_kong, string("%s_curvature = clamp(pow(%s_curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);",
+		                      string_tmp("var %s_curvature: float = max(dot(%s_dx, %s_dx), dot(%s_dy, %s_dy));", store, store, store, store, store));
+		parser_material_write(parser_material_kong, string_tmp("%s_curvature = clamp(pow(%s_curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);",
 		                                                   store, store, f32_to_string(radius), f32_to_string(strength), f32_to_string(offset)));
-		return string("%s_curvature", store);
+		return string_tmp("%s_curvature", store);
 	}
 	return "";
 }
 
 void geometry_node_init() {
 
-	ui_node_t *geometry_node_def = GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	ui_node_t *geometry_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
 	                                                         .name    = _tr("Geometry"),
 	                                                         .type    = "NEW_GEOMETRY",
 	                                                         .x       = 0,
@@ -53,7 +53,7 @@ void geometry_node_init() {
 	                                                         .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                                                         .outputs = any_array_create_from_raw(
 	                                                             (void *[]){
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Position"),
 	                                                                                                  .type          = "VECTOR",
@@ -63,7 +63,7 @@ void geometry_node_init() {
 	                                                                                                  .max           = 1.0,
 	                                                                                                  .precision     = 100,
 	                                                                                                  .display       = 0}),
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Normal"),
 	                                                                                                  .type          = "VECTOR",
@@ -73,7 +73,7 @@ void geometry_node_init() {
 	                                                                                                  .max           = 1.0,
 	                                                                                                  .precision     = 100,
 	                                                                                                  .display       = 0}),
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Tangent"),
 	                                                                                                  .type          = "VECTOR",
@@ -83,7 +83,7 @@ void geometry_node_init() {
 	                                                                                                  .max           = 1.0,
 	                                                                                                  .precision     = 100,
 	                                                                                                  .display       = 0}),
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Incoming"),
 	                                                                                                  .type          = "VECTOR",
@@ -93,7 +93,7 @@ void geometry_node_init() {
 	                                                                                                  .max           = 1.0,
 	                                                                                                  .precision     = 100,
 	                                                                                                  .display       = 0}),
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Parametric"),
 	                                                                                                  .type          = "VECTOR",
@@ -103,7 +103,7 @@ void geometry_node_init() {
 	                                                                                                  .max           = 1.0,
 	                                                                                                  .precision     = 100,
 	                                                                                                  .display       = 0}),
-	                                                                 GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                  .node_id       = 0,
 	                                                                                                  .name          = _tr("Pointiness"),
 	                                                                                                  .type          = "VALUE",

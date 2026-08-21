@@ -18,11 +18,10 @@ void on_delete() {
 
 void main() {
 	plugin = plugin_create();
-	gc_root(plugin);
 
 	// Create new node category
 	any_array_t *node_list = any_array_create(0);
-	ui_node_t *n = gc_alloc(sizeof(ui_node_t));
+	ui_node_t *n = calloc(1, sizeof(ui_node_t));
 	any_array_push(node_list, n);
 
 	n->id = 0;
@@ -33,7 +32,7 @@ void main() {
 	n->color = 0xffb34f5a;
 
 	n->inputs = any_array_create(0);
-	ui_node_socket_t *s = gc_alloc(sizeof(ui_node_socket_t));
+	ui_node_socket_t *s = calloc(1, sizeof(ui_node_socket_t));
 	any_array_push(n->inputs, s);
 	s->id = 0;
 	s->node_id = 0;
@@ -47,7 +46,7 @@ void main() {
 	s->display = 0;
 
 	n->outputs = any_array_create(0);
-	s = gc_alloc(sizeof(ui_node_socket_t));
+	s = calloc(1, sizeof(ui_node_socket_t));
 	any_array_push(n->outputs, s);
 	s->id = 0;
 	s->node_id = 0;

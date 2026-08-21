@@ -17,11 +17,10 @@ gpu_texture_t       *ui_view2d_tex           = NULL;
 
 void ui_view2d_init() {
 	ui_view2d_pipe = gpu_create_pipeline();
-	gc_root(ui_view2d_pipe);
 
 	ui_view2d_pipe->vertex_shader   = sys_get_shader("layer_view.vert");
 	ui_view2d_pipe->fragment_shader = sys_get_shader("layer_view.frag");
-	gpu_vertex_structure_t *vs      = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+	gpu_vertex_structure_t *vs      = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
 	gpu_vertex_structure_add(vs, "tex", GPU_VERTEX_DATA_F32_2X);
 	gpu_vertex_structure_add(vs, "col", GPU_VERTEX_DATA_F32_4X);
@@ -115,7 +114,7 @@ void ui_view2d_draw_edit() {
 	if (ui_view2d_tex != NULL) {
 		ui_menu_separator();
 		g_ui->enabled = false;
-		ui_text(string("%dx%d", ui_view2d_tex->width, ui_view2d_tex->height), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%dx%d", ui_view2d_tex->width, ui_view2d_tex->height), UI_ALIGN_LEFT, 0x00000000);
 		if (ui_view2d_type == VIEW_2D_TYPE_ASSET) {
 			asset_t *asset     = g_context->texture;
 			bool     is_packed = g_project->packed_assets != NULL && project_packed_asset_exists(g_project->packed_assets, asset->file);
@@ -135,7 +134,7 @@ void ui_view2d_draw_edit() {
 	if (ui_view2d_type == VIEW_2D_TYPE_NODE) {
 		ui_node_t *sel = ui_view2d_get_selected_node();
 		if (sel != NULL) {
-			view_type = string("%s %s", sel->type, view_type);
+			view_type = string_tmp("%s %s", sel->type, view_type);
 		}
 	}
 
@@ -220,7 +219,7 @@ void ui_view2d_update(void *_) {
 		bool decal_mask = context_is_decal_mask_paint();
 		bool set_clone_source =
 		    g_context->tool == TOOL_TYPE_CLONE &&
-		    operator_shortcut(string("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+		    operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
 
 		if (!g_ui->input_down) {
 			ui_view2d_layer_touched = false;
@@ -228,7 +227,7 @@ void ui_view2d_update(void *_) {
 
 		if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover &&
 		    (operator_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
-		     operator_shortcut(string("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
+		     operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
 		     decal_mask || set_clone_source || g_config->brush_live)) {
 
 			if (g_config->touch_ui) {
@@ -331,9 +330,7 @@ void ui_view2d_update(void *_) {
 		if (ui_view2d_grid != NULL) {
 			gpu_delete_texture(ui_view2d_grid);
 		}
-		gc_unroot(ui_view2d_grid);
 		ui_view2d_grid = ui_nodes_draw_grid(ui_view2d_pan_scale);
-		gc_root(ui_view2d_grid);
 		ui_view2d_grid_redraw = false;
 	}
 
@@ -375,7 +372,7 @@ void ui_view2d_update(void *_) {
 
 		if (!g_config->touch_ui) {
 			bool expand = !base_view3d_show && !ui_nodes_show && g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] == 0;
-			ui_tab(ui_view2d_htab, expand ? string("%s          ", tr("2D View")) : tr("2D View"), false, -1, !base_view3d_show);
+			ui_tab(ui_view2d_htab, expand ? string_tmp("%s          ", tr("2D View")) : tr("2D View"), false, -1, !base_view3d_show);
 			if (ui_tab(ui_view2d_htab, tr("+"), false, -1, false)) {
 				ui_view2d_htab->i = 0;
 			}
@@ -491,9 +488,7 @@ void ui_view2d_update(void *_) {
 
 			// Texture and node preview color picking
 			if ((context_in_2d_view(VIEW_2D_TYPE_ASSET) || context_in_2d_view(VIEW_2D_TYPE_NODE)) && g_context->tool == TOOL_TYPE_PICKER && g_ui->input_down) {
-				gc_unroot(_ui_view2d_render_tex);
 				_ui_view2d_render_tex = tex;
-				gc_root(_ui_view2d_render_tex);
 				_ui_view2d_render_x = g_ui->input_x - tx - ui_view2d_wx;
 				;
 				_ui_view2d_render_y  = g_ui->input_y - ty - ui_view2d_wy;
@@ -610,7 +605,7 @@ void ui_view2d_update(void *_) {
 		if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 			ui_handle_t *h_layer_mode        = ui_handle(__ID__);
 			h_layer_mode->i                  = ui_view2d_layer_mode;
-			string_array_t *layer_mode_combo = any_array_create_from_raw(
+			string_array_t *layer_mode_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Visible"),
 			        tr("Selected"),
@@ -623,7 +618,7 @@ void ui_view2d_update(void *_) {
 			if (!slot_layer_is_mask(g_context->layer)) {
 				ui_handle_t *h_tex_type        = ui_handle(__ID__);
 				h_tex_type->i                  = ui_view2d_tex_type;
-				string_array_t *tex_type_combo = any_array_create_from_raw(
+				string_array_t *tex_type_combo = any_array_create_from_raw_tmp(
 				    (void *[]){
 				        tr("Base Color"),
 				        tr("Opacity"),
@@ -655,7 +650,7 @@ void ui_view2d_update(void *_) {
 			i32          scale_percent = math_round((tw / (float)tex->width) * 100);
 			h_zoom->f                  = scale_percent;
 			g_ui->_w                   = math_floor(ew + 3);
-			f32 new_percent            = ui_slider(h_zoom, string("%%", scale_percent), 1, 100, true, 1, true, UI_ALIGN_RIGHT, true);
+			f32 new_percent            = ui_slider(h_zoom, string_tmp("%%", scale_percent), 1, 100, true, 1, true, UI_ALIGN_RIGHT, true);
 			if (h_zoom->changed) {
 				ui_view2d_pan_scale     = new_percent / 100.0 * tex->width / (wm * 0.9);
 				ui_view2d_hwnd->redraws = 2;
@@ -666,9 +661,7 @@ void ui_view2d_update(void *_) {
 
 		g_ui->_w = math_floor(ew * 0.7 + 3);
 		if (ui_icon_button("Edit", ICON_EDIT, UI_ALIGN_CENTER)) {
-			gc_unroot(ui_view2d_tex);
 			ui_view2d_tex = tex;
-			gc_root(ui_view2d_tex);
 			ui_menu_draw(&ui_view2d_draw_edit, -1, -1);
 		}
 		g_ui->_x += ew * 0.7 + 3;

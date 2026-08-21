@@ -70,7 +70,7 @@ char *magic_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *scale      = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[2], false);
 	i32   depth      = (i32)node->outputs->buffer[0]->default_value->buffer[0];
-	return string("tex_magic(%s * %s, %s, %d.0)", co, scale, distortion, depth);
+	return string_tmp("tex_magic(%s * %s, %s, %d.0)", co, scale, distortion, depth);
 }
 
 char *magic_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
@@ -79,13 +79,13 @@ char *magic_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *scale      = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[2], false);
 	i32   depth      = (i32)node->outputs->buffer[0]->default_value->buffer[0];
-	return string("tex_magic_f(%s * %s, %s, %d.0)", co, scale, distortion, depth);
+	return string_tmp("tex_magic_f(%s * %s, %s, %d.0)", co, scale, distortion, depth);
 }
 
 void magic_texture_node_init() {
 
 	ui_node_t *magic_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Magic Texture"),
 	                              .type   = "TEX_MAGIC",
 	                              .x      = 0,
@@ -93,7 +93,7 @@ void magic_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -103,7 +103,7 @@ void magic_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -113,7 +113,7 @@ void magic_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Distortion"),
 	                                                                       .type          = "VALUE",
@@ -127,7 +127,7 @@ void magic_texture_node_init() {
 	                                  3),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -137,7 +137,7 @@ void magic_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -151,7 +151,7 @@ void magic_texture_node_init() {
 	                                  2),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Depth"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Depth"),
 	                                                                       .type          = "VALUE",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(2),

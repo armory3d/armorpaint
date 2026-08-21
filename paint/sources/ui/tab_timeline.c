@@ -145,10 +145,9 @@ static void tab_timeline_init_tween_pipe() {
 		return;
 	}
 	tab_timeline_tween_pipe = gpu_create_pipeline();
-	gc_root(tab_timeline_tween_pipe);
 	tab_timeline_tween_pipe->vertex_shader   = sys_get_shader("layer_tween.vert");
 	tab_timeline_tween_pipe->fragment_shader = sys_get_shader("layer_tween.frag");
-	gpu_vertex_structure_t *vs               = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+	gpu_vertex_structure_t *vs               = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
 	tab_timeline_tween_pipe->input_layout = vs;
 	gpu_pipeline_compile(tab_timeline_tween_pipe);
@@ -183,7 +182,7 @@ static void tab_timeline_save_origins() {
 		i32                    oi = tab_timeline_find_origin(li);
 		tab_timeline_origin_t *o;
 		if (oi < 0) {
-			o                = GC_ALLOC_INIT(tab_timeline_origin_t, {0});
+			o                = ALLOC_INIT(tab_timeline_origin_t, {0});
 			o->layer_index   = li;
 			o->layer         = l;
 			o->texpaint      = gpu_create_render_target(w, h, fmt);
@@ -375,7 +374,7 @@ static void tab_timeline_save_mesh_origins() {
 		i32                         oi = tab_timeline_find_mesh_origin(mi);
 		tab_timeline_mesh_origin_t *orig;
 		if (oi < 0) {
-			orig             = GC_ALLOC_INIT(tab_timeline_mesh_origin_t, {0});
+			orig             = ALLOC_INIT(tab_timeline_mesh_origin_t, {0});
 			orig->mesh_index = mi;
 			orig->mesh       = o;
 			any_array_push(tab_timeline_mesh_origins, orig);
@@ -542,7 +541,7 @@ static void tab_timeline_add_keyframe_on_next_frame(void *_) {
 	i32                      kfi = tab_timeline_find_keyframe(fr, li);
 	tab_timeline_keyframe_t *kf;
 	if (kfi < 0) {
-		kf                = GC_ALLOC_INIT(tab_timeline_keyframe_t, {0});
+		kf                = ALLOC_INIT(tab_timeline_keyframe_t, {0});
 		kf->frame         = fr;
 		kf->layer_index   = li;
 		kf->layer         = l;
@@ -589,7 +588,7 @@ static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
 	i32                           kfi = tab_timeline_find_mesh_keyframe(fr, mi);
 	tab_timeline_mesh_keyframe_t *kf;
 	if (kfi < 0) {
-		kf             = GC_ALLOC_INIT(tab_timeline_mesh_keyframe_t, {0});
+		kf             = ALLOC_INIT(tab_timeline_mesh_keyframe_t, {0});
 		kf->frame      = fr;
 		kf->mesh_index = mi;
 		kf->mesh       = o;
@@ -618,12 +617,8 @@ static void tab_timeline_remove_mesh_keyframe_on_next_frame(void *_) {
 }
 
 static void tab_timeline_clear_on_next_frame(void *_) {
-	gc_unroot(tab_timeline_keyframes);
 	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_keyframes);
-	gc_unroot(tab_timeline_mesh_keyframes);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_mesh_keyframes);
 	tab_timeline_load_origins();
 	tab_timeline_load_mesh_origins();
 	tab_timeline_last_frame = 0;
@@ -634,30 +629,18 @@ static void tab_timeline_init() {
 		return;
 	}
 	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_keyframes);
 	tab_timeline_origins = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_origins);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_mesh_keyframes);
 	tab_timeline_mesh_origins = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_mesh_origins);
 }
 
 void tab_timeline_reset() {
 	tab_timeline_init();
 
-	gc_unroot(tab_timeline_keyframes);
 	tab_timeline_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_keyframes);
-	gc_unroot(tab_timeline_origins);
 	tab_timeline_origins = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_origins);
-	gc_unroot(tab_timeline_mesh_keyframes);
 	tab_timeline_mesh_keyframes = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_mesh_keyframes);
-	gc_unroot(tab_timeline_mesh_origins);
 	tab_timeline_mesh_origins = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(tab_timeline_mesh_origins);
 
 	tab_timeline_selected_frame = 0;
 	tab_timeline_selected_row   = 0;
@@ -702,7 +685,7 @@ void tab_timeline_export(project_t *raw) {
 	for (i32 i = 0; i < tab_timeline_keyframes->length; ++i) {
 		tab_timeline_keyframe_t        *kf = tab_timeline_keyframes->buffer[i];
 		timeline_layer_keyframe_data_t *d =
-		    GC_ALLOC_INIT(timeline_layer_keyframe_data_t, {
+		    ALLOC_INIT(timeline_layer_keyframe_data_t, {
 		                                                      .frame              = kf->frame,
 		                                                      .layer_index        = kf->layer_index,
 		                                                      .texpaint           = lz4_encode(gpu_get_texture_pixels(kf->texpaint)),
@@ -721,7 +704,7 @@ void tab_timeline_export(project_t *raw) {
 	timeline_mesh_keyframe_data_t_array_t *meshes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < tab_timeline_mesh_keyframes->length; ++i) {
 		tab_timeline_mesh_keyframe_t  *kf = tab_timeline_mesh_keyframes->buffer[i];
-		timeline_mesh_keyframe_data_t *d  = GC_ALLOC_INIT(timeline_mesh_keyframe_data_t, {
+		timeline_mesh_keyframe_data_t *d  = ALLOC_INIT(timeline_mesh_keyframe_data_t, {
 		                                                                                     .frame      = kf->frame,
 		                                                                                     .mesh_index = kf->mesh_index,
 		                                                                                     .transform  = mat4_to_f32_array(kf->transform),
@@ -732,13 +715,45 @@ void tab_timeline_export(project_t *raw) {
 	raw->timeline_meshes = meshes;
 }
 
+void tab_timeline_export_free(project_t *raw) {
+	if (raw->timeline_layers != NULL) {
+		for (i32 i = 0; i < raw->timeline_layers->length; ++i) {
+			timeline_layer_keyframe_data_t *d = raw->timeline_layers->buffer[i];
+			array_free(d->texpaint);
+			free(d->texpaint);
+			array_free(d->texpaint_nor);
+			free(d->texpaint_nor);
+			array_free(d->texpaint_pack);
+			free(d->texpaint_pack);
+			free(d);
+		}
+		array_free(raw->timeline_layers);
+		free(raw->timeline_layers);
+		raw->timeline_layers = NULL;
+	}
+	if (raw->timeline_meshes != NULL) {
+		for (i32 i = 0; i < raw->timeline_meshes->length; ++i) {
+			timeline_mesh_keyframe_data_t *d = raw->timeline_meshes->buffer[i];
+			array_free(d->transform);
+			free(d->transform);
+			free(d);
+		}
+		array_free(raw->timeline_meshes);
+		free(raw->timeline_meshes);
+		raw->timeline_meshes = NULL;
+	}
+}
+
 static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) {
 	gpu_texture_format_t fmt               = tab_timeline_tex_format();
 	i32                  w                 = config_get_texture_res_x();
 	i32                  h                 = config_get_texture_res_y();
 	i32                  bytes_per_channel = base_bits_handle->i == TEXTURE_BITS_BITS8 ? 1 : base_bits_handle->i == TEXTURE_BITS_BITS16 ? 2 : 4;
-	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes(lz4_decode(buf, w * h * 4 * bytes_per_channel), w, h, fmt);
-	gpu_texture_t       *rt                = gpu_create_render_target(w, h, fmt);
+	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
+	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes(pixels, w, h, fmt);
+	array_free(pixels);
+	free(pixels);
+	gpu_texture_t *rt = gpu_create_render_target(w, h, fmt);
 	draw_begin(rt, false, 0);
 	draw_set_pipeline(is_bgra ? pipes_copy_bgra : pipes_copy);
 	draw_image(tmp, 0, 0);
@@ -759,7 +774,7 @@ void tab_timeline_import(project_t *raw) {
 	if (raw->timeline_layers != NULL) {
 		for (i32 i = 0; i < raw->timeline_layers->length; ++i) {
 			timeline_layer_keyframe_data_t *d  = raw->timeline_layers->buffer[i];
-			tab_timeline_keyframe_t        *kf = GC_ALLOC_INIT(tab_timeline_keyframe_t, {0});
+			tab_timeline_keyframe_t        *kf = ALLOC_INIT(tab_timeline_keyframe_t, {0});
 			kf->frame                          = d->frame;
 			kf->layer_index                    = d->layer_index;
 			kf->texpaint                       = tab_timeline_tex_from_buffer(d->texpaint, raw->is_bgra);
@@ -777,7 +792,7 @@ void tab_timeline_import(project_t *raw) {
 	if (raw->timeline_meshes != NULL) {
 		for (i32 i = 0; i < raw->timeline_meshes->length; ++i) {
 			timeline_mesh_keyframe_data_t *d  = raw->timeline_meshes->buffer[i];
-			tab_timeline_mesh_keyframe_t  *kf = GC_ALLOC_INIT(tab_timeline_mesh_keyframe_t, {0});
+			tab_timeline_mesh_keyframe_t  *kf = ALLOC_INIT(tab_timeline_mesh_keyframe_t, {0});
 			kf->frame                         = d->frame;
 			kf->mesh_index                    = d->mesh_index;
 			kf->transform                     = mat4_from_f32_array(d->transform, 0);
@@ -1159,7 +1174,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 		tab_timeline_init();
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw((f32[]){-70, -110, -100, -100, -40, -40, -40, -40, -60}, 9);
+		f32_array_t *row = f32_array_create_from_raw_tmp((f32[]){-70, -110, -100, -100, -40, -40, -40, -40, -60}, 9);
 		ui_row(row);
 
 		// Stage

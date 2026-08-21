@@ -66,7 +66,7 @@ static char *wave_texture_node_result(ui_node_t *node) {
 	i32               wave_type    = (i32)but_type->default_value->buffer[0];
 	i32               direction    = (i32)but_dir->default_value->buffer[0];
 	i32               profile      = (i32)but_prof->default_value->buffer[0];
-	return string("tex_wave(%s, %s, %s, %s, %s, %s, %d, %d, %d)", co, scale, distortion, detail_scale, detail_rough, phase, wave_type, direction, profile);
+	return string_tmp("tex_wave(%s, %s, %s, %s, %s, %s, %d, %d, %d)", co, scale, distortion, detail_scale, detail_rough, phase, wave_type, direction, profile);
 }
 
 char *wave_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -79,12 +79,12 @@ char *wave_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 void wave_texture_node_init() {
 
-	char *wave_type_data      = string("%s\n%s", _tr("Bands"), _tr("Rings"));
-	char *wave_direction_data = string("%s\n%s\n%s\n%s", _tr("X"), _tr("Y"), _tr("Z"), _tr("Diagonal"));
-	char *wave_profile_data   = string("%s\n%s\n%s", _tr("Sine"), _tr("Saw"), _tr("Triangle"));
+	char *wave_type_data      = string_tmp("%s\n%s", _tr("Bands"), _tr("Rings"));
+	char *wave_direction_data = string_tmp("%s\n%s\n%s\n%s", _tr("X"), _tr("Y"), _tr("Z"), _tr("Diagonal"));
+	char *wave_profile_data   = string_tmp("%s\n%s\n%s", _tr("Sine"), _tr("Saw"), _tr("Triangle"));
 
 	ui_node_t *wave_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Wave Texture"),
 	                              .type   = "TEX_WAVE",
 	                              .x      = 0,
@@ -92,7 +92,7 @@ void wave_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -102,7 +102,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -112,7 +112,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Distortion"),
 	                                                                       .type          = "VALUE",
@@ -122,7 +122,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Detail Scale"),
 	                                                                       .type          = "VALUE",
@@ -132,7 +132,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Detail Roughness"),
 	                                                                       .type          = "VALUE",
@@ -142,7 +142,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Phase Offset"),
 	                                                                       .type          = "VALUE",
@@ -156,7 +156,7 @@ void wave_texture_node_init() {
 	                                  6),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -166,7 +166,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -180,7 +180,7 @@ void wave_texture_node_init() {
 	                                  2),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Wave Type"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Wave Type"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -189,7 +189,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Direction"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Direction"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -198,7 +198,7 @@ void wave_texture_node_init() {
 	                                                                       .max           = 3.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Wave Profile"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Wave Profile"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

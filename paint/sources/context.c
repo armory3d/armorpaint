@@ -2,8 +2,7 @@
 #include "global.h"
 
 void context_init() {
-	g_context = GC_ALLOC_INIT(context_t, {0});
-	gc_root(g_context);
+	g_context = ALLOC_INIT(context_t, {0});
 
 	g_context->merged_object_is_atlas       = false; // Only objects referenced by atlas are merged
 	g_context->ddirty                       = 0;     // depth
@@ -199,9 +198,7 @@ void context_set_material(slot_material_t *m) {
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 	ui_header_handle->redraws                         = 2;
 	ui_nodes_hwnd->redraws                            = 2;
-	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
 
 	bool decal = context_is_decal();
 	if (decal) {
@@ -432,7 +429,7 @@ bool context_is_brush_camera_align() {
 
 bool context_is_decal_mask_paint() {
 	return context_is_decal() &&
-	       operator_shortcut(string("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+	       operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
 }
 
 bool context_is_decal_mask_paint_pass() {
@@ -453,14 +450,10 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 	g_context->viewport_mode           = mode;
 
 	if (context_use_deferred()) {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_deferred_commands;
-		gc_root(render_path_commands);
 	}
 	else {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_forward_commands;
-		gc_root(render_path_commands);
 	}
 	make_material_parse_mesh_material();
 
@@ -533,14 +526,10 @@ void context_set_render_path_on_next_frame(void *_) {
 
 void context_set_render_path() {
 	if (g_config->render_mode == RENDER_MODE_FORWARD || g_context->viewport_shader != NULL) {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_forward_commands;
-		gc_root(render_path_commands);
 	}
 	else {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_deferred_commands;
-		gc_root(render_path_commands);
 	}
 	sys_notify_on_next_frame(&context_set_render_path_on_next_frame, NULL);
 }

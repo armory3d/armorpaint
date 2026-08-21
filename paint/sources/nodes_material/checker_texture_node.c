@@ -36,20 +36,20 @@ char *checker_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *col1  = parser_material_parse_vector_input(node->inputs->buffer[1]);
 	char *col2  = parser_material_parse_vector_input(node->inputs->buffer[2]);
 	char *scale = parser_material_parse_value_input(node->inputs->buffer[3], false);
-	return string("tex_checker(%s, %s, %s, %s)", co, col1, col2, scale);
+	return string_tmp("tex_checker(%s, %s, %s, %s)", co, col1, col2, scale);
 }
 
 char *checker_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	node_shader_add_function(parser_material_kong, str_tex_checker);
 	char *co    = parser_material_get_coord(node);
 	char *scale = parser_material_parse_value_input(node->inputs->buffer[3], false);
-	return string("tex_checker_f(%s, %s)", co, scale);
+	return string_tmp("tex_checker_f(%s, %s)", co, scale);
 }
 
 void checker_texture_node_init() {
 
 	ui_node_t *checker_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Checker Texture"),
 	                              .type   = "TEX_CHECKER",
 	                              .x      = 0,
@@ -57,7 +57,7 @@ void checker_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -67,7 +67,7 @@ void checker_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color 1"),
 	                                                                       .type          = "RGBA",
@@ -77,7 +77,7 @@ void checker_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color 2"),
 	                                                                       .type          = "RGBA",
@@ -87,7 +87,7 @@ void checker_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -101,7 +101,7 @@ void checker_texture_node_init() {
 	                                  4),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -111,7 +111,7 @@ void checker_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",

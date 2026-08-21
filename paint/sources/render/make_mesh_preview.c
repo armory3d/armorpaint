@@ -3,15 +3,15 @@
 
 node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_t *matcon, bool viewport) {
 	char             *context_id = "mesh";
-	shader_context_t *props      = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
+	shader_context_t *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                .depth_write     = true,
 	                                                                .compare_mode    = "less",
 	                                                                .cull_mode       = "clockwise",
 	                                                                .vertex_elements = any_array_create_from_raw(
                                                                    (void *[]){
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
                                                                    },
                                                                    3),
 	                                                                .color_attachments = any_array_create_from_raw(
@@ -33,18 +33,16 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 	char *pos = "input.pos";
 
 	node_shader_add_constant(kong, "WVP: float4x4", "_world_view_proj_matrix");
-	node_shader_write_attrib_vert(kong, string("output.pos = constants.WVP * float4(%s.xyz, 1.0);", pos));
+	node_shader_write_attrib_vert(kong, string_tmp("output.pos = constants.WVP * float4(%s.xyz, 1.0);", pos));
 	f32   sc          = g_context->brush_scale * g_context->brush_nodes_scale;
 	char *brush_scale = f32_to_string(sc);
 	node_shader_add_out(kong, "tex_coord: float2");
-	node_shader_write_attrib_vert(kong, string("output.tex_coord = input.tex * float(%s);", brush_scale));
+	node_shader_write_attrib_vert(kong, string_tmp("output.tex_coord = input.tex * float(%s);", brush_scale));
 	node_shader_write_attrib_frag(kong, "var tex_coord: float2 = input.tex_coord;");
 
 	bool decal                         = g_context->decal_preview;
 	parser_material_sample_keep_aspect = decal;
-	gc_unroot(parser_material_sample_uv_scale);
-	parser_material_sample_uv_scale = string_copy(brush_scale);
-	gc_root(parser_material_sample_uv_scale);
+	parser_material_sample_uv_scale = brush_scale;
 	parser_material_parse_height       = make_material_height_used;
 	shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_mesh, kong, matcon);
 	parser_material_parse_height       = false;
@@ -56,21 +54,21 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 	char *opac                         = sout->out_opacity;
 	char *height                       = sout->out_height;
 	char *nortan                       = parser_material_out_normaltan;
-	node_shader_write_frag(kong, string("var basecol: float3 = pow3(%s, float3(2.2, 2.2, 2.2));", base));
-	node_shader_write_frag(kong, string("var roughness: float = %s;", rough));
-	node_shader_write_frag(kong, string("var metallic: float = %s;", met));
-	node_shader_write_frag(kong, string("var occlusion: float = %s;", occ));
-	node_shader_write_frag(kong, string("var opacity: float = %s;", opac));
-	node_shader_write_frag(kong, string("var nortan: float3 = %s;", nortan));
-	node_shader_write_frag(kong, string("var height: float = %s;", height));
+	node_shader_write_frag(kong, string_tmp("var basecol: float3 = pow3(%s, float3(2.2, 2.2, 2.2));", base));
+	node_shader_write_frag(kong, string_tmp("var roughness: float = %s;", rough));
+	node_shader_write_frag(kong, string_tmp("var metallic: float = %s;", met));
+	node_shader_write_frag(kong, string_tmp("var occlusion: float = %s;", occ));
+	node_shader_write_frag(kong, string_tmp("var opacity: float = %s;", opac));
+	node_shader_write_frag(kong, string_tmp("var nortan: float3 = %s;", nortan));
+	node_shader_write_frag(kong, string_tmp("var height: float = %s;", height));
 
 	if (decal) {
 		if (g_context->tool == TOOL_TYPE_TEXT) {
 			node_shader_add_texture(kong, "textexttool", "_textexttool");
-			node_shader_write_frag(kong, string("opacity *= sample_lod(textexttool, sampler_linear, tex_coord / float(%s), 0.0).r;", brush_scale));
+			node_shader_write_frag(kong, string_tmp("opacity *= sample_lod(textexttool, sampler_linear, tex_coord / float(%s), 0.0).r;", brush_scale));
 		}
 		f32 opac = g_config->brush_alpha_discard;
-		node_shader_write_frag(kong, string("if (opacity <= float(%s)) { discard; }", f32_to_string(opac)));
+		node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(opac)));
 	}
 
 	kong->frag_out = viewport ? "float4[3]" : "float4[2]";
@@ -143,8 +141,8 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	slot_material_t *_material = g_context->material;
 	g_context->material        = slot;
 
-	material_context_t    *mcon = GC_ALLOC_INIT(material_context_t, {.name = "mesh", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
-	material_t            *mm   = GC_ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
+	material_context_t    *mcon = ALLOC_INIT(material_context_t, {.name = "mesh", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
+	material_t            *mm   = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
 	node_shader_context_t *con  = make_mesh_preview_run(mm, mcon, true);
 	shader_context_load(con->data);
 	material_context_load(mcon);
@@ -160,7 +158,7 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	blend_type_t   _brush_blending      = g_context->brush_blending;
 	g_context->tool                     = TOOL_TYPE_FILL;
 	g_context->fill_type                = FILL_TYPE_OBJECT;
-	g_context->layer                    = GC_ALLOC_INIT(slot_layer_t, {.fill_material = slot, .uv_type = UV_TYPE_UVMAP, .scale = 1.0, .visible = true});
+	g_context->layer                    = ALLOC_INIT(slot_layer_t, {.fill_material = slot, .uv_type = UV_TYPE_UVMAP, .scale = 1.0, .visible = true});
 	g_context->select_active            = false;
 	g_context->colorid_picked           = false;
 	g_context->picker_paint_mask        = false;
@@ -168,14 +166,15 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	g_context->brush_mask_image         = NULL;
 	g_context->brush_blending           = BLEND_TYPE_MIX;
 
-	material_context_t    *amcon = GC_ALLOC_INIT(material_context_t, {.name = "atlas", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
-	material_t            *amm   = GC_ALLOC_INIT(material_t, {.name = "Material", .canvas = slot->canvas});
+	material_context_t    *amcon = ALLOC_INIT(material_context_t, {.name = "atlas", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
+	material_t            *amm   = ALLOC_INIT(material_t, {.name = "Material", .canvas = slot->canvas});
 	node_shader_context_t *acon  = make_paint_run_context(amm, amcon, "atlas");
 	shader_context_load(acon->data);
 	material_context_load(amcon);
 
 	g_context->tool                = _tool;
 	g_context->fill_type           = _fill_type;
+	free(g_context->layer);
 	g_context->layer               = _layer;
 	g_context->select_active       = _select_active;
 	g_context->colorid_picked      = _colorid_picked;
@@ -184,14 +183,16 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	g_context->brush_mask_image    = _brush_mask_image;
 	g_context->brush_blending      = _brush_blending;
 
-	shader_data_t *sd = GC_ALLOC_INIT(shader_data_t, {0});
+	shader_data_t *sd = ALLOC_INIT(shader_data_t, {0});
 	sd->name          = string("_material_%s", i32_to_string(slot->id));
 	sd->contexts      = any_array_create_from_raw((void *[]){con->data, acon->data}, 2);
+	node_shader_context_free(con);
+	node_shader_context_free(acon);
 
-	material_data_t *md = GC_ALLOC_INIT(material_data_t, {0});
+	material_data_t *md = ALLOC_INIT(material_data_t, {0});
 	md->name            = sd->name;
 	md->contexts        = any_array_create_from_raw((void *[]){mcon, amcon}, 2);
-	md->_               = GC_ALLOC_INIT(material_data_runtime_t, {0});
+	md->_               = ALLOC_INIT(material_data_runtime_t, {0});
 	md->_->shader       = sd;
 	md->_->uid          = 0;
 

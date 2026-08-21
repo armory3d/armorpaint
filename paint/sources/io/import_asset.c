@@ -26,9 +26,7 @@ void import_asset_run(char *path, f32 drop_x, f32 drop_y, bool show_box, bool hd
 		_import_asset_drop_y        = drop_y;
 		_import_asset_show_box      = show_box;
 		_import_asset_hdr_as_envmap = hdr_as_envmap;
-		gc_unroot(_import_asset_done);
 		_import_asset_done = done;
-		gc_root(_import_asset_done);
 		file_cache_cloud(path, &import_asset_run_cache_cloud_done, g_config->server);
 
 		return;

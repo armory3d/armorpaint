@@ -93,16 +93,13 @@ void base_material_dropped() {
 	else if (context_in_meshes()) {
 		tab_meshes_accept_material_drop(base_drag_material);
 	}
-	gc_unroot(base_drag_material);
 	base_drag_material = NULL;
 }
 
 void base_update_import_asset_done() {
 	// Asset was material
 	if (g_project->_->materials->length > _base_material_count) {
-		gc_unroot(base_drag_material);
 		base_drag_material = g_context->material;
-		gc_root(base_drag_material);
 		base_material_dropped();
 	}
 }
@@ -125,7 +122,6 @@ void base_handle_drop_paths() {
 gpu_texture_t *base_get_drag_image() {
 	base_drag_tint = 0xffffffff;
 	base_drag_size = -1;
-	gc_unroot(base_drag_rect);
 	base_drag_rect = NULL;
 	if (base_drag_asset != NULL) {
 		return project_get_image(base_drag_asset);
@@ -140,9 +136,7 @@ gpu_texture_t *base_get_drag_image() {
 			return base_drag_file_icon;
 		}
 		gpu_texture_t *icons = resource_get("icons.k");
-		gc_unroot(base_drag_rect);
 		base_drag_rect = string_index_of(base_drag_file, ".") > 0 ? resource_tile50(icons, ICON_FILE) : resource_tile50(icons, ICON_FOLDER_FULL);
-		gc_root(base_drag_rect);
 		base_drag_tint = g_theme->HIGHLIGHT_COL;
 		return icons;
 	}
@@ -160,9 +154,7 @@ gpu_texture_t *base_get_drag_image() {
 		gpu_texture_t *icons         = resource_get("icons.k");
 		rect_t        *folder_closed = resource_tile50(icons, ICON_FOLDER_FULL);
 		rect_t        *folder_open   = resource_tile50(icons, ICON_FOLDER_OPEN);
-		gc_unroot(base_drag_rect);
 		base_drag_rect = base_drag_layer->show_panel ? folder_open : folder_closed;
-		gc_root(base_drag_rect);
 		base_drag_tint = base_darker(g_theme->LABEL_COL, 0x00202020);
 		return icons;
 	}
@@ -179,9 +171,7 @@ gpu_texture_t *base_get_drag_image() {
 			return preview;
 		}
 		gpu_texture_t *icons = resource_get("icons.k");
-		gc_unroot(base_drag_rect);
 		base_drag_rect = resource_tile50(icons, ICON_CUBE);
-		gc_root(base_drag_rect);
 		base_drag_tint = g_theme->BUTTON_COL;
 		return icons;
 	}
@@ -198,9 +188,7 @@ rect_t *base_get_drag_background() {
 
 void base_init_undo_layers() {
 	if (history_undo_layers == NULL) {
-		gc_unroot(history_undo_layers);
 		history_undo_layers = any_array_create_from_raw((void *[]){}, 0);
-		gc_root(history_undo_layers);
 		for (i32 i = 0; i < g_config->undo_steps; ++i) {
 			i32           len = history_undo_layers->length;
 			char         *ext = string("_undo%s", i32_to_string(len));
@@ -234,24 +222,15 @@ void base_update(void *_) {
 		}
 		bool moved = math_abs(mouse_movement_x) > 1 && math_abs(mouse_movement_y) > 1;
 		if ((mouse_released("left") || moved) && !has_drag) {
-			gc_unroot(base_drag_asset);
 			base_drag_asset = NULL;
-			gc_unroot(base_drag_swatch);
 			base_drag_swatch = NULL;
-			gc_unroot(base_drag_file);
 			base_drag_file = NULL;
-			gc_unroot(base_drag_file_icon);
 			base_drag_file_icon = NULL;
 			base_is_dragging    = false;
-			gc_unroot(base_drag_material);
 			base_drag_material = NULL;
-			gc_unroot(base_drag_layer);
 			base_drag_layer = NULL;
-			gc_unroot(base_drag_mesh);
 			base_drag_mesh = NULL;
-			gc_unroot(base_drag_brush);
 			base_drag_brush = NULL;
-			gc_unroot(base_drag_font);
 			base_drag_font = NULL;
 		}
 		// Disable touch scrolling while dragging is active
@@ -281,7 +260,6 @@ void base_update(void *_) {
 			else if (context_in_textures()) {
 				tab_textures_accept_asset_drop(base_drag_asset);
 			}
-			gc_unroot(base_drag_asset);
 			base_drag_asset = NULL;
 		}
 		else if (base_drag_swatch != NULL) {
@@ -306,7 +284,6 @@ void base_update(void *_) {
 				layers_create_color_layer(color, base_drag_swatch->occlusion, base_drag_swatch->roughness, base_drag_swatch->metallic, g_context->drag_dest);
 			}
 
-			gc_unroot(base_drag_swatch);
 			base_drag_swatch = NULL;
 		}
 		else if (base_drag_file != NULL) {
@@ -318,9 +295,7 @@ void base_update(void *_) {
 				import_asset_run(base_drag_file, base_drop_x, base_drop_y, true, true, &base_update_import_asset_done);
 			}
 
-			gc_unroot(base_drag_file);
 			base_drag_file = NULL;
-			gc_unroot(base_drag_file_icon);
 			base_drag_file_icon = NULL;
 		}
 		else if (base_drag_material != NULL) {
@@ -334,28 +309,24 @@ void base_update(void *_) {
 				slot_layer_move(base_drag_layer, g_context->drag_dest);
 				make_material_parse_mesh_material();
 			}
-			gc_unroot(base_drag_layer);
 			base_drag_layer = NULL;
 		}
 		else if (base_drag_mesh != NULL) {
 			if (context_in_meshes() && base_is_dragging) {
 				tab_meshes_accept_mesh_drop(base_drag_mesh);
 			}
-			gc_unroot(base_drag_mesh);
 			base_drag_mesh = NULL;
 		}
 		else if (base_drag_brush != NULL) {
 			if (context_in_brushes()) {
 				tab_brushes_accept_brush_drop(base_drag_brush);
 			}
-			gc_unroot(base_drag_brush);
 			base_drag_brush = NULL;
 		}
 		else if (base_drag_font != NULL) {
 			if (context_in_fonts()) {
 				tab_fonts_accept_font_drop(base_drag_font);
 			}
-			gc_unroot(base_drag_font);
 			base_drag_font = NULL;
 		}
 
@@ -505,13 +476,10 @@ void base_init() {
 	iron_set_save_and_quit_callback(base_save_and_quit_callback);
 
 	g_font = data_get_font("font.ttf");
-	gc_root(g_font);
 
 	base_color_wheel = data_get_texture("color_wheel.k");
-	gc_root(base_color_wheel);
 
 	base_color_wheel_gradient = data_get_texture("color_wheel_gradient.k");
-	gc_root(base_color_wheel_gradient);
 	config_load_theme(g_config->theme, false);
 	base_default_element_w = g_theme->ELEMENT_W;
 	base_default_element_h = g_theme->ELEMENT_H;
@@ -519,7 +487,6 @@ void base_init() {
 	translator_load_translations(g_config->locale);
 
 	ui_files_filename = string_copy(tr("untitled"));
-	gc_root(ui_files_filename);
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	sys_title_set(tr("untitled"));
 #endif
@@ -534,7 +501,6 @@ void base_init() {
 
 	ui_nodes_enum_texts    = base_combo_enum_texts;
 	ui_nodes_enum_textures = base_combo_enum_textures;
-	gc_root(ui_nodes_enum_texts);
 
 	// Init plugins
 	if (g_config->plugins != NULL) {
@@ -749,58 +715,33 @@ void base_resize() {
 }
 
 string_array_t *base_combo_enum_texts(char *node_type) {
-	if (string_equals(node_type, "TEX_IMAGE")) {
-		if (g_project->_->assets->length > 0) {
-			string_array_t *asset_names = any_array_create_from_raw((void *[]){}, 0);
-			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				any_array_push(asset_names, g_project->_->assets->buffer[i]->name);
-			}
-			return asset_names;
+	static string_array_t texts = {0};
+	texts.length                = 0;
+
+	if (string_equals(node_type, "TEX_IMAGE") || string_equals(node_type, "image_texture_node")) {
+		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+			string_array_push(&texts, g_project->_->assets->buffer[i]->name);
 		}
-		else {
-			string_array_t *empty = any_array_create_from_raw(
-			    (void *[]){
-			        "",
-			    },
-			    1);
-			return empty;
+		if (texts.length == 0) {
+			string_array_push(&texts, "");
 		}
+		return &texts;
 	}
 
 	if (string_equals(node_type, "LAYER") || string_equals(node_type, "LAYER_MASK")) {
-		string_array_t *layer_names = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 			slot_layer_t *l = g_project->_->layers->buffer[i];
-			any_array_push(layer_names, l->name);
+			string_array_push(&texts, l->name);
 		}
-		return layer_names;
+		return &texts;
 	}
 
 	if (string_equals(node_type, "MATERIAL")) {
-		string_array_t *material_names = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *m = g_project->_->materials->buffer[i];
-			any_array_push(material_names, m->canvas->name);
+			string_array_push(&texts, m->canvas->name);
 		}
-		return material_names;
-	}
-
-	if (string_equals(node_type, "image_texture_node")) {
-		if (g_project->_->assets->length > 0) {
-			string_array_t *asset_names = any_array_create_from_raw((void *[]){}, 0);
-			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				any_array_push(asset_names, g_project->_->assets->buffer[i]->name);
-			}
-			return asset_names;
-		}
-		else {
-			string_array_t *empty = any_array_create_from_raw(
-			    (void *[]){
-			        "",
-			    },
-			    1);
-			return empty;
-		}
+		return &texts;
 	}
 
 	return NULL;
@@ -879,10 +820,16 @@ bool base_is_decal_layer() {
 }
 
 void base_redraw_status() {
+	if (ui_base_hwnds == NULL) {
+		return;
+	}
 	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
 }
 
 void base_redraw_console() {
+	if (ui_base_hwnds == NULL) {
+		return;
+	}
 	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
 }
 

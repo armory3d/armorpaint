@@ -4,19 +4,19 @@
 char *separate_xyz_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *vec = parser_material_parse_vector_input(node->inputs->buffer[0]);
 	if (socket == node->outputs->buffer[0]) {
-		return string("%s.x", vec);
+		return string_tmp("%s.x", vec);
 	}
 	else if (socket == node->outputs->buffer[1]) {
-		return string("%s.y", vec);
+		return string_tmp("%s.y", vec);
 	}
 	else {
-		return string("%s.z", vec);
+		return string_tmp("%s.z", vec);
 	}
 }
 
 void separate_xyz_node_init() {
 
-	ui_node_t *separate_xyz_node_def = GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	ui_node_t *separate_xyz_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
 	                                                             .name   = _tr("Separate XYZ"),
 	                                                             .type   = "SEPXYZ",
 	                                                             .x      = 0,
@@ -24,7 +24,7 @@ void separate_xyz_node_init() {
 	                                                             .color  = 0xff62676d,
 	                                                             .inputs = any_array_create_from_raw(
 	                                                                 (void *[]){
-	                                                                     GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                     ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                      .node_id       = 0,
 	                                                                                                      .name          = _tr("Vector"),
 	                                                                                                      .type          = "VECTOR",
@@ -38,7 +38,7 @@ void separate_xyz_node_init() {
 	                                                                 1),
 	                                                             .outputs = any_array_create_from_raw(
 	                                                                 (void *[]){
-	                                                                     GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                     ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                      .node_id       = 0,
 	                                                                                                      .name          = _tr("X"),
 	                                                                                                      .type          = "VALUE",
@@ -48,7 +48,7 @@ void separate_xyz_node_init() {
 	                                                                                                      .max           = 1.0,
 	                                                                                                      .precision     = 100,
 	                                                                                                      .display       = 0}),
-	                                                                     GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                     ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                      .node_id       = 0,
 	                                                                                                      .name          = _tr("Y"),
 	                                                                                                      .type          = "VALUE",
@@ -58,7 +58,7 @@ void separate_xyz_node_init() {
 	                                                                                                      .max           = 1.0,
 	                                                                                                      .precision     = 100,
 	                                                                                                      .display       = 0}),
-	                                                                     GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                     ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                      .node_id       = 0,
 	                                                                                                      .name          = _tr("Z"),
 	                                                                                                      .type          = "VALUE",

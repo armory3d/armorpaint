@@ -5,12 +5,12 @@ char *combine_xyz_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *x = parser_material_parse_value_input(node->inputs->buffer[0], false);
 	char *y = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *z = parser_material_parse_value_input(node->inputs->buffer[2], false);
-	return string("float3(%s, %s, %s)", x, y, z);
+	return string_tmp("float3(%s, %s, %s)", x, y, z);
 }
 
 void combine_xyz_node_init() {
 
-	ui_node_t *combine_xyz_node_def = GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	ui_node_t *combine_xyz_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
 	                                                            .name   = _tr("Combine XYZ"),
 	                                                            .type   = "COMBXYZ",
 	                                                            .x      = 0,
@@ -18,7 +18,7 @@ void combine_xyz_node_init() {
 	                                                            .color  = 0xff62676d,
 	                                                            .inputs = any_array_create_from_raw(
 	                                                                (void *[]){
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("X"),
 	                                                                                                     .type          = "VALUE",
@@ -28,7 +28,7 @@ void combine_xyz_node_init() {
 	                                                                                                     .max           = 1.0,
 	                                                                                                     .precision     = 100,
 	                                                                                                     .display       = 0}),
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Y"),
 	                                                                                                     .type          = "VALUE",
@@ -38,7 +38,7 @@ void combine_xyz_node_init() {
 	                                                                                                     .max           = 1.0,
 	                                                                                                     .precision     = 100,
 	                                                                                                     .display       = 0}),
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Z"),
 	                                                                                                     .type          = "VALUE",
@@ -52,7 +52,7 @@ void combine_xyz_node_init() {
 	                                                                3),
 	                                                            .outputs = any_array_create_from_raw(
 	                                                                (void *[]){
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Vector"),
 	                                                                                                     .type          = "VECTOR",

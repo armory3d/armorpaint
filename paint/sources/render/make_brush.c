@@ -40,7 +40,7 @@ void make_brush_run(node_shader_t *kong) {
 			node_shader_write_frag(kong, "if (plane_dist < -0.03 && constants.inp.w == 0.0) { discard; }");
 			kong->frag_n = true;
 			f32 angle    = g_context->brush_angle_reject_dot;
-			node_shader_write_frag(kong, string("if (dot(wn, n) < %s && constants.inp.w == 0.0) { discard; }", f32_to_string(angle)));
+			node_shader_write_frag(kong, string_tmp("if (dot(wn, n) < %s && constants.inp.w == 0.0) { discard; }", f32_to_string(angle)));
 		}
 	}
 

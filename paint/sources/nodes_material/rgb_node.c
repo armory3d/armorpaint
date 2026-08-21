@@ -8,7 +8,7 @@ char *rgb_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 void rgb_node_init() {
 
 	ui_node_t *rgb_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Color"),
 	                              .type    = "RGB",
 	                              .x       = 0,
@@ -17,7 +17,7 @@ void rgb_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -31,7 +31,7 @@ void rgb_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("RGBA"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("RGBA"),
 	                                                                       .type          = "RGBA",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

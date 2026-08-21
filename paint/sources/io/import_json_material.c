@@ -16,9 +16,11 @@ void import_json_material_add_output_node(ui_node_canvas_t *canvas) {
 	ui_node_canvas_t *def      = armpack_decode(b);
 	ui_node_t        *template = import_json_material_get_output_node(def);
 	if (template == NULL) {
+		free(def);
 		return;
 	}
 	ui_node_t *n = util_clone_canvas_node(template);
+	free(def);
 
 	i32 id = 0;
 	f32 x  = 0.0;
@@ -55,12 +57,10 @@ void import_json_material_run(char *path) {
 		return;
 	}
 	ui_node_canvas_t *canvas = json_parse(sys_buffer_to_string(b));
-	gc_root(canvas);
 	data_delete_blob(path);
 
 	if (canvas == NULL || canvas->nodes == NULL || canvas->links == NULL || canvas->nodes->length == 0) {
 		console_error(tr("Failed to import material"));
-		gc_unroot(canvas);
 		return;
 	}
 
@@ -88,7 +88,6 @@ void import_json_material_run(char *path) {
 	material_data_t *m0 = data_get_material("Scene", "Material");
 	g_context->material = slot_material_create(m0, canvas);
 	any_array_push(g_project->_->materials, g_context->material);
-	gc_unroot(canvas);
 
 	base_update_workflow_nodes();
 	history_new_material();

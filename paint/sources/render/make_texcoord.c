@@ -30,7 +30,7 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			kong->frag_n = true;
 			node_shader_add_constant(kong, "decal_layer_nor: float3", "_decal_layer_nor");
 			f32 dot_angle = g_context->brush_angle_reject_dot;
-			node_shader_write_frag(kong, string("if (abs(dot(n, constants.decal_layer_nor) - 1.0) > %s) { discard; }", f32_to_string(dot_angle)));
+			node_shader_write_frag(kong, string_tmp("if (abs(dot(n, constants.decal_layer_nor) - 1.0) > %s) { discard; }", f32_to_string(dot_angle)));
 
 			kong->frag_wposition = true;
 			node_shader_add_constant(kong, "decal_layer_loc: float3", "_decal_layer_loc");
@@ -122,16 +122,16 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			}
 		}
 
-		node_shader_write_attrib_frag(kong, string("var tex_coord: float2 = uvsp * %s;", scale));
+		node_shader_write_attrib_frag(kong, string_tmp("var tex_coord: float2 = uvsp * %s;", scale));
 	}
 	else if (uv_type == UV_TYPE_UVMAP) { // TexCoords - uvmap
 		node_shader_add_out(kong, "tex_coord: float2");
 
 		if (g_context->layer->uv_map == 1) {
-			node_shader_write_vert(kong, string("output.tex_coord = input.tex1 * %s;", scale));
+			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex1 * %s;", scale));
 		}
 		else {
-			node_shader_write_vert(kong, string("output.tex_coord = input.tex * %s;", scale));
+			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex * %s;", scale));
 		}
 
 		if (uv_angle > 0.0) {
@@ -149,9 +149,9 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 		node_shader_write_attrib_frag(kong, "var tri_max: float = max(tri_weight.x, max(tri_weight.y, tri_weight.z));");
 		node_shader_write_attrib_frag(kong, "tri_weight = max3(tri_weight - float3(tri_max * 0.75, tri_max * 0.75, tri_max * 0.75), float3(0.0, 0.0, 0.0));");
 		node_shader_write_attrib_frag(kong, "var tex_coord_blend: float3 = tri_weight * (1.0 / (tri_weight.x + tri_weight.y + tri_weight.z));");
-		node_shader_write_attrib_frag(kong, string("var tex_coord: float2 = input.wposition.yz * %s * 0.5;", scale));
-		node_shader_write_attrib_frag(kong, string("var tex_coord1: float2 = input.wposition.xz * %s * 0.5;", scale));
-		node_shader_write_attrib_frag(kong, string("var tex_coord2: float2 = input.wposition.xy * %s * 0.5;", scale));
+		node_shader_write_attrib_frag(kong, string_tmp("var tex_coord: float2 = input.wposition.yz * %s * 0.5;", scale));
+		node_shader_write_attrib_frag(kong, string_tmp("var tex_coord1: float2 = input.wposition.xz * %s * 0.5;", scale));
+		node_shader_write_attrib_frag(kong, string_tmp("var tex_coord2: float2 = input.wposition.xy * %s * 0.5;", scale));
 		if (uv_angle != 0.0) {
 			node_shader_add_constant(kong, "brush_angle: float2", "_brush_angle");
 			node_shader_write_attrib_frag(kong, "tex_coord = float2(tex_coord.x * constants.brush_angle.x - tex_coord.y * constants.brush_angle.y, tex_coord.x "

@@ -144,16 +144,15 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		return scene_camera->frame == 0 ? 0.0 : 0.5;
 	}
 	if (parser_material_script_links != NULL) {
-		string_array_t *keys = map_keys(parser_material_script_links);
-		for (i32 i = 0; i < keys->length; ++i) {
-			char *key    = keys->buffer[i];
-			char *script = any_map_get(parser_material_script_links, key);
-			f32   result = NAN;
-			if (script != NULL) {
-				result = 0.0;
-			}
+		string_array_t *keys  = map_keys(parser_material_script_links);
+		bool            found = keys->length > 0;
+		char           *script = found ? any_map_get(parser_material_script_links, keys->buffer[0]) : NULL;
+		array_free(keys);
+		free(keys);
+		if (found) {
+			f32 result = script != NULL ? 0.0 : NAN;
 			if (!string_equals(script, "")) {
-				minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", script));
+				minic_ctx_t *_ctx = minic_eval(string_tmp("float main() { return %s; }", script));
 				result            = minic_ctx_result(_ctx);
 				minic_ctx_free(_ctx);
 			}
@@ -377,15 +376,15 @@ static gpu_texture_t *_uniforms_ext_undo_target(char *name) {
 gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string("texpaint_undo%d", i));
+		return _uniforms_ext_undo_target(string_tmp("texpaint_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_nor_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string("texpaint_nor_undo%d", i));
+		return _uniforms_ext_undo_target(string_tmp("texpaint_nor_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_pack_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string("texpaint_pack_undo%d", i));
+		return _uniforms_ext_undo_target(string_tmp("texpaint_pack_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
 		return _uniforms_ext_undo_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
@@ -434,12 +433,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return util_uv_dilatemap;
 	}
 	if (starts_with(link, "_texpaint_pack_vert")) {
-		char            *tid = substring(link, string_length(link) - 1, string_length(link));
-		render_target_t *rt  = any_map_get(render_path_render_targets, string("texpaint_pack%s", tid));
+		render_target_t *rt = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%c", link[string_length(link) - 1]));
 		return rt->_image;
 	}
 	if (starts_with(link, "_texpaint_vert")) {
-		i32 tid = parse_int(substring(link, string_length("_texpaint_vert"), string_length(link)));
+		i32 tid = parse_int(link + string_length("_texpaint_vert"));
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 			if (g_project->_->layers->buffer[i]->id == tid) {
 				return g_project->_->layers->buffer[i]->texpaint;
@@ -448,11 +446,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return NULL;
 	}
 	if (starts_with(link, "_texpaint_nor")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_nor : NULL;
 	}
 	if (starts_with(link, "_texpaint_pack")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_pack : NULL;
 	}
 	if (string_equals(link, "_texpaint_sculpt_base")) {
@@ -460,15 +458,15 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return rt != NULL ? rt->_image : NULL;
 	}
 	if (starts_with(link, "_texpaint_sculpt")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_sculpt : NULL;
 	}
 	if (starts_with(link, "_texpaint")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint : NULL;
 	}
 	if (starts_with(link, "_texblur_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -478,7 +476,7 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		}
 	}
 	if (starts_with(link, "_texwarp_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -488,7 +486,7 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		}
 	}
 	if (starts_with(link, "_texbake_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -512,25 +510,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 }
 
 void uniforms_ext_init() {
-	gc_unroot(uniforms_i32_links);
 	uniforms_i32_links = uniforms_ext_i32_link;
-	gc_root(uniforms_i32_links);
-	gc_unroot(uniforms_f32_links);
 	uniforms_f32_links = uniforms_ext_f32_link;
-	gc_root(uniforms_f32_links);
-	gc_unroot(uniforms_vec2_links);
 	uniforms_vec2_links = uniforms_ext_vec2_link;
-	gc_root(uniforms_vec2_links);
-	gc_unroot(uniforms_vec3_links);
 	uniforms_vec3_links = uniforms_ext_vec3_link;
-	gc_root(uniforms_vec3_links);
-	gc_unroot(uniforms_vec4_links);
 	uniforms_vec4_links = uniforms_ext_vec4_link;
-	gc_root(uniforms_vec4_links);
-	gc_unroot(uniforms_mat4_links);
 	uniforms_mat4_links = uniforms_ext_mat4_link;
-	gc_root(uniforms_mat4_links);
-	gc_unroot(uniforms_tex_links);
 	uniforms_tex_links = uniforms_ext_tex_link;
-	gc_root(uniforms_tex_links);
 }

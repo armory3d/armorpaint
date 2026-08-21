@@ -32,7 +32,7 @@ char *texture_coordinate_node_vector(ui_node_t *node, ui_node_socket_t *socket) 
 void texture_coordinate_node_init() {
 
 	ui_node_t *texture_coordinate_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Texture Coordinate"),
 	                              .type    = "TEX_COORD",
 	                              .x       = 0,
@@ -41,7 +41,7 @@ void texture_coordinate_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Generated"),
 	                                                                       .type          = "VECTOR",
@@ -51,7 +51,7 @@ void texture_coordinate_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Normal"),
 	                                                                       .type          = "VECTOR",
@@ -61,7 +61,7 @@ void texture_coordinate_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("UV"),
 	                                                                       .type          = "VECTOR",
@@ -71,7 +71,7 @@ void texture_coordinate_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Object"),
 	                                                                       .type          = "VECTOR",
@@ -81,7 +81,7 @@ void texture_coordinate_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Camera"),
 	                                                                       .type          = "VECTOR",
@@ -91,7 +91,7 @@ void texture_coordinate_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Window"),
 	                                                                       .type          = "VECTOR",

@@ -197,9 +197,7 @@ static void texture_mesh_node_run_upscale(char *dir) {
 }
 
 static void texture_mesh_node_check_upscale(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		sys_remove_update(texture_mesh_node_check_upscale);
@@ -209,9 +207,7 @@ static void texture_mesh_node_check_upscale(ui_node_t *node) {
 }
 
 static void texture_mesh_node_check_sd(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		sys_remove_update(texture_mesh_node_check_sd);
@@ -221,7 +217,7 @@ static void texture_mesh_node_check_sd(ui_node_t *node) {
 }
 
 static void texture_mesh_node_run_sd(ui_node_t *node) {
-	char        *node_name = parser_material_node_name(node, NULL);
+	char        *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t *h         = ui_handle(node_name);
 	char        *prompt    = ui_nest(h, 1)->text;
 	char        *dir       = neural_node_dir();
@@ -239,7 +235,7 @@ static void texture_mesh_node_run_sd(ui_node_t *node) {
 
 static void texture_mesh_node_project(ui_node_t *node) {
 	char *dir       = neural_node_dir();
-	char *node_name = parser_material_node_name(node, NULL);
+	char *node_name = string_copy(parser_material_node_name(node, NULL));
 
 	// Save state
 	tool_type_t _tool          = g_context->tool;
@@ -318,13 +314,12 @@ static void texture_mesh_node_project(ui_node_t *node) {
 	ui_view2d_hwnd->redraws = 2;
 
 	texture_mesh_node_step = 0;
-	gc_unroot(texture_mesh_node_current);
 	texture_mesh_node_current = NULL;
 }
 
 void texture_mesh_node_button(i32 node_id) {
 	ui_node_t      *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char           *node_name = parser_material_node_name(node, NULL);
+	char           *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t    *h         = ui_handle(node_name);
 	string_array_t *models    = any_array_create_from_raw(
         (void *[]){
@@ -341,9 +336,7 @@ void texture_mesh_node_button(i32 node_id) {
 		g_context->capturing_screenshot = true;
 		texture_mesh_node_step          = 0;
 
-		gc_unroot(texture_mesh_node_current);
 		texture_mesh_node_current = node;
-		gc_root(texture_mesh_node_current);
 
 		sys_notify_on_next_frame(texture_mesh_node_capture, NULL);
 	}
@@ -352,7 +345,7 @@ void texture_mesh_node_button(i32 node_id) {
 void texture_mesh_node_init() {
 
 	ui_node_t *texture_mesh_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Texture Mesh"),
 	                              .type   = "NEURAL_TEXTURE_MESH",
 	                              .x      = 0,
@@ -360,7 +353,7 @@ void texture_mesh_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("In"),
 	                                                                       .type          = "BOOL",
@@ -374,7 +367,7 @@ void texture_mesh_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -388,7 +381,7 @@ void texture_mesh_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "texture_mesh_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "texture_mesh_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

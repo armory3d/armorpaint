@@ -215,17 +215,13 @@ void ui_header_draw_tool_properties() {
 		if (state == UI_STATE_STARTED) {
 			base_drag_off_x = -(mouse_x - g_ui->_x - g_ui->_window_x - 3);
 			base_drag_off_y = -(mouse_y - g_ui->_y - g_ui->_window_y + 1);
-			gc_unroot(base_drag_swatch);
 			base_drag_swatch = project_clone_swatch(g_context->picked_color);
-			gc_root(base_drag_swatch);
 		}
 		if (g_ui->is_hovered) {
 			ui_tooltip(tr("Drag and drop picked color to swatches, materials, layers or to the node editor"));
 		}
 		if (g_ui->is_hovered && g_ui->input_released && g_ui->combo_selected_handle == NULL) {
-			gc_unroot(_ui_header_draw_tool_properties_h);
 			_ui_header_draw_tool_properties_h = h_color;
-			gc_root(_ui_header_draw_tool_properties_h);
 			ui_menu_draw(&ui_header_draw_tool_properties_color_picker_base, -1, -1);
 		}
 		if (ui_icon_button(tr("Add Swatch"), ICON_PLUS, UI_ALIGN_CENTER)) {
@@ -248,9 +244,7 @@ void ui_header_draw_tool_properties() {
 			h_normal->color       = g_context->picked_color->normal;
 			ui_text("", 0, h_normal->color);
 			if (g_ui->is_hovered && g_ui->input_released && g_ui->combo_selected_handle == NULL) {
-				gc_unroot(_ui_header_draw_tool_properties_h);
 				_ui_header_draw_tool_properties_h = h_normal;
-				gc_root(_ui_header_draw_tool_properties_h);
 				ui_menu_draw(&ui_header_draw_tool_properties_color_picker_normal, -1, -1);
 			}
 			ui_text(tr("Normal"), UI_ALIGN_LEFT, 0x00000000);
@@ -321,6 +315,7 @@ void ui_header_draw_tool_properties() {
 					    vtr("Hold {brush_radius} and move mouse to the left or press {brush_radius_decrease} to decrease the radius\nHold {brush_radius} "
 					        "and move mouse to the right or press {brush_radius_increase} to increase the radius",
 					        vars));
+					map_free(vars);
 				}
 			}
 			else {
@@ -336,6 +331,7 @@ void ui_header_draw_tool_properties() {
 					    vtr("Hold {brush_radius} and move mouse to the left or press {brush_radius_decrease} to decrease the radius\nHold {brush_radius} "
 					        "and move mouse to the right or press {brush_radius_increase} to increase the radius",
 					        vars));
+					map_free(vars);
 				}
 			}
 		}
@@ -369,6 +365,7 @@ void ui_header_draw_tool_properties() {
 				ui_tooltip(vtr(
 				    "Hold {brush_angle} and move mouse to the left to decrease the angle\nHold {brush_angle} and move mouse to the right to increase the angle",
 				    vars));
+				map_free(vars);
 			}
 
 			if (brush_angle_handle->changed) {
@@ -385,6 +382,7 @@ void ui_header_draw_tool_properties() {
 			ui_tooltip(vtr("Hold {brush_opacity} and move mouse to the left to decrease the opacity\nHold {brush_opacity} and move mouse to the right to "
 			               "increase the opacity",
 			               vars));
+			map_free(vars);
 		}
 
 		if (g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_CLONE || decal_mask ||
@@ -397,7 +395,7 @@ void ui_header_draw_tool_properties() {
 		if (g_context->tool != TOOL_TYPE_ERASER && g_config->workflow != WORKFLOW_SCULPT) {
 			ui_handle_t *brush_blending_handle   = ui_handle(__ID__);
 			brush_blending_handle->i             = g_context->brush_blending;
-			string_array_t *brush_blending_combo = any_array_create_from_raw(
+			string_array_t *brush_blending_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Mix"),
 			        tr("Darken"),
@@ -427,7 +425,7 @@ void ui_header_draw_tool_properties() {
 
 		if ((g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_FILL) && g_config->workflow != WORKFLOW_SCULPT) {
 			ui_handle_t    *paint_handle   = ui_handle(__ID__);
-			string_array_t *texcoord_combo = any_array_create_from_raw(
+			string_array_t *texcoord_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("UV Map"),
 			        tr("Triplanar"),
@@ -442,7 +440,7 @@ void ui_header_draw_tool_properties() {
 
 		if (g_context->tool == TOOL_TYPE_BRUSH && g_config->workflow == WORKFLOW_SCULPT) {
 			ui_handle_t    *sculpt_handle = ui_handle(__ID__);
-			string_array_t *mode_combo    = any_array_create_from_raw(
+			string_array_t *mode_combo    = any_array_create_from_raw_tmp(
                 (void *[]){
                     tr("Draw"),
                     tr("Grab"),
@@ -455,14 +453,20 @@ void ui_header_draw_tool_properties() {
 		}
 
 		if (g_context->tool == TOOL_TYPE_TEXT) {
-			ui_handle_t *h = ui_handle(__ID__);
-			h->text        = string_copy(g_context->text_tool_text);
-			i32 w          = g_ui->_w;
+			ui_handle_t *h   = ui_handle(__ID__);
+			char        *cur = g_context->text_tool_text != NULL ? g_context->text_tool_text : "";
+			if (h->text == NULL || !string_equals(h->text, cur)) {
+				h->text = string_copy(cur);
+			}
+			i32 w = g_ui->_w;
 			if (g_ui->text_selected_handle == h || g_ui->submit_text_handle == h) {
 				g_ui->_w *= 3;
 			}
-			g_context->text_tool_text = string_copy(ui_text_input(h, "", UI_ALIGN_LEFT, true, true));
-			g_ui->_w                  = w;
+			char *input = ui_text_input(h, "", UI_ALIGN_LEFT, true, true);
+			if (g_context->text_tool_text == NULL || !string_equals(g_context->text_tool_text, input)) {
+				g_context->text_tool_text = string_copy(input);
+			}
+			g_ui->_w = w;
 			if (h->changed) {
 				gpu_texture_t *current = _draw_current;
 				draw_end();
@@ -485,7 +489,7 @@ void ui_header_draw_tool_properties() {
 		}
 
 		if (g_context->tool == TOOL_TYPE_BLUR) {
-			string_array_t *blur_type_combo = any_array_create_from_raw(
+			string_array_t *blur_type_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Blur"),
 			        tr("Smudge"),
@@ -500,7 +504,7 @@ void ui_header_draw_tool_properties() {
 		}
 
 		if (g_context->tool == TOOL_TYPE_FILL) {
-			string_array_t *fill_mode_combo = any_array_create_from_raw(
+			string_array_t *fill_mode_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Object"),
 			        tr("Face"),
@@ -557,7 +561,7 @@ void ui_header_draw_tool_properties() {
 					char *x  = tr("X");
 					char *y  = tr("Y");
 					char *z  = tr("Z");
-					ui_text(string("%s%s%s", x, y, z), UI_ALIGN_LEFT, 0x00000000);
+					ui_text(string_tmp("%s%s%s", x, y, z), UI_ALIGN_LEFT, 0x00000000);
 				}
 				else {
 					g_ui->_w = math_floor(56 * sc);
@@ -572,9 +576,9 @@ void ui_header_draw_tool_properties() {
 			else {
 				// Popup
 				g_ui->_w         = _w;
-				g_context->sym_x = ui_check(sym_x_handle, string("%s %s", tr("Symmetry"), tr("X")), "");
-				g_context->sym_y = ui_check(sym_y_handle, string("%s %s", tr("Symmetry"), tr("Y")), "");
-				g_context->sym_z = ui_check(sym_z_handle, string("%s %s", tr("Symmetry"), tr("Z")), "");
+				g_context->sym_x = ui_check(sym_x_handle, string_tmp("%s %s", tr("Symmetry"), tr("X")), "");
+				g_context->sym_y = ui_check(sym_y_handle, string_tmp("%s %s", tr("Symmetry"), tr("Y")), "");
+				g_context->sym_z = ui_check(sym_z_handle, string_tmp("%s %s", tr("Symmetry"), tr("Z")), "");
 			}
 
 			if (sym_x_handle->changed || sym_y_handle->changed || sym_z_handle->changed) {
@@ -592,7 +596,7 @@ void ui_header_draw_tool_properties() {
 	}
 
 	if (g_context->tool == TOOL_TYPE_CURSOR) {
-		string_array_t *cursor_mode_combo = any_array_create_from_raw(
+		string_array_t *cursor_mode_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Object"),
 		    },

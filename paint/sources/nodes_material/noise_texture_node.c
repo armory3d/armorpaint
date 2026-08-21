@@ -53,7 +53,7 @@ static char *noise_texture_node_result(ui_node_t *node) {
 	char *roughness  = parser_material_parse_value_input(node->inputs->buffer[3], false);
 	char *lacunarity = parser_material_parse_value_input(node->inputs->buffer[4], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[5], false);
-	return string("tex_noise(%s, %s, %s, %s, %s, %s)", co, scale, detail, roughness, lacunarity, distortion);
+	return string_tmp("tex_noise(%s, %s, %s, %s, %s, %s)", co, scale, detail, roughness, lacunarity, distortion);
 }
 
 char *noise_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -61,15 +61,15 @@ char *noise_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 char *noise_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	return string("%s.x", noise_texture_node_result(node));
+	return string_tmp("%s.x", noise_texture_node_result(node));
 }
 
 void noise_texture_node_init() {
 
-	char      *noise_dimensions_data = string("%s", _tr("3D"));
-	char      *noise_feature_data    = string("%s", _tr("fBM"));
+	char      *noise_dimensions_data = string_tmp("%s", _tr("3D"));
+	char      *noise_feature_data    = string_tmp("%s", _tr("fBM"));
 	ui_node_t *noise_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Noise Texture"),
 	                              .type   = "TEX_NOISE",
 	                              .x      = 0,
@@ -77,7 +77,7 @@ void noise_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -87,7 +87,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -97,7 +97,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Detail"),
 	                                                                       .type          = "VALUE",
@@ -107,7 +107,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 8.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Roughness"),
 	                                                                       .type          = "VALUE",
@@ -117,7 +117,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Lacunarity"),
 	                                                                       .type          = "VALUE",
@@ -127,7 +127,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Distortion"),
 	                                                                       .type          = "VALUE",
@@ -141,7 +141,7 @@ void noise_texture_node_init() {
 	                                  6),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -151,7 +151,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -165,7 +165,7 @@ void noise_texture_node_init() {
 	                                  2),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Dimensions"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Dimensions"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -174,7 +174,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 3.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Type"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Type"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -183,7 +183,7 @@ void noise_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Normalize"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Normalize"),
 	                                                                       .type          = "BOOL",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

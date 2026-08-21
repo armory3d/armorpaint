@@ -4,7 +4,7 @@
 void upscale_image_node_button(i32 node_id) {
 	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
 	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = parser_material_node_name(node, NULL);
+	char             *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t      *h         = ui_handle(node_name);
 	string_array_t   *models    = any_array_create_from_raw(
         (void *[]){
@@ -52,7 +52,7 @@ void upscale_image_node_button(i32 node_id) {
 void upscale_image_node_init() {
 
 	ui_node_t *upscale_image_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Upscale Image"),
 	                              .type   = "NEURAL_UPSCALE_IMAGE",
 	                              .x      = 0,
@@ -60,7 +60,7 @@ void upscale_image_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -74,7 +74,7 @@ void upscale_image_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -88,7 +88,7 @@ void upscale_image_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "upscale_image_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "upscale_image_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -97,7 +97,7 @@ void upscale_image_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 2}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
 	                                                                       .type          = "BOOL",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

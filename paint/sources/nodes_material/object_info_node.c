@@ -26,7 +26,7 @@ char *object_info_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 
 void object_info_node_init() {
 
-	ui_node_t *object_info_node_def = GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	ui_node_t *object_info_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
 	                                                            .name    = _tr("Object Info"),
 	                                                            .type    = "OBJECT_INFO",
 	                                                            .x       = 0,
@@ -35,7 +35,7 @@ void object_info_node_init() {
 	                                                            .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                                                            .outputs = any_array_create_from_raw(
 	                                                                (void *[]){
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Location"),
 	                                                                                                     .type          = "VECTOR",
@@ -45,7 +45,7 @@ void object_info_node_init() {
 	                                                                                                     .max           = 1.0,
 	                                                                                                     .precision     = 100,
 	                                                                                                     .display       = 0}),
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Object Index"),
 	                                                                                                     .type          = "VALUE",
@@ -55,7 +55,7 @@ void object_info_node_init() {
 	                                                                                                     .max           = 1.0,
 	                                                                                                     .precision     = 100,
 	                                                                                                     .display       = 0}),
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Material Index"),
 	                                                                                                     .type          = "VALUE",
@@ -65,7 +65,7 @@ void object_info_node_init() {
 	                                                                                                     .max           = 1.0,
 	                                                                                                     .precision     = 100,
 	                                                                                                     .display       = 0}),
-	                                                                    GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                    ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                     .node_id       = 0,
 	                                                                                                     .name          = _tr("Random"),
 	                                                                                                     .type          = "VALUE",

@@ -2,9 +2,7 @@
 #include "global.h"
 
 void keymap_load() {
-	gc_unroot(g_keymap);
 	g_keymap = keymap_get_default();
-	gc_root(g_keymap);
 	if (!string_equals(g_config->keymap, "default.json")) {
 		buffer_t       *blob       = data_get_blob(string("keymap_presets/%s", g_config->keymap));
 		any_map_t      *new_keymap = json_parse_to_map(sys_buffer_to_string(blob));
@@ -13,6 +11,9 @@ void keymap_load() {
 			char *key = keys->buffer[i];
 			any_map_set(g_keymap, key, any_map_get(new_keymap, key));
 		}
+		array_free(keys);
+		free(keys);
+		map_free(new_keymap);
 	}
 }
 
@@ -21,8 +22,12 @@ void keymap_save() {
 		return;
 	}
 	char     *path   = string("%skeymap_presets/%s", data_path(), g_config->keymap);
-	buffer_t *buffer = sys_string_to_buffer(keymap_to_json(g_keymap));
+	char     *json   = keymap_to_json(g_keymap);
+	buffer_t *buffer = sys_string_to_buffer(json);
 	iron_file_save_bytes(path, buffer, 0);
+	array_free(buffer);
+	free(buffer);
+	free(json);
 }
 
 char *keymap_to_json(any_map_t *keymap) {

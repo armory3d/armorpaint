@@ -2,7 +2,7 @@
 #include "global.h"
 
 slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t *parent) {
-	slot_layer_t *raw       = GC_ALLOC_INIT(slot_layer_t, {0});
+	slot_layer_t *raw       = ALLOC_INIT(slot_layer_t, {0});
 	raw->id                 = 0;
 	raw->ext                = "";
 	raw->visible            = true;
@@ -540,28 +540,42 @@ slot_layer_t_array_t *slot_layer_get_masks(slot_layer_t *raw, bool include_group
 		return NULL;
 	}
 
-	slot_layer_t_array_t *children = NULL;
+	bool group_masks = include_group_masks && raw->parent != NULL && slot_layer_is_group(raw->parent);
+
+	i32 count = 0;
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (slot_layer_is_mask(l) && l->parent == raw) {
+			count++;
+		}
+	}
+	if (group_masks) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (slot_layer_is_mask(l) && l->parent == raw->parent) {
+				count++;
+			}
+		}
+	}
+	if (count == 0) {
+		return NULL;
+	}
+
+	slot_layer_t_array_t *children = any_array_create_from_raw_tmp(NULL, count);
+	i32                   pos      = 0;
 	// Child masks of a layer
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
-		if (l->parent == raw && slot_layer_is_mask(l)) {
-			if (children == NULL) {
-				children = any_array_create_from_raw((void *[]){}, 0);
-			}
-			any_array_push(children, l);
+		if (slot_layer_is_mask(l) && l->parent == raw) {
+			children->buffer[pos++] = l;
 		}
 	}
 	// Child masks of a parent group
-	if (include_group_masks) {
-		if (raw->parent != NULL && slot_layer_is_group(raw->parent)) {
-			for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-				slot_layer_t *l = g_project->_->layers->buffer[i];
-				if (l->parent == raw->parent && slot_layer_is_mask(l)) {
-					if (children == NULL) {
-						children = any_array_create_from_raw((void *[]){}, 0);
-					}
-					any_array_push(children, l);
-				}
+	if (group_masks) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (slot_layer_is_mask(l) && l->parent == raw->parent) {
+				children->buffer[pos++] = l;
 			}
 		}
 	}

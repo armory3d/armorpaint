@@ -77,7 +77,7 @@ static char *color_ramp_eval(ui_node_t *node) {
 	i32          len    = (i32)(elems->length / 5);
 
 	if (len <= 0) {
-		parser_material_write(parser_material_kong, string("var %s: float4 = float4(0.0, 0.0, 0.0, 1.0);", store_var));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = float4(0.0, 0.0, 0.0, 1.0);", store_var));
 		return store_var;
 	}
 
@@ -88,8 +88,8 @@ static char *color_ramp_eval(ui_node_t *node) {
 	color_ramp_sort(sorted, len, elems);
 
 	char *base    = parser_material_node_name(node, NULL);
-	char *fac_var = string("%s_fac", base);
-	parser_material_write(parser_material_kong, string("var %s: float = %s;", fac_var, fac));
+	char *fac_var = string_tmp("%s_fac", base);
+	parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", fac_var, fac));
 
 	// Declare one float4 variable per stop: {base}_c0, {base}_c1, ...
 	for (i32 i = 0; i < len; i++) {
@@ -98,33 +98,33 @@ static char *color_ramp_eval(ui_node_t *node) {
 		char *g = f32_to_string_with_zeros(elems->buffer[s * 5 + 1]);
 		char *b = f32_to_string_with_zeros(elems->buffer[s * 5 + 2]);
 		char *a = f32_to_string_with_zeros(elems->buffer[s * 5 + 3]);
-		parser_material_write(parser_material_kong, string("var %s_c%d: float4 = float4(%s, %s, %s, %s);", base, i, r, g, b, a));
+		parser_material_write(parser_material_kong, string_tmp("var %s_c%d: float4 = float4(%s, %s, %s, %s);", base, i, r, g, b, a));
 	}
 
 	if (len == 1) {
-		parser_material_write(parser_material_kong, string("var %s: float4 = %s_c0;", store_var, base));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = %s_c0;", store_var, base));
 		return store_var;
 	}
 
 	if (interp == 1) { // Constant
-		parser_material_write(parser_material_kong, string("var %s: float4 = %s_c0;", store_var, base));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = %s_c0;", store_var, base));
 		for (i32 i = 1; i < len; i++) {
 			char *pi = f32_to_string_with_zeros(elems->buffer[sorted[i] * 5 + 4]);
-			parser_material_write(parser_material_kong, string("if (%s > %s) { %s = %s_c%d; }", fac_var, pi, store_var, base, i));
+			parser_material_write(parser_material_kong, string_tmp("if (%s > %s) { %s = %s_c%d; }", fac_var, pi, store_var, base, i));
 		}
 	}
 	else { // Linear
 		f32   p0  = elems->buffer[sorted[0] * 5 + 4];
 		f32   p1  = elems->buffer[sorted[1] * 5 + 4];
-		char *b01 = string("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(p0), f32_to_string_with_zeros(p1 - p0));
-		parser_material_write(parser_material_kong, string("var %s: float4 = lerp4(%s_c0, %s_c1, %s);", store_var, base, base, b01));
+		char *b01 = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(p0), f32_to_string_with_zeros(p1 - p0));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = lerp4(%s_c0, %s_c1, %s);", store_var, base, base, b01));
 		for (i32 i = 1; i < len - 1; i++) {
 			f32   pi    = elems->buffer[sorted[i] * 5 + 4];
 			f32   pi1   = elems->buffer[sorted[i + 1] * 5 + 4];
-			char *blend = string("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(pi), f32_to_string_with_zeros(pi1 - pi));
+			char *blend = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(pi), f32_to_string_with_zeros(pi1 - pi));
 			char *pi_s  = f32_to_string_with_zeros(pi);
 			parser_material_write(parser_material_kong,
-			                      string("if (%s > %s) { %s = lerp4(%s_c%d, %s_c%d, %s); }", fac_var, pi_s, store_var, base, i, base, i + 1, blend));
+			                      string_tmp("if (%s > %s) { %s = lerp4(%s_c%d, %s_c%d, %s); }", fac_var, pi_s, store_var, base, i, base, i + 1, blend));
 		}
 	}
 
@@ -133,12 +133,12 @@ static char *color_ramp_eval(ui_node_t *node) {
 
 char *color_ramp_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *store_var = color_ramp_eval(node);
-	return string("%s.xyz", store_var);
+	return string_tmp("%s.xyz", store_var);
 }
 
 char *color_ramp_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *store_var = color_ramp_eval(node);
-	return string("%s.w", store_var);
+	return string_tmp("%s.w", store_var);
 }
 
 void nodes_material_color_ramp_button(i32 node_id) {
@@ -204,7 +204,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 	}
 	ui_handle_t *h                    = ui_nest(ui_nest(nhandle, 0), 1);
 	h->i                              = but->data->buffer[0];
-	string_array_t *interpolate_combo = any_array_create_from_raw(
+	string_array_t *interpolate_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Linear"),
 	        tr("Constant"),
@@ -240,7 +240,7 @@ void nodes_material_color_ramp_button(i32 node_id) {
 
 void color_ramp_node_init() {
 
-	ui_node_t *color_ramp_node_def = GC_ALLOC_INIT(
+	ui_node_t *color_ramp_node_def = ALLOC_INIT(
 	    ui_node_t,
 	    {.id     = 0,
 	     .name   = _tr("Color Ramp"),
@@ -250,7 +250,7 @@ void color_ramp_node_init() {
 	     .color  = 0xff62676d,
 	     .inputs = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Factor"),
 	                                              .type          = "VALUE",
@@ -264,7 +264,7 @@ void color_ramp_node_init() {
 	         1),
 	     .outputs = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Color"),
 	                                              .type          = "RGBA",
@@ -274,7 +274,7 @@ void color_ramp_node_init() {
 	                                              .max           = 1.0,
 	                                              .precision     = 100,
 	                                              .display       = 0}),
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Alpha"),
 	                                              .type          = "VALUE",
@@ -288,7 +288,7 @@ void color_ramp_node_init() {
 	         2),
 	     .buttons = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_color_ramp_button",
+	             ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_color_ramp_button",
 	                                              .type          = "CUSTOM",
 	                                              .output        = 0,
 	                                              .default_value = f32_array_create_from_raw((f32[]){0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0}, 10),

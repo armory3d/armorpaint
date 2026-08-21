@@ -8,13 +8,13 @@ char *hue_saturation_value_node_vector(ui_node_t *node, ui_node_socket_t *socket
 	char *val = parser_material_parse_value_input(node->inputs->buffer[2], false);
 	char *fac = parser_material_parse_value_input(node->inputs->buffer[3], false);
 	char *col = parser_material_parse_vector_input(node->inputs->buffer[4]);
-	return string("hue_sat(%s, float4(%s - 0.5, %s, %s, 1.0 - %s))", col, hue, sat, val, fac);
+	return string_tmp("hue_sat(%s, float4(%s - 0.5, %s, %s, 1.0 - %s))", col, hue, sat, val, fac);
 }
 
 void hue_saturation_value_node_init() {
 
 	ui_node_t *hue_saturation_value_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Hue/Saturation/Value"),
 	                              .type   = "HUE_SAT",
 	                              .x      = 0,
@@ -22,7 +22,7 @@ void hue_saturation_value_node_init() {
 	                              .color  = 0xff448c6d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Hue"),
 	                                                                       .type          = "VALUE",
@@ -32,7 +32,7 @@ void hue_saturation_value_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Saturation"),
 	                                                                       .type          = "VALUE",
@@ -42,7 +42,7 @@ void hue_saturation_value_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -52,7 +52,7 @@ void hue_saturation_value_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -62,7 +62,7 @@ void hue_saturation_value_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -76,7 +76,7 @@ void hue_saturation_value_node_init() {
 	                                  5),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",

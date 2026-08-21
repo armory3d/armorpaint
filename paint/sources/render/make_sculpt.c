@@ -65,74 +65,76 @@ void sculpt_import_mesh_pack_to_texture(gpu_texture_t *target) {
 	}
 
 	gpu_texture_t *imgmesh = gpu_create_texture_from_bytes(b, config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
+	array_free(b);
+	free(b);
 	draw_begin(target, false, 0);
 	draw_set_pipeline(pipes_copy128);
 	draw_scaled_image(imgmesh, 0, 0, config_get_texture_res_x(), config_get_texture_res_y());
 	draw_set_pipeline(NULL);
 	draw_end();
-	gpu_texture_destroy(imgmesh);
+	gpu_delete_texture(imgmesh);
 }
 
 static char *sculpt_blend_mode(node_shader_t *kong, i32 blending, char *cola, char *colb, char *opac) {
 	// mix/add/screen/lighten/difference (raise), subtract/darken (carve) and linear light (bidirectional)
 	if (blending == BLEND_TYPE_DARKEN) {
-		return string("lerp(%s, min(%s, %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, min(%s, %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_MULTIPLY) {
-		return string("lerp(%s, %s * %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s * %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_BURN) {
-		return string("lerp(%s, 1.0 - (1.0 - %s) / %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, 1.0 - (1.0 - %s) / %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_LIGHTEN) {
-		return string("max(%s, %s * %s)", cola, colb, opac);
+		return string_tmp("max(%s, %s * %s)", cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_SCREEN) {
-		return string("(1.0 - (1.0 - %s * %s) * (1.0 - %s))", colb, opac, cola);
+		return string_tmp("(1.0 - (1.0 - %s * %s) * (1.0 - %s))", colb, opac, cola);
 	}
 	else if (blending == BLEND_TYPE_DODGE) {
-		return string("lerp(%s, %s / (1.0 - %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s / (1.0 - %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_ADD) {
-		return string("lerp(%s, %s + %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s + %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_OVERLAY) {
 		char *res = "sculpt_overlay_res";
-		node_shader_write_frag(kong, string("var %s: float;", res));
-		node_shader_write_frag(kong, string("if (%s < 0.5) { %s = 2.0 * %s * %s; } else { %s = 1.0 - 2.0 * (1.0 - %s) * (1.0 - %s); }", cola, res, cola, colb,
+		node_shader_write_frag(kong, string_tmp("var %s: float;", res));
+		node_shader_write_frag(kong, string_tmp("if (%s < 0.5) { %s = 2.0 * %s * %s; } else { %s = 1.0 - 2.0 * (1.0 - %s) * (1.0 - %s); }", cola, res, cola, colb,
 		                                    res, cola, colb));
-		return string("lerp(%s, %s, %s)", cola, res, opac);
+		return string_tmp("lerp(%s, %s, %s)", cola, res, opac);
 	}
 	else if (blending == BLEND_TYPE_SOFT_LIGHT) {
-		return string("((1.0 - %s) * %s + %s * ((1.0 - %s) * %s * %s + %s * (1.0 - (1.0 - %s) * (1.0 - %s))))", opac, cola, opac, cola, colb, cola, cola, colb,
+		return string_tmp("((1.0 - %s) * %s + %s * ((1.0 - %s) * %s * %s + %s * (1.0 - (1.0 - %s) * (1.0 - %s))))", opac, cola, opac, cola, colb, cola, cola, colb,
 		              cola);
 	}
 	else if (blending == BLEND_TYPE_LINEAR_LIGHT) {
-		return string("(%s + %s * (2.0 * (%s - 0.5)))", cola, opac, colb);
+		return string_tmp("(%s + %s * (2.0 * (%s - 0.5)))", cola, opac, colb);
 	}
 	else if (blending == BLEND_TYPE_DIFFERENCE) {
-		return string("lerp(%s, abs(%s - %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, abs(%s - %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_SUBTRACT) {
-		return string("lerp(%s, %s - %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s - %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_DIVIDE) {
-		return string("((1.0 - %s) * %s + %s * %s / %s)", opac, cola, opac, cola, colb);
+		return string_tmp("((1.0 - %s) * %s + %s * %s / %s)", opac, cola, opac, cola, colb);
 	}
 	else { // BLEND_TYPE_MIX, hue / saturation / color / value
-		return string("lerp(%s, %s, %s)", cola, colb, opac);
+		return string_tmp("lerp(%s, %s, %s)", cola, colb, opac);
 	}
 }
 
 node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context_t *matcon) {
 	char                  *context_id = "paint";
-	shader_context_t      *props      = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
+	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                     .depth_write     = false,
 	                                                                     .compare_mode    = "always",
 	                                                                     .cull_mode       = "none",
 	                                                                     .vertex_elements = any_array_create_from_raw(
                                                                    (void *[]){
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
                                                                    },
                                                                    1),
 	                                                                     .color_attachments = any_array_create_from_raw(
@@ -351,7 +353,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 		node_shader_write_frag(kong, "dproj_nor = normalize((constants.W * float4(normalize(dproj_nor), 0.0)).xyz);");
 		node_shader_add_constant(kong, "decal_layer_nor: float3", "_decal_layer_nor");
 		f32 dot_angle = g_context->brush_angle_reject_dot;
-		node_shader_write_frag(kong, string("if (abs(dot(dproj_nor, constants.decal_layer_nor) - 1.0) > %s) { discard; }", f32_to_string(dot_angle)));
+		node_shader_write_frag(kong, string_tmp("if (abs(dot(dproj_nor, constants.decal_layer_nor) - 1.0) > %s) { discard; }", f32_to_string(dot_angle)));
 
 		// Reject surfaces outside the decal box
 		node_shader_add_constant(kong, "decal_layer_loc: float3", "_decal_layer_loc");
@@ -484,7 +486,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 	shader_out_t *sout                       = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
 	con_paint->data->vertex_elements->length = velen;
 	parser_material_triplanar                = false;
-	node_shader_write_frag(kong, string("var disp: float3 = %s;", sout->out_basecol));
+	node_shader_write_frag(kong, string_tmp("var disp: float3 = %s;", sout->out_basecol));
 
 	if (kong->frag_bposition) {
 		kong->frag_bposition = false;
@@ -492,7 +494,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 	}
 
 	node_shader_write_frag(kong, "var basecol: float3 = float3(1.0, 1.0, 1.0);");
-	node_shader_write_frag(kong, string("var opacity: float = %s;", sout->out_opacity));
+	node_shader_write_frag(kong, string_tmp("var opacity: float = %s;", sout->out_opacity));
 	if (g_context->layer->fill_material == NULL) {
 		node_shader_write_frag(kong, "opacity *= constants.brush_opacity;");
 	}
@@ -669,7 +671,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 		node_shader_write_frag(kong, "output[0] = float4(sample_undo.rgb + grab_delta, raw_undo.a);");
 	}
 	else {
-		node_shader_write_frag(kong, string("var sculpt_disp: float = %s;", sculpt_blend_mode(kong, g_context->brush_blending, "0.0", "disp.x", "str")));
+		node_shader_write_frag(kong, string_tmp("var sculpt_disp: float = %s;", sculpt_blend_mode(kong, g_context->brush_blending, "0.0", "disp.x", "str")));
 		node_shader_write_frag(kong, "output[0] = float4(sample_undo.rgb + n * sculpt_disp, raw_undo.a);");
 	}
 	node_shader_write_frag(kong, "output[1] = float4(str, 0.0, 0.0, 1.0);");
@@ -707,19 +709,19 @@ bool sculpt_mask_value(node_shader_t *kong, slot_layer_t *l, char *out_var, bool
 		return false;
 	}
 	slot_layer_t_array_t *masks = slot_layer_get_masks(l, true);
-	sculpt_mesh_write(kong, attrib, string("var %s: float = 1.0;", out_var));
+	sculpt_mesh_write(kong, attrib, string_tmp("var %s: float = 1.0;", out_var));
 	for (i32 i = 0; i < masks->length; ++i) {
 		slot_layer_t *m = masks->buffer[i];
 		if (!slot_layer_is_visible(m) || m == skip) {
 			continue;
 		}
-		node_shader_add_texture(kong, string("texpaint_vert%s", i32_to_string(m->id)), string("_texpaint_vert%s", i32_to_string(m->id)));
+		node_shader_add_texture(kong, string_tmp("texpaint_vert%s", i32_to_string(m->id)), string_tmp("_texpaint_vert%s", i32_to_string(m->id)));
 		f32 opac = slot_layer_get_opacity(m);
 		sculpt_mesh_write(kong, attrib,
-		                  string("%s *= lerp(1.0, sample_lod(texpaint_vert%s, sampler_linear, input.tex, 0.0).r, float(%s));", out_var, i32_to_string(m->id),
+		                  string_tmp("%s *= lerp(1.0, sample_lod(texpaint_vert%s, sampler_linear, input.tex, 0.0).r, float(%s));", out_var, i32_to_string(m->id),
 		                         f32_to_string(opac)));
 	}
-	sculpt_mesh_write(kong, attrib, string("%s = clamp(%s, 0.0, 1.0);", out_var, out_var));
+	sculpt_mesh_write(kong, attrib, string_tmp("%s = clamp(%s, 0.0, 1.0);", out_var, out_var));
 	return true;
 }
 
@@ -739,11 +741,11 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	node_shader_add_out(kong, "wnormal: float3");
 	kong->frag_n = false;
 
-	node_shader_add_constant(kong, string("texpaint_sculpt_size%d: float2", idx0), string("_size(_texpaint_sculpt%d)", idx0));
+	node_shader_add_constant(kong, string_tmp("texpaint_sculpt_size%d: float2", idx0), string_tmp("_size(_texpaint_sculpt%d)", idx0));
 
 	for (i32 i = 0; i < count; ++i) {
 		i32 idx = sculpt_indices->buffer[i];
-		node_shader_add_texture(kong, string("texpaint_sculpt%d", idx), string("_texpaint_sculpt%d", idx));
+		node_shader_add_texture(kong, string_tmp("texpaint_sculpt%d", idx), string_tmp("_texpaint_sculpt%d", idx));
 	}
 
 	// The base layer holds the absolute mesh position
@@ -754,9 +756,9 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 
 	// Position
 	node_shader_write_vert(kong, "var sculpt_vid: uint = uint(vertex_id()) + uint(constants.sculpt_vertex_offset);");
-	node_shader_write_vert(kong, string("var sculpt_grid_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
+	node_shader_write_vert(kong, string_tmp("var sculpt_grid_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
 	node_shader_write_vert(kong, "var sculpt_uv: uint2 = uint2(sculpt_vid % sculpt_grid_w, sculpt_vid / sculpt_grid_w);");
-	node_shader_write_vert(kong, string("var texpaint_sculpt_sample: float4 = texpaint_sculpt%d[sculpt_uv];", idx0));
+	node_shader_write_vert(kong, string_tmp("var texpaint_sculpt_sample: float4 = texpaint_sculpt%d[sculpt_uv];", idx0));
 	node_shader_write_vert(kong, "var sculpt_pos: float3 = texpaint_sculpt_sample.xyz;");
 	if (sculpt_mask_value(kong, sculpt_layers->buffer[0], "sculpt_pmask0", false, NULL)) {
 		// Blend the base layers deformation back toward the rest pose where the mask is dark
@@ -765,15 +767,15 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	}
 	for (i32 i = 1; i < count; ++i) {
 		i32 idx = sculpt_indices->buffer[i];
-		node_shader_write_vert(kong, string("var texpaint_sculpt_sample_%d: float4 = texpaint_sculpt%d[sculpt_uv];", idx, idx));
-		node_shader_write_vert(kong, string("var texpaint_sculpt_base_sample_%d: float4 = texpaint_sculpt_base[sculpt_uv];", idx));
-		if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string("sculpt_pmask_%d", idx), false, NULL)) {
+		node_shader_write_vert(kong, string_tmp("var texpaint_sculpt_sample_%d: float4 = texpaint_sculpt%d[sculpt_uv];", idx, idx));
+		node_shader_write_vert(kong, string_tmp("var texpaint_sculpt_base_sample_%d: float4 = texpaint_sculpt_base[sculpt_uv];", idx));
+		if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string_tmp("sculpt_pmask_%d", idx), false, NULL)) {
 			node_shader_write_vert(kong,
-			                       string("sculpt_pos = sculpt_pos + (texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz) * sculpt_pmask_%d;",
+			                       string_tmp("sculpt_pos = sculpt_pos + (texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz) * sculpt_pmask_%d;",
 			                              idx, idx, idx));
 		}
 		else {
-			node_shader_write_vert(kong, string("sculpt_pos = sculpt_pos + texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz;", idx, idx));
+			node_shader_write_vert(kong, string_tmp("sculpt_pos = sculpt_pos + texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz;", idx, idx));
 		}
 	}
 	node_shader_write_vert(kong, "output.pos = constants.WVP * float4(sculpt_pos, 1.0);");
@@ -784,19 +786,19 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	node_shader_write_attrib_vert(kong, "var base_vertex0: uint = sculpt_nvid - (sculpt_nvid % uint(3));");
 	node_shader_write_attrib_vert(kong, "var base_vertex1: uint = base_vertex0 + uint(1);");
 	node_shader_write_attrib_vert(kong, "var base_vertex2: uint = base_vertex0 + uint(2);");
-	node_shader_write_attrib_vert(kong, string("var sculpt_ngrid_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
+	node_shader_write_attrib_vert(kong, string_tmp("var sculpt_ngrid_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
 	node_shader_write_attrib_vert(kong, "var uv0: uint2 = uint2(base_vertex0 % sculpt_ngrid_w, base_vertex0 / sculpt_ngrid_w);");
 	node_shader_write_attrib_vert(kong, "var uv1: uint2 = uint2(base_vertex1 % sculpt_ngrid_w, base_vertex1 / sculpt_ngrid_w);");
 	node_shader_write_attrib_vert(kong, "var uv2: uint2 = uint2(base_vertex2 % sculpt_ngrid_w, base_vertex2 / sculpt_ngrid_w);");
 
-	node_shader_write_attrib_vert(kong, string("var meshpos0: float4 = texpaint_sculpt%d[uv0];", idx0));
-	node_shader_write_attrib_vert(kong, string("var meshpos1: float4 = texpaint_sculpt%d[uv1];", idx0));
-	node_shader_write_attrib_vert(kong, string("var meshpos2: float4 = texpaint_sculpt%d[uv2];", idx0));
+	node_shader_write_attrib_vert(kong, string_tmp("var meshpos0: float4 = texpaint_sculpt%d[uv0];", idx0));
+	node_shader_write_attrib_vert(kong, string_tmp("var meshpos1: float4 = texpaint_sculpt%d[uv1];", idx0));
+	node_shader_write_attrib_vert(kong, string_tmp("var meshpos2: float4 = texpaint_sculpt%d[uv2];", idx0));
 	for (i32 i = 1; i < count; ++i) {
 		i32 idx = sculpt_indices->buffer[i];
-		node_shader_write_attrib_vert(kong, string("meshpos0 = meshpos0 + texpaint_sculpt%d[uv0] - texpaint_sculpt_base[uv0];", idx));
-		node_shader_write_attrib_vert(kong, string("meshpos1 = meshpos1 + texpaint_sculpt%d[uv1] - texpaint_sculpt_base[uv1];", idx));
-		node_shader_write_attrib_vert(kong, string("meshpos2 = meshpos2 + texpaint_sculpt%d[uv2] - texpaint_sculpt_base[uv2];", idx));
+		node_shader_write_attrib_vert(kong, string_tmp("meshpos0 = meshpos0 + texpaint_sculpt%d[uv0] - texpaint_sculpt_base[uv0];", idx));
+		node_shader_write_attrib_vert(kong, string_tmp("meshpos1 = meshpos1 + texpaint_sculpt%d[uv1] - texpaint_sculpt_base[uv1];", idx));
+		node_shader_write_attrib_vert(kong, string_tmp("meshpos2 = meshpos2 + texpaint_sculpt%d[uv2] - texpaint_sculpt_base[uv2];", idx));
 	}
 
 	// Unmasked sculpt face normal
@@ -820,10 +822,10 @@ void sculpt_make_paint_run(node_shader_t *kong) {
 	i32 scount = sculpt_layers->length;
 	if (scount > 0) {
 		i32 idx0 = sculpt_indices->buffer[0];
-		node_shader_add_constant(kong, string("texpaint_sculpt_size%d: float2", idx0), string("_size(_texpaint_sculpt%d)", idx0));
+		node_shader_add_constant(kong, string_tmp("texpaint_sculpt_size%d: float2", idx0), string_tmp("_size(_texpaint_sculpt%d)", idx0));
 		for (i32 i = 0; i < scount; ++i) {
 			i32 idx = sculpt_indices->buffer[i];
-			node_shader_add_texture(kong, string("texpaint_sculpt%d", idx), string("_texpaint_sculpt%d", idx));
+			node_shader_add_texture(kong, string_tmp("texpaint_sculpt%d", idx), string_tmp("_texpaint_sculpt%d", idx));
 		}
 
 		bool base_masked = sculpt_layer_has_visible_masks(sculpt_layers->buffer[0]);
@@ -831,24 +833,24 @@ void sculpt_make_paint_run(node_shader_t *kong) {
 			node_shader_add_texture(kong, "texpaint_sculpt_base", "_texpaint_sculpt_base");
 		}
 
-		node_shader_write_attrib_vert(kong, string("var sculpt_paint_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
+		node_shader_write_attrib_vert(kong, string_tmp("var sculpt_paint_w: uint = uint(constants.texpaint_sculpt_size%d.x);", idx0));
 		node_shader_write_attrib_vert(kong, "var sculpt_uv_paint: uint2 = uint2(uint(vertex_id()) % sculpt_paint_w, uint(vertex_id()) / sculpt_paint_w);");
 
-		node_shader_write_attrib_vert(kong, string("var sculpt_pos_paint: float4 = texpaint_sculpt%d[sculpt_uv_paint];", idx0));
+		node_shader_write_attrib_vert(kong, string_tmp("var sculpt_pos_paint: float4 = texpaint_sculpt%d[sculpt_uv_paint];", idx0));
 		if (sculpt_mask_value(kong, sculpt_layers->buffer[0], "sculpt_pmask0", true, g_context->layer)) {
 			node_shader_write_attrib_vert(kong, "var sculpt_pbase0: float4 = texpaint_sculpt_base[sculpt_uv_paint];");
 			node_shader_write_attrib_vert(kong, "sculpt_pos_paint = sculpt_pbase0 + (sculpt_pos_paint - sculpt_pbase0) * sculpt_pmask0;");
 		}
 		for (i32 i = 1; i < scount; ++i) {
 			i32 idx = sculpt_indices->buffer[i];
-			if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string("sculpt_pmask_%d", idx), true, g_context->layer)) {
-				node_shader_write_attrib_vert(kong, string("var psamp_%d: float4 = texpaint_sculpt%d[sculpt_uv_paint];", idx, idx));
-				node_shader_write_attrib_vert(kong, string("var pbasel_%d: float4 = texpaint_sculpt_base[sculpt_uv_paint];", idx));
-				node_shader_write_attrib_vert(kong, string("sculpt_pos_paint = sculpt_pos_paint + (psamp_%d - pbasel_%d) * sculpt_pmask_%d;", idx, idx, idx));
+			if (sculpt_mask_value(kong, sculpt_layers->buffer[i], string_tmp("sculpt_pmask_%d", idx), true, g_context->layer)) {
+				node_shader_write_attrib_vert(kong, string_tmp("var psamp_%d: float4 = texpaint_sculpt%d[sculpt_uv_paint];", idx, idx));
+				node_shader_write_attrib_vert(kong, string_tmp("var pbasel_%d: float4 = texpaint_sculpt_base[sculpt_uv_paint];", idx));
+				node_shader_write_attrib_vert(kong, string_tmp("sculpt_pos_paint = sculpt_pos_paint + (psamp_%d - pbasel_%d) * sculpt_pmask_%d;", idx, idx, idx));
 			}
 			else {
 				node_shader_write_attrib_vert(
-				    kong, string("sculpt_pos_paint = sculpt_pos_paint + texpaint_sculpt%d[sculpt_uv_paint] - texpaint_sculpt_base[sculpt_uv_paint];", idx));
+				    kong, string_tmp("sculpt_pos_paint = sculpt_pos_paint + texpaint_sculpt%d[sculpt_uv_paint] - texpaint_sculpt_base[sculpt_uv_paint];", idx));
 			}
 		}
 		node_shader_write_attrib_vert(kong, "output.ndc = constants.WVP * float4(sculpt_pos_paint.xyz, 1.0);");
@@ -856,6 +858,9 @@ void sculpt_make_paint_run(node_shader_t *kong) {
 			node_shader_write_attrib_vert(kong, "output.wposition = (constants.W * float4(sculpt_pos_paint.xyz, 1.0)).xyz;");
 		}
 	}
+
+	array_delete(sculpt_layers);
+	array_delete(sculpt_indices);
 }
 
 void sculpt_init_sculpt_texture(slot_layer_t *l) {
@@ -888,7 +893,7 @@ void sculpt_init_sculpt_texture(slot_layer_t *l) {
 
 	if (sculpt_layer_count == 1) {
 		render_path_set_target("texpaint_sculpt_base", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target(string("texpaint_sculpt%s", i32_to_string(id)), "tex");
+		render_path_bind_target(string_tmp("texpaint_sculpt%s", i32_to_string(id)), "tex");
 		render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
 	}
 }
@@ -930,12 +935,12 @@ void sculpt_init_meshes() {
 		for (i32 i = 0; i < inda->length; ++i) {
 			inda->buffer[i] = i;
 		}
-		mesh_data_t *raw = GC_ALLOC_INIT(mesh_data_t, {.name          = md->name,
+		mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = md->name,
 		                                               .vertex_arrays = any_array_create_from_raw(
 		                                                   (void *[]){
-		                                                       GC_ALLOC_INIT(vertex_array_t, {.values = posa, .attrib = "pos", .data = "short4norm"}),
-		                                                       GC_ALLOC_INIT(vertex_array_t, {.values = nora, .attrib = "nor", .data = "short2norm"}),
-		                                                       GC_ALLOC_INIT(vertex_array_t, {.values = texa, .attrib = "tex", .data = "short2norm"}),
+		                                                       ALLOC_INIT(vertex_array_t, {.values = posa, .attrib = "pos", .data = "short4norm"}),
+		                                                       ALLOC_INIT(vertex_array_t, {.values = nora, .attrib = "nor", .data = "short2norm"}),
+		                                                       ALLOC_INIT(vertex_array_t, {.values = texa, .attrib = "tex", .data = "short2norm"}),
 		                                                   },
 		                                                   3),
 		                                               .index_array = inda,
@@ -1005,7 +1010,7 @@ void sculpt_init() {
 	render_path_load_shader("Scene/copy_pass/copyR32_pass");
 
 	for (i32 i = 0; i < history_undo_layers->length; ++i) {
-		char            *ext = string("_undo%s", i32_to_string(i));
+		char            *ext = string_tmp("_undo%s", i32_to_string(i));
 		slot_layer_t    *ul  = history_undo_layers->buffer[i];
 		render_target_t *t   = render_target_create();
 		t->name              = string("texpaint_sculpt%s", ext);
@@ -1073,7 +1078,7 @@ void render_path_sculpt_commands() {
 	}
 
 	i32   tid             = g_context->layer->id;
-	char *texpaint_sculpt = string("texpaint_sculpt%s", i32_to_string(tid));
+	char *texpaint_sculpt = string_tmp("texpaint_sculpt%s", i32_to_string(tid));
 
 	if (g_context->tool == TOOL_TYPE_PARTICLE) {
 		// Accumulate one displacement pass per active particle impact
@@ -1129,6 +1134,7 @@ void sculpt_bake_to_mesh() {
 	}
 	i32 count = sculpt_layers->length;
 	if (count == 0) {
+		array_delete(sculpt_layers);
 		return;
 	}
 
@@ -1211,6 +1217,10 @@ void sculpt_bake_to_mesh() {
 	g->scale_pos = max_abs;
 	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
 	render_path_raytrace_ready = false;
+
+	array_delete(pos);
+	free(layer_pixels);
+	array_delete(sculpt_layers);
 }
 
 void slot_layer_apply_sculpt(slot_layer_t *raw) {

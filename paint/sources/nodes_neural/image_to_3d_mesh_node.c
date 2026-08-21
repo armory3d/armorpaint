@@ -11,9 +11,7 @@ buffer_t *image_to_3d_mesh_node_remove_background(buffer_t *buffer) {
 }
 
 void image_to_3d_mesh_node_check_result(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		char *file = string("%s%soutput.obj", neural_node_dir(), PATH_SEP);
@@ -31,7 +29,7 @@ void image_to_3d_mesh_node_check_result(ui_node_t *node) {
 void image_to_3d_mesh_node_button(i32 node_id) {
 	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
 	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = parser_material_node_name(node, NULL);
+	char             *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t      *h         = ui_handle(node_name);
 	string_array_t   *models    = any_array_create_from_raw(
         (void *[]){
@@ -77,7 +75,7 @@ void image_to_3d_mesh_node_button(i32 node_id) {
 void image_to_3d_mesh_node_init() {
 
 	ui_node_t *image_to_3d_mesh_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Image to 3D Mesh"),
 	                              .type   = "NEURAL_IMAGE_TO_3D_MESH",
 	                              .x      = 0,
@@ -85,7 +83,7 @@ void image_to_3d_mesh_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -99,7 +97,7 @@ void image_to_3d_mesh_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Mesh"),
 	                                                                       .type          = "VALUE",
@@ -113,7 +111,7 @@ void image_to_3d_mesh_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "image_to_3d_mesh_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "image_to_3d_mesh_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

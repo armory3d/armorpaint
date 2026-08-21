@@ -79,8 +79,9 @@ void project_save_as(bool save_and_quit) {
 
 void project_cleanup() {
 	if (g_context->merged_object != NULL) {
+		char *merged_handle = g_context->merged_object->data->_->handle;
 		mesh_object_remove(g_context->merged_object);
-		data_delete_mesh(g_context->merged_object->data->_->handle);
+		data_delete_mesh(merged_handle);
 		g_context->merged_object = NULL;
 	}
 
@@ -164,9 +165,7 @@ void project_new(bool reset_layers) {
 	}
 	else {
 		buffer_t *b = data_get_blob(string("meshes/%s.arm", mesh_name));
-		gc_unroot(_project_scene_mesh_gc);
 		_project_scene_mesh_gc = armpack_decode(b);
-		gc_root(_project_scene_mesh_gc);
 		raw = _project_scene_mesh_gc->mesh_datas->buffer[0];
 	}
 
@@ -208,9 +207,7 @@ void project_new(bool reset_layers) {
 	g_context->picker_viewport_mask = false;
 	g_context->material             = g_project->_->materials->buffer[0];
 	ui_nodes_hwnd->redraws          = 2;
-	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
 	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->brushes         = any_array_create_from_raw(
         (void *[]){
@@ -301,7 +298,7 @@ void project_import_material() {
 
 ui_node_link_t *project_create_node_link(ui_node_link_t_array_t *links, i32 from_id, i32 from_socket, i32 to_id, i32 to_socket) {
 	ui_node_link_t *link =
-	    GC_ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(links), .from_id = from_id, .from_socket = from_socket, .to_id = to_id, .to_socket = to_socket});
+	    ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(links), .from_id = from_id, .from_socket = from_socket, .to_id = to_id, .to_socket = to_socket});
 	return link;
 }
 
@@ -357,9 +354,7 @@ void project_import_mesh_on_file_picked(char *path) {
 
 void project_import_mesh(bool replace_existing, void (*done)(void)) {
 	_project_import_mesh_replace_existing = replace_existing;
-	gc_unroot(_project_import_mesh_done);
 	_project_import_mesh_done = done;
-	gc_root(_project_import_mesh_done);
 	char *formats = string_array_join(path_mesh_formats(), ",");
 	ui_files_show(formats, false, false, &project_import_mesh_on_file_picked);
 }
@@ -516,9 +511,7 @@ void project_reimport_texture_on_file_picked(char *path) {
 void project_reimport_texture(asset_t *asset) {
 	if (!iron_file_exists(asset->file)) {
 		char *filters = string_array_join(path_texture_formats(), ",");
-		gc_unroot(_project_reimport_texture_asset);
 		_project_reimport_texture_asset = asset;
-		gc_root(_project_reimport_texture_asset);
 		ui_files_show(filters, false, false, &project_reimport_texture_on_file_picked);
 	}
 	else {
@@ -538,23 +531,24 @@ string_array_t *project_get_used_atlases() {
 	if (g_project->atlas_objects == NULL) {
 		return NULL;
 	}
-	i32_array_t *used = i32_array_create_from_raw((i32[]){}, 0);
+
+	static i32_array_t    used = {0};
+	static string_array_t res  = {0};
+	used.length                = 0;
 	for (i32 i = 0; i < g_project->atlas_objects->length; ++i) {
 		i32 ao = g_project->atlas_objects->buffer[i];
-		if (i32_array_index_of(used, ao) == -1) {
-			i32_array_push(used, ao);
+		if (i32_array_index_of(&used, ao) == -1) {
+			i32_array_push(&used, ao);
 		}
 	}
-	if (used->length > 1) {
-		string_array_t *res = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < used->length; ++i) {
-			i32 u = used->buffer[i];
-			any_array_push(res, g_project->atlas_names->buffer[u]);
+	if (used.length > 1) {
+		res.length = 0;
+		for (i32 i = 0; i < used.length; ++i) {
+			string_array_push(&res, g_project->atlas_names->buffer[used.buffer[i]]);
 		}
-		return res;
+		return &res;
 	}
-	else
-		return NULL;
+	return NULL;
 }
 
 bool project_is_atlas_object(mesh_object_t *p) {
@@ -606,7 +600,7 @@ void project_export_swatches() {
 }
 
 swatch_color_t *project_make_swatch(i32 base) {
-	swatch_color_t *s = GC_ALLOC_INIT(swatch_color_t, {.base       = base,
+	swatch_color_t *s = ALLOC_INIT(swatch_color_t, {.base       = base,
 	                                                   .opacity    = 1.0,
 	                                                   .occlusion  = 1.0,
 	                                                   .roughness  = 0.0,
@@ -619,7 +613,7 @@ swatch_color_t *project_make_swatch(i32 base) {
 }
 
 swatch_color_t *project_clone_swatch(swatch_color_t *swatch) {
-	swatch_color_t *s = GC_ALLOC_INIT(swatch_color_t, {.base       = swatch->base,
+	swatch_color_t *s = ALLOC_INIT(swatch_color_t, {.base       = swatch->base,
 	                                                   .opacity    = swatch->opacity,
 	                                                   .occlusion  = swatch->occlusion,
 	                                                   .roughness  = swatch->roughness,

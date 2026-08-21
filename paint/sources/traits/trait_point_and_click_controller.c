@@ -31,9 +31,7 @@ static i32        pac_path_count = 0;
 static i32        pac_path_index = 0;
 
 void trait_point_and_click_controller_init(char *object) {
-	gc_unroot(trait_point_and_click_controller_object);
 	trait_point_and_click_controller_object = string_copy(object);
-	gc_root(trait_point_and_click_controller_object);
 	trait_point_and_click_controller_moving = false;
 	trait_point_and_click_controller_rot    = (quat_t){0.0, 0.0, 0.0, 1.0};
 	pac_path_count                          = 0;

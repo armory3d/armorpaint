@@ -12,17 +12,17 @@ logic_node_value_t *tex_image_node_get(tex_image_node_t *self, i32 from) {
 	char           *file = ar->buffer[i];
 
 	if (from == 0) {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._str = string("%s.rgb", file)});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._str = string_tmp("%s.rgb", file)});
 		return v;
 	}
 	else {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._str = string("%s.a", file)});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._str = string_tmp("%s.a", file)});
 		return v;
 	}
 }
 
 void *tex_image_node_create(ui_node_t *raw, f32_array_t *args) {
-	tex_image_node_t *n = GC_ALLOC_INIT(tex_image_node_t, {0});
+	tex_image_node_t *n = ALLOC_INIT(tex_image_node_t, {0});
 	n->base             = logic_node_create(n);
 	n->base->get        = tex_image_node_get;
 	n->raw              = raw;
@@ -31,7 +31,7 @@ void *tex_image_node_create(ui_node_t *raw, f32_array_t *args) {
 
 void tex_image_node_init() {
 	ui_node_t *tex_image_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id   = 0,
+	    ALLOC_INIT(ui_node_t, {.id   = 0,
 	                              .name = _tr("Image Texture"),
 	                              // type: "tex_image_node",
 	                              .type   = "TEX_IMAGE",
@@ -40,7 +40,7 @@ void tex_image_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -54,7 +54,7 @@ void tex_image_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "VALUE", // Match brush output socket type
@@ -64,7 +64,7 @@ void tex_image_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Alpha"),
 	                                                                       .type          = "VALUE",
@@ -78,7 +78,7 @@ void tex_image_node_init() {
 	                                  2),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("file"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("file"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -87,7 +87,7 @@ void tex_image_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("color_space"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("color_space"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

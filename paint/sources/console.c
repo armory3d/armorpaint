@@ -44,9 +44,7 @@ void console_progress(char *s) {
 	if (s != NULL) {
 		console_log(s);
 	}
-	gc_unroot(console_progress_text);
 	console_progress_text = string_copy(s);
-	gc_root(console_progress_text);
 
 	// Pass one frame to immediately show the message
 	draw_end();
@@ -58,9 +56,7 @@ void console_progress(char *s) {
 
 void console_info(char *s) {
 	console_message_timer = 5.0;
-	gc_unroot(console_message);
 	console_message = string_copy(s);
-	gc_root(console_message);
 	console_message_color = 0x00000000;
 	base_redraw_status();
 	console_log(s);
@@ -68,9 +64,7 @@ void console_info(char *s) {
 
 void console_error(char *s) {
 	console_message_timer = 8.0;
-	gc_unroot(console_message);
 	console_message = string_copy(s);
-	gc_root(console_message);
 	console_message_color = 0xffaa0000;
 	base_redraw_status();
 	console_log(s);

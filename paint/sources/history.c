@@ -281,7 +281,7 @@ void history_undo() {
 			make_material_parse_mesh_material();
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
-			node_group_t *ng = GC_ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
+			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
 			array_insert(g_project->_->material_groups, step->canvas_group, ng);
 			history_swap_canvas(step);
 		}
@@ -348,13 +348,13 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	char *to_id_s   = i32_to_string(to_id);
 	char *from_id_s = i32_to_string(from_id);
 	if (is_mask) {
-		render_path_set_target(string("texpaint_undo%s", to_id_s), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(string_tmp("texpaint_undo%s", to_id_s), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target(string("texpaint%s", from_id_s), "tex");
 		// render_path_draw_shader("Scene/copy_pass/copyR8_pass");
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 	}
 	else if (g_context->layer->texpaint_sculpt != NULL) {
-		render_path_set_target(string("texpaint_sculpt_undo%s", to_id_s), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(string_tmp("texpaint_sculpt_undo%s", to_id_s), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target(string("texpaint_sculpt%s", from_id_s), "tex");
 		render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
 	}
@@ -365,7 +365,7 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		        string("texpaint_pack_undo%s", to_id_s),
 		    },
 		    2);
-		render_path_set_target(string("texpaint_undo%s", to_id_s), additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(string_tmp("texpaint_undo%s", to_id_s), additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target(string("texpaint%s", from_id_s), "tex0");
 		render_path_bind_target(string("texpaint_nor%s", from_id_s), "tex1");
 		render_path_bind_target(string("texpaint_pack%s", from_id_s), "tex2");
@@ -377,7 +377,7 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32   ? "copy_mrt3_pass"
 		             : format == GPU_TEXTURE_FORMAT_RGBA64 ? "copy_mrt3RGBA64_pass"
 		                                                   : "copy_mrt3RGBA128_pass";
-		render_path_draw_shader(string("Scene/copy_mrt3_pass/%s", pipe));
+		render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 	}
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;
 }
@@ -611,14 +611,19 @@ void history_redo() {
 }
 
 void history_reset() {
-	gc_unroot(history_steps);
+	if (history_steps != NULL) {
+		for (i32 i = 0; i < history_steps->length; ++i) {
+			free(history_steps->buffer[i]);
+		}
+		array_free(history_steps);
+		free(history_steps);
+	}
 	history_steps = any_array_create_from_raw(
 	    (void *[]){
-	        GC_ALLOC_INIT(history_step_t,
+	        ALLOC_INIT(history_step_t,
 	                      {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
 	    },
 	    1);
-	gc_root(history_steps);
 	history_undos  = 0;
 	history_redos  = 0;
 	history_undo_i = 0;
@@ -643,7 +648,7 @@ history_step_t *history_push(history_action_t action) {
 	}
 	if (history_redos > 0) {
 		for (i32 i = 0; i < history_redos; ++i) {
-			array_pop(history_steps);
+			free(array_pop(history_steps));
 		}
 		history_redos = 0;
 	}
@@ -654,7 +659,7 @@ history_step_t *history_push(history_action_t action) {
 	i32 bpos = array_index_of(g_project->_->brushes, g_context->brush);
 
 	history_step_t *step =
-	    GC_ALLOC_INIT(history_step_t, {.name           = name,
+	    ALLOC_INIT(history_step_t, {.name           = name,
 	                                   .action         = action,
 	                                   .layer          = lpos,
 	                                   .layer_type     = slot_layer_is_mask(g_context->layer)    ? LAYER_SLOT_TYPE_MASK
@@ -671,7 +676,7 @@ history_step_t *history_push(history_action_t action) {
 	any_array_push(history_steps, step);
 
 	while (history_steps->length > g_config->undo_steps + 1) {
-		array_shift(history_steps);
+		free(array_shift(history_steps));
 	}
 	return history_steps->buffer[history_steps->length - 1];
 }

@@ -4,12 +4,12 @@
 char *gamma_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *out_col = parser_material_parse_vector_input(node->inputs->buffer[0]);
 	char *gamma   = parser_material_parse_value_input(node->inputs->buffer[1], false);
-	return string("pow3(%s, %s)", out_col, parser_material_to_vec3(gamma));
+	return string_tmp("pow3(%s, %s)", out_col, parser_material_to_vec3(gamma));
 }
 
 void gamma_node_init() {
 
-	ui_node_t *gamma_node_def = GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	ui_node_t *gamma_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
 	                                                      .name   = _tr("Gamma"),
 	                                                      .type   = "GAMMA",
 	                                                      .x      = 0,
@@ -17,7 +17,7 @@ void gamma_node_init() {
 	                                                      .color  = 0xff448c6d,
 	                                                      .inputs = any_array_create_from_raw(
 	                                                          (void *[]){
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Color"),
 	                                                                                               .type          = "RGBA",
@@ -27,7 +27,7 @@ void gamma_node_init() {
 	                                                                                               .max           = 1.0,
 	                                                                                               .precision     = 100,
 	                                                                                               .display       = 0}),
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Gamma"),
 	                                                                                               .type          = "VALUE",
@@ -41,7 +41,7 @@ void gamma_node_init() {
 	                                                          2),
 	                                                      .outputs = any_array_create_from_raw(
 	                                                          (void *[]){
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Color"),
 	                                                                                               .type          = "RGBA",

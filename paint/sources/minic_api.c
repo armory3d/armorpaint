@@ -6,7 +6,7 @@
 #include "iron_array.h"
 #include "iron_draw.h"
 #include "iron_file.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_input.h"
 #include "iron_json.h"
 #include "iron_map.h"
@@ -1071,18 +1071,11 @@ void minic_register_builtins() {
 	R(file_start, "v(p:char path)");
 	R(file_download_to, "v(p:char url,p:char dst_path,p done,i size)");
 
-	// iron_gc
-	R(gc_alloc, "p(i size)");
-	R(gc_leaf, "v(p ptr)");
-	R(gc_root, "v(p ptr)");
-	R(gc_unroot, "v(p ptr)");
-	R(gc_realloc, "p(p ptr,i size)");
-	R(gc_free, "v(p ptr)");
-	R(gc_pause, "v()");
-	R(gc_resume, "v()");
-	R(gc_run, "v()");
-	R(gc_start, "v(p bos)");
-	R(gc_stop, "v()");
+	// stdlib
+	R(malloc, "p(i size)");
+	R(calloc, "p(i n,i size)");
+	R(realloc, "p(p ptr,i size)");
+	R(free, "v(p ptr)");
 
 	// iron_map
 	R(i32_map_set, "v(p:i32_map_t m,p:char k,i v)");
@@ -1223,7 +1216,13 @@ void minic_register_builtins() {
 	R(console_log, "v(p:char s)");
 	R(ui_box_show_message, "v(p:char title,p:char text,i copyable)");
 	R(ui_files_show2, "v(p:char filters,i is_save,i open_multiple,p files_done)");
+	R(script_quit, "v()");
 	R(project_save, "v(i save_and_quit)");
+	R(script_project_new, "v()");
+	R(script_project_open, "v(p:char path)");
+	R(script_import_asset, "v(p:char path,i hdr_as_envmap)");
+	R(script_export_mesh, "v(p:char path)");
+	R(script_export_material, "v(p:char path)");
 	R(project_filepath_get, "p:char()");
 	R(project_basepath_get, "p:char()");
 	R(project_filepath_set, "v(p:char s)");
@@ -1232,6 +1231,7 @@ void minic_register_builtins() {
 	R(script_get_project, "p:project_t()");
 	R(script_get_object, "p:object_t(p:char s)");
 	R(script_get_material, "p:slot_material_t(p:char s)");
+	R(script_shape_list, "p:string_array_t()");
 	R(script_shape_add, "p:object_t(p:char name)");
 	R(script_object_duplicate, "p:object_t(p:object_t o)");
 	R(script_add_trait, "v(p:char object,p:char trait)");

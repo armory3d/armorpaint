@@ -101,7 +101,7 @@ void ui_box_render() {
 				ui_row3();
 			}
 			else {
-				f32_array_t *row = f32_array_create_from_raw(
+				f32_array_t *row = f32_array_create_from_raw_tmp(
 				    (f32[]){
 				        2 / 3.0,
 				        1 / 3.0,
@@ -110,7 +110,7 @@ void ui_box_render() {
 				ui_row(row);
 			}
 #else
-			f32_array_t *row = f32_array_create_from_raw(
+			f32_array_t *row = f32_array_create_from_raw_tmp(
 			    (f32[]){
 			        2 / 3.0,
 			        1 / 3.0,
@@ -153,11 +153,11 @@ void ui_box_tween_tick() {
 void ui_box_tween_in() {
 	tween_reset();
 
-	tween_anim_t *a = GC_ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.5, .duration = 0.2, .ease = EASE_EXPO_OUT});
+	tween_anim_t *a = ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.5, .duration = 0.2, .ease = EASE_EXPO_OUT});
 	tween_to(a);
 
 	ui_box_hwnd->drag_y = math_floor(iron_window_height() / 2.0);
-	a = GC_ALLOC_INIT(tween_anim_t, {.target = &ui_box_hwnd->drag_y, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_OUT, .tick = ui_box_tween_tick});
+	a = ALLOC_INIT(tween_anim_t, {.target = &ui_box_hwnd->drag_y, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_OUT, .tick = ui_box_tween_tick});
 	tween_to(a);
 }
 
@@ -171,10 +171,10 @@ void ui_box_hide_internal() {
 
 void ui_box_tween_out() {
 	tween_anim_t *a =
-	    GC_ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_IN, .done = ui_box_hide_internal});
+	    ALLOC_INIT(tween_anim_t, {.target = &ui_box_tween_alpha, .to = 0.0, .duration = 0.2, .ease = EASE_EXPO_IN, .done = ui_box_hide_internal});
 	tween_to(a);
 
-	a = GC_ALLOC_INIT(tween_anim_t, {.target = &ui_box_hwnd->drag_y, .to = iron_window_height() / 2, .duration = 0.2, .ease = EASE_EXPO_IN});
+	a = ALLOC_INIT(tween_anim_t, {.target = &ui_box_hwnd->drag_y, .to = iron_window_height() / 2, .duration = 0.2, .ease = EASE_EXPO_IN});
 	tween_to(a);
 }
 
@@ -182,13 +182,8 @@ void ui_box_show_message(char *title, char *text, bool copyable) {
 	ui_box_init();
 	ui_box_modalw = copyable ? 800 : 400;
 	ui_box_modalh = copyable ? 600 : 180;
-	gc_unroot(ui_box_title);
 	ui_box_title = string_copy(title);
-	gc_root(ui_box_title);
-	gc_unroot(ui_box_text);
 	ui_box_text = string_copy(text);
-	gc_root(ui_box_text);
-	gc_unroot(ui_box_commands);
 	ui_box_commands  = NULL;
 	ui_box_copyable  = copyable;
 	ui_box_draggable = true;
@@ -201,16 +196,10 @@ void ui_box_show_custom(void (*commands)(void), i32 mw, i32 mh, void (*on_hide)(
 	ui_box_init();
 	ui_box_modalw = mw;
 	ui_box_modalh = mh;
-	gc_unroot(ui_box_modal_on_hide);
 	ui_box_modal_on_hide = on_hide;
-	gc_root(ui_box_modal_on_hide);
-	gc_unroot(ui_box_commands);
 	ui_box_commands = commands;
-	gc_root(ui_box_commands);
 	ui_box_draggable = draggable;
-	gc_unroot(ui_box_title);
 	ui_box_title = string_copy(title);
-	gc_root(ui_box_title);
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	ui_box_tween_in();
 #endif

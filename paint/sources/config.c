@@ -23,6 +23,7 @@ void config_load() {
 		blob = data_get_blob(path);
 		if (blob == NULL) {
 			path_is_protected_linux = true;
+			free(path);
 			config_load();
 			return;
 		}
@@ -33,11 +34,11 @@ void config_load() {
 		char *config_string = sys_buffer_to_string(blob);
 		if (starts_with(config_string, "{\"version\":")) { // Ensure valid config
 			config_loaded = true;
-			gc_unroot(g_config);
 			g_config = json_parse(config_string);
-			gc_root(g_config);
 		}
+		free(config_string);
 	}
+	free(path);
 }
 
 void config_save() {
@@ -140,13 +141,14 @@ void config_save() {
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
 	iron_file_save_bytes(path, buffer, 0);
+	array_free(buffer);
+	free(buffer);
+	free(config_json);
 }
 
 void config_init() {
 	if (!config_loaded || g_config == NULL) {
-		gc_unroot(g_config);
-		g_config = GC_ALLOC_INIT(config_t, {0});
-		gc_root(g_config);
+		g_config = ALLOC_INIT(config_t, {0});
 		g_config->version            = string_copy(manifest_version_config);
 		g_config->sha                = string_copy(config_get_sha());
 		g_config->locale             = "en"; // "system";
@@ -361,7 +363,7 @@ iron_window_options_t *config_get_options() {
 		features |= IRON_WINDOW_FEATURES_MINIMIZABLE;
 	}
 	char                  *title = string("untitled - %s", manifest_title);
-	iron_window_options_t *ops   = GC_ALLOC_INIT(iron_window_options_t, {.title     = title,
+	iron_window_options_t *ops   = ALLOC_INIT(iron_window_options_t, {.title     = title,
 	                                                                     .width     = g_config->window_w,
 	                                                                     .height    = g_config->window_h,
 	                                                                     .x         = g_config->window_x,
@@ -374,9 +376,7 @@ iron_window_options_t *config_get_options() {
 }
 
 void config_restore() {
-	gc_unroot(ui_children);
 	ui_children = any_map_create(); // Reset ui handles
-	gc_root(ui_children);
 	config_loaded        = false;
 	i32_array_t *_layout = g_config->layout;
 	config_init();
@@ -390,14 +390,10 @@ void config_restore() {
 void config_import_from(config_t *from) {
 	char *_sha     = g_config->sha;
 	char *_version = g_config->version;
-	gc_unroot(g_config);
 	g_config = from;
-	gc_root(g_config);
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
-	gc_unroot(ui_children);
 	ui_children = any_map_create(); // Reset ui handles
-	gc_root(ui_children);
 	keymap_load();
 	config_init_layout();
 	translator_load_translations(g_config->locale);
@@ -459,16 +455,12 @@ i32 config_get_texture_res_pos(i32 i) {
 }
 
 void config_load_theme(char *theme, bool tag_redraw) {
-	gc_unroot(g_theme);
 	g_theme = ui_theme_create();
-	gc_root(g_theme);
 
 	if (!string_equals(theme, "default.json")) {
 		buffer_t   *b      = data_get_blob(string("themes/%s", theme));
 		ui_theme_t *parsed = json_parse(sys_buffer_to_string(b));
-		gc_unroot(g_theme);
 		g_theme = parsed;
-		gc_root(g_theme);
 	}
 
 	if (tag_redraw) {

@@ -125,17 +125,17 @@ logic_node_value_t *vector_math_node_get(vector_math_node_t *self, i32 from) {
 	}
 
 	if (from == 0) {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._vec4 = self->v});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._vec4 = self->v});
 		return v;
 	}
 	else {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._f32 = f});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = f});
 		return v;
 	}
 }
 
 void *vector_math_node_create(ui_node_t *raw, f32_array_t *args) {
-	vector_math_node_t *n = GC_ALLOC_INIT(vector_math_node_t, {0});
+	vector_math_node_t *n = ALLOC_INIT(vector_math_node_t, {0});
 	n->base               = logic_node_create(n);
 	n->base->get          = vector_math_node_get;
 	n->v                  = (vec4_t){0.0, 0.0, 0.0, 1.0};
@@ -144,7 +144,7 @@ void *vector_math_node_create(ui_node_t *raw, f32_array_t *args) {
 
 void vector_math_node_init() {
 	ui_node_t *vector_math_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Vector Math"),
 	                              .type   = "vector_math_node",
 	                              .x      = 0,
@@ -152,7 +152,7 @@ void vector_math_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -162,7 +162,7 @@ void vector_math_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -176,7 +176,7 @@ void vector_math_node_init() {
 	                                  2),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -186,7 +186,7 @@ void vector_math_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -200,7 +200,7 @@ void vector_math_node_init() {
 	                                  2),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("operation"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("operation"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

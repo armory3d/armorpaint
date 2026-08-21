@@ -4,13 +4,13 @@
 char *invert_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *fac     = parser_material_parse_value_input(node->inputs->buffer[0], false);
 	char *out_col = parser_material_parse_vector_input(node->inputs->buffer[1]);
-	return string("lerp3(%s, float3(1.0, 1.0, 1.0) - (%s), %s)", out_col, out_col, fac);
+	return string_tmp("lerp3(%s, float3(1.0, 1.0, 1.0) - (%s), %s)", out_col, out_col, fac);
 }
 
 void invert_color_node_init() {
 
 	ui_node_t *invert_color_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Invert Color"),
 	                              .type   = "INVERT_COLOR",
 	                              .x      = 0,
@@ -18,7 +18,7 @@ void invert_color_node_init() {
 	                              .color  = 0xff448c6d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -28,7 +28,7 @@ void invert_color_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -42,7 +42,7 @@ void invert_color_node_init() {
 	                                  2),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",

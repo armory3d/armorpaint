@@ -27,9 +27,6 @@ void main() {
 	h1 = ui_handle_create();
 	h2 = ui_handle_create();
 	h2->f = 5.0;
-	gc_root(plugin);
-	gc_root(h1);
-	gc_root(h2);
 
 	plugin_notify_on_ui(plugin, on_ui);
 	plugin_notify_on_update(plugin, on_update);

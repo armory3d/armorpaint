@@ -150,6 +150,7 @@ void ui_menubar_draw_category_items_on_check_for_updates_downloaded(char *url, b
 				any_map_t *vars = any_map_create();
 				any_map_set(vars, "url", manifest_url);
 				ui_box_show_message(tr("Update"), vtr("Update is available!\nPlease visit {url}.", vars), false);
+				map_free(vars);
 			}
 			else {
 				ui_box_show_message(tr("Update"), tr("You are up to date!"), false);
@@ -160,6 +161,7 @@ void ui_menubar_draw_category_items_on_check_for_updates_downloaded(char *url, b
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "url", manifest_url);
 		ui_box_show_message(tr("Update"), vtr("Unable to check for updates.\nPlease visit {url}.", vars), false);
+		map_free(vars);
 	}
 }
 
@@ -353,6 +355,7 @@ void ui_menubar_draw_category_items() {
 			history_undo();
 			ui_menu_keep_open = true;
 		}
+		map_free(vars_undo);
 
 		g_ui->enabled        = history_redos > 0;
 		any_map_t *vars_redo = any_map_create();
@@ -361,6 +364,7 @@ void ui_menubar_draw_category_items() {
 			history_redo();
 			ui_menu_keep_open = true;
 		}
+		map_free(vars_redo);
 
 		g_ui->enabled = true;
 		ui_menu_separator();
@@ -435,6 +439,7 @@ void ui_menubar_draw_category_items() {
 			any_map_t *vars = any_map_create();
 			any_map_set(vars, "shortcut", any_map_get(g_keymap, "rotate_envmap"));
 			ui_tooltip(vtr("{shortcut} and move mouse", vars));
+			map_free(vars);
 		}
 		if (enva_handle->changed) {
 			g_context->ddirty = 2;
@@ -442,21 +447,21 @@ void ui_menubar_draw_category_items() {
 
 		ui_handle_t *split_view_handle = ui_handle(__ID__);
 		split_view_handle->b           = g_context->split_view;
-		g_context->split_view          = ui_check(split_view_handle, string(" %s", tr("Split View")), "");
+		g_context->split_view          = ui_check(split_view_handle, string_tmp(" %s", tr("Split View")), "");
 		if (split_view_handle->changed) {
 			base_resize();
 		}
 
 		ui_handle_t *cull_handle  = ui_handle(__ID__);
 		cull_handle->b            = g_context->cull_backfaces;
-		g_context->cull_backfaces = ui_check(cull_handle, string(" %s", tr("Cull Backfaces")), "");
+		g_context->cull_backfaces = ui_check(cull_handle, string_tmp(" %s", tr("Cull Backfaces")), "");
 		if (cull_handle->changed) {
 			make_material_parse_mesh_material();
 		}
 
 		ui_handle_t *wireframe_handle = ui_handle(__ID__);
 		wireframe_handle->b           = g_context->draw_wireframe;
-		g_context->draw_wireframe     = ui_check(wireframe_handle, string(" %s", tr("Wireframe")), "");
+		g_context->draw_wireframe     = ui_check(wireframe_handle, string_tmp(" %s", tr("Wireframe")), "");
 		if (wireframe_handle->changed) {
 			gpu_texture_t *current = _draw_current;
 			draw_end();
@@ -467,21 +472,21 @@ void ui_menubar_draw_category_items() {
 
 		ui_handle_t *texels_handle = ui_handle(__ID__);
 		texels_handle->b           = g_context->draw_texels;
-		g_context->draw_texels     = ui_check(texels_handle, string(" %s", tr("Texels")), "");
+		g_context->draw_texels     = ui_check(texels_handle, string_tmp(" %s", tr("Texels")), "");
 		if (texels_handle->changed) {
 			make_material_parse_mesh_material();
 		}
 
 		ui_handle_t *compass_handle = ui_handle(__ID__);
 		compass_handle->b           = g_context->show_compass;
-		g_context->show_compass     = ui_check(compass_handle, string(" %s", tr("Compass")), "");
+		g_context->show_compass     = ui_check(compass_handle, string_tmp(" %s", tr("Compass")), "");
 		if (compass_handle->changed) {
 			g_context->ddirty = 2;
 		}
 
 		ui_handle_t *show_envmap_handle = ui_handle(__ID__);
 		show_envmap_handle->b           = g_context->show_envmap;
-		g_context->show_envmap          = ui_check(show_envmap_handle, string(" %s", tr("Envmap")), "");
+		g_context->show_envmap          = ui_check(show_envmap_handle, string_tmp(" %s", tr("Envmap")), "");
 		if (show_envmap_handle->changed) {
 			context_load_envmap();
 			g_context->ddirty = 2;
@@ -489,14 +494,14 @@ void ui_menubar_draw_category_items() {
 
 		ui_handle_t *show_envmap_blur_handle = ui_handle(__ID__);
 		show_envmap_blur_handle->b           = g_context->show_envmap_blur;
-		g_context->show_envmap_blur          = ui_check(show_envmap_blur_handle, string(" %s", tr("Blur Envmap")), "");
+		g_context->show_envmap_blur          = ui_check(show_envmap_blur_handle, string_tmp(" %s", tr("Blur Envmap")), "");
 		if (show_envmap_blur_handle->changed) {
 			g_context->ddirty = 2;
 		}
 
 		ui_handle_t *show_envmap_spheres_handle = ui_handle(__ID__);
 		show_envmap_spheres_handle->b           = g_context->show_envmap_spheres;
-		g_context->show_envmap_spheres          = ui_check(show_envmap_spheres_handle, string(" %s", tr("Envmap Spheres")), "");
+		g_context->show_envmap_spheres          = ui_check(show_envmap_spheres_handle, string_tmp(" %s", tr("Envmap Spheres")), "");
 		if (show_envmap_spheres_handle->changed) {
 			g_context->ddirty = 2;
 		}
@@ -563,7 +568,7 @@ void ui_menubar_draw_category_items() {
 		}
 
 		for (i32 i = 0; i < modes->length; ++i) {
-			char *shortcut = g_config->touch_ui ? "" : string("%s, %s", any_map_get(g_keymap, "viewport_mode"), shortcuts->buffer[i]);
+			char *shortcut = g_config->touch_ui ? "" : string_tmp("%s, %s", any_map_get(g_keymap, "viewport_mode"), shortcuts->buffer[i]);
 			ui_radio(mode_handle, i, modes->buffer[i], shortcut);
 		}
 
@@ -687,11 +692,12 @@ void ui_menubar_draw_category_items() {
 		char *orbit_and_rotate_tooltip = vtr("Orbit and Rotate mode:\n{rotate_shortcut} or move right mouse button to rotate.\n{zoom_shortcut} or scroll to "
 		                                     "zoom.\n{pan_shortcut} or move middle mouse to pan.",
 		                                     vars);
+		map_free(vars);
 		char *fly_tooltip = tr("Fly mode:\nHold the right mouse button and one of the following commands:\nmove mouse to rotate.\nw, up or scroll up to "
 		                       "move forward.\ns, down or scroll down to move backward.\na or left to move left.\nd or right to move right.\ne to move "
 		                       "up.\nq to move down.\nHold shift to move faster or alt to move slower.");
 		if (g_ui->is_hovered) {
-			ui_tooltip(string("%s\n\n%s", orbit_and_rotate_tooltip, fly_tooltip));
+			ui_tooltip(string_tmp("%s\n\n%s", orbit_and_rotate_tooltip, fly_tooltip));
 		}
 
 		ui_menu_separator();
@@ -770,9 +776,7 @@ void ui_menubar_draw_category_items() {
 			char *gpu = gpu_device_name();
 			msg       = string("%s\n%s", msg, gpu);
 
-			gc_unroot(_ui_menu_render_msg);
 			_ui_menu_render_msg = string_copy(msg);
-			gc_root(_ui_menu_render_msg);
 			ui_box_show_custom(&ui_menubar_draw_category_items_about_box, 400, 320, NULL, true, tr("About"));
 		}
 	}
@@ -832,9 +836,7 @@ void ui_menubar_show_menu(i32 category) {
 
 	ui_menu_show       = true;
 	ui_menu_show_first = true;
-	gc_unroot(ui_menu_commands);
 	ui_menu_commands = ui_menubar_draw_category_items;
-	gc_root(ui_menu_commands);
 	ui_menubar_category = category;
 
 	i32 panel_x = ui_menu_panel_x();

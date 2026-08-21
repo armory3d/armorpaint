@@ -1,6 +1,15 @@
 
 #include "../global.h"
 
+static string_array_t *render_path_paint_additional(char *nor, char *pack) {
+	static string_array_t ar = {0};
+	ar.length                = 0;
+	string_array_push(&ar, nor);
+	string_array_push(&ar, pack);
+	string_array_push(&ar, "texpaint_blend0");
+	return &ar;
+}
+
 bool             render_path_paint_dilated               = true;
 mesh_object_t   *render_path_paint_painto                = NULL;
 mesh_object_t   *render_path_paint_planeo                = NULL;
@@ -141,8 +150,8 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 			}
 		}
 
-		string_array_t *additional = any_array_create_from_raw((void *[]){string("texpaint_nor%d", tid), string("texpaint_pack%d", tid), "texpaint_blend0"}, 3);
-		render_path_set_target(texpaint, additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
+		                       GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("main", "gbufferD");
 		if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
 			render_path_bind_target("gbuffer0", "gbuffer0");
@@ -227,7 +236,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				    1);
 				render_path_set_target("texpaint_picker", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
 				render_path_bind_target("gbuffer2", "gbuffer2");
-				render_path_bind_target(string("texpaint%d", tid), "texpaint");
+				render_path_bind_target(string_tmp("texpaint%d", tid), "texpaint");
 				render_path_paint_draw_fullscreen_triangle("paint");
 			}
 			else {
@@ -244,9 +253,9 @@ void render_path_paint_commands_paint(bool dilation) {
 				if (use_live_layer) {
 					render_path_paint_use_live_layer(true);
 				}
-				render_path_bind_target(string("texpaint%d", tid), "texpaint");
-				render_path_bind_target(string("texpaint_nor%d", tid), "texpaint_nor");
-				render_path_bind_target(string("texpaint_pack%d", tid), "texpaint_pack");
+				render_path_bind_target(string_tmp("texpaint%d", tid), "texpaint");
+				render_path_bind_target(string_tmp("texpaint_nor%d", tid), "texpaint_nor");
+				render_path_bind_target(string_tmp("texpaint_pack%d", tid), "texpaint_pack");
 				render_path_paint_draw_fullscreen_triangle("paint");
 				if (use_live_layer) {
 					render_path_paint_use_live_layer(false);
@@ -394,7 +403,7 @@ void render_path_paint_commands_paint(bool dilation) {
 		}
 	}
 	else {
-		char *texpaint = string("texpaint%d", tid);
+		char *texpaint = string_tmp("texpaint%d", tid);
 		if (g_context->tool == TOOL_TYPE_BAKE && g_context->brush_time == sys_delta()) {
 			// Clear to black on bake start
 			render_path_set_target(texpaint, NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
@@ -422,24 +431,12 @@ void render_path_paint_commands_paint(bool dilation) {
 						break;
 					}
 				}
-				string_array_t *additional = any_array_create_from_raw(
-				    (void *[]){
-				        string("texpaint_nor%d", ptid),
-				        string("texpaint_pack%d", ptid),
-				        "texpaint_blend0",
-				    },
-				    3);
-				render_path_set_target(texpaint, additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+				render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", ptid), string_tmp("texpaint_pack%d", ptid)), NULL,
+				                       GPU_CLEAR_NONE, 0, 0.0);
 			}
 			else {
-				string_array_t *additional = any_array_create_from_raw(
-				    (void *[]){
-				        string("texpaint_nor%d", tid),
-				        string("texpaint_pack%d", tid),
-				        "texpaint_blend0",
-				    },
-				    3);
-				render_path_set_target(texpaint, additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+				render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
+				                       GPU_CLEAR_NONE, 0, 0.0);
 			}
 			render_path_bind_target("main", "gbufferD");
 			if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
@@ -456,7 +453,7 @@ void render_path_paint_commands_paint(bool dilation) {
 			for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 				slot_layer_t *sl = g_project->_->layers->buffer[i];
 				if (sl->texpaint_sculpt != NULL && slot_layer_is_visible(sl)) {
-					render_path_bind_target(string("texpaint_sculpt%d", sl->id), string("texpaint_sculpt%d", sl->id));
+					render_path_bind_target(string_tmp("texpaint_sculpt%d", sl->id), string_tmp("texpaint_sculpt%d", sl->id));
 					sculpt_layer_count++;
 				}
 			}
@@ -504,30 +501,18 @@ void render_path_paint_use_live_layer(bool use) {
 	i32 tid = g_context->layer->id;
 	i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
 	if (use) {
-		gc_unroot(_render_path_paint_texpaint);
-		_render_path_paint_texpaint = any_map_get(render_path_render_targets, string("texpaint%d", tid));
-		gc_root(_render_path_paint_texpaint);
-		gc_unroot(_render_path_paint_texpaint_undo);
-		_render_path_paint_texpaint_undo = any_map_get(render_path_render_targets, string("texpaint_undo%d", hid));
-		gc_root(_render_path_paint_texpaint_undo);
-		gc_unroot(_render_path_paint_texpaint_nor_undo);
-		_render_path_paint_texpaint_nor_undo = any_map_get(render_path_render_targets, string("texpaint_nor_undo%d", hid));
-		gc_root(_render_path_paint_texpaint_nor_undo);
-		gc_unroot(_render_path_paint_texpaint_pack_undo);
-		_render_path_paint_texpaint_pack_undo = any_map_get(render_path_render_targets, string("texpaint_pack_undo%d", hid));
-		gc_root(_render_path_paint_texpaint_pack_undo);
-		gc_unroot(_render_path_paint_texpaint_nor);
-		_render_path_paint_texpaint_nor = any_map_get(render_path_render_targets, string("texpaint_nor%d", tid));
-		gc_root(_render_path_paint_texpaint_nor);
-		gc_unroot(_render_path_paint_texpaint_pack);
-		_render_path_paint_texpaint_pack = any_map_get(render_path_render_targets, string("texpaint_pack%d", tid));
-		gc_root(_render_path_paint_texpaint_pack);
-		any_map_set(render_path_render_targets, string("texpaint_undo%d", hid), any_map_get(render_path_render_targets, string("texpaint%d", tid)));
+		_render_path_paint_texpaint = any_map_get(render_path_render_targets, string_tmp("texpaint%d", tid));
+		_render_path_paint_texpaint_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_undo%d", hid));
+		_render_path_paint_texpaint_nor_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_nor_undo%d", hid));
+		_render_path_paint_texpaint_pack_undo = any_map_get(render_path_render_targets, string_tmp("texpaint_pack_undo%d", hid));
+		_render_path_paint_texpaint_nor = any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid));
+		_render_path_paint_texpaint_pack = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%d", tid));
+		any_map_set(render_path_render_targets, string("texpaint_undo%d", hid), any_map_get(render_path_render_targets, string_tmp("texpaint%d", tid)));
 		any_map_set(render_path_render_targets, string("texpaint%d", tid), any_map_get(render_path_render_targets, "texpaint_live"));
 		if (slot_layer_is_layer(g_context->layer)) {
-			any_map_set(render_path_render_targets, string("texpaint_nor_undo%d", hid), any_map_get(render_path_render_targets, string("texpaint_nor%d", tid)));
+			any_map_set(render_path_render_targets, string("texpaint_nor_undo%d", hid), any_map_get(render_path_render_targets, string_tmp("texpaint_nor%d", tid)));
 			any_map_set(render_path_render_targets, string("texpaint_pack_undo%d", hid),
-			            any_map_get(render_path_render_targets, string("texpaint_pack%d", tid)));
+			            any_map_get(render_path_render_targets, string_tmp("texpaint_pack%d", tid)));
 			any_map_set(render_path_render_targets, string("texpaint_nor%d", tid), any_map_get(render_path_render_targets, "texpaint_nor_live"));
 			any_map_set(render_path_render_targets, string("texpaint_pack%d", tid), any_map_get(render_path_render_targets, "texpaint_pack_live"));
 		}
@@ -604,15 +589,13 @@ void render_path_paint_commands_live_brush() {
 	}
 
 	if (render_path_paint_live_layer == NULL) {
-		gc_unroot(render_path_paint_live_layer);
 		render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
-		gc_root(render_path_paint_live_layer);
 	}
 
 	i32 tid = g_context->layer->id;
 	if (slot_layer_is_mask(g_context->layer)) {
 		render_path_set_target("texpaint_live", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target(string("texpaint%d", tid), "tex");
+		render_path_bind_target(string_tmp("texpaint%d", tid), "tex");
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 	}
 	else {
@@ -623,9 +606,9 @@ void render_path_paint_commands_live_brush() {
 		    },
 		    2);
 		render_path_set_target("texpaint_live", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target(string("texpaint%d", tid), "tex0");
-		render_path_bind_target(string("texpaint_nor%d", tid), "tex1");
-		render_path_bind_target(string("texpaint_pack%d", tid), "tex2");
+		render_path_bind_target(string_tmp("texpaint%d", tid), "tex0");
+		render_path_bind_target(string_tmp("texpaint_nor%d", tid), "tex1");
+		render_path_bind_target(string_tmp("texpaint_pack%d", tid), "tex2");
 		render_path_draw_shader("Scene/copy_mrt3_pass/copy_mrt3_pass");
 	}
 
@@ -994,12 +977,8 @@ void render_path_paint_draw() {
 
 void render_path_paint_set_plane_mesh() {
 	g_context->paint2d_view = true;
-	gc_unroot(render_path_paint_painto);
 	render_path_paint_painto = g_context->paint_object;
-	gc_root(render_path_paint_painto);
-	gc_unroot(render_path_paint_visibles);
 	render_path_paint_visibles = u8_array_create_from_raw((u8[]){}, 0);
-	gc_root(render_path_paint_visibles);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		u8_array_push(render_path_paint_visibles, p->base->visible);
@@ -1071,13 +1050,13 @@ void render_path_paint_set_plane_mesh() {
 		    },
 		    54);
 		mesh_data_t *raw =
-		    GC_ALLOC_INIT(mesh_data_t,
+		    ALLOC_INIT(mesh_data_t,
 		                  {.name          = ".PlaneTiled",
 		                   .vertex_arrays = any_array_create_from_raw(
 		                       (void *[]){
-		                           GC_ALLOC_INIT(vertex_array_t, {.attrib = "pos", .values = i16_array_create_from_array(posa), .data = "short4norm"}),
-		                           GC_ALLOC_INIT(vertex_array_t, {.attrib = "nor", .values = i16_array_create_from_array(nora), .data = "short2norm"}),
-		                           GC_ALLOC_INIT(vertex_array_t, {.attrib = "tex", .values = i16_array_create_from_array(texa), .data = "short2norm"}),
+		                           ALLOC_INIT(vertex_array_t, {.attrib = "pos", .values = i16_array_create_from_array(posa), .data = "short4norm"}),
+		                           ALLOC_INIT(vertex_array_t, {.attrib = "nor", .values = i16_array_create_from_array(nora), .data = "short2norm"}),
+		                           ALLOC_INIT(vertex_array_t, {.attrib = "tex", .values = i16_array_create_from_array(texa), .data = "short2norm"}),
 		                       },
 		                       3),
 		                   .index_array = u32_array_create_from_array(inda),
@@ -1090,9 +1069,7 @@ void render_path_paint_set_plane_mesh() {
 		o->base->name             = ".PlaneTiled";
 	}
 
-	gc_unroot(render_path_paint_planeo);
 	render_path_paint_planeo = scene_get_child(tiled ? ".PlaneTiled" : ".Plane")->ext;
-	gc_root(render_path_paint_planeo);
 
 	render_path_paint_planeo->base->visible = true;
 	g_context->paint_object                 = render_path_paint_planeo;
@@ -1135,15 +1112,19 @@ void render_path_paint_bind_layers() {
 
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
-		render_path_bind_target(string("texpaint%d", l->id), string("texpaint%d", l->id));
+		char *n = string_tmp("texpaint%d", l->id);
+		render_path_bind_target(n, n);
 
 		if (slot_layer_is_layer(l)) {
-			render_path_bind_target(string("texpaint_nor%d", l->id), string("texpaint_nor%d", l->id));
-			render_path_bind_target(string("texpaint_pack%d", l->id), string("texpaint_pack%d", l->id));
+			n = string_tmp("texpaint_nor%d", l->id);
+			render_path_bind_target(n, n);
+			n = string_tmp("texpaint_pack%d", l->id);
+			render_path_bind_target(n, n);
 		}
 
 		if (l->texpaint_sculpt != NULL) {
-			render_path_bind_target(string("texpaint_sculpt%d", l->id), string("texpaint_sculpt%d", l->id));
+			n = string_tmp("texpaint_sculpt%d", l->id);
+			render_path_bind_target(n, n);
 		}
 	}
 
@@ -1172,25 +1153,25 @@ void render_path_paint_dilate(bool base, bool nor_pack) {
 
 		if (base) {
 			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string("texpaint%d", tid), "tex");
-			render_path_draw_shader(string("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string("texpaint%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target(string_tmp("texpaint%d", tid), "tex");
+			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
+			render_path_set_target(string_tmp("texpaint%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string("Scene/dilate_pass/%s", dilate_pass));
+			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
 		}
 		if (nor_pack && !slot_layer_is_mask(g_context->layer)) {
 			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string("texpaint_nor%d", tid), "tex");
-			render_path_draw_shader(string("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string("texpaint_nor%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target(string_tmp("texpaint_nor%d", tid), "tex");
+			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
+			render_path_set_target(string_tmp("texpaint_nor%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string("Scene/dilate_pass/%s", dilate_pass));
+			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
 			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string("texpaint_pack%d", tid), "tex");
-			render_path_draw_shader(string("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string("texpaint_pack%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target(string_tmp("texpaint_pack%d", tid), "tex");
+			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
+			render_path_set_target(string_tmp("texpaint_pack%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string("Scene/dilate_pass/%s", dilate_pass));
+			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
 		}
 	}
 }

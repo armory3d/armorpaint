@@ -51,9 +51,7 @@ void ui_base_on_border_hover(ui_handle_t *handle, i32 side) {
 
 	if (g_ui->input_started) {
 		ui_base_border_started = side;
-		gc_unroot(ui_base_border_handle);
 		ui_base_border_handle = handle;
-		gc_root(ui_base_border_handle);
 		base_is_resizing = true;
 	}
 }
@@ -110,6 +108,8 @@ void ui_base_init() {
 		b->buffer[2]              = 0;
 		b->buffer[3]              = 255;
 		g_context->preview_envmap = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+		array_free(b);
+		free(b);
 	}
 
 	if (g_context->saved_envmap == NULL) {
@@ -131,18 +131,15 @@ void ui_base_init() {
 	resource_load(resources);
 
 	f32           scale = g_config->window_scale;
-	ui_options_t *ops   = GC_ALLOC_INIT(
+	ui_options_t *ops   = ALLOC_INIT(
         ui_options_t,
         {.theme = g_theme, .font = g_font, .scale_factor = scale, .color_wheel = base_color_wheel, .black_white_gradient = base_color_wheel_gradient});
 
 	g_ui = ui_create(ops);
-	gc_root(g_ui);
 
 	ui_on_border_hover = ui_base_on_border_hover;
-	gc_root(ui_on_border_hover);
 
 	ui_on_tab_drop = ui_base_on_tab_drop;
-	gc_root(ui_on_tab_drop);
 	if (UI_SCALE() > 1) {
 		ui_base_set_icon_scale();
 	}
@@ -241,9 +238,10 @@ void ui_base_update(void *_) {
 			minic_ctx_call_fn(p->ctx, p->on_update, NULL, 0);
 		}
 	}
+	array_free(keys);
+	free(keys);
 
 	if (!mouse_down("left")) {
-		gc_unroot(ui_base_border_handle);
 		ui_base_border_handle = NULL;
 		base_is_resizing      = false;
 	}
@@ -322,7 +320,7 @@ ui_handle_t_array_t *ui_base_init_htabs() {
 }
 
 tab_draw_t *_draw_callback_create(void (*f)(ui_handle_t *)) {
-	tab_draw_t *cb = GC_ALLOC_INIT(tab_draw_t, {.f = f});
+	tab_draw_t *cb = ALLOC_INIT(tab_draw_t, {.f = f});
 	return cb;
 }
 

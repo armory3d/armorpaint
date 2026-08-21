@@ -57,9 +57,7 @@ void box_preferences_interface_tab_restore_menu_confirm(void *_) {
 	}
 	config_restore();
 	box_preferences_set_scale();
-	gc_unroot(box_preferences_files_plugin);
 	box_preferences_files_plugin = NULL;
-	gc_unroot(box_preferences_files_keymap);
 	box_preferences_files_keymap = NULL;
 	make_material_parse_mesh_material();
 	make_material_parse_paint_material(true);
@@ -77,9 +75,7 @@ void box_preferences_interface_tab_restore_menu() {
 
 void box_preferences_interface_tab() {
 	if (box_preferences_locales == NULL) {
-		gc_unroot(box_preferences_locales);
 		box_preferences_locales = translator_get_supported_locales();
-		gc_root(box_preferences_locales);
 	}
 
 	ui_handle_t *h_locale = ui_handle(__ID__);
@@ -253,9 +249,7 @@ void box_preferences_theme_tab() {
 	ui_begin_sticky();
 	ui_row4();
 
-	gc_unroot(box_preferences_h_theme);
 	box_preferences_h_theme = ui_handle(__ID__);
-	gc_root(box_preferences_h_theme);
 	box_preferences_h_theme->i = box_preferences_get_theme_index();
 	ui_combo(box_preferences_h_theme, box_preferences_themes, tr("Theme"), false, UI_ALIGN_LEFT, true);
 	if (box_preferences_h_theme->changed) {
@@ -277,7 +271,7 @@ void box_preferences_theme_tab() {
 
 	ui_handle_t *box_preferences_theme_hsearch = ui_handle(__ID__);
 	if (!string_equals(box_preferences_theme_hsearch->text, "")) {
-		ui_row(f32_array_create_from_raw((f32[]){0.85, 0.15}, 2));
+		ui_row(f32_array_create_from_raw_tmp((f32[]){0.85, 0.15}, 2));
 	}
 	box_preferences_theme_hsearch->text = string_copy(ui_text_input(box_preferences_theme_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
 	if (!string_equals(box_preferences_theme_hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
@@ -301,7 +295,7 @@ void box_preferences_theme_tab() {
 		bool         is_hex = ends_with(key, "_COL");
 
 		if (is_hex) {
-			f32_array_t *row = f32_array_create_from_raw(
+			f32_array_t *row = f32_array_create_from_raw_tmp(
 			    (f32[]){
 			        1 / 8.0,
 			        7 / 8.0,
@@ -311,9 +305,7 @@ void box_preferences_theme_tab() {
 			ui_text("", 0, val);
 			if (g_ui->is_hovered && g_ui->input_released) {
 				h->color = val;
-				gc_unroot(_box_preferences_h);
 				_box_preferences_h = h;
-				gc_root(_box_preferences_h);
 				_box_preferences_i = i;
 				ui_menu_draw(&box_preferences_theme_tab_theme_field_menu, -1, -1);
 			}
@@ -403,7 +395,7 @@ void box_preferences_usage_tab() {
 	ui_handle_t *h_layer_res = ui_handle(__ID__);
 	h_layer_res->i           = g_config->layer_res;
 
-	string_array_t *res_combo = any_array_create_from_raw(
+	string_array_t *res_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "2048",
 	        "4096",
@@ -481,7 +473,7 @@ void box_preferences_usage_tab() {
 void box_preferences_camera_tab() {
 	ui_handle_t *h_camera_pivot        = ui_handle(__ID__);
 	h_camera_pivot->i                  = g_config->camera_pivot;
-	string_array_t *camera_pivot_combo = any_array_create_from_raw(
+	string_array_t *camera_pivot_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Cursor"),
 	        tr("Center"),
@@ -491,7 +483,7 @@ void box_preferences_camera_tab() {
 
 	ui_handle_t *h_camera_controls        = ui_handle(__ID__);
 	h_camera_controls->i                  = g_config->camera_controls;
-	string_array_t *camera_controls_combo = any_array_create_from_raw(
+	string_array_t *camera_controls_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Orbit"),
 	        tr("Rotate"),
@@ -518,7 +510,7 @@ void box_preferences_camera_tab() {
 
 	ui_handle_t *h_zoom_direction        = ui_handle(__ID__);
 	h_zoom_direction->i                  = g_config->zoom_direction;
-	string_array_t *zoom_direction_combo = any_array_create_from_raw(
+	string_array_t *zoom_direction_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Vertical"),
 	        tr("Vertical Inverted"),
@@ -566,7 +558,7 @@ void box_preferences_pen_tab() {
 	g_config->pressure_angle      = ui_check(h_pressure_angle, tr("Brush Angle"), "");
 
 	ui_end_element();
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 4.0,
 	    },
@@ -607,7 +599,7 @@ void box_preferences_viewport_tab() {
 
 	ui_handle_t *h_pathtrace_mode        = ui_handle(__ID__);
 	h_pathtrace_mode->i                  = g_config->pathtrace_mode;
-	string_array_t *pathtrace_mode_combo = any_array_create_from_raw(
+	string_array_t *pathtrace_mode_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Fast"),
 	        tr("Quality"),
@@ -625,7 +617,7 @@ void box_preferences_viewport_tab() {
 
 	ui_handle_t *h_render_mode        = ui_handle(__ID__);
 	h_render_mode->i                  = g_config->render_mode;
-	string_array_t *render_mode_combo = any_array_create_from_raw(
+	string_array_t *render_mode_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Desktop"),
 	        tr("Mobile"),
@@ -638,7 +630,7 @@ void box_preferences_viewport_tab() {
 
 	ui_handle_t *h_supersample        = ui_handle(__ID__);
 	h_supersample->i                  = config_get_super_sample_quality(g_config->rp_supersample);
-	string_array_t *supersample_combo = any_array_create_from_raw(
+	string_array_t *supersample_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "0.25x",
 	        "0.5x",
@@ -737,7 +729,7 @@ void box_preferences_viewport_tab() {
 
 	ui_handle_t *filter_handle = ui_handle(__ID__);
 	filter_handle->b           = g_config->texture_filter;
-	g_config->texture_filter   = ui_check(filter_handle, string(" %s", tr("Filter Textures")), "");
+	g_config->texture_filter   = ui_check(filter_handle, string_tmp(" %s", tr("Filter Textures")), "");
 	if (filter_handle->changed) {
 		gpu_use_linear_sampling(g_config->texture_filter);
 	}
@@ -752,9 +744,7 @@ void box_preferences_viewport_tab() {
 
 void box_preferences_keymap_tab_export(char *dest) {
 	if (!ends_with(ui_files_filename, ".json")) {
-		gc_unroot(ui_files_filename);
 		ui_files_filename = string("%s.json", ui_files_filename);
-		gc_root(ui_files_filename);
 	}
 	char *path = string("%s%skeymap_presets%s%s", path_data(), PATH_SEP, PATH_SEP, g_config->keymap);
 	file_copy(path, string("%s%s%s", dest, PATH_SEP, ui_files_filename));
@@ -817,11 +807,11 @@ char *box_preferneces_model_url_from_name(char *name) {
 
 void box_preferences_model_panel(neural_node_model_t *m) {
 	if (ui_panel(ui_handle(m->name), m->name, false, true, false)) {
-		if (ui_text(string("%s: %s (%s)", tr("source"), m->web, m->license), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED) {
+		if (ui_text(string_tmp("%s: %s (%s)", tr("source"), m->web, m->license), UI_ALIGN_LEFT, 0x00000000) == UI_STATE_RELEASED) {
 			iron_load_url(m->web);
 		}
-		ui_text(string("%s: %s", tr("gpu memory"), m->memory), UI_ALIGN_LEFT, 0x00000000);
-		ui_text(string("%s: %s", tr("nodes"), m->nodes), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%s: %s", tr("gpu memory"), m->memory), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%s: %s", tr("nodes"), m->nodes), UI_ALIGN_LEFT, 0x00000000);
 
 		char *url       = m->urls->buffer[0];
 		char *file_name = box_preferences_file_name_from_url(url);
@@ -843,17 +833,17 @@ void box_preferences_model_panel(neural_node_model_t *m) {
 
 			ui_handle_t *h = ui_handle(__ID__);
 			h->f           = f / (float)parse_float(m->size);
-			ui_slider(h, string("%s / %s", downloaded, m->size), 0.0, 1.0, true, 100, false, UI_ALIGN_CENTER, true);
+			ui_slider(h, string_tmp("%s / %s", downloaded, m->size), 0.0, 1.0, true, 100, false, UI_ALIGN_CENTER, true);
 
 			g_theme->BUTTON_COL = _BUTTON_COL;
 
 			g_ui->enabled = true;
 		}
-		else if (!found && ui_icon_button(string("%s (%s)", tr("Download"), m->size), ICON_ARROW_DOWN, UI_ALIGN_CENTER)) {
+		else if (!found && ui_icon_button(string_tmp("%s (%s)", tr("Download"), m->size), ICON_ARROW_DOWN, UI_ALIGN_CENTER)) {
 			neural_node_download_models(m->urls);
 			console_info(tr("Downloading"));
 		}
-		else if (found && ui_icon_button(string("%s (%s)", tr("Remove"), m->size), ICON_DELETE, UI_ALIGN_CENTER)) {
+		else if (found && ui_icon_button(string_tmp("%s (%s)", tr("Remove"), m->size), ICON_DELETE, UI_ALIGN_CENTER)) {
 			for (i32 i = 0; i < m->urls->length; ++i) {
 				char *url       = m->urls->buffer[i];
 				char *file_name = box_preferences_file_name_from_url(url);
@@ -864,11 +854,9 @@ void box_preferences_model_panel(neural_node_model_t *m) {
 }
 
 void box_preferences_neural_tab() {
-	ui_text(tr("All processing is done locally on device"), UI_ALIGN_LEFT, 0x00000000);
-
 	ui_handle_t *h_neural_res        = ui_handle(__ID__);
 	h_neural_res->i                  = g_config->neural_res == 2048 ? 2 : (g_config->neural_res == 1024 ? 1 : 0);
-	string_array_t *neural_res_combo = any_array_create_from_raw(
+	string_array_t *neural_res_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "512",
 	        "1024",
@@ -880,7 +868,7 @@ void box_preferences_neural_tab() {
 
 	ui_handle_t *h_console_model        = ui_handle(__ID__);
 	h_console_model->i                  = g_config->console_model;
-	string_array_t *console_model_combo = any_array_create_from_raw(
+	string_array_t *console_model_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "Qwen",
 	        "Claude",
@@ -899,7 +887,7 @@ void box_preferences_neural_tab() {
 		box_preferences_model_panel(neural_node_models->buffer[i]);
 	}
 
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 4.0,
 	    },
@@ -910,6 +898,10 @@ void box_preferences_neural_tab() {
 			iron_create_directory(neural_node_dir());
 		}
 		file_start(neural_node_dir());
+	}
+
+	if (g_config->console_model == 0) {
+		ui_text(tr("All processing is done locally on device"), UI_ALIGN_LEFT, 0x00000000);
 	}
 }
 
@@ -928,9 +920,7 @@ void box_preferences_keymap_tab() {
 	ui_begin_sticky();
 	ui_row4();
 
-	gc_unroot(box_preferences_h_preset);
 	box_preferences_h_preset = ui_handle(__ID__);
-	gc_root(box_preferences_h_preset);
 	box_preferences_h_preset->i = box_preferences_get_preset_index();
 	ui_combo(box_preferences_h_preset, box_preferences_files_keymap, tr("Preset"), false, UI_ALIGN_LEFT, true);
 	if (box_preferences_h_preset->changed) {
@@ -953,7 +943,7 @@ void box_preferences_keymap_tab() {
 
 	ui_handle_t *box_preferences_keymap_hsearch = ui_handle(__ID__);
 	if (!string_equals(box_preferences_keymap_hsearch->text, "")) {
-		ui_row(f32_array_create_from_raw((f32[]){0.85, 0.15}, 2));
+		ui_row(f32_array_create_from_raw_tmp((f32[]){0.85, 0.15}, 2));
 	}
 	box_preferences_keymap_hsearch->text = string_copy(ui_text_input(box_preferences_keymap_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
 	if (!string_equals(box_preferences_keymap_hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, ""))) {
@@ -980,6 +970,8 @@ void box_preferences_keymap_tab() {
 		char *text     = ui_text_input(h, key, UI_ALIGN_LEFT, true, false);
 		any_map_set(g_keymap, key, text);
 	}
+	array_free(keys);
+	free(keys);
 	if (g_ui->changed) {
 		config_apply();
 		keymap_save();
@@ -995,9 +987,7 @@ void box_preferences_keymap_tab() {
 
 void box_preferences_plugins_tab_plugin_menu_export(char *dest) {
 	if (!ends_with(ui_files_filename, ".c")) {
-		gc_unroot(ui_files_filename);
 		ui_files_filename = string("%s.c", ui_files_filename);
-		gc_root(ui_files_filename);
 	}
 	char *path = string("%s%splugins%s%s", path_data(), PATH_SEP, PATH_SEP, _box_preferences_f);
 	file_copy(path, string("%s%s%s", dest, PATH_SEP, ui_files_filename));
@@ -1063,7 +1053,6 @@ void main() {\n\
 		}
 		char *path = string("%s%splugins%s%s", path_data(), PATH_SEP, PATH_SEP, plugin_name);
 		iron_file_save_bytes(path, sys_string_to_buffer(template), 0);
-		gc_unroot(box_preferences_files_plugin);
 		box_preferences_files_plugin = NULL; // Refresh file list
 		ui_box_hide();
 		box_preferences_htab->i = PREFERENCES_TAB_PLUGINS;
@@ -1073,7 +1062,7 @@ void main() {\n\
 
 void box_preferences_plugins_tab() {
 	ui_begin_sticky();
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 4.0,
 	        1 / 4.0,
@@ -1089,7 +1078,7 @@ void box_preferences_plugins_tab() {
 
 	ui_handle_t *box_preferences_plugins_hsearch = ui_handle(__ID__);
 	if (!string_equals(box_preferences_plugins_hsearch->text, "")) {
-		ui_row(f32_array_create_from_raw((f32[]){0.85, 0.15}, 2));
+		ui_row(f32_array_create_from_raw_tmp((f32[]){0.85, 0.15}, 2));
 	}
 	box_preferences_plugins_hsearch->text = string_copy(ui_text_input(box_preferences_plugins_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
 	if (!string_equals(box_preferences_plugins_hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
@@ -1125,9 +1114,7 @@ void box_preferences_plugins_tab() {
 			base_redraw_ui();
 		}
 		if (g_ui->is_hovered && g_ui->input_released_r) {
-			gc_unroot(_box_preferences_f);
 			_box_preferences_f = string_copy(f);
-			gc_root(_box_preferences_f);
 			ui_menu_draw(&box_preferences_plugins_tab_plugin_menu, -1, -1);
 		}
 	}
@@ -1181,9 +1168,7 @@ void box_preferences_show() {
 }
 
 void box_preferences_fetch_themes() {
-	gc_unroot(box_preferences_themes);
 	box_preferences_themes = file_read_directory(string("%s%sthemes", path_data(), PATH_SEP));
-	gc_root(box_preferences_themes);
 	for (i32 i = 0; i < box_preferences_themes->length; ++i) {
 		char *s                           = box_preferences_themes->buffer[i];
 		box_preferences_themes->buffer[i] = substring(box_preferences_themes->buffer[i], 0, string_length(s) - 5); // Strip .json
@@ -1192,9 +1177,7 @@ void box_preferences_fetch_themes() {
 }
 
 void box_preferences_fetch_keymaps() {
-	gc_unroot(box_preferences_files_keymap);
 	box_preferences_files_keymap = file_read_directory(string("%s%skeymap_presets", path_data(), PATH_SEP));
-	gc_root(box_preferences_files_keymap);
 	for (i32 i = 0; i < box_preferences_files_keymap->length; ++i) {
 		char *s                                 = box_preferences_files_keymap->buffer[i];
 		box_preferences_files_keymap->buffer[i] = substring(box_preferences_files_keymap->buffer[i], 0, string_length(s) - 5); // Strip .json
@@ -1203,9 +1186,7 @@ void box_preferences_fetch_keymaps() {
 }
 
 void box_preferences_fetch_plugins() {
-	gc_unroot(box_preferences_files_plugin);
 	box_preferences_files_plugin = file_read_directory(string("%s%splugins", path_data(), PATH_SEP));
-	gc_root(box_preferences_files_plugin);
 }
 
 i32 box_preferences_get_theme_index() {

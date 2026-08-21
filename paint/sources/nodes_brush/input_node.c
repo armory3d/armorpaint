@@ -91,7 +91,7 @@ void input_node_update(float_node_t *self) {
 	}
 
 	bool  decal_mask  = context_is_decal_mask_paint();
-	char *ruler_paint = string("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint"));
+	char *ruler_paint = string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint"));
 	bool  lazy_paint  = g_context->brush_lazy_radius > 0 && (operator_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
                                                            operator_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
 
@@ -187,12 +187,12 @@ void input_node_update(float_node_t *self) {
 logic_node_value_t *input_node_get(input_node_t *self, i32 from) {
 	g_context->brush_lazy_radius = logic_node_input_get(self->base->inputs->buffer[0])->_f32;
 	g_context->brush_lazy_step   = logic_node_input_get(self->base->inputs->buffer[1])->_f32;
-	logic_node_value_t *v        = GC_ALLOC_INIT(logic_node_value_t, {._vec4 = input_node_coords});
+	logic_node_value_t *v        = TMP_ALLOC_INIT(logic_node_value_t, {._vec4 = input_node_coords});
 	return v;
 }
 
 void *input_node_create(ui_node_t *raw, f32_array_t *args) {
-	float_node_t *n = GC_ALLOC_INIT(float_node_t, {0});
+	float_node_t *n = ALLOC_INIT(float_node_t, {0});
 	n->base         = logic_node_create(n);
 	n->base->get    = input_node_get;
 
@@ -205,7 +205,7 @@ void *input_node_create(ui_node_t *raw, f32_array_t *args) {
 }
 
 void input_node_init() {
-	ui_node_t *input_node_def = GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	ui_node_t *input_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
 	                                                      .name   = _tr("Input"),
 	                                                      .type   = "input_node",
 	                                                      .x      = 0,
@@ -213,7 +213,7 @@ void input_node_init() {
 	                                                      .color  = 0xff4982a0,
 	                                                      .inputs = any_array_create_from_raw(
 	                                                          (void *[]){
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Lazy Radius"),
 	                                                                                               .type          = "VALUE",
@@ -223,7 +223,7 @@ void input_node_init() {
 	                                                                                               .max           = 1.0,
 	                                                                                               .precision     = 100,
 	                                                                                               .display       = 0}),
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Lazy Step"),
 	                                                                                               .type          = "VALUE",
@@ -237,7 +237,7 @@ void input_node_init() {
 	                                                          2),
 	                                                      .outputs = any_array_create_from_raw(
 	                                                          (void *[]){
-	                                                              GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                              ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                               .node_id       = 0,
 	                                                                                               .name          = _tr("Position"),
 	                                                                                               .type          = "VECTOR",

@@ -176,12 +176,9 @@ void tab_fonts_draw(ui_handle_t *htab) {
 					}
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					gc_unroot(base_drag_font);
 					base_drag_font = g_project->_->fonts->buffer[i];
-					gc_root(base_drag_font);
 					if (sys_time() - g_context->select_time < 0.2) {
 						ui_base_show_2d_view(VIEW_2D_TYPE_FONT);
-						gc_unroot(base_drag_font);
 						base_drag_font   = NULL;
 						base_is_dragging = false;
 					}

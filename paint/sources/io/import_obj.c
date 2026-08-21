@@ -9,11 +9,15 @@ void import_obj_run(char *path, bool replace_existing) {
 	buffer_t *b = data_get_blob(path);
 
 	if (is_udim) {
-		raw_mesh_t *part = obj_parse(b, split_code, 0, is_udim);
-		char       *name = part->name;
+		raw_mesh_t  *part      = obj_parse(b, split_code, 0, is_udim);
+		char        *name      = part->name;
+		u32_array_t *inda_full = part->inda;
+		bool         first     = true;
 		for (i32 i = 0; i < part->udims->length; ++i) {
 			u32_array_t *a = part->udims->buffer[i];
 			if (a->length == 0) {
+				array_free(a);
+				free(a);
 				continue;
 			}
 			i32 u      = i % part->udims_u;
@@ -21,7 +25,8 @@ void import_obj_run(char *path, bool replace_existing) {
 			i32 id     = (1000 + v * 10 + u + 1);
 			part->name = string("%s.%s", name, i32_to_string(id));
 			part->inda = a;
-			if (i == 0) {
+			if (first) {
+				first = false;
 				if (replace_existing) {
 					import_mesh_make_mesh(part);
 				}
@@ -30,18 +35,31 @@ void import_obj_run(char *path, bool replace_existing) {
 				}
 			}
 			else {
+				part->posa = i16_array_create_from_array(part->posa);
+				part->nora = i16_array_create_from_array(part->nora);
+				if (part->texa != NULL) {
+					part->texa = i16_array_create_from_array(part->texa);
+				}
 				import_mesh_add_mesh(part);
 			}
 		}
+		array_free(inda_full);
+		free(inda_full);
+		array_free(part->udims);
+		free(part->udims);
+		free(name);
+		free(part);
 	}
 	else {
-		raw_mesh_t_array_t *parts = any_array_create_from_raw((void *[]){}, 0);
-		raw_mesh_t         *part  = obj_parse(b, split_code, 0, false);
+		raw_mesh_t_array_t *parts     = any_array_create_from_raw((void *[]){}, 0);
+		raw_mesh_t_array_t *discarded = any_array_create_from_raw((void *[]){}, 0);
+		raw_mesh_t         *part      = obj_parse(b, split_code, 0, false);
 		any_array_push(parts, part);
 		while (part->has_next) {
 			part = obj_parse(b, split_code, part->pos, false);
 			// This part does not contain faces (may contain lines only)
 			if (part->inda->length == 0) {
+				any_array_push(discarded, part);
 				continue;
 			}
 			any_array_push(parts, part);
@@ -131,6 +149,32 @@ void import_obj_run(char *path, bool replace_existing) {
 							inda->buffer[k + inda0->length] = inda1->buffer[k] + voff;
 						}
 
+						array_free(posa32);
+						free(posa32);
+						array_free(posa0);
+						free(posa0);
+						array_free(nora0);
+						free(nora0);
+						array_free(inda0);
+						free(inda0);
+						if (texa0 != NULL) {
+							array_free(texa0);
+							free(texa0);
+						}
+						array_free(posa1);
+						free(posa1);
+						array_free(nora1);
+						free(nora1);
+						array_free(inda1);
+						free(inda1);
+						if (texa1 != NULL) {
+							array_free(texa1);
+							free(texa1);
+						}
+						raw_mesh_t *jpart = parts->buffer[j];
+						free(jpart->name);
+						free(jpart);
+
 						parts->buffer[i]->posa      = posa;
 						parts->buffer[i]->nora      = nora;
 						parts->buffer[i]->texa      = texa;
@@ -149,6 +193,29 @@ void import_obj_run(char *path, bool replace_existing) {
 		for (i32 i = 1; i < parts->length; ++i) {
 			import_mesh_add_mesh(parts->buffer[i]);
 		}
+
+		for (i32 i = 0; i < parts->length; ++i) {
+			free(parts->buffer[i]);
+		}
+		array_free(parts);
+		free(parts);
+		for (i32 i = 0; i < discarded->length; ++i) {
+			raw_mesh_t *d = discarded->buffer[i];
+			array_free(d->posa);
+			free(d->posa);
+			array_free(d->nora);
+			free(d->nora);
+			if (d->texa != NULL) {
+				array_free(d->texa);
+				free(d->texa);
+			}
+			array_free(d->inda);
+			free(d->inda);
+			free(d->name);
+			free(d);
+		}
+		array_free(discarded);
+		free(discarded);
 	}
 	data_delete_blob(path);
 }

@@ -10,20 +10,20 @@ char *vector_transform_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	if (string_equals(from, "OBJECT") && string_equals(to, "WORLD")) {
 		if (string_equals(type, "NORMAL")) {
 			node_shader_add_constant(parser_material_kong, "N: float3x3", "_normal_matrix");
-			return string("normalize(constants.N * %s)", vec);
+			return string_tmp("normalize(constants.N * %s)", vec);
 		}
 		node_shader_add_constant(parser_material_kong, "W: float4x4", "_world_matrix");
 		char *w = string_equals(type, "POINT") ? "1.0" : "0.0";
-		return string("(constants.W * float4(%s, %s)).xyz", vec, w);
+		return string_tmp("(constants.W * float4(%s, %s)).xyz", vec, w);
 	}
 
 	if (string_equals(from, "OBJECT") && string_equals(to, "CAMERA")) {
 		node_shader_add_constant(parser_material_kong, "WV: float4x4", "_world_view_matrix");
 		if (string_equals(type, "NORMAL")) {
-			return string("normalize((constants.WV * float4(%s, 0.0)).xyz)", vec);
+			return string_tmp("normalize((constants.WV * float4(%s, 0.0)).xyz)", vec);
 		}
 		char *w = string_equals(type, "POINT") ? "1.0" : "0.0";
-		return string("(constants.WV * float4(%s, %s)).xyz", vec, w);
+		return string_tmp("(constants.WV * float4(%s, %s)).xyz", vec, w);
 	}
 
 	return string_copy(vec);
@@ -31,11 +31,11 @@ char *vector_transform_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 
 void vector_transform_node_init() {
 
-	char *type_data  = string("%s\n%s\n%s", _tr("Vector"), _tr("Point"), _tr("Normal"));
-	char *space_data = string("%s\n%s\n%s", _tr("World"), _tr("Object"), _tr("Camera"));
+	char *type_data  = string_tmp("%s\n%s\n%s", _tr("Vector"), _tr("Point"), _tr("Normal"));
+	char *space_data = string_tmp("%s\n%s\n%s", _tr("World"), _tr("Object"), _tr("Camera"));
 
 	ui_node_t *vector_transform_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Vector Transform"),
 	                              .type   = "VECT_TRANSFORM",
 	                              .x      = 0,
@@ -43,7 +43,7 @@ void vector_transform_node_init() {
 	                              .color  = 0xff62676d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -57,7 +57,7 @@ void vector_transform_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -71,7 +71,7 @@ void vector_transform_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("type"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("type"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -80,7 +80,7 @@ void vector_transform_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Convert From"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Convert From"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(1), // default: Object
@@ -89,7 +89,7 @@ void vector_transform_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 0}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Convert To"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Convert To"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0), // default: World

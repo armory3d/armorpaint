@@ -4,14 +4,13 @@
 char *script_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	if (parser_material_script_links == NULL) {
 		parser_material_script_links = any_map_create();
-		gc_root(parser_material_script_links);
 	}
 	buffer_t *script = node->buttons->buffer[0]->default_value;
 	char     *str    = sys_buffer_to_string(script);
 	char     *link   = parser_material_node_name(node, NULL);
-	any_map_set(parser_material_script_links, link, str);
-	node_shader_add_constant(parser_material_kong, string("%s: float", link), string("_%s", link));
-	return string("constants.%s", link);
+	any_map_set(parser_material_script_links, string_copy(link), str);
+	node_shader_add_constant(parser_material_kong, string_tmp("%s: float", link), string_tmp("_%s", link));
+	return string_tmp("constants.%s", link);
 }
 
 ui_node_t *script_node_draw_snippets_node = NULL;
@@ -36,7 +35,7 @@ void script_node_button(i32 node_id) {
 
 void script_node_init() {
 
-	ui_node_t *script_node_def = GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	ui_node_t *script_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
 	                                                       .name    = _tr("Script"),
 	                                                       .type    = "SCRIPT_CPU", // extension
 	                                                       .x       = 0,
@@ -45,7 +44,7 @@ void script_node_init() {
 	                                                       .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                                                       .outputs = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                               ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                .node_id       = 0,
 	                                                                                                .name          = _tr("Value"),
 	                                                                                                .type          = "VALUE",
@@ -59,7 +58,7 @@ void script_node_init() {
 	                                                           1),
 	                                                       .buttons = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_button_t, {.name          = " ",
+	                                                               ALLOC_INIT(ui_node_button_t, {.name          = " ",
 	                                                                                                .type          = "STRING",
 	                                                                                                .output        = -1,
 	                                                                                                .default_value = f32_array_create_x(0), // "",
@@ -68,7 +67,7 @@ void script_node_init() {
 	                                                                                                .max           = 1.0,
 	                                                                                                .precision     = 100,
 	                                                                                                .height        = 0}),
-	                                                               GC_ALLOC_INIT(ui_node_button_t, {.name          = "script_node_button",
+	                                                               ALLOC_INIT(ui_node_button_t, {.name          = "script_node_button",
 	                                                                                                .type          = "CUSTOM",
 	                                                                                                .output        = -1,
 	                                                                                                .default_value = f32_array_create_x(0),

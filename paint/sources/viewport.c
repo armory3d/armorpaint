@@ -110,7 +110,7 @@ void viewport_save_texture(gpu_texture_t *screenshot) {
 		}
 	}
 	packed_asset_t *pa =
-	    GC_ALLOC_INIT(packed_asset_t, {.name = abs, .bytes = iron_encode_png(gpu_get_texture_pixels(screenshot), screenshot->width, screenshot->height, 0)});
+	    ALLOC_INIT(packed_asset_t, {.name = abs, .bytes = iron_encode_png(gpu_get_texture_pixels(screenshot), screenshot->width, screenshot->height, 0)});
 	any_array_push(g_project->packed_assets, pa);
 	any_map_set(data_cached_textures, abs, screenshot);
 	import_texture_run(abs, true);

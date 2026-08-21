@@ -48,6 +48,8 @@ void ui_base_operator_search_menu_draw() {
 			}
 		}
 	}
+	array_free(keys);
+	free(keys);
 
 	if (enter && count == 0) { // Hide popup on enter when command is not found
 		g_ui->changed       = true;

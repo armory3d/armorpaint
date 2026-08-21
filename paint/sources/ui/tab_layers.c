@@ -14,7 +14,7 @@ void tab_layers_button_2d_view() {
 		ui_base_show_2d_view(VIEW_2D_TYPE_LAYER);
 	}
 	else if (g_ui->is_hovered) {
-		ui_tooltip(string("%s (%s)", tr("Show 2D View"), (char *)any_map_get(g_keymap, "toggle_2d_view")));
+		ui_tooltip(string_tmp("%s (%s)", tr("Show 2D View"), (char *)any_map_get(g_keymap, "toggle_2d_view")));
 	}
 }
 
@@ -27,9 +27,7 @@ void tab_layers_repaint_text_layer(slot_layer_t *l) {
 void tab_layers_set_drag_layer(slot_layer_t *layer, f32 off_x, f32 off_y) {
 	base_drag_off_x = off_x;
 	base_drag_off_y = off_y;
-	gc_unroot(base_drag_layer);
 	base_drag_layer = layer;
-	gc_root(base_drag_layer);
 	g_context->drag_dest = array_index_of(g_project->_->layers, layer);
 }
 
@@ -48,7 +46,7 @@ void tab_layers_handle_layer_icon_state(slot_layer_t *l, i32 i, ui_state_t state
 		}
 		if (i < 9) {
 			i32 i1 = (i + 1);
-			ui_tooltip(string("%s - (%s %d)", l->name, (char *)any_map_get(g_keymap, "select_layer"), i1));
+			ui_tooltip(string_tmp("%s - (%s %d)", l->name, (char *)any_map_get(g_keymap, "select_layer"), i1));
 		}
 		else {
 			ui_tooltip(l->name);
@@ -269,6 +267,8 @@ ui_handle_t *tab_layers_combo_object(slot_layer_t *l, bool label) {
 	ui_handle_t *object_handle = ui_nest(ui_handle(__ID__), l->id);
 	object_handle->i           = l->object_mask;
 	l->object_mask             = ui_combo(object_handle, ar, tr("Object"), label, UI_ALIGN_LEFT, true);
+	array_free(ar);
+	free(ar);
 	if (object_handle->changed) {
 		context_set_layer(l);
 		make_material_parse_mesh_material();
@@ -285,7 +285,7 @@ ui_handle_t *tab_layers_combo_object(slot_layer_t *l, bool label) {
 ui_handle_t *tab_layers_combo_blending(slot_layer_t *l, bool label) {
 	ui_handle_t *blending_handle   = ui_nest(ui_handle(__ID__), l->id);
 	blending_handle->i             = l->blending;
-	string_array_t *blending_combo = any_array_create_from_raw(
+	string_array_t *blending_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Mix"),
 	        tr("Darken"),
@@ -368,7 +368,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	bool has_children = tab_layers_has_children(l);
 
 	// Draw eye icon
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        0.08,
 	    },
@@ -455,9 +455,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 		if (in_focus && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
 			g_ui->is_key_pressed = false;
-			gc_unroot(tab_layers_l);
 			tab_layers_l = g_context->layer;
-			gc_root(tab_layers_l);
 			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_duplicate, NULL);
 		}
 	}
@@ -909,9 +907,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 }
 
 void tab_layers_draw_layer_context_menu(slot_layer_t *l, bool mini) {
-	gc_unroot(tab_layers_l);
 	tab_layers_l = l;
-	gc_root(tab_layers_l);
 	tab_layers_mini = mini;
 
 	ui_menu_draw(&tab_layers_draw_layer_context_menu_draw, -1, -1);
@@ -1188,6 +1184,8 @@ void tab_layers_combo_filter() {
 	ui_handle_t *filter_handle = ui_handle(__ID__);
 	filter_handle->i           = g_context->layer_filter;
 	g_context->layer_filter    = ui_combo(filter_handle, ar, tr("Filter"), false, UI_ALIGN_LEFT, true);
+	array_free(ar);
+	free(ar);
 	if (filter_handle->changed) {
 		tab_layers_apply_filter(g_context->layer_filter);
 	}
@@ -1251,7 +1249,7 @@ void tab_layers_draw_full(ui_handle_t *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,

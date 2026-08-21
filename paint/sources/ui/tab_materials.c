@@ -9,7 +9,7 @@ void tab_materials_button_nodes() {
 		ui_base_show_material_nodes();
 	}
 	else if (g_ui->is_hovered) {
-		ui_tooltip(string("%s (%s)", tr("Show Node Editor"), (char *)any_map_get(g_keymap, "toggle_node_editor")));
+		ui_tooltip(string_tmp("%s (%s)", tr("Show Node Editor"), (char *)any_map_get(g_keymap, "toggle_node_editor")));
 	}
 }
 
@@ -20,9 +20,7 @@ void tab_materials_draw_slots_update_fill_layers(void *_) {
 void tab_materials_update_material() {
 	ui_header_handle->redraws = 2;
 	ui_nodes_hwnd->redraws    = 2;
-	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
 	bool decal = context_is_decal();
@@ -189,9 +187,9 @@ void tab_materials_draw_slots(bool mini) {
 
 	for (i32 row = 0; row < math_floor(math_ceil(g_project->_->materials->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;
-		f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
+		f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 		for (i32 i = 0; i < num * mult; ++i) {
-			f32_array_push(ar, 1 / (float)num);
+			ar->buffer[i] = 1 / (float)num;
 		}
 		ui_row(ar);
 
@@ -273,13 +271,10 @@ void tab_materials_draw_slots(bool mini) {
 				}
 				base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 				base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-				gc_unroot(base_drag_material);
 				base_drag_material = g_context->material;
-				gc_root(base_drag_material);
 				// Double click to show nodes
 				if (sys_time() - g_context->select_time < 0.2) {
 					ui_base_show_material_nodes();
-					gc_unroot(base_drag_material);
 					base_drag_material = NULL;
 					base_is_dragging   = false;
 				}
@@ -296,7 +291,7 @@ void tab_materials_draw_slots(bool mini) {
 				ui_tooltip_image(img_full, 0);
 				if (i < 9) {
 					i32 i1 = i + 1;
-					ui_tooltip(string("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
+					ui_tooltip(string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
 				}
 				else {
 					ui_tooltip(g_project->_->materials->buffer[i]->canvas->name);
@@ -310,7 +305,7 @@ void tab_materials_draw_slots(bool mini) {
 					if (i < 9) {
 						i32 i1 = i + 1;
 						ui_tooltip(
-						    string("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
+						    string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
 					}
 					else {
 						ui_tooltip(g_project->_->materials->buffer[i]->canvas->name);
@@ -391,7 +386,7 @@ void tab_materials_draw_mini(ui_handle_t *htab) {
 void tab_materials_draw_full(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Materials"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,

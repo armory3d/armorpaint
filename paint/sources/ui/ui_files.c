@@ -34,25 +34,15 @@ void ui_files_release_keys() {
 
 void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files_done)(char *)) {
 	if (is_save) {
-		gc_unroot(ui_files_path);
 		ui_files_path = string_copy(iron_save_dialog(filters, ""));
-		gc_root(ui_files_path);
 		if (ui_files_path != NULL) {
 			char *sep2 = string("%s%s", PATH_SEP, PATH_SEP);
 			while (string_index_of(ui_files_path, sep2) >= 0) {
-				gc_unroot(ui_files_path);
 				ui_files_path = string_copy(string_replace_all(ui_files_path, sep2, PATH_SEP));
-				gc_root(ui_files_path);
 			}
-			gc_unroot(ui_files_path);
 			ui_files_path = string_copy(string_replace_all(ui_files_path, "\r", ""));
-			gc_root(ui_files_path);
-			gc_unroot(ui_files_filename);
 			ui_files_filename = string_copy(substring(ui_files_path, string_last_index_of(ui_files_path, PATH_SEP) + 1, string_length(ui_files_path)));
-			gc_root(ui_files_filename);
-			gc_unroot(ui_files_path);
 			ui_files_path = string_copy(substring(ui_files_path, 0, string_last_index_of(ui_files_path, PATH_SEP)));
-			gc_root(ui_files_path);
 			files_done(ui_files_path);
 		}
 	}
@@ -67,9 +57,7 @@ void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files
 					path = string_copy(string_replace_all(path, sep2, PATH_SEP));
 				}
 				path = string_copy(string_replace_all(path, "\r", ""));
-				gc_unroot(ui_files_filename);
 				ui_files_filename = string_copy(substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path)));
-				gc_root(ui_files_filename);
 				files_done(path);
 			}
 		}
@@ -79,7 +67,7 @@ void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files
 }
 
 draw_cloud_icon_data_t *make_draw_cloud_icon_data(char *f, gpu_texture_t *image) {
-	draw_cloud_icon_data_t *data = GC_ALLOC_INIT(draw_cloud_icon_data_t, {.f = f, .image = image});
+	draw_cloud_icon_data_t *data = ALLOC_INIT(draw_cloud_icon_data_t, {.f = f, .image = image});
 	return data;
 }
 
@@ -138,7 +126,6 @@ static void ui_files_clear_icon_map(void) {
 			gpu_delete_texture(tex);
 		}
 	}
-	gc_unroot(ui_files_icon_map);
 	ui_files_icon_map = NULL;
 
 	if (ui_files_icon_file_map != NULL) {
@@ -159,7 +146,6 @@ static void ui_files_clear_icon_map(void) {
 			}
 		}
 	}
-	gc_unroot(ui_files_icon_file_map);
 	ui_files_icon_file_map = NULL;
 }
 
@@ -220,9 +206,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 	}
 
 	if (!string_equals(handle->text, ui_files_last_path) || !string_equals(search, ui_files_last_search) || refresh) {
-		gc_unroot(ui_files_files);
 		ui_files_files = any_array_create_from_raw((void *[]){}, 0);
-		gc_root(ui_files_files);
 
 		char *dir_path = handle->text;
 #ifdef IRON_IOS
@@ -254,12 +238,8 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 		}
 	}
 
-	gc_unroot(ui_files_last_path);
 	ui_files_last_path = string_copy(handle->text);
-	gc_root(ui_files_last_path);
-	gc_unroot(ui_files_last_search);
 	ui_files_last_search = string_copy(search);
-	gc_root(ui_files_last_search);
 	handle->changed = false;
 
 	if (ui_files_select_pending != NULL) {
@@ -270,7 +250,6 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				break;
 			}
 		}
-		gc_unroot(ui_files_select_pending);
 		ui_files_select_pending = NULL;
 	}
 
@@ -335,13 +314,11 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 			if (is_cloud && !ui_files_offline) {
 				if (ui_files_icon_map == NULL) {
 					ui_files_icon_map = any_map_create();
-					gc_root(ui_files_icon_map);
 				}
 				if (ui_files_icon_file_map == NULL) {
 					ui_files_icon_file_map = any_map_create();
-					gc_root(ui_files_icon_file_map);
 				}
-				icon = any_map_get(ui_files_icon_map, string("%s%s%s", handle->text, PATH_SEP, f));
+				icon = any_map_get(ui_files_icon_map, string_tmp("%s%s%s", handle->text, PATH_SEP, f));
 				if (icon == NULL) {
 					i32 dot = string_last_index_of(f, ".");
 					if (dot > -1) {
@@ -353,9 +330,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 						if (string_array_index_of(files_all, icon_file) >= 0) {
 							any_map_set(ui_files_icon_map, string("%s%s%s", handle->text, PATH_SEP, f), icons);
 
-							gc_unroot(_ui_files_file_browser_handle);
 							_ui_files_file_browser_handle = handle;
-							gc_root(_ui_files_file_browser_handle);
 							any_map_set(ui_files_icon_file_map, icon_file, f);
 
 							file_cache_cloud(string("%s%s%s", handle->text, PATH_SEP, icon_file), &ui_files_file_browser_on_cache_cloud_done, g_config->server);
@@ -382,7 +357,6 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 			if (!is_folder && ends_with(f, ".arm") && !is_cloud) {
 				if (ui_files_icon_map == NULL) {
 					ui_files_icon_map = any_map_create();
-					gc_root(ui_files_icon_map);
 				}
 				char *key = string("%s%s%s", handle->text, PATH_SEP, f);
 				icon      = any_map_get(ui_files_icon_map, key);
@@ -393,8 +367,9 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					blob_path = string("%s%s", document_directory, blob_path);
 #endif
 
-					buffer_t  *buffer = iron_load_blob(blob_path);
-					project_t *raw;
+					buffer_t  *buffer  = iron_load_blob(blob_path);
+					project_t *raw     = NULL;
+					bool       is_blob = false;
 
 #ifdef IRON_WINDOWS
 					bool is_cloud_cache = string_index_of(handle->text, "\\cloud\\") >= 0;
@@ -406,10 +381,11 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 						raw = import_arm_from_old(buffer);
 					}
 					else if (import_arm_has_version(buffer)) {
-						raw = armpack_decode(buffer);
+						raw     = armpack_decode(buffer);
+						is_blob = true;
 					}
 
-					if (raw->material_icons != NULL) {
+					if (raw != NULL && raw->material_icons != NULL) {
 						buffer_t *bytes_icon = raw->material_icons->buffer[0];
 #ifdef IRON_BGRA
 						buffer_t *buf = buffer_bgra64_swap(lz4_decode(bytes_icon, 256 * 256 * 8));
@@ -417,15 +393,22 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 						buffer_t *buf = lz4_decode(bytes_icon, 256 * 256 * 8);
 #endif
 						icon = gpu_create_texture_from_bytes(buf, 256, 256, GPU_TEXTURE_FORMAT_RGBA64);
+						array_free(buf);
+						free(buf);
 					}
-					else if (raw->mesh_icons != NULL) {
-						buffer_t *bytes_icon = raw->mesh_icons->buffer[0];
-						icon                 = gpu_create_texture_from_bytes(lz4_decode(bytes_icon, 256 * 256 * 4), 256, 256, GPU_TEXTURE_FORMAT_RGBA32);
+					else if (raw != NULL && (raw->mesh_icons != NULL || raw->brush_icons != NULL)) {
+						buffer_t *bytes_icon = raw->mesh_icons != NULL ? raw->mesh_icons->buffer[0] : raw->brush_icons->buffer[0];
+						buffer_t *buf        = lz4_decode(bytes_icon, 256 * 256 * 4);
+						icon                 = gpu_create_texture_from_bytes(buf, 256, 256, GPU_TEXTURE_FORMAT_RGBA32);
+						array_free(buf);
+						free(buf);
 					}
-					else if (raw->brush_icons != NULL) {
-						buffer_t *bytes_icon = raw->brush_icons->buffer[0];
-						icon                 = gpu_create_texture_from_bytes(lz4_decode(bytes_icon, 256 * 256 * 4), 256, 256, GPU_TEXTURE_FORMAT_RGBA32);
+
+					if (is_blob) {
+						free(raw);
 					}
+					iron_delete_blob(buffer);
+
 					if (icon == NULL) {
 						render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
 						icon                = rt->_image;
@@ -453,9 +436,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 			if (!is_folder && path_is_texture(f) && !is_cloud) {
 				i32 w = 50;
 				if (ui_files_icon_map == NULL) {
-					gc_unroot(ui_files_icon_map);
 					ui_files_icon_map = any_map_create();
-					gc_root(ui_files_icon_map);
 				}
 				char *shandle = string("%s%s%s", handle->text, PATH_SEP, f);
 #ifdef IRON_IOS
@@ -469,7 +450,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					gpu_texture_t *image = data_get_texture(shandle);
 
 					if (image != NULL) {
-						ui_files_make_icon_t *args = GC_ALLOC_INIT(ui_files_make_icon_t, {.image = image, .shandle = shandle, .w = w});
+						ui_files_make_icon_t *args = ALLOC_INIT(ui_files_make_icon_t, {.image = image, .shandle = shandle, .w = w});
 						sys_notify_on_next_frame(ui_files_make_icon, args);
 					}
 				}
@@ -497,34 +478,22 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				if (drag_files) {
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					gc_unroot(base_drag_file);
 					base_drag_file = string_copy(handle->text);
-					gc_root(base_drag_file);
 #ifdef IRON_IOS
 					if (!is_cloud) {
-						gc_unroot(base_drag_file);
 						base_drag_file = string("%s%s", document_directory, base_drag_file);
-						gc_root(base_drag_file);
 					}
 #endif
 					if (!string_equals(char_at(base_drag_file, string_length(base_drag_file) - 1), PATH_SEP)) {
-						gc_unroot(base_drag_file);
 						base_drag_file = string("%s%s", base_drag_file, PATH_SEP);
-						gc_root(base_drag_file);
 					}
-					gc_unroot(base_drag_file);
 					base_drag_file = string("%s%s", base_drag_file, f);
-					gc_root(base_drag_file);
-					gc_unroot(base_drag_file_icon);
 					base_drag_file_icon = icon;
-					gc_root(base_drag_file_icon);
 				}
 
 				ui_files_selected = i;
 				if (sys_time() - g_context->select_time < 0.2) {
-					gc_unroot(base_drag_file);
 					base_drag_file = NULL;
-					gc_unroot(base_drag_file_icon);
 					base_drag_file_icon = NULL;
 					base_is_dragging    = false;
 					handle->changed = g_ui->changed = true;
@@ -543,22 +512,22 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 			char *label0 = (is_folder || ui_files_show_extensions || string_index_of(f, ".") <= 0) ? f : substring(f, 0, string_last_index_of(f, "."));
 			char *label1 = "";
 			while (string_length(label0) > 0 && draw_string_width(g_font, g_ui->font_size, label0) > g_ui->_w - 6) { // 2 line split
-				label1 = string("%s%s", char_at(label0, string_length(label0) - 1), label1);
-				label0 = string_copy(substring(label0, 0, string_length(label0) - 1));
+				label1 = string_tmp("%c%s", label0[string_length(label0) - 1], label1);
+				label0 = string_tmp("%.*s", string_length(label0) - 1, label0);
 			}
 			if (!string_equals(label1, "")) {
 				g_ui->current_ratio--;
 			}
 			ui_text(label0, UI_ALIGN_CENTER, 0x00000000);
 			if (g_ui->is_hovered) {
-				ui_tooltip(string("%s%s", label0, label1));
+				ui_tooltip(string_tmp("%s%s", label0, label1));
 			}
 			if (!string_equals(label1, "")) { // Second line
 				g_ui->_x = _x;
 				g_ui->_y += draw_font_height(g_font, g_ui->font_size);
 				ui_text(label1, UI_ALIGN_CENTER, 0x00000000);
 				if (g_ui->is_hovered) {
-					ui_tooltip(string("%s%s", label0, label1));
+					ui_tooltip(string_tmp("%s%s", label0, label1));
 				}
 				g_ui->_y -= draw_font_height(g_font, g_ui->font_size);
 			}
@@ -606,9 +575,7 @@ void ui_files_navigate(i32 dx, i32 dy) {
 
 void ui_files_go_up(ui_handle_t *handle) {
 	i32 sep = string_last_index_of(handle->text, PATH_SEP);
-	gc_unroot(ui_files_select_pending);
 	ui_files_select_pending = string_copy(substring(handle->text, sep + 1, string_length(handle->text)));
-	gc_root(ui_files_select_pending);
 	handle->text = string_copy(substring(handle->text, 0, sep));
 	// Drive root
 	if (string_length(handle->text) == 2 && string_equals(char_at(handle->text, 1), ":")) {

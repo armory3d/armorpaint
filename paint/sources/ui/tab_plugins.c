@@ -6,7 +6,7 @@ void tab_plugins_draw(ui_handle_t *htab) {
 
 		ui_begin_sticky();
 
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		    },
@@ -27,6 +27,8 @@ void tab_plugins_draw(ui_handle_t *htab) {
 				minic_ctx_call_fn(p->ctx, p->on_ui, NULL, 0);
 			}
 		}
+		array_free(keys);
+		free(keys);
 	}
 }
 
@@ -60,7 +62,7 @@ void plugin_uv_unwrap_button() {
 	inda->buffer                  = malloc(merged_inda->length * sizeof(u32));
 	memcpy(inda->buffer, merged_inda->buffer, merged_inda->length * sizeof(u32));
 
-	raw_mesh_t *mesh = GC_ALLOC_INIT(raw_mesh_t, {.posa = posa, .nora = nora, .texa = NULL, .inda = inda});
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {.posa = posa, .nora = nora, .texa = NULL, .inda = inda});
 	proc_uv_unwrap(mesh);
 
 	i32 ioff      = 0;
@@ -135,7 +137,7 @@ void plugin_uv_unwrap_per_object_button(mesh_object_t *mo) {
 	inda->buffer                  = malloc(md_inda->length * sizeof(u32));
 	memcpy(inda->buffer, md_inda->buffer, md_inda->length * sizeof(u32));
 
-	raw_mesh_t *mesh = GC_ALLOC_INIT(raw_mesh_t, {.posa = posa, .nora = nora, .texa = NULL, .inda = inda});
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {.posa = posa, .nora = nora, .texa = NULL, .inda = inda});
 
 	proc_uv_unwrap(mesh);
 	md->vertex_arrays->buffer[0]->values = mesh->posa;

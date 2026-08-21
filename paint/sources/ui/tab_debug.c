@@ -18,7 +18,7 @@ void tab_debug_draw_list(ui_handle_t *list_handle, object_t *current_object) {
 	}
 
 	if (current_object->children->length > 0) {
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        1 / 13.0,
 		        12 / 13.0,
@@ -77,6 +77,8 @@ void tab_debug_draw(ui_handle_t *htab) {
 				ui_text(rt_keys->buffer[i], UI_ALIGN_LEFT, 0x00000000);
 				ui_image(rt->_image, 0xffffffff, -1.0);
 			}
+			array_free(rt_keys);
+			free(rt_keys);
 		}
 
 		ui_handle_t *h1 = ui_handle(__ID__);

@@ -228,9 +228,7 @@ void ui_viewnodes_on_node_remove(ui_node_t *n) {
 }
 
 void ui_viewnodes_on_node_changed(ui_node_t *n) {
-	gc_unroot(ui_nodes_node_changed);
 	ui_nodes_node_changed = n;
-	gc_root(ui_nodes_node_changed);
 }
 
 void ui_nodes_capture_output() {
@@ -440,7 +438,7 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 }
 
 ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	ui_node_t *node = GC_ALLOC_INIT(ui_node_t, {0});
+	ui_node_t *node = ALLOC_INIT(ui_node_t, {0});
 	node->id        = ui_next_node_id(canvas->nodes);
 	node->name      = string_copy(n->name);
 	node->type      = string_copy(n->type);
@@ -454,7 +452,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 	node->flags     = g_config->node_previews ? UI_NODE_FLAG_PREVIEW : UI_NODE_FLAG_NONE;
 	i32 count       = 0;
 	for (i32 i = 0; i < n->inputs->length; ++i) {
-		ui_node_socket_t *soc = GC_ALLOC_INIT(ui_node_socket_t, {0});
+		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
 		soc->id               = ui_get_socket_id(canvas->nodes) + count;
 		count++;
 		soc->node_id       = node->id;
@@ -469,7 +467,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 		any_array_push(node->inputs, soc);
 	}
 	for (i32 i = 0; i < n->outputs->length; ++i) {
-		ui_node_socket_t *soc = GC_ALLOC_INIT(ui_node_socket_t, {0});
+		ui_node_socket_t *soc = ALLOC_INIT(ui_node_socket_t, {0});
 		soc->id               = ui_get_socket_id(canvas->nodes) + count;
 		count++;
 		soc->node_id       = node->id;
@@ -484,7 +482,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 		any_array_push(node->outputs, soc);
 	}
 	for (i32 i = 0; i < n->buttons->length; ++i) {
-		ui_node_button_t *but = GC_ALLOC_INIT(ui_node_button_t, {0});
+		ui_node_button_t *but = ALLOC_INIT(ui_node_button_t, {0});
 		but->name             = string_copy(n->buttons->buffer[i]->name);
 		but->type             = string_copy(n->buttons->buffer[i]->type);
 		but->output           = n->buttons->buffer[i]->output;
@@ -498,8 +496,6 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 		but->height    = n->buttons->buffer[i]->height;
 		any_array_push(node->buttons, but);
 	}
-	gc_unroot(ui_nodes_node_changed);
 	ui_nodes_node_changed = node;
-	gc_root(ui_nodes_node_changed);
 	return node;
 }

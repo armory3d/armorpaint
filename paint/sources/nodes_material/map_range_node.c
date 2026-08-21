@@ -8,10 +8,10 @@ char *map_range_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *tmin      = parser_material_parse_value_input(node->inputs->buffer[3], false);
 	char *tmax      = parser_material_parse_value_input(node->inputs->buffer[4], false);
 	bool  use_clamp = node->buttons->buffer[0]->default_value->buffer[0] > 0;
-	char *a         = string("((%s - %s) / (%s - %s))", tmin, tmax, fmin, fmax);
-	char *out_val   = string("(%s * %s + %s - %s * %s)", a, val, tmin, a, fmin);
+	char *a         = string_tmp("((%s - %s) / (%s - %s))", tmin, tmax, fmin, fmax);
+	char *out_val   = string_tmp("(%s * %s + %s - %s * %s)", a, val, tmin, a, fmin);
 	if (use_clamp) {
-		return string("(clamp(%s, %s, %s))", out_val, tmin, tmax);
+		return string_tmp("(clamp(%s, %s, %s))", out_val, tmin, tmax);
 	}
 	else {
 		return out_val;
@@ -21,7 +21,7 @@ char *map_range_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void map_range_node_init() {
 
 	ui_node_t *map_range_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Map Range"),
 	                              .type   = "MAPRANGE",
 	                              .x      = 0,
@@ -29,7 +29,7 @@ void map_range_node_init() {
 	                              .color  = 0xff62676d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -39,7 +39,7 @@ void map_range_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("From Min"),
 	                                                                       .type          = "VALUE",
@@ -49,7 +49,7 @@ void map_range_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("From Max"),
 	                                                                       .type          = "VALUE",
@@ -59,7 +59,7 @@ void map_range_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("To Min"),
 	                                                                       .type          = "VALUE",
@@ -69,7 +69,7 @@ void map_range_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("To Max"),
 	                                                                       .type          = "VALUE",
@@ -83,7 +83,7 @@ void map_range_node_init() {
 	                                  5),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -97,7 +97,7 @@ void map_range_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Clamp"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Clamp"),
 	                                                                       .type          = "BOOL",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

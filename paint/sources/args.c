@@ -33,24 +33,16 @@ void args_parse() {
 				args_player = true;
 			}
 			else if (path_is_texture(current_arg)) {
-				gc_unroot(args_asset_path);
 				args_asset_path = string_copy(current_arg);
-				gc_root(args_asset_path);
 			}
 			else if (string_equals(current_arg, "--export-textures") && (i + 3) <= iron_get_arg_count()) {
 				args_export_textures = true;
 				++i;
-				gc_unroot(args_export_textures_type);
 				args_export_textures_type = string_copy(iron_get_arg(i));
-				gc_root(args_export_textures_type);
 				++i;
-				gc_unroot(args_export_textures_preset);
 				args_export_textures_preset = string_copy(iron_get_arg(i));
-				gc_root(args_export_textures_preset);
 				++i;
-				gc_unroot(args_export_textures_path);
 				args_export_textures_path = string_copy(iron_get_arg(i));
-				gc_root(args_export_textures_path);
 			}
 			else if (string_equals(current_arg, "--reload-mesh")) {
 				args_reimport_mesh = true;
@@ -58,21 +50,15 @@ void args_parse() {
 			else if (string_equals(current_arg, "--export-mesh") && (i + 1) <= iron_get_arg_count()) {
 				args_export_mesh = true;
 				++i;
-				gc_unroot(args_export_mesh_path);
 				args_export_mesh_path = string_copy(iron_get_arg(i));
-				gc_root(args_export_mesh_path);
 			}
 			else if (path_is_mesh(current_arg) || iron_is_directory(current_arg)) {
-				gc_unroot(args_asset_path);
 				args_asset_path = string_copy(current_arg);
-				gc_root(args_asset_path);
 			}
 			else if (string_equals(current_arg, "--export-material") && (i + 1) <= iron_get_arg_count()) {
 				args_export_material = true;
 				++i;
-				gc_unroot(args_export_material_path);
 				args_export_material_path = string_copy(iron_get_arg(i));
-				gc_root(args_export_material_path);
 			}
 			else if (string_equals(current_arg, "--help")) {
 				printf("Usage: armorpaint [options] [file]\n");
@@ -137,9 +123,7 @@ void args_run_on_next_frame(void *_) {
 		g_context->layers_export = EXPORT_MODE_VISIBLE;
 
 		// Get export preset and apply the correct one from args
-		gc_unroot(box_export_files);
 		box_export_files = file_read_directory(string("%s%sexport_presets", path_data(), PATH_SEP));
-		gc_root(box_export_files);
 		for (i32 i = 0; i < box_export_files->length; ++i) {
 			char *s                     = box_export_files->buffer[i];
 			box_export_files->buffer[i] = substring(s, 0, string_length(s) - 5); // Strip .json
@@ -154,10 +138,8 @@ void args_run_on_next_frame(void *_) {
 		}
 
 		buffer_t *blob = data_get_blob(file);
-		gc_unroot(box_export_preset);
 		box_export_preset = json_parse(sys_buffer_to_string(blob));
-		gc_root(box_export_preset);
-		data_delete_blob(string("export_presets/%s", file));
+		data_delete_blob(file);
 
 		// Export queue
 		sys_notify_on_next_frame(&args_run_export_queue, NULL);

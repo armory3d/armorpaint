@@ -109,15 +109,15 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		return sculpt_make_sculpt_run(data, matcon);
 	}
 
-	shader_context_t      *props     = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
+	shader_context_t      *props     = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                    .depth_write     = false,
 	                                                                    .compare_mode    = "always",
 	                                                                    .cull_mode       = "none",
 	                                                                    .vertex_elements = any_array_create_from_raw(
                                                                    (void *[]){
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
                                                                    },
                                                                    3),
 	                                                                    .color_attachments = make_paint_color_attachments()});
@@ -198,10 +198,10 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	char *tuv = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
 	if (is_atlas) {
 		node_shader_add_constant(kong, "atlas_transform: float3", "_atlas_transform");
-		node_shader_write_vert(kong, string("var atlas_uv: float2 = %s * constants.atlas_transform.z + constants.atlas_transform.xy;", tuv));
+		node_shader_write_vert(kong, string_tmp("var atlas_uv: float2 = %s * constants.atlas_transform.z + constants.atlas_transform.xy;", tuv));
 		tuv = "atlas_uv";
 	}
-	node_shader_write_vert(kong, string("var tpos: float2 = float2(%s.x * 2.0 - 1.0, (1.0 - %s.y) * 2.0 - 1.0);", tuv, tuv));
+	node_shader_write_vert(kong, string_tmp("var tpos: float2 = float2(%s.x * 2.0 - 1.0, (1.0 - %s.y) * 2.0 - 1.0);", tuv, tuv));
 
 	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
 
@@ -285,7 +285,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 			node_shader_write_frag(kong, "wn = normalize(wn);");
 			kong->frag_n = true;
 			f32 angle    = g_context->brush_angle_reject_dot;
-			node_shader_write_frag(kong, string("if (dot(wn, n) < %s) { discard; }", f32_to_string(angle)));
+			node_shader_write_frag(kong, string_tmp("if (dot(wn, n) < %s) { discard; }", f32_to_string(angle)));
 		}
 		bool stencil_fill = g_context->tool == TOOL_TYPE_FILL && g_context->brush_stencil_image != NULL;
 		if (stencil_fill) {
@@ -334,9 +334,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		uv_type_t uv_type                  = g_context->layer->fill_material != NULL ? g_context->layer->uv_type : g_context->brush_paint;
 		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect = decal;
-		gc_unroot(parser_material_sample_uv_scale);
 		parser_material_sample_uv_scale = is_atlas ? "1.0" : "constants.brush_scale";
-		gc_root(parser_material_sample_uv_scale);
 		shader_out_t *sout               = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
 		parser_material_parse_emission   = false;
 		parser_material_parse_subsurface = false;
@@ -350,13 +348,13 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		char *opac                       = sout->out_opacity;
 		char *emis                       = sout->out_emission;
 		char *subs                       = sout->out_subsurface;
-		node_shader_write_frag(kong, string("var basecol: float3 = %s;", base));
-		node_shader_write_frag(kong, string("var roughness: float = %s;", rough));
-		node_shader_write_frag(kong, string("var metallic: float = %s;", met));
-		node_shader_write_frag(kong, string("var occlusion: float = %s;", occ));
-		node_shader_write_frag(kong, string("var nortan: float3 = %s;", nortan));
-		node_shader_write_frag(kong, string("var height: float = %s;", height));
-		node_shader_write_frag(kong, string("var mat_opacity: float = %s;", opac));
+		node_shader_write_frag(kong, string_tmp("var basecol: float3 = %s;", base));
+		node_shader_write_frag(kong, string_tmp("var roughness: float = %s;", rough));
+		node_shader_write_frag(kong, string_tmp("var metallic: float = %s;", met));
+		node_shader_write_frag(kong, string_tmp("var occlusion: float = %s;", occ));
+		node_shader_write_frag(kong, string_tmp("var nortan: float3 = %s;", nortan));
+		node_shader_write_frag(kong, string_tmp("var height: float = %s;", height));
+		node_shader_write_frag(kong, string_tmp("var mat_opacity: float = %s;", opac));
 		if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC) {
 			make_material_transluc_used = true;
 			node_shader_write_frag(kong, "var opacity: float = 1.0;");
@@ -370,10 +368,10 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		}
 
 		if (g_context->material->paint_emis) {
-			node_shader_write_frag(kong, string("var emis: float = %s;", emis));
+			node_shader_write_frag(kong, string_tmp("var emis: float = %s;", emis));
 		}
 		if (g_context->material->paint_subs) {
-			node_shader_write_frag(kong, string("var subs: float = %s;", subs));
+			node_shader_write_frag(kong, string_tmp("var subs: float = %s;", subs));
 		}
 		if (!make_material_height_used && !make_paint_is_zero_constant(height)) {
 			make_material_height_used = true;
@@ -475,7 +473,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		}
 	}
 
-	node_shader_write_frag(kong, string("if (opacity <= float(%s)) { discard; }", f32_to_string(g_config->brush_alpha_discard)));
+	node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(g_config->brush_alpha_discard)));
 
 	if (g_context->tool == TOOL_TYPE_PARTICLE) { // Particle mask
 		make_particle_mask(kong);
@@ -508,7 +506,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		matid = g_context->materialid_picked / 255.0; // Keep existing material id in place when mask is set
 	}
 	char *matid_string = parser_material_vec1(matid * 3.0);
-	node_shader_write_frag(kong, string("var matid: float = %s;", matid_string));
+	node_shader_write_frag(kong, string_tmp("var matid: float = %s;", matid_string));
 
 	// matid % 3 == 0 - normal, 1 - emission, 2 - subsurface
 	if (g_context->material->paint_emis && make_material_emis_used) {
@@ -551,7 +549,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		                       "output[0] = float4((basecol * t_blur + sample_undo.rgb * sample_undo.a * (1.0 - t_blur)) / max(out_a, 0.0000001), out_a);");
 	}
 	else if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC || g_context->layer->fill_material != NULL) {
-		node_shader_write_frag(kong, string("output[0] = float4(%s, %s);",
+		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
 		                                    make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "mat_opacity"));
 	}
 	else if (g_context->brush_blending == BLEND_TYPE_MIX && !is_mask) {
@@ -560,7 +558,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	}
 	else {
 		node_shader_write_frag(kong, "var out_a: float = str + sample_undo.a * (1.0 - str);");
-		node_shader_write_frag(kong, string("output[0] = float4(%s, %s);",
+		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
 		                                    make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "out_a"));
 	}
 	node_shader_write_frag(kong, "output[1] = float4(lerp3(sample_nor_undo.rgb, nortan, str), matid);");

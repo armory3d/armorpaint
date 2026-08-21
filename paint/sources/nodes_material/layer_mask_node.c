@@ -3,14 +3,14 @@
 
 char *layer_mask_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	i32 l = node->buttons->buffer[0]->default_value->buffer[0];
-	node_shader_add_texture(parser_material_kong, string("texpaint%s", i32_to_string(l)), string("_texpaint%s", i32_to_string(l)));
-	return string("sample(texpaint%s, sampler_linear, tex_coord).r", i32_to_string(l));
+	node_shader_add_texture(parser_material_kong, string_tmp("texpaint%s", i32_to_string(l)), string_tmp("_texpaint%s", i32_to_string(l)));
+	return string_tmp("sample(texpaint%s, sampler_linear, tex_coord).r", i32_to_string(l));
 }
 
 void layer_mask_node_init() {
 
 	ui_node_t *layer_mask_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Layer Mask"),
 	                              .type    = "LAYER_MASK", // extension
 	                              .x       = 0,
@@ -19,7 +19,7 @@ void layer_mask_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -33,7 +33,7 @@ void layer_mask_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Layer"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Layer"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

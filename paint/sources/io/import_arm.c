@@ -104,7 +104,17 @@ void import_arm_make_pink(char *abs) {
 	b->buffer[2]        = 255;
 	b->buffer[3]        = 255;
 	gpu_texture_t *pink = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+	array_free(b);
+	free(b);
 	any_map_set(data_cached_textures, abs, pink);
+}
+
+static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format) {
+	buffer_t      *pixels  = lz4_decode(b, size);
+	gpu_texture_t *texture = gpu_create_texture_from_bytes(pixels, res, res, format);
+	array_free(pixels);
+	free(pixels);
+	return texture;
 }
 
 void import_arm_init_nodes(ui_node_t_array_t *nodes) {
@@ -117,7 +127,7 @@ void import_arm_init_nodes(ui_node_t_array_t *nodes) {
 	}
 }
 
-void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool gc_copy) {
+void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool copy) {
 	if (g_project->packed_assets == NULL) {
 		g_project->packed_assets = any_array_create_from_raw((void *[]){}, 0);
 	}
@@ -139,10 +149,10 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool gc_
 			pa->name = string_copy(abs);
 			if (!project_packed_asset_exists(g_project->packed_assets, pa->name)) {
 
-				if (gc_copy) {
-					packed_asset_t *pa_gc =
-					    GC_ALLOC_INIT(packed_asset_t, {.name = string_copy(pa->name), .bytes = u8_array_create_from_array(pa->bytes)}); // project will get GCed
-					pa = pa_gc;
+				if (copy) {
+					packed_asset_t *pa_copy =
+					    ALLOC_INIT(packed_asset_t, {.name = string_copy(pa->name), .bytes = u8_array_create_from_array(pa->bytes)}); // Project data is temporary
+					pa = pa_copy;
 				}
 
 				any_array_push(g_project->packed_assets, pa);
@@ -180,7 +190,7 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 	slot_material_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
 
 	for (i32 i = 0; i < project->material_nodes->length; ++i) {
-		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // project will get GCed
+		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
 		import_arm_init_nodes(c->nodes);
 		g_context->material = slot_material_create(m0, c);
 		any_array_push(g_project->_->materials, g_context->material);
@@ -198,15 +208,13 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 				import_arm_rename_group(c->name, imported, project->material_groups); // Ensure unique group name
 			}
 			import_arm_init_nodes(c->nodes);
-			node_group_t *ng = GC_ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});
+			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});
 			any_array_push(g_project->_->material_groups, ng);
 		}
 	}
 
 	sys_notify_on_next_frame(&import_arm_run_material_from_project_on_next_frame, imported);
-	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 	data_delete_blob(path);
 }
@@ -244,10 +252,8 @@ void import_arm_run_project(char *path) {
 	}
 	else if (!import_arm_has_version(b)) {
 		import_as_mesh = true;
-		gc_unroot(scene_raw_gc);
 		scene_raw_gc = armpack_decode(b);
-		gc_root(scene_raw_gc);
-		project = GC_ALLOC_INIT(project_t, {.mesh_datas = scene_raw_gc->mesh_datas});
+		project = ALLOC_INIT(project_t, {.mesh_datas = scene_raw_gc->mesh_datas});
 	}
 	else {
 		project = armpack_decode(b);
@@ -274,9 +280,7 @@ void import_arm_run_project(char *path) {
 
 	project_new(import_as_mesh);
 	g_project->_->filepath = string_copy(path);
-	gc_unroot(ui_files_filename);
 	ui_files_filename = string_copy(substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, ".")));
-	gc_root(ui_files_filename);
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	sys_title_set(ui_files_filename);
 #else
@@ -304,9 +308,7 @@ void import_arm_run_project(char *path) {
 	config_save();
 
 	project->_ = g_project->_; // Carry over runtime arrays set up by project_new
-	gc_unroot(g_project);
 	g_project = project;
-	gc_root(g_project);
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	base_res_handle->i                   = config_get_texture_res_pos(l0->res);
 	base_res_x_handle->f                 = (f32)l0->res;
@@ -506,7 +508,7 @@ void import_arm_run_project(char *path) {
 			gpu_texture_t *_texpaint_pack = NULL;
 
 			if (is_mask) {
-				_texpaint = gpu_create_texture_from_bytes(lz4_decode(ld->texpaint, ld->res * ld->res * 4), ld->res, ld->res, GPU_TEXTURE_FORMAT_RGBA32);
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4, GPU_TEXTURE_FORMAT_RGBA32);
 				draw_begin(l->texpaint, false, 0);
 				// draw_set_pipeline(pipes_copy8);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy); // Full bits for undo support, R8 is used
@@ -516,22 +518,21 @@ void import_arm_run_project(char *path) {
 			}
 			else { // Layer
 				// TODO: create render target from bytes
-				_texpaint = gpu_create_texture_from_bytes(lz4_decode(ld->texpaint, ld->res * ld->res * 4 * bytes_per_pixel), ld->res, ld->res, format);
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
 				draw_begin(l->texpaint, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint, 0, 0);
 				draw_set_pipeline(NULL);
 				draw_end();
 
-				_texpaint_nor = gpu_create_texture_from_bytes(lz4_decode(ld->texpaint_nor, ld->res * ld->res * 4 * bytes_per_pixel), ld->res, ld->res, format);
+				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
 				draw_begin(l->texpaint_nor, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint_nor, 0, 0);
 				draw_set_pipeline(NULL);
 				draw_end();
 
-				_texpaint_pack =
-				    gpu_create_texture_from_bytes(lz4_decode(ld->texpaint_pack, ld->res * ld->res * 4 * bytes_per_pixel), ld->res, ld->res, format);
+				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
 				draw_begin(l->texpaint_pack, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint_pack, 0, 0);
@@ -547,7 +548,7 @@ void import_arm_run_project(char *path) {
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
 					gpu_texture_t *_texpaint_sculpt =
-					    gpu_create_texture_from_bytes(lz4_decode(ld->texpaint_sculpt, ld->res * ld->res * 4 * 4), ld->res, ld->res, GPU_TEXTURE_FORMAT_RGBA128);
+					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128);
 					draw_begin(l->texpaint_sculpt, false, 0);
 					draw_set_pipeline(pipes_copy128);
 					draw_image(_texpaint_sculpt, 0, 0);
@@ -594,7 +595,6 @@ void import_arm_run_project(char *path) {
 			if (_texpaint_pack != NULL) {
 				gpu_delete_texture(_texpaint_pack);
 			}
-			gc_run();
 		}
 	}
 
@@ -632,14 +632,12 @@ void import_arm_run_project(char *path) {
 	}
 
 	ui_nodes_hwnd->redraws = 2;
-	gc_unroot(ui_nodes_group_stack);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
 	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
 	if (g_project->material_groups != NULL) {
 		for (i32 i = 0; i < g_project->material_groups->length; ++i) {
 			ui_node_canvas_t *g  = g_project->material_groups->buffer[i];
-			node_group_t     *ng = GC_ALLOC_INIT(node_group_t, {.canvas = g, .nodes = ui_nodes_create()});
+			node_group_t     *ng = ALLOC_INIT(node_group_t, {.canvas = g, .nodes = ui_nodes_create()});
 			any_array_push(g_project->_->material_groups, ng);
 		}
 	}

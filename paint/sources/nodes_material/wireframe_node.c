@@ -11,7 +11,7 @@ char *wireframe_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void wireframe_node_init() {
 
 	ui_node_t *wireframe_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Wireframe"),
 	                              .type   = "WIREFRAME",
 	                              .x      = 0,
@@ -19,7 +19,7 @@ void wireframe_node_init() {
 	                              .color  = 0xffb34f5a,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Size"),
 	                                                                       .type          = "VALUE",
@@ -33,7 +33,7 @@ void wireframe_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",
@@ -47,7 +47,7 @@ void wireframe_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Pixel Size"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Pixel Size"),
 	                                                                       .type          = "BOOL",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

@@ -8,20 +8,20 @@ char *vector_rotate_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *angle  = parser_material_parse_value_input(node->inputs->buffer[3], false);
 	bool  invert = node->buttons->buffer[0]->default_value->buffer[0] > 0;
 	char *name   = parser_material_store_var_name(node);
-	char *v      = string("%s_v", name);
-	char *ax     = string("%s_ax", name);
-	char *cosA   = string("%s_cosA", name);
-	char *sinA   = string("%s_sinA", name);
-	parser_material_write(parser_material_kong, string("var %s: float3 = %s - %s;", v, vec, center));
-	parser_material_write(parser_material_kong, string("var %s: float3 = normalize(%s);", ax, axis));
-	parser_material_write(parser_material_kong, string("var %s: float = cos(%s%s * (3.14159265 / 180.0));", cosA, invert ? "-" : "", angle));
-	parser_material_write(parser_material_kong, string("var %s: float = sin(%s%s * (3.14159265 / 180.0));", sinA, invert ? "-" : "", angle));
-	return string("(%s * %s + cross(%s, %s) * %s + %s * dot(%s, %s) * (1.0 - %s) + %s)", v, cosA, ax, v, sinA, ax, ax, v, cosA, center);
+	char *v      = string_tmp("%s_v", name);
+	char *ax     = string_tmp("%s_ax", name);
+	char *cosA   = string_tmp("%s_cosA", name);
+	char *sinA   = string_tmp("%s_sinA", name);
+	parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s - %s;", v, vec, center));
+	parser_material_write(parser_material_kong, string_tmp("var %s: float3 = normalize(%s);", ax, axis));
+	parser_material_write(parser_material_kong, string_tmp("var %s: float = cos(%s%s * (3.14159265 / 180.0));", cosA, invert ? "-" : "", angle));
+	parser_material_write(parser_material_kong, string_tmp("var %s: float = sin(%s%s * (3.14159265 / 180.0));", sinA, invert ? "-" : "", angle));
+	return string_tmp("(%s * %s + cross(%s, %s) * %s + %s * dot(%s, %s) * (1.0 - %s) + %s)", v, cosA, ax, v, sinA, ax, ax, v, cosA, center);
 }
 
 void vector_rotate_node_init() {
 
-	ui_node_t *vector_rotate_node_def = GC_ALLOC_INIT(
+	ui_node_t *vector_rotate_node_def = ALLOC_INIT(
 	    ui_node_t,
 	    {.id     = 0,
 	     .name   = _tr("Vector Rotate"),
@@ -31,7 +31,7 @@ void vector_rotate_node_init() {
 	     .color  = 0xff62676d,
 	     .inputs = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Vector"),
 	                                              .type          = "VECTOR",
@@ -41,7 +41,7 @@ void vector_rotate_node_init() {
 	                                              .max           = 1.0,
 	                                              .precision     = 100,
 	                                              .display       = 1}),
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Center"),
 	                                              .type          = "VECTOR",
@@ -51,7 +51,7 @@ void vector_rotate_node_init() {
 	                                              .max           = 1.0,
 	                                              .precision     = 100,
 	                                              .display       = 1}),
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Axis"),
 	                                              .type          = "VECTOR",
@@ -61,7 +61,7 @@ void vector_rotate_node_init() {
 	                                              .max           = 1.0,
 	                                              .precision     = 100,
 	                                              .display       = 1}),
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Angle"),
 	                                              .type          = "VALUE",
@@ -75,7 +75,7 @@ void vector_rotate_node_init() {
 	         4),
 	     .outputs = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                              .node_id       = 0,
 	                                              .name          = _tr("Vector"),
 	                                              .type          = "VECTOR",
@@ -89,7 +89,7 @@ void vector_rotate_node_init() {
 	         1),
 	     .buttons = any_array_create_from_raw(
 	         (void *[]){
-	             GC_ALLOC_INIT(ui_node_button_t, {.name = _tr("Invert"), .type = "BOOL", .output = 0, .default_value = f32_array_create_x(0), .height = 0}),
+	             ALLOC_INIT(ui_node_button_t, {.name = _tr("Invert"), .type = "BOOL", .output = 0, .default_value = f32_array_create_x(0), .height = 0}),
 	         },
 	         1),
 	     .width = 0,

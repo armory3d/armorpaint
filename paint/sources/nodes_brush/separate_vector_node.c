@@ -8,21 +8,21 @@ typedef struct separate_vector_node {
 logic_node_value_t *separate_vector_node_get(separate_vector_node_t *self, i32 from) {
 	vec4_t vector = logic_node_input_get(self->base->inputs->buffer[0])->_vec4;
 	if (from == 0) {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._f32 = vector.x});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = vector.x});
 		return v;
 	}
 	else if (from == 1) {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._f32 = vector.y});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = vector.y});
 		return v;
 	}
 	else {
-		logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._f32 = vector.z});
+		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = vector.z});
 		return v;
 	}
 }
 
 void *separate_vector_node_create(ui_node_t *raw, f32_array_t *args) {
-	separate_vector_node_t *n = GC_ALLOC_INIT(separate_vector_node_t, {0});
+	separate_vector_node_t *n = ALLOC_INIT(separate_vector_node_t, {0});
 	n->base                   = logic_node_create(n);
 	n->base->get              = separate_vector_node_get;
 	return n;
@@ -30,7 +30,7 @@ void *separate_vector_node_create(ui_node_t *raw, f32_array_t *args) {
 
 void separate_vector_node_init() {
 	ui_node_t *separate_vector_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Separate Vector"),
 	                              .type   = "separate_vector_node",
 	                              .x      = 0,
@@ -38,7 +38,7 @@ void separate_vector_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -52,7 +52,7 @@ void separate_vector_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("X"),
 	                                                                       .type          = "VALUE",
@@ -62,7 +62,7 @@ void separate_vector_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Y"),
 	                                                                       .type          = "VALUE",
@@ -72,7 +72,7 @@ void separate_vector_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Z"),
 	                                                                       .type          = "VALUE",

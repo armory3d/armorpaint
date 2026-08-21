@@ -4,7 +4,7 @@
 buffer_t *slot_material_default_canvas = NULL;
 
 slot_material_t *slot_material_create(material_data_t *m, ui_node_canvas_t *c) {
-	slot_material_t *raw = GC_ALLOC_INIT(slot_material_t, {0});
+	slot_material_t *raw = ALLOC_INIT(slot_material_t, {0});
 	raw->nodes           = ui_nodes_create();
 	raw->preview_ready   = false;
 	raw->id              = 0;
@@ -35,12 +35,11 @@ slot_material_t *slot_material_create(material_data_t *m, ui_node_canvas_t *c) {
 	if (c == NULL) {
 		if (slot_material_default_canvas == NULL) { // Synchronous
 			buffer_t *b = data_get_blob("default_material.arm");
-			gc_unroot(slot_material_default_canvas);
 			slot_material_default_canvas = b;
-			gc_root(slot_material_default_canvas);
 		}
-		raw->canvas       = armpack_decode(slot_material_default_canvas);
-		raw->canvas       = util_clone_canvas(raw->canvas); // Clone to create GC references
+		ui_node_canvas_t *decoded = armpack_decode(slot_material_default_canvas);
+		raw->canvas               = util_clone_canvas(decoded);
+		free(decoded);
 		i32 id            = (raw->id + 1);
 		raw->canvas->name = string("Material %d", id);
 	}

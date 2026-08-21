@@ -17,12 +17,12 @@ rect_t *resource_tile50(gpu_texture_t *img, i32 i) {
 	i32     x    = i % 12;
 	i32     y    = i / 12.0;
 	i32     size = g_config->window_scale > 1 ? 100 : 50;
-	rect_t *r    = GC_ALLOC_INIT(rect_t, {.x = x * size, .y = y * size, .w = size, .h = size});
+	rect_t *r    = TMP_ALLOC_INIT(rect_t, {.x = x * size, .y = y * size, .w = size, .h = size}); // Read by the caller right away
 	return r;
 }
 
 rect_t *resource_tile18(gpu_texture_t *img, i32 i) {
 	i32     size = g_config->window_scale > 1 ? 36 : 18;
-	rect_t *r    = GC_ALLOC_INIT(rect_t, {.x = i * size, .y = img->height - size, .w = size, .h = size});
+	rect_t *r    = TMP_ALLOC_INIT(rect_t, {.x = i * size, .y = img->height - size, .w = size, .h = size}); // Read by the caller right away
 	return r;
 }

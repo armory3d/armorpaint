@@ -15,7 +15,7 @@ static void path_destroy_spheres() {
 	for (i32 i = 0; i < path_point_sphere_count; i++) {
 		mesh_object_remove((mesh_object_t *)path_point_spheres[i]->ext);
 	}
-	gc_free(path_point_spheres);
+	free(path_point_spheres);
 	path_point_spheres      = NULL;
 	path_point_sphere_count = 0;
 }
@@ -417,6 +417,13 @@ static void path_paint_text(slot_layer_t *l) {
 
 			path_text_stamp(letter, px, py, angle, &prev_px, &prev_py);
 		}
+
+		array_free(spos);
+		free(spos);
+		array_free(slen);
+		free(slen);
+		array_free(scam);
+		free(scam);
 	}
 
 	if (g_context->text_tool_image != NULL) {
@@ -825,8 +832,7 @@ void util_layer_update_path() {
 		}
 	}
 	else if (vis_points > path_point_sphere_count) {
-		path_point_spheres = (object_t **)gc_realloc(path_point_spheres, vis_points * sizeof(object_t *));
-		gc_root(path_point_spheres);
+		path_point_spheres = (object_t **)realloc(path_point_spheres, vis_points * sizeof(object_t *));
 		for (i32 i = path_point_sphere_count; i < vis_points; i++) {
 			object_t      *o      = scene_spawn_object(".Sphere", NULL, true);
 			mesh_object_t *mo     = o->ext;

@@ -6,14 +6,14 @@ static mesh_data_t *export_arm_named_mesh_data(mesh_object_t *p) {
 	if (string_equals(p->data->name, p->base->name)) {
 		return p->data;
 	}
-	mesh_data_t *renamed = gc_alloc(sizeof(mesh_data_t));
+	mesh_data_t *renamed = calloc(1, sizeof(mesh_data_t));
 	*renamed             = *p->data;
 	renamed->name        = string_copy(p->base->name);
 	return renamed;
 }
 
 static mesh_data_t *export_arm_linked_mesh_data(mesh_object_t *p, i32 source_index) {
-	return GC_ALLOC_INIT(mesh_data_t, {.name          = util_mesh_link_name(source_index, p->base->name),
+	return ALLOC_INIT(mesh_data_t, {.name          = util_mesh_link_name(source_index, p->base->name),
 	                                   .scale_pos     = p->data->scale_pos,
 	                                   .scale_tex     = p->data->scale_tex,
 	                                   .vertex_arrays = any_array_create_from_raw((void *[]){}, 0),
@@ -27,13 +27,15 @@ void export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects) {
 		any_array_push(mesh_datas, export_arm_named_mesh_data(p));
 	}
 
-	scene_t  *raw = GC_ALLOC_INIT(scene_t, {.mesh_datas = mesh_datas});
+	scene_t  *raw = ALLOC_INIT(scene_t, {.mesh_datas = mesh_datas});
 	buffer_t *b   = util_encode_scene(raw);
 
 	if (!ends_with(path, ".arm")) {
 		path = string("%s.arm", path);
 	}
 	iron_file_save_bytes(path, b, b->length + 1);
+	array_free(b);
+	free(b);
 }
 
 void export_arm_export_node(ui_node_t *n, asset_t_array_t *assets) {
@@ -134,6 +136,13 @@ string_array_t *export_arm_sounds_to_files(char *project_path, slot_sound_t_arra
 	return sound_files;
 }
 
+static void export_arm_free_buffer(buffer_t *b) {
+	if (b != NULL) {
+		array_free(b);
+		free(b);
+	}
+}
+
 void export_arm_run_project() {
 
 	tab_timeline_prepare_save();
@@ -187,7 +196,7 @@ void export_arm_run_project() {
 		mdata2 = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t  *m = g_project->_->materials->buffer[i];
-			material_data2_t *d = GC_ALLOC_INIT(material_data2_t, {
+			material_data2_t *d = ALLOC_INIT(material_data2_t, {
 			                                                          .paint_base   = m->paint_base,
 			                                                          .paint_opac   = m->paint_opac,
 			                                                          .paint_occ    = m->paint_occ,
@@ -223,7 +232,7 @@ void export_arm_run_project() {
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		layer_data_t *d =
-		    GC_ALLOC_INIT(layer_data_t, {.name               = l->name,
+		    ALLOC_INIT(layer_data_t, {.name               = l->name,
 		                                 .res                = l->texpaint != NULL ? l->texpaint->width : g_project->_->layers->buffer[0]->texpaint->width,
 		                                 .bpp                = bpp,
 		                                 .texpaint           = l->texpaint != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint)) : NULL,
@@ -386,6 +395,25 @@ void export_arm_run_project() {
 
 	buffer_t *buffer = util_encode_project(g_project);
 	iron_file_save_bytes(g_project->_->filepath, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
+
+	for (i32 i = 0; i < ld->length; ++i) {
+		layer_data_t *d = ld->buffer[i];
+		export_arm_free_buffer(d->texpaint);
+		export_arm_free_buffer(d->texpaint_nor);
+		export_arm_free_buffer(d->texpaint_pack);
+		export_arm_free_buffer(d->texpaint_sculpt);
+		if (d->decal_mat != NULL) {
+			array_free(d->decal_mat);
+			free(d->decal_mat);
+		}
+		free(d);
+	}
+	array_free(ld);
+	free(ld);
+	g_project->layer_datas = NULL;
+	tab_timeline_export_free(g_project);
 
 	// Save to recent
 #ifdef IRON_IOS
@@ -478,7 +506,7 @@ void export_arm_run_material(char *path) {
 	    1);
 
 	material_data2_t_array_t *mdata2 = any_array_create_from_raw((void *[]){}, 0);
-	material_data2_t         *md2    = GC_ALLOC_INIT(material_data2_t, {
+	material_data2_t         *md2    = ALLOC_INIT(material_data2_t, {
 	                                                                       .paint_base   = m->paint_base,
 	                                                                       .paint_opac   = m->paint_opac,
 	                                                                       .paint_occ    = m->paint_occ,
@@ -492,7 +520,7 @@ void export_arm_run_material(char *path) {
                                                             });
 	any_array_push(mdata2, md2);
 
-	project_t *raw = GC_ALLOC_INIT(project_t, {.version         = manifest_version_project,
+	project_t *raw = ALLOC_INIT(project_t, {.version         = manifest_version_project,
 	                                           .material_nodes  = mnodes,
 	                                           .material_groups = mgroups,
 	                                           .material_icons  = micons,
@@ -515,6 +543,8 @@ void export_arm_run_material(char *path) {
 
 	buffer_t *buffer = util_encode_project(raw);
 	iron_file_save_bytes(path, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
 }
 
 void export_arm_run_brush(char *path) {
@@ -548,7 +578,7 @@ void export_arm_run_brush(char *path) {
 	    },
 	    1);
 
-	project_t *raw = GC_ALLOC_INIT(
+	project_t *raw = ALLOC_INIT(
 	    project_t,
 	    {.version = manifest_version_project, .brush_nodes = bnodes, .brush_icons = bicons, .assets = texture_files, .packed_assets = packed_assets});
 
@@ -567,6 +597,8 @@ void export_arm_run_brush(char *path) {
 
 	buffer_t *buffer = util_encode_project(raw);
 	iron_file_save_bytes(path, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
 }
 
 void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
@@ -582,7 +614,7 @@ void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
 			draw_image(image, 0, 0);
 			draw_end();
 			any_array_push(temp_images, temp);
-			packed_asset_t *pa = GC_ALLOC_INIT(packed_asset_t, {.name  = assets->buffer[i]->file,
+			packed_asset_t *pa = ALLOC_INIT(packed_asset_t, {.name  = assets->buffer[i]->file,
 			                                                    .bytes = ends_with(assets->buffer[i]->file, ".jpg")
 			                                                                 ? iron_encode_jpg(gpu_get_texture_pixels(temp), temp->width, temp->height, 0, 80)
 			                                                                 : iron_encode_png(gpu_get_texture_pixels(temp), temp->width, temp->height, 0)});
@@ -600,7 +632,9 @@ void export_arm_run_swatches(char *path) {
 	if (!ends_with(path, ".arm")) {
 		path = string("%s.arm", path);
 	}
-	project_t *raw    = GC_ALLOC_INIT(project_t, {.version = manifest_version_project, .swatches = g_project->swatches});
+	project_t *raw    = ALLOC_INIT(project_t, {.version = manifest_version_project, .swatches = g_project->swatches});
 	buffer_t  *buffer = util_encode_project(raw);
 	iron_file_save_bytes(path, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
 }

@@ -66,7 +66,7 @@ char *brick_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *offset_freq   = parser_material_parse_value_input(node->inputs->buffer[11], false);
 	char *squash        = parser_material_parse_value_input(node->inputs->buffer[12], false);
 	char *squash_freq   = parser_material_parse_value_input(node->inputs->buffer[13], false);
-	return string("tex_brick(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", co, col1, col2, col3, scale, mortar_size, mortar_smooth, bias,
+	return string_tmp("tex_brick(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", co, col1, col2, col3, scale, mortar_size, mortar_smooth, bias,
 	              brick_width, row_height, offset, offset_freq, squash, squash_freq);
 }
 
@@ -82,14 +82,14 @@ char *brick_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *offset_freq   = parser_material_parse_value_input(node->inputs->buffer[11], false);
 	char *squash        = parser_material_parse_value_input(node->inputs->buffer[12], false);
 	char *squash_freq   = parser_material_parse_value_input(node->inputs->buffer[13], false);
-	return string("tex_brick_f(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", co, scale, mortar_size, mortar_smooth, brick_width, row_height, offset, offset_freq,
+	return string_tmp("tex_brick_f(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)", co, scale, mortar_size, mortar_smooth, brick_width, row_height, offset, offset_freq,
 	              squash, squash_freq);
 }
 
 void brick_texture_node_init() {
 
 	ui_node_t *brick_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Brick Texture"),
 	                              .type   = "TEX_BRICK",
 	                              .x      = 0,
@@ -97,7 +97,7 @@ void brick_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -107,7 +107,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color 1"),
 	                                                                       .type          = "RGBA",
@@ -117,7 +117,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color 2"),
 	                                                                       .type          = "RGBA",
@@ -127,7 +127,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Mortar"),
 	                                                                       .type          = "RGBA",
@@ -137,7 +137,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -147,7 +147,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Mortar Size"),
 	                                                                       .type          = "VALUE",
@@ -157,7 +157,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 0.125,
 	                                                                       .precision     = 1000,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Mortar Smooth"),
 	                                                                       .type          = "VALUE",
@@ -167,7 +167,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Bias"),
 	                                                                       .type          = "VALUE",
@@ -177,7 +177,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Brick Width"),
 	                                                                       .type          = "VALUE",
@@ -187,7 +187,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 2.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Row Height"),
 	                                                                       .type          = "VALUE",
@@ -197,7 +197,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 2.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Offset"),
 	                                                                       .type          = "VALUE",
@@ -207,7 +207,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Frequency"),
 	                                                                       .type          = "VALUE",
@@ -217,7 +217,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 1,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Squash"),
 	                                                                       .type          = "VALUE",
@@ -227,7 +227,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 2.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Frequency"),
 	                                                                       .type          = "VALUE",
@@ -241,7 +241,7 @@ void brick_texture_node_init() {
 	                                  14),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -251,7 +251,7 @@ void brick_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Factor"),
 	                                                                       .type          = "VALUE",

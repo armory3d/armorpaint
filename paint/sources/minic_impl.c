@@ -50,25 +50,33 @@ void script_set_tilesheet_anim(object_t *o, char *anim) {
 		}
 
 		ui_node_button_t *enum_but = node->buttons->buffer[4];
-		string_array_t   *names    = string_split(u8_array_to_string(enum_but->data), "\n");
+		char             *texts    = u8_array_to_string(enum_but->data);
+		string_array_t   *names    = string_split(texts, "\n");
+		i32               match    = -1;
 		for (i32 j = 0; j < (i32)names->length; ++j) {
-			if (!string_equals(names->buffer[j], anim)) {
-				continue;
+			if (string_equals(names->buffer[j], anim)) {
+				match = j;
+				break;
 			}
-
-			enum_but->default_value->buffer[0] = (f32)j;
-			make_material_parse_paint_material(true);
-
-			// Material override
-			for (i32 k = 0; k < g_project->_->paint_objects->length; ++k) {
-				mesh_object_t *po = g_project->_->paint_objects->buffer[k];
-				if (tab_meshes_get_override(po) == slot_index) {
-					tab_meshes_set_override(po, slot_index);
-					g_context->ddirty = 2;
-				}
-			}
-			return;
 		}
+		string_split_free(names);
+		free(texts);
+		if (match == -1) {
+			continue;
+		}
+
+		enum_but->default_value->buffer[0] = (f32)match;
+		make_material_parse_paint_material(true);
+
+		// Material override
+		for (i32 k = 0; k < g_project->_->paint_objects->length; ++k) {
+			mesh_object_t *po = g_project->_->paint_objects->buffer[k];
+			if (tab_meshes_get_override(po) == slot_index) {
+				tab_meshes_set_override(po, slot_index);
+				g_context->ddirty = 2;
+			}
+		}
+		return;
 	}
 }
 
@@ -91,10 +99,10 @@ void script_tween_to(object_t *o, vec4_t to, f32 speed) {
 	_script_tween_transform = t;
 	f32    duration         = vec4_dist(t->loc, to) / speed;
 	ease_t ease             = EASE_LINEAR;
-	tween_to(GC_ALLOC_INIT(tween_anim_t,
+	tween_to(ALLOC_INIT(tween_anim_t,
 	                       {.target = &t->loc.x, .to = to.x, .duration = duration, .ease = ease, .tick = script_tween_tick, .done = script_tween_done}));
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &t->loc.y, .to = to.y, .duration = duration, .ease = ease}));
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &t->loc.z, .to = to.z, .duration = duration, .ease = ease}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.y, .to = to.y, .duration = duration, .ease = ease}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.z, .to = to.z, .duration = duration, .ease = ease}));
 }
 
 static void script_timer_done(void *fn) {
@@ -331,6 +339,65 @@ static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	}
 }
 
+void script_quit(void) {
+	iron_stop();
+}
+
+void script_project_new(void) {
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	project_new(true);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_project_open(char *path) {
+	if (path == NULL || !iron_file_exists(path)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_arm_run_project(path);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_import_asset(char *path, bool hdr_as_envmap) {
+	if (path == NULL || !iron_file_exists(path)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_asset_run(path, -1, -1, false, hdr_as_envmap, NULL);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_export_mesh(char *path) {
+	if (path == NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	export_mesh_run(path, NULL, true);
+	script_gpu_end(current, in_use);
+}
+
+void script_export_material(char *path) {
+	if (path == NULL || g_context == NULL || g_context->material == NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	export_arm_run_material(path);
+	script_gpu_end(current, in_use);
+}
+
 slot_material_t *script_material_create(char *name) {
 	if (g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL || g_project->_->materials->length == 0) {
 		return NULL;
@@ -372,7 +439,6 @@ static slot_material_t *script_object_material_slot = NULL;
 static material_data_t *script_object_material_data = NULL;
 
 static void script_object_material_reset(void) {
-	gc_unroot(script_object_material_data);
 	script_object_material_slot = NULL;
 	script_object_material_data = NULL;
 }
@@ -389,7 +455,6 @@ void script_object_set_material(object_t *o, slot_material_t *m) {
 		script_object_material_reset();
 		script_object_material_slot = m;
 		script_object_material_data = make_mesh_preview_viewport(m);
-		gc_root(script_object_material_data);
 	}
 	tab_meshes_set_override_data(o->ext, index, index >= 0 ? script_object_material_data : NULL);
 	g_project->mesh_materials = i32_array_create(0);
@@ -747,7 +812,6 @@ void plugin_register_text(char *format, void *fn) {
 
 	if (custom_text_formats == NULL) {
 		custom_text_formats = string_array_create(0);
-		gc_root(custom_text_formats);
 	}
 	if (string_array_index_of(path_text_formats(), format) < 0) {
 		any_array_push((any_array_t *)_path_text_formats, format);
@@ -756,7 +820,6 @@ void plugin_register_text(char *format, void *fn) {
 
 	if (custom_text_importers == NULL) {
 		custom_text_importers = any_map_create();
-		gc_root(custom_text_importers);
 	}
 	any_map_set(custom_text_importers, format, fn);
 }
@@ -778,7 +841,6 @@ void plugin_register_texture(char *format, void *fn) {
 
 	if (custom_texture_importers == NULL) {
 		custom_texture_importers = any_map_create();
-		gc_root(custom_texture_importers);
 	}
 	any_map_set(custom_texture_importers, format, fn);
 }
@@ -794,7 +856,6 @@ void plugin_register_mesh(char *format, void *fn) {
 
 	if (custom_mesh_importers == NULL) {
 		custom_mesh_importers = any_map_create();
-		gc_root(custom_mesh_importers);
 	}
 	any_map_set(custom_mesh_importers, format, fn);
 }
@@ -805,7 +866,7 @@ void plugin_unregister_mesh(char *format) {
 }
 
 raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
-	raw_mesh_t *mesh = gc_alloc(sizeof(raw_mesh_t));
+	raw_mesh_t *mesh = calloc(1, sizeof(raw_mesh_t));
 	memset(mesh, 0, sizeof(raw_mesh_t));
 	mesh->name         = name;
 	mesh->posa         = posa;
@@ -874,14 +935,13 @@ static void script_fade_draw(void *_) {
 
 static void script_fade_in_done(void *_) {
 	sys_remove_update(script_fade_draw);
-	gc_unroot(_script_fade_stage);
 	_script_fade_stage = NULL;
 }
 
 static void script_fade_out_done(void *_) {
 	script_set_stage(_script_fade_stage);
 	tween_reset();
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 0.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_in_done}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 0.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_in_done}));
 }
 
 void script_fade_to_stage(char *stage) {
@@ -889,13 +949,12 @@ void script_fade_to_stage(char *stage) {
 		return; // Fade in progress
 	}
 	_script_fade_stage = string_copy(stage);
-	gc_root(_script_fade_stage);
 
 	_script_fade_opacity = 0.0f;
 	sys_notify_on_update(script_fade_draw, NULL);
 
 	// Fade to black, set the stage, then fade back in
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
 }
 
 typedef struct particle {

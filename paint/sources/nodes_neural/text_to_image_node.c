@@ -13,7 +13,7 @@ string_array_t *text_to_image_node_flux_klein_args(char *dir, char *prompt) {
 }
 
 void text_to_image_node_run(ui_node_t *node, void (*callback)(ui_node_t *)) {
-	char        *node_name = parser_material_node_name(node, NULL);
+	char        *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t *h         = ui_handle(node_name);
 	i32          model     = ui_nest(h, 0)->i;
 	char        *prompt    = ui_nest(h, 1)->text;
@@ -48,7 +48,7 @@ void text_to_image_node_run(ui_node_t *node, void (*callback)(ui_node_t *)) {
 
 void text_to_image_node_button(i32 node_id) {
 	ui_node_t      *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char           *node_name = parser_material_node_name(node, NULL);
+	char           *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t    *h         = ui_handle(node_name);
 	string_array_t *models    = any_array_create_from_raw(
         (void *[]){
@@ -67,7 +67,7 @@ void text_to_image_node_button(i32 node_id) {
 void text_to_image_node_init() {
 
 	ui_node_t *text_to_image_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Text to Image"),
 	                              .type   = "NEURAL_TEXT_TO_IMAGE",
 	                              .x      = 0,
@@ -75,7 +75,7 @@ void text_to_image_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("In"),
 	                                                                       .type          = "BOOL",
@@ -89,7 +89,7 @@ void text_to_image_node_init() {
 	                                  1),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -103,7 +103,7 @@ void text_to_image_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "text_to_image_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "text_to_image_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),
@@ -112,7 +112,7 @@ void text_to_image_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .height        = 1}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
 	                                                                       .type          = "BOOL",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

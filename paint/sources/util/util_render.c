@@ -10,13 +10,11 @@ void util_render_make_material_preview() {
 	mesh_object_t *sphere         = scene_get_child(".Sphere")->ext;
 	sphere->base->visible         = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
-	gc_unroot(scene_meshes);
 	scene_meshes = any_array_create_from_raw(
 	    (void *[]){
 	        sphere,
 	    },
 	    1);
-	gc_root(scene_meshes);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = sphere;
 
@@ -53,13 +51,9 @@ void util_render_make_material_preview() {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	gc_unroot(render_path_commands);
 	render_path_commands = render_path_preview_commands_preview;
-	gc_root(render_path_commands);
 	render_path_render_frame();
-	gc_unroot(render_path_commands);
 	render_path_commands = _commands;
-	gc_root(render_path_commands);
 
 	g_context->material_preview = false;
 	_render_path_last_w         = sys_w();
@@ -67,9 +61,9 @@ void util_render_make_material_preview() {
 
 	// Restore
 	sphere->base->visible = false;
-	gc_unroot(scene_meshes);
+	array_free(scene_meshes);
+	free(scene_meshes);
 	scene_meshes = meshes;
-	gc_root(scene_meshes);
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
@@ -100,13 +94,11 @@ void util_render_make_decal_preview() {
 	transform_build_matrix(plane->base->transform);
 	plane->base->visible          = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
-	gc_unroot(scene_meshes);
 	scene_meshes = any_array_create_from_raw(
 	    (void *[]){
 	        plane,
 	    },
 	    1);
-	gc_root(scene_meshes);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = plane;
 
@@ -128,13 +120,9 @@ void util_render_make_decal_preview() {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	gc_unroot(render_path_commands);
 	render_path_commands = render_path_preview_commands_decal;
-	gc_root(render_path_commands);
 	render_path_render_frame();
-	gc_unroot(render_path_commands);
 	render_path_commands = _commands;
-	gc_root(render_path_commands);
 
 	g_context->decal_preview = false;
 	_render_path_last_w      = sys_w();
@@ -142,9 +130,9 @@ void util_render_make_decal_preview() {
 
 	// Restore
 	plane->base->visible = false;
-	gc_unroot(scene_meshes);
+	array_free(scene_meshes);
+	free(scene_meshes);
 	scene_meshes = meshes;
-	gc_root(scene_meshes);
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
@@ -239,9 +227,7 @@ void util_render_make_brush_preview() {
 
 	// Prepare layers
 	if (render_path_paint_live_layer == NULL) {
-		gc_unroot(render_path_paint_live_layer);
 		render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
-		gc_root(render_path_paint_live_layer);
 	}
 
 	slot_layer_t *l = render_path_paint_live_layer;
@@ -509,24 +495,20 @@ void util_render_create_screen_aligned_full_data() {
 	    3);
 
 	// Mandatory vertex data names and sizes
-	gpu_vertex_structure_t *structure = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+	gpu_vertex_structure_t *structure = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	gpu_vertex_structure_add(structure, "pos", GPU_VERTEX_DATA_I16_4X_NORM);
 	gpu_vertex_structure_add(structure, "nor", GPU_VERTEX_DATA_I16_2X_NORM);
 	gpu_vertex_structure_add(structure, "tex", GPU_VERTEX_DATA_I16_2X_NORM);
 	gpu_vertex_structure_add(structure, "col", GPU_VERTEX_DATA_I16_4X_NORM);
-	gc_unroot(util_render_screen_aligned_full_vb);
 	util_render_screen_aligned_full_vb =
 	    gpu_create_vertex_buffer(math_floor(data->length / (float)math_floor(gpu_vertex_struct_size(structure) / 2.0)), structure);
-	gc_root(util_render_screen_aligned_full_vb);
 	int16_t *vertices = gpu_vertex_buffer_lock(util_render_screen_aligned_full_vb);
 	for (i32 i = 0; i < data->length; ++i) {
 		vertices[i] = data->buffer[i];
 	}
 	gpu_vertex_buffer_unlock(util_render_screen_aligned_full_vb);
 
-	gc_unroot(util_render_screen_aligned_full_ib);
 	util_render_screen_aligned_full_ib = gpu_create_index_buffer(indices->length);
-	gc_root(util_render_screen_aligned_full_ib);
 	uint32_t *id = gpu_index_buffer_lock(util_render_screen_aligned_full_ib);
 	for (i32 i = 0; i < indices->length; ++i) {
 		id[i] = indices->buffer[i];
@@ -550,11 +532,14 @@ void util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gp
 
 	_gpu_begin(image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	gpu_set_pipeline(res->scon->_->pipe);
-	string_array_t *empty = any_array_create_from_raw(
-	    (void *[]){
-	        "",
-	    },
-	    1);
+	static string_array_t *empty = NULL;
+	if (empty == NULL) {
+		empty = any_array_create_from_raw(
+		    (void *[]){
+		        "",
+		    },
+		    1);
+	}
 	uniforms_set_context_consts(res->scon, empty);
 	uniforms_set_obj_consts(res->scon, g_context->paint_object->base);
 	uniforms_set_material_consts(res->scon, res->mcon);
@@ -562,6 +547,10 @@ void util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gp
 	gpu_set_index_buffer(util_render_screen_aligned_full_ib);
 	gpu_draw();
 	gpu_end();
+
+	make_material_delete_context(res->scon);
+	make_material_delete_material_context(res->mcon);
+	free(res);
 
 	g_context->paint_object->base->transform->scale_world = _scale_world;
 	transform_build_matrix(g_context->paint_object->base->transform);

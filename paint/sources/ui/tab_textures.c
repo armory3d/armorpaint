@@ -46,9 +46,7 @@ void tab_textures_draw_export_on_next_frame(void *_) {
 }
 
 void tab_textures_draw_export(char *path) {
-	gc_unroot(_tab_textures_draw_path);
 	_tab_textures_draw_path = string_copy(path);
-	gc_root(_tab_textures_draw_path);
 	sys_notify_on_next_frame(&tab_textures_draw_export_on_next_frame, NULL);
 }
 
@@ -185,7 +183,7 @@ void tab_textures_draw(ui_handle_t *htab) {
 			ui_files_show(string_array_join(path_texture_formats(), ","), false, true, &tab_textures_draw_import);
 		}
 		if (g_ui->is_hovered) {
-			ui_tooltip(string("%s (%s)", tr("Import texture file"), (char *)any_map_get(g_keymap, "file_import_assets")));
+			ui_tooltip(string_tmp("%s (%s)", tr("Import texture file"), (char *)any_map_get(g_keymap, "file_import_assets")));
 		}
 		if (ui_icon_button(tr("2D View"), ICON_WINDOW, UI_ALIGN_CENTER)) {
 			ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
@@ -193,7 +191,7 @@ void tab_textures_draw(ui_handle_t *htab) {
 
 		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
 		if (g_ui->is_hovered) {
-			ui_tooltip(string("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
+			ui_tooltip(string_tmp("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
 		}
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
 			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
@@ -278,9 +276,7 @@ void tab_textures_draw(ui_handle_t *htab) {
 					if (_state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
 						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-						gc_unroot(base_drag_asset);
 						base_drag_asset = asset;
-						gc_root(base_drag_asset);
 						g_context->texture = asset;
 						if (sys_time() - g_context->select_time < 0.2) {
 							ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
@@ -310,11 +306,11 @@ void tab_textures_draw(ui_handle_t *htab) {
 						ui_tooltip_image(img, 256);
 						char *tooltip = asset->name;
 						if (is_packed) {
-							tooltip = string("%s %s", tooltip, tr("(packed)"));
+							tooltip = string_tmp("%s %s", tooltip, tr("(packed)"));
 						}
 #ifdef WITH_BC7
 						if (img->format == GPU_TEXTURE_FORMAT_RGBA32_BC7) {
-							tooltip = string("%s %s", tooltip, tr("(compressed)"));
+							tooltip = string_tmp("%s %s", tooltip, tr("(compressed)"));
 						}
 #endif
 						ui_tooltip(tooltip);
@@ -323,12 +319,8 @@ void tab_textures_draw(ui_handle_t *htab) {
 					if (g_ui->is_hovered && g_ui->input_released_r) {
 						g_context->texture = asset;
 
-						gc_unroot(_tab_textures_draw_img);
 						_tab_textures_draw_img = img;
-						gc_root(_tab_textures_draw_img);
-						gc_unroot(_tab_textures_draw_asset);
 						_tab_textures_draw_asset = asset;
-						gc_root(_tab_textures_draw_asset);
 						_tab_textures_draw_i         = i;
 						_tab_textures_draw_is_packed = is_packed;
 						ui_menu_draw(&tab_textures_draw_context_menu, -1, -1);

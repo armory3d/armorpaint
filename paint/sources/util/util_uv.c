@@ -7,7 +7,6 @@ gpu_pipeline_t *util_uv_pipe_dilate  = NULL;
 void util_uv_cache_uv_map() {
 	if (util_uv_uvmap != NULL && (util_uv_uvmap->width != config_get_texture_res_x() || util_uv_uvmap->height != config_get_texture_res_y())) {
 		gpu_delete_texture(util_uv_uvmap);
-		gc_unroot(util_uv_uvmap);
 		util_uv_uvmap        = NULL;
 		util_uv_uvmap_cached = false;
 	}
@@ -19,9 +18,7 @@ void util_uv_cache_uv_map() {
 	i32 res_x = config_get_texture_res_x();
 	i32 res_y = config_get_texture_res_y();
 	if (util_uv_uvmap == NULL) {
-		gc_unroot(util_uv_uvmap);
 		util_uv_uvmap = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(util_uv_uvmap);
 	}
 
 	util_uv_uvmap_cached = true;
@@ -54,7 +51,6 @@ void util_uv_cache_triangle_map() {
 	if (util_uv_trianglemap != NULL &&
 	    (util_uv_trianglemap->width != config_get_texture_res_x() || util_uv_trianglemap->height != config_get_texture_res_y())) {
 		gpu_delete_texture(util_uv_trianglemap);
-		gc_unroot(util_uv_trianglemap);
 		util_uv_trianglemap        = NULL;
 		util_uv_trianglemap_cached = false;
 	}
@@ -64,9 +60,7 @@ void util_uv_cache_triangle_map() {
 	}
 
 	if (util_uv_trianglemap == NULL) {
-		gc_unroot(util_uv_trianglemap);
 		util_uv_trianglemap = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(util_uv_trianglemap);
 	}
 
 	util_uv_trianglemap_cached = true;
@@ -96,7 +90,6 @@ void util_uv_cache_triangle_map() {
 void util_uv_cache_dilate_map() {
 	if (util_uv_dilatemap != NULL && (util_uv_dilatemap->width != config_get_texture_res_x() || util_uv_dilatemap->height != config_get_texture_res_y())) {
 		gpu_delete_texture(util_uv_dilatemap);
-		gc_unroot(util_uv_dilatemap);
 		util_uv_dilatemap        = NULL;
 		util_uv_dilatemap_cached = false;
 	}
@@ -105,18 +98,14 @@ void util_uv_cache_dilate_map() {
 		return;
 
 	if (util_uv_dilatemap == NULL) {
-		gc_unroot(util_uv_dilatemap);
 		util_uv_dilatemap = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
-		gc_root(util_uv_dilatemap);
 	}
 
 	if (util_uv_pipe_dilate == NULL) {
-		gc_unroot(util_uv_pipe_dilate);
 		util_uv_pipe_dilate = gpu_create_pipeline();
-		gc_root(util_uv_pipe_dilate);
 		util_uv_pipe_dilate->vertex_shader   = sys_get_shader("dilate_map.vert");
 		util_uv_pipe_dilate->fragment_shader = sys_get_shader("dilate_map.frag");
-		gpu_vertex_structure_t *vs           = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+		gpu_vertex_structure_t *vs           = ALLOC_INIT(gpu_vertex_structure_t, {0});
 		gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_I16_4X_NORM);
 		gpu_vertex_structure_add(vs, "nor", GPU_VERTEX_DATA_I16_2X_NORM);
 		gpu_vertex_structure_add(vs, "tex", GPU_VERTEX_DATA_I16_2X_NORM);
@@ -140,7 +129,6 @@ void util_uv_cache_dilate_map() {
 	gpu_draw();
 	gpu_end();
 	util_uv_dilatemap_cached = true;
-	gc_unroot(util_uv_dilate_bytes);
 	util_uv_dilate_bytes = NULL;
 }
 
@@ -172,9 +160,7 @@ void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_arr
 void util_uv_cache_uv_island_map() {
 	util_uv_cache_dilate_map();
 	if (util_uv_dilate_bytes == NULL) {
-		gc_unroot(util_uv_dilate_bytes);
 		util_uv_dilate_bytes = gpu_get_texture_pixels(util_uv_dilatemap);
-		gc_root(util_uv_dilate_bytes);
 	}
 	util_render_pick_pos_nor_tex();
 	i32          w        = 2048; // config_get_texture_res_x()
@@ -203,8 +189,13 @@ void util_uv_cache_uv_island_map() {
 	if (util_uv_uvislandmap != NULL) {
 		gpu_delete_texture(util_uv_uvislandmap);
 	}
-	gc_unroot(util_uv_uvislandmap);
 	util_uv_uvislandmap = gpu_create_texture_from_bytes(bytes, w, h, GPU_TEXTURE_FORMAT_R8);
-	gc_root(util_uv_uvislandmap);
 	util_uv_uvislandmap_cached = true;
+
+	array_free(bytes);
+	free(bytes);
+	array_free(coords_x);
+	free(coords_x);
+	array_free(coords_y);
+	free(coords_y);
 }

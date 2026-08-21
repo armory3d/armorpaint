@@ -57,7 +57,6 @@ void on_update() {
 		context_t *c            = script_get_context();
 		c->capturing_screenshot = false;
 		c->ddirty               = 2;
-		gc_unroot(tilesheet);
 		tilesheet = NULL;
 		baking    = 0;
 	}
@@ -78,7 +77,6 @@ void on_ui() {
 			// Square atlas
 			int size  = tile_size * columns;
 			tilesheet = gpu_create_render_target(size, size, GPU_TEXTURE_FORMAT_RGBA32);
-			gc_root(tilesheet);
 
 			frame                   = 0;
 			col                     = 0;
@@ -104,11 +102,6 @@ void main() {
 	h3->f     = 64;
 	tilesheet = NULL;
 	baking    = 0;
-	gc_root(plugin);
-	gc_root(h0);
-	gc_root(h1);
-	gc_root(h2);
-	gc_root(h3);
 	plugin_notify_on_ui(plugin, on_ui);
 	plugin_notify_on_update(plugin, on_update);
 }

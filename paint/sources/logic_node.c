@@ -2,7 +2,7 @@
 #include "global.h"
 
 logic_node_t *logic_node_create(logic_node_ext_t *ext) {
-	logic_node_t *n = GC_ALLOC_INIT(logic_node_t, {0});
+	logic_node_t *n = ALLOC_INIT(logic_node_t, {0});
 	n->inputs       = any_array_create_from_raw((void *[]){}, 0);
 	n->outputs      = any_array_create_from_raw((void *[]){}, 0);
 	n->ext          = ext;
@@ -10,7 +10,7 @@ logic_node_t *logic_node_create(logic_node_ext_t *ext) {
 }
 
 logic_node_input_t *logic_node_input_create(logic_node_ext_t *node, i32 from) {
-	logic_node_input_t *inp = GC_ALLOC_INIT(logic_node_input_t, {0});
+	logic_node_input_t *inp = ALLOC_INIT(logic_node_input_t, {0});
 	inp->node               = node;
 	inp->from               = from;
 	return inp;

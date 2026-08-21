@@ -6,13 +6,13 @@ char *brightness_contrast_node_vector(ui_node_t *node, ui_node_socket_t *socket)
 	char *bright  = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *contr   = parser_material_parse_value_input(node->inputs->buffer[2], false);
 	node_shader_add_function(parser_material_kong, str_brightcontrast);
-	return string("brightcontrast(%s, %s, %s)", out_col, bright, contr);
+	return string_tmp("brightcontrast(%s, %s, %s)", out_col, bright, contr);
 }
 
 void brightness_contrast_node_init() {
 
 	ui_node_t *brightness_contrast_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Brightness/Contrast"),
 	                              .type   = "BRIGHTCONTRAST",
 	                              .x      = 0,
@@ -20,7 +20,7 @@ void brightness_contrast_node_init() {
 	                              .color  = 0xff448c6d,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -30,7 +30,7 @@ void brightness_contrast_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Brightness"),
 	                                                                       .type          = "VALUE",
@@ -40,7 +40,7 @@ void brightness_contrast_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Contrast"),
 	                                                                       .type          = "VALUE",
@@ -54,7 +54,7 @@ void brightness_contrast_node_init() {
 	                                  3),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",

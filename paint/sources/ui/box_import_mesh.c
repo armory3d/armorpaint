@@ -31,7 +31,7 @@ void project_import_mesh_box_draw() {
 	void (*done)(void)     = _project_import_mesh_box_done;
 
 	if (ends_with(to_lower_case(path), ".obj") || ends_with(to_lower_case(path), ".fbx")) {
-		string_array_t *split_by_combo = any_array_create_from_raw(
+		string_array_t *split_by_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Object"),
 		        tr("Material"),
@@ -60,7 +60,7 @@ void project_import_mesh_box_draw() {
 		}
 	}
 
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        0.45,
 	        0.45,
@@ -91,15 +91,11 @@ void project_import_mesh_box_draw() {
 }
 
 void project_import_mesh_box(char *path, bool replace_existing, bool clear_layers, bool keep_camera, void (*done)(void)) {
-	gc_unroot(_project_import_mesh_box_path);
 	_project_import_mesh_box_path = string_copy(path);
-	gc_root(_project_import_mesh_box_path);
 	_project_import_mesh_box_replace_existing = replace_existing;
 	_project_import_mesh_box_clear_layers     = clear_layers;
 	_project_import_mesh_box_keep_camera      = keep_camera;
-	gc_unroot(_project_import_mesh_box_done);
 	_project_import_mesh_box_done = done;
-	gc_root(_project_import_mesh_box_done);
 	ui_box_show_custom(&project_import_mesh_box_draw, 400, 200, NULL, true, tr("Import Mesh"));
 	ui_box_click_to_hide = false; // Prevent closing when going back to window from file browser
 }

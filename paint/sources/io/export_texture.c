@@ -35,7 +35,12 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		any_map_set(data_cached_textures, file, image);
 		string_array_t *ar    = string_split(file, PATH_SEP);
 		char           *name  = ar->buffer[ar->length - 1];
-		asset_t        *asset = GC_ALLOC_INIT(asset_t, {.name = name, .file = file, .id = g_project->_->next_asset_id++});
+		for (i32 i = 0; i < (i32)ar->length - 1; ++i) {
+			free(ar->buffer[i]);
+		}
+		array_free(ar);
+		free(ar);
+		asset_t *asset = ALLOC_INIT(asset_t, {.name = name, .file = file, .id = g_project->_->next_asset_id++});
 		any_array_push(g_project->_->assets, asset);
 		if (g_project->assets == NULL) {
 			g_project->assets = any_array_create_from_raw((void *[]){}, 0);
@@ -60,6 +65,8 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 	else { // Exr
 		buffer_t *b = export_exr_run(res_x, res_y, pixels, bits, type, off);
 		iron_file_save_bytes(file, b, b->length);
+		array_free(b);
+		free(b);
 	}
 }
 
@@ -218,7 +225,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			layers_make_temp_mask_img();
 			draw_begin(pipes_temp_mask_image, true, 0xffffffff);
 			draw_end();
-			slot_layer_t *l1 = GC_ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
+			slot_layer_t *l1 = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
 			for (i32 i = 0; i < l1masks->length; ++i) {
 				layers_merge_layer(l1, l1masks->buffer[i], false);
 			}
@@ -446,9 +453,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 
 static void export_texture_run_bake_material(char *path) {
 	if (render_path_paint_live_layer == NULL) {
-		gc_unroot(render_path_paint_live_layer);
 		render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
-		gc_root(render_path_paint_live_layer);
 	}
 
 	tool_type_t _tool = g_context->tool;
@@ -491,12 +496,15 @@ static void export_texture_run_bake_material(char *path) {
 
 void export_texture_run(char *path, bool bake_material) {
 
-	////
+	// Exporting without opening the export box
 	if (box_export_files == NULL) {
 		box_export_fetch_presets();
+		i32 i                 = string_array_index_of(box_export_files, "generic");
+		box_export_hpreset->i = i > 0 ? i : 0;
+	}
+	if (box_export_preset == NULL) {
 		box_export_parse_preset();
 	}
-	////
 
 	if (bake_material) {
 		export_texture_run_bake_material(path);
@@ -626,7 +634,5 @@ void export_texture_run(char *path, bool bake_material) {
 #else
 	console_info(tr("Textures exported"));
 #endif
-	gc_unroot(ui_files_last_path);
 	ui_files_last_path = "";
-	gc_root(ui_files_last_path);
 }

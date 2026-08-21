@@ -28,9 +28,7 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 void tab_meshes_set_drag_mesh(mesh_object_t *o, f32 off_x, f32 off_y) {
 	base_drag_off_x = off_x;
 	base_drag_off_y = off_y;
-	gc_unroot(base_drag_mesh);
 	base_drag_mesh = o;
-	gc_root(base_drag_mesh);
 	g_context->drag_dest = array_index_of(g_project->_->paint_objects, o);
 }
 
@@ -49,13 +47,40 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	tab_timeline_sync();
 }
 
+static void tab_meshes_delete_override_material(material_data_t *md) {
+	if (md == NULL || md->name == NULL || !starts_with(md->name, "_material_")) {
+		return;
+	}
+	mesh_object_t_array_t *meshes = (mesh_object_t_array_t *)scene_meshes;
+	for (i32 i = 0; i < meshes->length; ++i) {
+		if (meshes->buffer[i]->material == md) {
+			return; // Still in use
+		}
+	}
+	shader_data_t *sd = md->_->shader;
+	for (i32 i = 0; i < sd->contexts->length; ++i) {
+		make_material_delete_context(sd->contexts->buffer[i]);
+	}
+	array_free(sd->contexts);
+	free(sd->contexts);
+	free(sd->name); // Shared with md->name
+	free(sd);
+	for (i32 i = 0; i < md->contexts->length; ++i) {
+		make_material_delete_material_context(md->contexts->buffer[i]);
+	}
+	array_free(md->contexts);
+	free(md->contexts);
+	free(md->_);
+	free(md);
+}
+
 void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, material_data_t *data) {
 	// Render an object with a chosen material instead of the painted layers
 	if (tab_meshes_override_map == NULL) {
 		tab_meshes_override_map = any_map_create();
-		gc_root(tab_meshes_override_map);
 	}
-	char *uid_key = i32_to_string(o->base->uid);
+	material_data_t *old     = o->material;
+	char            *uid_key = i32_to_string(o->base->uid);
 	if (mat_index < 0 || mat_index >= g_project->_->materials->length) {
 		o->material = g_project->_->materials->buffer[0]->data;
 		map_delete(tab_meshes_override_map, uid_key);
@@ -63,7 +88,10 @@ void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, material_data
 	else {
 		slot_material_t *slot = g_project->_->materials->buffer[mat_index];
 		o->material           = data != NULL ? data : make_mesh_preview_viewport(slot);
-		any_map_set(tab_meshes_override_map, uid_key, i32_to_string(mat_index));
+		any_map_set(tab_meshes_override_map, string_copy(uid_key), string_copy(i32_to_string(mat_index)));
+	}
+	if (old != o->material) {
+		tab_meshes_delete_override_material(old);
 	}
 }
 
@@ -197,6 +225,7 @@ void tab_meshes_on_material_reordered(i32 old_index, i32 new_index) {
 }
 
 void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
+	util_mesh_remove_merged();
 	if (util_mesh_data_owner(o->data) == -1) {
 		data_delete_mesh(o->data->_->handle);
 	}
@@ -248,7 +277,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 	bool         changed = false;
 	f32          f       = 0.0;
 
-	ui_handle_t *h = ui_handle(string("%s%s", __ID__, ns));
+	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text        = string_copy(f32_to_string2(t->loc.x));
 	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -256,7 +285,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 		t->loc.x = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(t->loc.y));
 	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -264,7 +293,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 		t->loc.y = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(t->loc.z));
 	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -285,7 +314,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 	bool changed     = false;
 	f32  f           = 0.0;
 
-	ui_handle_t *h = ui_handle(string("%s%s", __ID__, ns));
+	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text        = string_copy(f32_to_string2(rot.x));
 	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -293,7 +322,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 		rot.x   = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(rot.y));
 	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -301,7 +330,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 		rot.y   = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(rot.z));
 	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -322,7 +351,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 	bool         changed = false;
 	f32          f       = 0.0;
 
-	ui_handle_t *h = ui_handle(string("%s%s", __ID__, ns));
+	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text        = string_copy(f32_to_string2(t->scale.x));
 	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -330,7 +359,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 		t->scale.x = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(t->scale.y));
 	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -338,7 +367,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 		t->scale.y = f;
 	}
 
-	h       = ui_handle(string("%s%s", __ID__, ns));
+	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text = string_copy(f32_to_string2(t->scale.z));
 	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
 	if (h->changed) {
@@ -450,6 +479,8 @@ void tab_meshes_draw_context_menu() {
 	ui_handle_t *hmat = ui_handle(__ID__);
 	hmat->i           = tab_meshes_get_linked_override(o) + 1; // 0 = none
 	ui_combo(hmat, mat_combo, tr("Material"), true, UI_ALIGN_LEFT, false);
+	array_free(mat_combo);
+	free(mat_combo);
 	if (hmat->changed) {
 		tab_meshes_set_linked_override(o, hmat->i - 1);
 		g_context->ddirty         = 2;
@@ -472,6 +503,8 @@ void tab_meshes_draw_context_menu() {
 	ui_handle_t *hparent = ui_handle(__ID__);
 	hparent->i           = parent_idx;
 	ui_combo(hparent, parent_combo, tr("Parent"), true, UI_ALIGN_LEFT, false);
+	array_free(parent_combo);
+	free(parent_combo);
 	if (hparent->changed) {
 		object_t *new_parent = hparent->i == 0 ? NULL : g_project->_->paint_objects->buffer[hparent->i - 1]->base;
 		object_set_parent(o->base, new_parent);
@@ -491,6 +524,8 @@ void tab_meshes_draw_context_menu() {
 		ui_handle_t *hphys = ui_handle(__ID__);
 		hphys->i           = pb == NULL ? 0 : pb->shape + 1;
 		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
+		array_free(phys_combo);
+		free(phys_combo);
 		if (hphys->changed) {
 			if (pb != NULL) {
 				physics_body_remove(pb);
@@ -651,8 +686,8 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	}
 	mo->base->name = string("%s%s", md->name, ext);
 
-	obj_t *o      = GC_ALLOC_INIT(obj_t, {0});
-	o->_          = GC_ALLOC_INIT(obj_runtime_t, {._gc = scene_raw});
+	obj_t *o      = ALLOC_INIT(obj_t, {0});
+	o->_          = ALLOC_INIT(obj_runtime_t, {._gc = scene_raw});
 	mo->base->raw = o;
 	any_map_set(data_cached_meshes, md->_->handle, md);
 	any_array_push(g_project->_->paint_objects, mo);
@@ -706,19 +741,18 @@ static vec4_t aabb_center(mesh_data_t *raw) {
 void tab_meshes_make_preview(mesh_object_t *o) {
 	if (tab_meshes_preview_map == NULL) {
 		tab_meshes_preview_map = any_map_create();
-		gc_root(tab_meshes_preview_map);
 	}
 
 	char          *uid_key = i32_to_string(o->base->uid);
 	gpu_texture_t *image   = any_map_get(tab_meshes_preview_map, uid_key);
 	if (image == NULL) {
 		image = gpu_create_render_target(util_render_material_preview_size, util_render_material_preview_size, GPU_TEXTURE_FORMAT_RGBA64);
-		any_map_set(tab_meshes_preview_map, uid_key, image);
+		any_map_set(tab_meshes_preview_map, string_copy(uid_key), image);
 	}
 
 	g_context->material_preview = true;
 
-	slot_material_t *mat = GC_ALLOC_INIT(slot_material_t, {0});
+	slot_material_t *mat = ALLOC_INIT(slot_material_t, {0});
 	mat->image           = image;
 	mat->image_icon      = gpu_create_render_target(50, 50, GPU_TEXTURE_FORMAT_RGBA64);
 	mat->preview_ready   = true;
@@ -729,9 +763,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	g_context->material        = mat;
 
 	mesh_object_t_array_t *_scene_meshes = scene_meshes;
-	gc_unroot(scene_meshes);
 	scene_meshes = any_array_create_from_raw((void *[]){o}, 1);
-	gc_root(scene_meshes);
 
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = o;
@@ -783,13 +815,9 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 
 	make_material_parse_mesh_preview_material();
 	void (*_commands)(void) = render_path_commands;
-	gc_unroot(render_path_commands);
 	render_path_commands = render_path_preview_commands_preview;
-	gc_root(render_path_commands);
 	render_path_render_frame();
-	gc_unroot(render_path_commands);
 	render_path_commands = _commands;
-	gc_root(render_path_commands);
 
 	g_context->material_preview = false;
 	_render_path_last_w         = sys_w();
@@ -803,9 +831,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 
 	o->material = _override;
 
-	gc_unroot(scene_meshes);
 	scene_meshes = _scene_meshes;
-	gc_root(scene_meshes);
 	g_context->paint_object = painto;
 
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
@@ -849,7 +875,7 @@ static char *tab_meshes_mesh_info(mesh_object_t *o, i32 i) {
 		// Mesh data linked by other objects
 		return o->base->name;
 	}
-	return string("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name);
+	return string_tmp("%s@%s", o->base->name, g_project->_->paint_objects->buffer[owner]->base->name);
 }
 
 void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
@@ -883,7 +909,7 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 	}
 
 	// Eye icon
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        0.08,
 	    },
@@ -1063,7 +1089,7 @@ void tab_meshes_draw(ui_handle_t *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -1146,7 +1172,10 @@ void tab_meshes_reset_preview_map() {
 	for (i32 i = 0; i < keys->length; ++i) {
 		gpu_texture_t *image = any_map_get(tab_meshes_preview_map, keys->buffer[i]);
 		gpu_delete_texture(image);
+		free(keys->buffer[i]);
 	}
-	gc_unroot(tab_meshes_preview_map);
+	array_free(keys);
+	free(keys);
+	map_free(tab_meshes_preview_map);
 	tab_meshes_preview_map = NULL;
 }

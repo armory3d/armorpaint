@@ -2,7 +2,7 @@
 #include "global.h"
 
 slot_sound_t *slot_sound_create(char *name, sound_t *sound, char *file) {
-	slot_sound_t *raw = GC_ALLOC_INIT(slot_sound_t, {0});
+	slot_sound_t *raw = ALLOC_INIT(slot_sound_t, {0});
 	raw->id           = 0;
 
 	for (i32 i = 0; i < g_project->_->sounds->length; ++i) {

@@ -104,17 +104,15 @@ void box_projects_tab() {
 				path                     = string("%s%s", document_directory, path);
 #endif
 
-				char *icon_path = string("%s_icon.png", substring(path, 0, string_length(path) - 4));
+				char *icon_path = string_tmp("%s_icon.png", substring(path, 0, string_length(path) - 4));
 				if (box_projects_icon_map == NULL) {
-					gc_unroot(box_projects_icon_map);
 					box_projects_icon_map = any_map_create();
-					gc_root(box_projects_icon_map);
 				}
 				gpu_texture_t *icon = any_map_get(box_projects_icon_map, icon_path);
 				if (icon == NULL) {
 					gpu_texture_t *image = data_get_texture(icon_path);
 					icon                 = image;
-					any_map_set(box_projects_icon_map, icon_path, icon);
+					any_map_set(box_projects_icon_map, string_copy(icon_path), icon); // The map holds the key
 				}
 
 				i32 uix = g_ui->_x;
@@ -135,12 +133,8 @@ void box_projects_tab() {
 
 					char *name = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, "."));
 					if (g_ui->is_hovered && g_ui->input_released_r) {
-						gc_unroot(_box_projects_path);
 						_box_projects_path = string_copy(path);
-						gc_root(_box_projects_path);
-						gc_unroot(_box_projects_icon_path);
 						_box_projects_icon_path = string_copy(icon_path);
-						gc_root(_box_projects_icon_path);
 						_box_projects_i = i;
 						ui_menu_draw(&box_projects_tab_menu, -1, -1);
 					}
@@ -219,8 +213,11 @@ void box_projects_show() {
 		for (i32 i = 0; i < keys->length; ++i) {
 			char *handle = keys->buffer[i];
 			data_delete_texture(handle);
+			free(handle);
 		}
-		gc_unroot(box_projects_icon_map);
+		array_free(keys);
+		free(keys);
+		map_free(box_projects_icon_map);
 		box_projects_icon_map = NULL;
 	}
 

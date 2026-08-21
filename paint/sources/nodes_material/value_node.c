@@ -8,7 +8,7 @@ char *value_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void value_node_init() {
 
 	ui_node_t *value_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Value"),
 	                              .type    = "VALUE",
 	                              .x       = 0,
@@ -17,7 +17,7 @@ void value_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -31,7 +31,7 @@ void value_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Value"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
 	                                                                       .output        = 0,
 	                                                                       .default_value = f32_array_create_x(0),

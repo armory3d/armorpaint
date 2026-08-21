@@ -4,9 +4,7 @@
 static i32 repeat_node_count = 0;
 
 static void repeat_node_on_done(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 
 	iron_delay_idle_sleep();
 
@@ -23,7 +21,7 @@ static void repeat_node_on_done(ui_node_t *node) {
 
 void repeat_node_button(i32 node_id) {
 	ui_node_t   *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char        *node_name = parser_material_node_name(node, NULL);
+	char        *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t *h         = ui_handle(node_name);
 	i32          count     = (i32)ui_slider(ui_nest(h, 0), tr("Count"), 1.0, 100.0, true, 1.0, true, UI_ALIGN_LEFT, true);
 
@@ -50,7 +48,7 @@ void repeat_node_button(i32 node_id) {
 
 void repeat_node_init() {
 
-	ui_node_t *repeat_node_def = GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	ui_node_t *repeat_node_def = ALLOC_INIT(ui_node_t, {.id      = 0,
 	                                                       .name    = _tr("Repeat"),
 	                                                       .type    = "NEURAL_REPEAT",
 	                                                       .x       = 0,
@@ -59,7 +57,7 @@ void repeat_node_init() {
 	                                                       .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                                                       .outputs = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                               ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                                .node_id       = 0,
 	                                                                                                .name          = _tr("Out"),
 	                                                                                                .type          = "BOOL",
@@ -73,7 +71,7 @@ void repeat_node_init() {
 	                                                           1),
 	                                                       .buttons = any_array_create_from_raw(
 	                                                           (void *[]){
-	                                                               GC_ALLOC_INIT(ui_node_button_t, {.name          = "repeat_node_button",
+	                                                               ALLOC_INIT(ui_node_button_t, {.name          = "repeat_node_button",
 	                                                                                                .type          = "CUSTOM",
 	                                                                                                .output        = -1,
 	                                                                                                .default_value = f32_array_create_x(0),

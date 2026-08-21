@@ -21,7 +21,6 @@ void render_path_raytrace_commands(bool use_live_layer) {
 		}
 		char *mode = config_is_raytrace_fast() ? "core" : "full";
 		render_path_raytrace_raytrace_init(string("raytrace_brute_%s%s%s", ext, mode, render_path_raytrace_ext), true);
-		gc_unroot(render_path_raytrace_last_envmap);
 		render_path_raytrace_last_envmap = NULL;
 	}
 
@@ -35,9 +34,7 @@ void render_path_raytrace_commands(bool use_live_layer) {
 
 	////
 	if (render_path_raytrace_last_envmap != saved_envmap) {
-		gc_unroot(render_path_raytrace_last_envmap);
 		render_path_raytrace_last_envmap = saved_envmap;
-		gc_root(render_path_raytrace_last_envmap);
 
 		gpu_texture_t *bnoise_sobol    = any_map_get(scene_embedded, "bnoise_sobol.k");
 		gpu_texture_t *bnoise_scramble = any_map_get(scene_embedded, "bnoise_scramble.k");
@@ -150,12 +147,8 @@ void render_path_raytrace_build_data() {
 	}
 	render_path_raytrace_transform = mat4_scale(render_path_raytrace_transform, (vec4_t){sc, sc, sc, 1.0});
 
-	gc_unroot(render_path_raytrace_vb);
 	render_path_raytrace_vb = mo->data->_->vertex_buffer;
-	gc_root(render_path_raytrace_vb);
-	gc_unroot(render_path_raytrace_ib);
 	render_path_raytrace_ib = mo->data->_->index_buffer;
-	gc_root(render_path_raytrace_ib);
 }
 
 void render_path_raytrace_raytrace_init(char *shader_name, bool build) {

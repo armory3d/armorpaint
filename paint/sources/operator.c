@@ -21,6 +21,8 @@ void operator_update() {
 				operator_run(op);
 			}
 		}
+		array_free(keys);
+		free(keys);
 	}
 }
 
@@ -34,7 +36,7 @@ bool operator_shortcut(char *s, shortcut_type_t type) {
 	bool flag  = shift == keyboard_down("shift") && ctrl == keyboard_down("control") && alt == keyboard_down("alt");
 
 	if (string_index_of(s, "+") > 0) {
-		s = string_copy(substring(s, string_last_index_of(s, "+") + 1, string_length(s)));
+		s = s + string_last_index_of(s, "+") + 1;
 		if (string_equals(s, "number")) {
 			return flag;
 		}

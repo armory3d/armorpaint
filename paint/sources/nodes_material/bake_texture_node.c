@@ -19,7 +19,7 @@ static void bake_texture_node_check_result(ui_node_t *node) {
 
 	bool rgba128 = g_context->bake_type == BAKE_TYPE_NORMAL || g_context->bake_type == BAKE_TYPE_HEIGHT || g_context->bake_type == BAKE_TYPE_DERIVATIVE;
 	if (rgba128) {
-		char            *rt_name = string("bake_texture_node_%d", node->id);
+		char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
 		render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
 		gpu_texture_t   *_image  = rt->_image;
 		rt->format               = "RGBA32";
@@ -27,7 +27,7 @@ static void bake_texture_node_check_result(ui_node_t *node) {
 		draw_begin(rt->_image, false, 0);
 		draw_scaled_image(_image, 0, 0, _image->width, _image->height);
 		draw_end();
-		gpu_texture_destroy(_image);
+		gpu_delete_texture(_image);
 	}
 
 	any_map_set(render_path_render_targets, string("texpaint%d", g_context->layer->id), _bake_texture_node_rt);
@@ -51,17 +51,17 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 	_bake_texture_node_tool = g_context->tool;
 
 	// Create dedicated RGBA32 render target
-	char            *rt_name = string("bake_texture_node_%d", node->id);
+	char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
 	render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
 	if (rt != NULL && rt->width != config_get_texture_res_x()) {
-		gpu_texture_destroy(rt->_image);
+		gpu_delete_texture(rt->_image);
 		rt->width  = config_get_texture_res_x();
 		rt->height = config_get_texture_res_y();
 		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
 	}
 	if (rt == NULL) {
 		rt         = render_target_create();
-		rt->name   = rt_name;
+		rt->name   = string_copy(rt_name);
 		rt->width  = config_get_texture_res_x();
 		rt->height = config_get_texture_res_y();
 		rt->format = "RGBA32";
@@ -78,7 +78,7 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 
 	if (g_context->bake_type == BAKE_TYPE_NORMAL || g_context->bake_type == BAKE_TYPE_HEIGHT || g_context->bake_type == BAKE_TYPE_DERIVATIVE) {
 		// Use RGBA128 texture format for high poly to low poly baking to prevent artifacts
-		gpu_texture_destroy(rt->_image);
+		gpu_delete_texture(rt->_image);
 		rt->format = "RGBA128";
 		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
 
@@ -95,7 +95,7 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 
 	// Set as current layer texpaint
 	i32 lid               = g_context->layer->id;
-	_bake_texture_node_rt = any_map_get(render_path_render_targets, string("texpaint%d", lid));
+	_bake_texture_node_rt = any_map_get(render_path_render_targets, string_tmp("texpaint%d", lid));
 	any_map_set(render_path_render_targets, string("texpaint%d", lid), rt);
 	bake_texture_node_texpaint = g_context->layer->texpaint;
 
@@ -155,7 +155,7 @@ static void bake_texture_node_button(i32 node_id) {
 
 		ui_handle_t *bake_h = ui_nest(h, 12);
 		bake_h->f           = progress;
-		char *label         = string("%d%%", (i32)(progress * 100));
+		char *label         = string_tmp("%d%%", (i32)(progress * 100));
 		ui_slider(bake_h, label, 0.0, 1.0, true, 100, false, UI_ALIGN_CENTER, true);
 
 		g_theme->BUTTON_COL = _BUTTON_COL;
@@ -179,7 +179,7 @@ static void bake_texture_node_button(i32 node_id) {
 	if (bake_type == BAKE_TYPE_NORMAL_OBJECT || bake_type == BAKE_TYPE_POSITION || bake_type == BAKE_TYPE_BENT_NORMAL) {
 		ui_handle_t *up_axis_handle   = ui_nest(h, 2);
 		up_axis_handle->i             = g_context->bake_up_axis;
-		string_array_t *up_axis_combo = any_array_create_from_raw(
+		string_array_t *up_axis_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Z"),
 		        tr("Y"),
@@ -192,7 +192,7 @@ static void bake_texture_node_button(i32 node_id) {
 	if (bake_type == BAKE_TYPE_OCCLUSION || bake_type == BAKE_TYPE_CURVATURE) {
 		ui_handle_t *axis_handle   = ui_nest(h, 3);
 		axis_handle->i             = g_context->bake_axis;
-		string_array_t *axis_combo = any_array_create_from_raw(
+		string_array_t *axis_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("XYZ"),
 		        tr("X"),
@@ -252,7 +252,7 @@ static void bake_texture_node_button(i32 node_id) {
 }
 
 static char *bake_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
-	char            *rt_name = string("bake_texture_node_%d", node->id);
+	char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
 	render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
 	if (rt == NULL || bake_texture_node_baking) {
 		return "float3(0.0, 0.0, 0.0)";
@@ -260,12 +260,12 @@ static char *bake_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket)
 	any_map_set(data_cached_textures, rt_name, rt->_image);
 	bind_tex_t *tex      = parser_material_make_bind_tex(rt_name, rt_name);
 	char       *texstore = parser_material_texture_store(node, tex, rt_name, COLOR_SPACE_AUTO);
-	return string("%s.rgb", texstore);
+	return string_tmp("%s.rgb", texstore);
 }
 
 void bake_texture_node_init() {
 	ui_node_t *bake_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Bake Texture"),
 	                              .type    = "TEX_BAKE",
 	                              .x       = 0,
@@ -274,7 +274,7 @@ void bake_texture_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -288,7 +288,7 @@ void bake_texture_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "bake_texture_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "bake_texture_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

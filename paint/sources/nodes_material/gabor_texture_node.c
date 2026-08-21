@@ -116,28 +116,28 @@ char *gabor_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char             *res;
 	if (is_2d) {
 		char *ori2d = parser_material_parse_value_input(node->inputs->buffer[5], false);
-		res         = string("tex_gabor_2d(%s, %s, %s, %s, %s)", co, scale, frequency, anisotropy, ori2d);
+		res         = string_tmp("tex_gabor_2d(%s, %s, %s, %s, %s)", co, scale, frequency, anisotropy, ori2d);
 	}
 	else {
 		char *ori3d = parser_material_parse_vector_input(node->inputs->buffer[4]);
-		res         = string("tex_gabor_3d(%s, %s, %s, %s, %s)", co, scale, frequency, anisotropy, ori3d);
+		res         = string_tmp("tex_gabor_3d(%s, %s, %s, %s, %s)", co, scale, frequency, anisotropy, ori3d);
 	}
 	if (socket == node->outputs->buffer[0]) {
-		return string("%s.x", res);
+		return string_tmp("%s.x", res);
 	}
 	else if (socket == node->outputs->buffer[1]) {
-		return string("%s.y", res);
+		return string_tmp("%s.y", res);
 	}
 	else {
-		return string("%s.z", res);
+		return string_tmp("%s.z", res);
 	}
 }
 
 void gabor_texture_node_init() {
 
-	char      *gabor_dimensions_data = string("%s\n%s", _tr("2D"), _tr("3D"));
+	char      *gabor_dimensions_data = string_tmp("%s\n%s", _tr("2D"), _tr("3D"));
 	ui_node_t *gabor_texture_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Gabor Texture"),
 	                              .type   = "TEX_GABOR",
 	                              .x      = 0,
@@ -145,7 +145,7 @@ void gabor_texture_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",
@@ -155,7 +155,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Scale"),
 	                                                                       .type          = "VALUE",
@@ -165,7 +165,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Frequency"),
 	                                                                       .type          = "VALUE",
@@ -175,7 +175,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 10.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Anisotropy"),
 	                                                                       .type          = "VALUE",
@@ -185,7 +185,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Orientation 3D"),
 	                                                                       .type          = "VECTOR",
@@ -195,7 +195,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Orientation 2D"),
 	                                                                       .type          = "VALUE",
@@ -209,7 +209,7 @@ void gabor_texture_node_init() {
 	                                  6),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Value"),
 	                                                                       .type          = "VALUE",
@@ -219,7 +219,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Phase"),
 	                                                                       .type          = "VALUE",
@@ -229,7 +229,7 @@ void gabor_texture_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Intensity"),
 	                                                                       .type          = "VALUE",
@@ -243,7 +243,7 @@ void gabor_texture_node_init() {
 	                                  3),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Dimensions"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Dimensions"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(1),

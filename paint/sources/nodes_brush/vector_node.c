@@ -14,7 +14,7 @@ logic_node_value_t *vector_node_get(vector_node_t *self, i32 from) {
 	self->value.x         = x;
 	self->value.y         = y;
 	self->value.z         = z;
-	logic_node_value_t *v = GC_ALLOC_INIT(logic_node_value_t, {._vec4 = self->value});
+	logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._vec4 = self->value});
 	return v;
 }
 
@@ -34,6 +34,8 @@ gpu_texture_t *vector_node_get_as_image(vector_node_t *self, i32 from) {
 	buffer_set_f32(b, 8, n2->value);
 	buffer_set_f32(b, 12, 1.0);
 	self->image = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA128);
+	array_free(b);
+	free(b);
 	return self->image;
 }
 
@@ -44,7 +46,7 @@ void vector_node_set(vector_node_t *self, f32_array_t *value) {
 }
 
 void *vector_node_create(ui_node_t *raw, f32_array_t *args) {
-	vector_node_t *n      = GC_ALLOC_INIT(vector_node_t, {0});
+	vector_node_t *n      = ALLOC_INIT(vector_node_t, {0});
 	n->base               = logic_node_create(n);
 	n->base->get          = vector_node_get;
 	n->base->get_as_image = vector_node_get_as_image;
@@ -62,7 +64,7 @@ void *vector_node_create(ui_node_t *raw, f32_array_t *args) {
 
 void vector_node_init() {
 	ui_node_t *vector_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Vector"),
 	                              .type   = "vector_node",
 	                              .x      = 0,
@@ -70,7 +72,7 @@ void vector_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("X"),
 	                                                                       .type          = "VALUE",
@@ -80,7 +82,7 @@ void vector_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Y"),
 	                                                                       .type          = "VALUE",
@@ -90,7 +92,7 @@ void vector_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Z"),
 	                                                                       .type          = "VALUE",
@@ -104,7 +106,7 @@ void vector_node_init() {
 	                                  3),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Vector"),
 	                                                                       .type          = "VECTOR",

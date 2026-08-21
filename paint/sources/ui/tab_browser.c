@@ -108,9 +108,7 @@ void tab_browser_draw_context_menu_draw() {
 }
 
 void tab_browser_draw_context_menu(char *file) {
-	gc_unroot(_tab_browser_draw_file);
 	_tab_browser_draw_file = string_copy(file);
-	gc_root(_tab_browser_draw_file);
 
 	// Context menu
 	ui_menu_draw(&tab_browser_draw_context_menu_draw, -1, -1);
@@ -142,7 +140,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 
 #ifdef IRON_IOS
 	if (config_is_iphone()) {
-		title = string("  %s", title);
+		title = string_tmp("  %s", title);
 	}
 #endif
 
@@ -168,7 +166,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 		if (show_full) {
 			f32 step = (1.0 - bookmarks_w / (float)g_ui->_w);
 			if (!string_equals(tab_browser_hsearch->text, "")) {
-				f32_array_t *row = f32_array_create_from_raw(
+				f32_array_t *row = f32_array_create_from_raw_tmp(
 				    (f32[]){
 				        bookmarks_w / (float)g_ui->_w,
 				        step * 0.07,
@@ -181,7 +179,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 				ui_row(row);
 			}
 			else {
-				f32_array_t *row = f32_array_create_from_raw(
+				f32_array_t *row = f32_array_create_from_raw_tmp(
 				    (f32[]){
 				        bookmarks_w / (float)g_ui->_w,
 				        step * 0.07,
@@ -212,7 +210,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 		}
 		else {
 			// Menu, Up, Refresh
-			f32_array_t *row = f32_array_create_from_raw(
+			f32_array_t *row = f32_array_create_from_raw_tmp(
 			    (f32[]){
 			        0.5 / 4.0,
 			        0.5 / 4.0,
@@ -263,7 +261,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 		if (show_full) {
 			tab_browser_hsearch->text = string_copy(ui_text_input(tab_browser_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
 			if (g_ui->is_hovered) {
-				ui_tooltip(string("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
+				ui_tooltip(string_tmp("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
 			}
 			if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) { // Start searching via ctrl+f
 				ui_start_text_edit(tab_browser_hsearch, UI_ALIGN_LEFT);
@@ -278,9 +276,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 		if (!string_equals(tab_browser_last_path, tab_browser_hpath->text)) {
 			tab_browser_hsearch->text = "";
 		}
-		gc_unroot(tab_browser_last_path);
 		tab_browser_last_path = string_copy(tab_browser_hpath->text);
-		gc_root(tab_browser_last_path);
 
 		f32 _y = g_ui->_y;
 		if (show_full) {
@@ -335,9 +331,7 @@ void tab_browser_draw(ui_handle_t *htab) {
 				}
 
 				if (g_ui->is_hovered && g_ui->input_released_r) {
-					gc_unroot(_tab_browser_draw_b);
 					_tab_browser_draw_b = string_copy(b);
-					gc_root(_tab_browser_draw_b);
 					ui_menu_draw(&tab_browser_draw_bookmark_menu, -1, -1);
 				}
 			}

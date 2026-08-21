@@ -4,7 +4,7 @@
 int tab_stages_selected = 0;
 
 stage_t *tab_stages_create_stage(char *name) {
-	stage_t *s = GC_ALLOC_INIT(stage_t, {0});
+	stage_t *s = ALLOC_INIT(stage_t, {0});
 	s->name    = name;
 	s->objects = string_array_create(0);
 	s->layers  = string_array_create(0);

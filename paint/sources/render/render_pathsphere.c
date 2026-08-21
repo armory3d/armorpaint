@@ -9,17 +9,17 @@ extern char *str_env_brdf_approx;
 static mesh_object_t *render_pathsphere_obj = NULL;
 
 static node_shader_context_t *make_pathsphere_shader(char *name) {
-	material_t            *mat   = GC_ALLOC_INIT(material_t, {.name = name, .canvas = NULL});
-	shader_context_t      *props = GC_ALLOC_INIT(shader_context_t, {
+	material_t            *mat   = ALLOC_INIT(material_t, {.name = name, .canvas = NULL});
+	shader_context_t      *props = ALLOC_INIT(shader_context_t, {
 	                                                                   .name            = "overlay",
 	                                                                   .depth_write     = false,
 	                                                                   .compare_mode    = "always",
 	                                                                   .cull_mode       = "clockwise",
 	                                                                   .vertex_elements = any_array_create_from_raw(
                                                                       (void *[]){
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                          ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                          ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                          ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
                                                                       },
                                                                       3),
 	                                                                   .color_attachments = any_array_create_from_raw((void *[]){"RGBA64"}, 1),
@@ -100,28 +100,27 @@ static void create_pathsphere_object() {
 	node_shader_context_t *con = make_pathsphere_shader("render_pathsphere");
 	shader_context_load(con->data);
 
-	shader_data_t      *sd   = GC_ALLOC_INIT(shader_data_t, {
+	shader_data_t      *sd   = ALLOC_INIT(shader_data_t, {
 	                                                            .name     = "render_pathsphere",
 	                                                            .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
                                                      });
-	material_context_t *mcon = GC_ALLOC_INIT(material_context_t, {
+	material_context_t *mcon = ALLOC_INIT(material_context_t, {
 	                                                                 .name           = "overlay",
 	                                                                 .bind_constants = any_array_create_from_raw((void *[]){}, 0),
 	                                                                 .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
 	                                                             });
 	material_context_load(mcon);
-	material_data_t *mat = GC_ALLOC_INIT(material_data_t, {
+	material_data_t *mat = ALLOC_INIT(material_data_t, {
 	                                                          .name     = "render_pathsphere",
 	                                                          .shader   = "",
 	                                                          .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
-	                                                          ._        = GC_ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
+	                                                          ._        = ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
 	                                                      });
 
 	render_pathsphere_obj                  = mesh_object_create(md, mat);
 	render_pathsphere_obj->base->name      = "render_pathsphere";
 	render_pathsphere_obj->base->visible   = false;
 	render_pathsphere_obj->frustum_culling = false;
-	gc_root(render_pathsphere_obj);
 }
 
 void render_pathsphere() {

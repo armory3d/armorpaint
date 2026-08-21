@@ -35,8 +35,6 @@ void on_ui() {
 void main() {
 	plugin = plugin_create();
 	h1 = ui_handle_create();
-	gc_root(plugin);
-	gc_root(h1);
 
 	plugin_notify_on_ui(plugin, on_ui);
 }

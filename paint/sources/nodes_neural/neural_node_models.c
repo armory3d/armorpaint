@@ -2,10 +2,9 @@
 #include "../global.h"
 
 void neural_node_models_init() {
-	gc_unroot(neural_node_models);
 	neural_node_models = any_array_create_from_raw(
 	    (void *[]){
-	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "FLUX 2 klein",
+	        ALLOC_INIT(neural_node_model_t, {.name   = "FLUX 2 klein",
 	                                            .memory = "4GB",
 	                                            .size   = "8.7GB",
 	                                            .nodes  = "Text to Image, Edit Image",
@@ -20,7 +19,7 @@ void neural_node_models_init() {
 	                                            .web     = "https://huggingface.co/armory3d/FLUX.2-klein-4B-GGUF",
 	                                            .license = "apache-2.0"}),
 
-	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "DA3MONO",
+	        ALLOC_INIT(neural_node_model_t, {.name   = "DA3MONO",
 	                                            .memory = "6GB",
 	                                            .size   = "1.4GB",
 	                                            .nodes  = "Image to PBR",
@@ -32,7 +31,7 @@ void neural_node_models_init() {
 	                                            .web     = "https://huggingface.co/armory3d/DA3MONO-LARGE",
 	                                            .license = "apache-2.0"}),
 
-	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "Real-ESRGAN",
+	        ALLOC_INIT(neural_node_model_t, {.name   = "Real-ESRGAN",
 	                                            .memory = "1GB",
 	                                            .size   = "0.07GB",
 	                                            .nodes  = "Upscale Image",
@@ -44,7 +43,7 @@ void neural_node_models_init() {
 	                                            .web     = "https://huggingface.co/armory3d/Real-ESRGAN",
 	                                            .license = "bsd-3-clause"}),
 
-	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "Hunyuan3D",
+	        ALLOC_INIT(neural_node_model_t, {.name   = "Hunyuan3D",
 	                                            .memory = "12GB",
 	                                            .size   = "12.6GB",
 	                                            .nodes  = "Image to 3D Mesh",
@@ -56,7 +55,7 @@ void neural_node_models_init() {
 	                                            .web     = "https://huggingface.co/armory3d/hunyuan3d21_portable",
 	                                            .license = "hunyuan3d"}),
 
-	        GC_ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
+	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
 	                                            .memory = "20GB",
 	                                            .size   = "15.3GB",
 	                                            .nodes  = "Text to Text, Console",
@@ -69,5 +68,4 @@ void neural_node_models_init() {
 	                                            .license = "apache-2.0"}),
 	    },
 	    5);
-	gc_root(neural_node_models);
 }

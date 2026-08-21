@@ -306,15 +306,9 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 
 	_export_exr_width  = width;
 	_export_exr_stride = stride;
-	gc_unroot(_export_exr_out);
 	_export_exr_out = out;
-	gc_root(_export_exr_out);
-	gc_unroot(_export_exr_src_view);
 	_export_exr_src_view = src;
-	gc_root(_export_exr_src_view);
-	gc_unroot(_export_exr_write_line);
 	_export_exr_write_line = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
-	gc_root(_export_exr_write_line);
 	void (*write_data)(i32, i32, i32) = type == 1 ? export_exr_write_bgr : export_exr_write_single;
 
 	for (i32 y = 0; y < height; ++y) {

@@ -6,7 +6,7 @@ ui_node_socket_t_array_t *import_arm_get_node_socket_array(any_map_t *old, char 
 	any_array_t              *ias     = any_map_get(old, key);
 	for (i32 i = 0; i < ias->length; ++i) {
 		any_map_t        *old = ias->buffer[i];
-		ui_node_socket_t *s   = GC_ALLOC_INIT(ui_node_socket_t, {0});
+		ui_node_socket_t *s   = ALLOC_INIT(ui_node_socket_t, {0});
 		s->id                 = armpack_map_get_i32(old, "id");
 		s->node_id            = armpack_map_get_i32(old, "node_id");
 		s->name               = string_copy(any_map_get(old, "name"));
@@ -30,13 +30,13 @@ ui_node_canvas_t_array_t *import_arm_get_node_canvas_array(any_map_t *map, char 
 	ui_node_canvas_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < cas->length; ++i) {
 		any_map_t        *old = cas->buffer[i];
-		ui_node_canvas_t *c   = GC_ALLOC_INIT(ui_node_canvas_t, {0});
+		ui_node_canvas_t *c   = ALLOC_INIT(ui_node_canvas_t, {0});
 		c->name               = string_copy(any_map_get(old, "name"));
 		c->nodes              = any_array_create_from_raw((void *[]){}, 0);
 		any_array_t *ns       = any_map_get(old, "nodes");
 		for (i32 i = 0; i < ns->length; ++i) {
 			any_map_t *old   = ns->buffer[i];
-			ui_node_t *n     = GC_ALLOC_INIT(ui_node_t, {0});
+			ui_node_t *n     = ALLOC_INIT(ui_node_t, {0});
 			n->id            = armpack_map_get_i32(old, "id");
 			n->name          = string_copy(any_map_get(old, "name"));
 			n->type          = string_copy(any_map_get(old, "type"));
@@ -49,7 +49,7 @@ ui_node_canvas_t_array_t *import_arm_get_node_canvas_array(any_map_t *map, char 
 			any_array_t *bas = any_map_get(old, "buttons");
 			for (i32 i = 0; i < bas->length; ++i) {
 				any_map_t        *old = bas->buffer[i];
-				ui_node_button_t *b   = GC_ALLOC_INIT(ui_node_button_t, {0});
+				ui_node_button_t *b   = ALLOC_INIT(ui_node_button_t, {0});
 				b->name               = string_copy(any_map_get(old, "name"));
 				b->type               = string_copy(any_map_get(old, "type"));
 				b->output             = armpack_map_get_i32(old, "output");
@@ -69,7 +69,7 @@ ui_node_canvas_t_array_t *import_arm_get_node_canvas_array(any_map_t *map, char 
 		any_array_t *las = any_map_get(old, "links");
 		for (i32 i = 0; i < las->length; ++i) {
 			any_map_t      *old = las->buffer[i];
-			ui_node_link_t *l   = GC_ALLOC_INIT(ui_node_link_t, {0});
+			ui_node_link_t *l   = ALLOC_INIT(ui_node_link_t, {0});
 			l->id               = armpack_map_get_i32(old, "id");
 			l->from_id          = armpack_map_get_i32(old, "from_id");
 			l->from_socket      = armpack_map_get_i32(old, "from_socket");
@@ -102,7 +102,7 @@ bool import_arm_is_old(buffer_t *b) {
 }
 
 project_t *import_arm_from_map_to_arm(any_map_t *old) {
-	project_t *project = GC_ALLOC_INIT(project_t, {0});
+	project_t *project = ALLOC_INIT(project_t, {0});
 	project->version   = string_copy(manifest_version_project);
 	project->assets    = any_map_get(old, "assets");
 	project->is_bgra   = armpack_map_get_i32(old, "is_bgra") > 0;
@@ -112,7 +112,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->packed_assets = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < pas->length; ++i) {
 			any_map_t      *old = pas->buffer[i];
-			packed_asset_t *pa  = GC_ALLOC_INIT(packed_asset_t, {0});
+			packed_asset_t *pa  = ALLOC_INIT(packed_asset_t, {0});
 			pa->name            = string_copy(any_map_get(old, "name"));
 			pa->bytes           = any_map_get(old, "bytes");
 			any_array_push(project->packed_assets, pa);
@@ -131,7 +131,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->swatches = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < ss->length; ++i) {
 			any_map_t      *old = ss->buffer[i];
-			swatch_color_t *s   = GC_ALLOC_INIT(swatch_color_t, {0});
+			swatch_color_t *s   = ALLOC_INIT(swatch_color_t, {0});
 			s->base             = armpack_map_get_i32(old, "base");
 			s->opacity          = armpack_map_get_f32(old, "opacity");
 			s->occlusion        = armpack_map_get_f32(old, "occlusion");
@@ -157,7 +157,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->material_datas = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < mds->length; ++i) {
 			any_map_t        *old = mds->buffer[i];
-			material_data2_t *md  = GC_ALLOC_INIT(layer_data_t, {0});
+			material_data2_t *md  = ALLOC_INIT(layer_data_t, {0});
 			md->paint_base        = armpack_map_get_i32(old, "paint_base") > 0;
 			md->paint_opac        = armpack_map_get_i32(old, "paint_opac") > 0;
 			md->paint_occ         = armpack_map_get_i32(old, "paint_occ") > 0;
@@ -180,7 +180,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->layer_datas = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < lds->length; ++i) {
 			any_map_t    *old      = lds->buffer[i];
-			layer_data_t *ld       = GC_ALLOC_INIT(layer_data_t, {0});
+			layer_data_t *ld       = ALLOC_INIT(layer_data_t, {0});
 			ld->name               = string_copy(any_map_get(old, "name"));
 			ld->res                = armpack_map_get_i32(old, "res");
 			ld->bpp                = armpack_map_get_i32(old, "bpp");
@@ -227,7 +227,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->mesh_datas = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < ms->length; ++i) {
 			any_map_t   *old  = ms->buffer[i];
-			mesh_data_t *md   = GC_ALLOC_INIT(mesh_data_t, {0});
+			mesh_data_t *md   = ALLOC_INIT(mesh_data_t, {0});
 			md->name          = string_copy(any_map_get(old, "name"));
 			md->scale_pos     = armpack_map_get_f32(old, "scale_pos");
 			md->scale_tex     = armpack_map_get_f32(old, "scale_tex");
@@ -235,7 +235,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			md->vertex_arrays = any_array_create_from_raw((void *[]){}, 0);
 			for (i32 i = 0; i < vas->length; ++i) {
 				any_map_t      *old = vas->buffer[i];
-				vertex_array_t *va  = GC_ALLOC_INIT(vertex_array_t, {0});
+				vertex_array_t *va  = ALLOC_INIT(vertex_array_t, {0});
 				va->attrib          = string_copy(any_map_get(old, "attrib"));
 				va->data            = string_copy(any_map_get(old, "data"));
 				va->values          = any_map_get(old, "values");
@@ -266,7 +266,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->timeline_layers = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < tls->length; ++i) {
 			any_map_t                      *old = tls->buffer[i];
-			timeline_layer_keyframe_data_t *d   = GC_ALLOC_INIT(timeline_layer_keyframe_data_t, {0});
+			timeline_layer_keyframe_data_t *d   = ALLOC_INIT(timeline_layer_keyframe_data_t, {0});
 			d->frame                            = armpack_map_get_i32(old, "frame");
 			d->layer_index                      = armpack_map_get_i32(old, "layer_index");
 			d->texpaint                         = any_map_get(old, "texpaint");
@@ -286,7 +286,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->timeline_meshes = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < tms->length; ++i) {
 			any_map_t                     *old = tms->buffer[i];
-			timeline_mesh_keyframe_data_t *d   = GC_ALLOC_INIT(timeline_mesh_keyframe_data_t, {0});
+			timeline_mesh_keyframe_data_t *d   = ALLOC_INIT(timeline_mesh_keyframe_data_t, {0});
 			d->frame                           = armpack_map_get_i32(old, "frame");
 			d->mesh_index                      = armpack_map_get_i32(old, "mesh_index");
 			d->transform                       = any_map_get(old, "transform");
@@ -300,7 +300,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->stages = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < stages->length; ++i) {
 			any_map_t *old = stages->buffer[i];
-			stage_t   *d   = GC_ALLOC_INIT(stage_t, {0});
+			stage_t   *d   = ALLOC_INIT(stage_t, {0});
 			d->name        = any_map_get(old, "name");
 			d->objects     = any_map_get(old, "objects");
 			d->layers      = any_map_get(old, "layers");

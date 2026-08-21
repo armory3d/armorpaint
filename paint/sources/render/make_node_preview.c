@@ -4,16 +4,16 @@
 node_shader_context_t *make_node_preview_run(material_t *data, material_context_t *matcon, ui_node_t *node, ui_node_canvas_t *group,
                                              ui_node_t_array_t *parents) {
 	char                  *context_id = "mesh";
-	shader_context_t      *props      = GC_ALLOC_INIT(shader_context_t, {.name            = context_id,
+	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                     .depth_write     = false,
 	                                                                     .compare_mode    = "always",
 	                                                                     .cull_mode       = "clockwise",
 	                                                                     .vertex_elements = any_array_create_from_raw(
                                                                    (void *[]){
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                       GC_ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
                                                                    },
                                                                    4),
 	                                                                     .color_attachments = any_array_create_from_raw(
@@ -35,41 +35,27 @@ node_shader_context_t *make_node_preview_run(material_t *data, material_context_
 	node_shader_write_attrib_frag(kong, "var tex_coord: float2 = input.tex_coord;");
 
 	parser_material_init();
-	gc_unroot(parser_material_canvases);
 	parser_material_canvases = any_array_create_from_raw(
 	    (void *[]){
 	        g_context->material->canvas,
 	    },
 	    1);
-	gc_root(parser_material_canvases);
-	gc_unroot(parser_material_nodes);
 	parser_material_nodes = g_context->material->canvas->nodes;
-	gc_root(parser_material_nodes);
-	gc_unroot(parser_material_links);
 	parser_material_links = g_context->material->canvas->links;
-	gc_root(parser_material_links);
 	if (group != NULL) {
 		parser_material_push_group(group);
-		gc_unroot(parser_material_parents);
 		parser_material_parents = parents;
-		gc_root(parser_material_parents);
 	}
 	ui_node_link_t_array_t *links          = parser_material_links;
 	i32                     socket_preview = i32_imap_get(g_context->node_preview_socket_map, node->id);
-	ui_node_link_t         *link           = GC_ALLOC_INIT(
+	ui_node_link_t         *link           = ALLOC_INIT(
         ui_node_link_t,
         {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
 	any_array_push(links, link);
 
-	gc_unroot(parser_material_con);
 	parser_material_con = con_mesh;
-	gc_root(parser_material_con);
-	gc_unroot(parser_material_kong);
 	parser_material_kong = kong;
-	gc_root(parser_material_kong);
-	gc_unroot(parser_material_matcon);
 	parser_material_matcon = matcon;
-	gc_root(parser_material_matcon);
 
 	parser_material_transform_color_space = false;
 	char *res                             = parser_material_write_result(link);
@@ -81,7 +67,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, material_context_
 	array_remove(links, link);
 
 	kong->frag_out = "float4";
-	node_shader_write_frag(kong, string("var basecol: float3 = %s;", res));
+	node_shader_write_frag(kong, string_tmp("var basecol: float3 = %s;", res));
 	node_shader_write_frag(kong, "output = float4(basecol.rgb, 1.0);");
 
 	parser_material_finalize(con_mesh);

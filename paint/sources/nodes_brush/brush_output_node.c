@@ -37,11 +37,11 @@ void brush_output_node_parse_inputs() {
 
 	logic_node_value_t *opac = input4; // Float or texture name
 	if (opac == NULL) {
-		opac = GC_ALLOC_INIT(logic_node_value_t, {._f32 = 1.0});
+		opac = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = 1.0});
 	}
 	if (opac->_str != NULL) { // string
 		g_context->brush_mask_image_is_alpha = ends_with(opac->_str, ".a");
-		opac->_str                           = string_copy(substring(opac->_str, 0, string_last_index_of(opac->_str, ".")));
+		opac->_str                           = string_tmp("%.*s", string_last_index_of(opac->_str, "."), opac->_str);
 		g_context->brush_nodes_opacity       = 1.0;
 		i32 index                            = -1;
 		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
@@ -64,11 +64,11 @@ void brush_output_node_parse_inputs() {
 
 	logic_node_value_t *stencil = input6; // Float or texture name
 	if (stencil == NULL) {
-		stencil = GC_ALLOC_INIT(logic_node_value_t, {._f32 = 1.0});
+		stencil = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = 1.0});
 	}
 	if (stencil->_str != NULL) { // string
 		g_context->brush_stencil_image_is_alpha = ends_with(stencil->_str, ".a");
-		stencil->_str                           = string_copy(substring(stencil->_str, 0, string_last_index_of(stencil->_str, ".")));
+		stencil->_str                           = string_tmp("%.*s", string_last_index_of(stencil->_str, "."), stencil->_str);
 		i32 index                               = -1;
 		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
 			if (string_equals(g_project->_->assets->buffer[i]->name, stencil->_str)) {
@@ -203,7 +203,7 @@ void brush_output_node_run() {
 }
 
 void *brush_output_node_create(ui_node_t *raw, f32_array_t *args) {
-	brush_output_node_t *n = GC_ALLOC_INIT(brush_output_node_t, {0});
+	brush_output_node_t *n = ALLOC_INIT(brush_output_node_t, {0});
 	n->base                = logic_node_create(n);
 	n->raw                 = raw;
 	brush_output_node_inst = n;

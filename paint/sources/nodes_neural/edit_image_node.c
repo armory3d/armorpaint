@@ -15,7 +15,7 @@ static string_array_t *edit_image_node_flux_klein_args(char *dir) {
 void edit_image_node_button(i32 node_id) {
 	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
 	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = parser_material_node_name(node, NULL);
+	char             *node_name = string_copy(parser_material_node_name(node, NULL));
 	ui_handle_t      *h         = ui_handle(node_name);
 
 	string_array_t *models           = any_array_create_from_raw((void *[]){"FLUX 2 klein"}, 1);
@@ -102,7 +102,7 @@ void edit_image_node_button(i32 node_id) {
 void edit_image_node_init() {
 
 	ui_node_t *edit_image_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
 	                              .name   = _tr("Edit Image"),
 	                              .type   = "NEURAL_EDIT_IMAGE",
 	                              .x      = 0,
@@ -110,7 +110,7 @@ void edit_image_node_init() {
 	                              .color  = 0xff4982a0,
 	                              .inputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -120,7 +120,7 @@ void edit_image_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Mask"),
 	                                                                       .type          = "VALUE",
@@ -134,7 +134,7 @@ void edit_image_node_init() {
 	                                  2),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Color"),
 	                                                                       .type          = "RGBA",
@@ -148,7 +148,7 @@ void edit_image_node_init() {
 	                                  1),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "edit_image_node_button",
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = "edit_image_node_button",
 	                                                                       .type          = "CUSTOM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

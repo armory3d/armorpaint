@@ -12,9 +12,9 @@ gpu_texture_t *tab_swatches_empty_get() {
 		b->buffer[1]  = 255;
 		b->buffer[2]  = 255;
 		b->buffer[3]  = 255;
-		gc_unroot(_tab_swatches_empty);
 		_tab_swatches_empty = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(_tab_swatches_empty);
+		array_free(b);
+		free(b);
 	}
 	return _tab_swatches_empty;
 }
@@ -116,7 +116,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 	if (ui_tab(htab, tr("Swatches"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		        -100,
@@ -216,9 +216,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 					g_context->swatch = g_project->swatches->buffer[i];
 					base_drag_off_x   = -(mouse_x - uix - g_ui->_window_x);
 					base_drag_off_y   = -(mouse_y - uiy - g_ui->_window_y + 1);
-					gc_unroot(base_drag_swatch);
 					base_drag_swatch = g_context->swatch;
-					gc_root(base_drag_swatch);
 					g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 					ui_header_handle->redraws = 2;
 				}
@@ -247,7 +245,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 					i32 color = g_project->swatches->buffer[i]->base;
 					color     = color_set_ab(color, g_project->swatches->buffer[i]->opacity * 255);
 					u32 val   = color;
-					ui_tooltip(string("#%s", i32_to_string_hex(val)));
+					ui_tooltip(string_tmp("#%s", i32_to_string_hex(val)));
 				}
 			}
 		}

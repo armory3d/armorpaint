@@ -195,8 +195,19 @@ i32 util_mesh_atlas_slot(object_t *object) {
 	return _util_mesh_atlas_slot_for_data(data);
 }
 
+void util_mesh_delete_data_uncache(void *data) {
+	mesh_data_t *md = (mesh_data_t *)data;
+	if (md->_->handle != NULL) {
+		mesh_data_t *cached = any_map_get(data_cached_meshes, md->_->handle);
+		if (cached == md) {
+			map_delete(data_cached_meshes, md->_->handle);
+		}
+	}
+	mesh_data_delete(md);
+}
+
 mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
-	mesh_data_t *raw = gc_alloc(sizeof(mesh_data_t));
+	mesh_data_t *raw = calloc(1, sizeof(mesh_data_t));
 	raw->name        = string_copy(source->name);
 	raw->scale_pos   = source->scale_pos;
 	raw->scale_tex   = source->scale_tex;
@@ -205,14 +216,16 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 	for (i32 i = 0; i < source->vertex_arrays->length; ++i) {
 		vertex_array_t *src = source->vertex_arrays->buffer[i];
 		vertex_array_t *va =
-		    GC_ALLOC_INIT(vertex_array_t,
+		    ALLOC_INIT(vertex_array_t,
 		                  {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
 		any_array_push(raw->vertex_arrays, va);
 	}
 
 	raw->index_array = u32_array_create_from_array(source->index_array);
 
-	return mesh_data_create(raw);
+	mesh_data_t *md    = mesh_data_create(raw);
+	md->_->owns_arrays = true;
+	return md;
 }
 
 static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_objects, char *name) {
@@ -306,23 +319,23 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		voff += math_floor(vas->buffer[0]->values->length / 4.0);
 		ioff += math_floor(ias->length);
 	}
-	mesh_data_t *raw = GC_ALLOC_INIT(mesh_data_t, {.name          = name,
+	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = name,
 	                                               .vertex_arrays = any_array_create_from_raw(
 	                                                   (void *[]){
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
 	                                                   },
 	                                                   3),
 	                                               .index_array = ia,
 	                                               .scale_pos   = max_scale,
 	                                               .scale_tex   = 1.0});
 	if (vatex1 != NULL) {
-		vertex_array_t *va = GC_ALLOC_INIT(vertex_array_t, {.values = vatex1, .attrib = "tex1", .data = "short2norm"});
+		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = vatex1, .attrib = "tex1", .data = "short2norm"});
 		any_array_push(raw->vertex_arrays, va);
 	}
 	if (vacol != NULL) {
-		vertex_array_t *va = GC_ALLOC_INIT(vertex_array_t, {.values = vacol, .attrib = "col", .data = "short4norm"});
+		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = vacol, .attrib = "col", .data = "short4norm"});
 		any_array_push(raw->vertex_arrays, va);
 	}
 	return raw;
@@ -347,7 +360,8 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 
 	mesh_data_t *raw = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
 	util_mesh_remove_merged();
-	mesh_data_t     *md                     = mesh_data_create(raw);
+	mesh_data_t *md    = mesh_data_create(raw);
+	md->_->owns_arrays = true;
 	material_data_t *paint_material         = g_project->_->materials->buffer[0]->data;
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
@@ -429,8 +443,9 @@ void util_mesh_merge_geometry() {
 		mesh_object_remove(o);
 	}
 
-	mesh_data_t *md = mesh_data_create(raw);
-	sys_notify_on_next_frame(&mesh_data_delete, main_object->data);
+	mesh_data_t *md    = mesh_data_create(raw);
+	md->_->owns_arrays = true;
+	sys_notify_on_next_frame(&util_mesh_delete_data_uncache, main_object->data);
 	mesh_object_set_data(main_object, md);
 	md->_->handle = string_copy(raw->name);
 	any_map_set(data_cached_meshes, md->_->handle, md);
@@ -543,9 +558,7 @@ void util_mesh_calc_normals(bool smooth) {
 			for (i32 j = 0; j < num_verts; ++j) {
 				i32_array_push(indices, j);
 			}
-			gc_unroot(util_mesh_va0);
 			util_mesh_va0 = va0;
-			gc_root(util_mesh_va0);
 			i32_array_sort(indices, &util_mesh_calc_normals_sort);
 			if (indices->length > 0) {
 				i32 unique_id                        = indices->buffer[0];
@@ -789,9 +802,7 @@ void util_mesh_decimate(f32 strength) {
 	if (cell_size < 1)
 		cell_size = 1;
 
-	gc_unroot(util_mesh_quantized);
 	util_mesh_quantized = i32_array_create(num_verts * 3);
-	gc_root(util_mesh_quantized);
 	i32_array_t *indices = i32_array_create_from_raw((i32[]){}, 0);
 
 	for (i32 i = 0; i < num_verts; ++i) {
@@ -861,20 +872,24 @@ void util_mesh_decimate(f32 strength) {
 		}
 	}
 
-	mesh_data_t *raw = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_decimated", o->base->name),
+	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = string("%s_decimated", o->base->name),
 	                                               .vertex_arrays = any_array_create_from_raw(
 	                                                   (void *[]){
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+	                                                       ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
 	                                                   },
 	                                                   3),
 	                                               .index_array = u32_array_create_from_array(new_inda),
 	                                               .scale_pos   = o->data->scale_pos,
 	                                               .scale_tex   = 1.0});
 
-	mesh_data_t *new_data = mesh_data_create(raw);
-	o->data               = new_data;
+	mesh_data_t *new_data    = mesh_data_create(raw);
+	new_data->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();
@@ -905,9 +920,7 @@ void util_mesh_smooth() {
 	i32_array_t *weld_sort = i32_array_create(overts);
 	for (i32 i = 0; i < overts; ++i)
 		weld_sort->buffer[i] = i;
-	gc_unroot(util_mesh_va0);
 	util_mesh_va0 = va0;
-	gc_root(util_mesh_va0);
 	i32_array_sort(weld_sort, &util_mesh_calc_normals_sort);
 
 	i32_array_t *weld_id = i32_array_create(overts);
@@ -1078,9 +1091,7 @@ void util_mesh_bevel(f32 amount) {
 	i32_array_t *weld_sort = i32_array_create(num_verts);
 	for (i32 i = 0; i < num_verts; ++i)
 		weld_sort->buffer[i] = i;
-	gc_unroot(util_mesh_va0);
 	util_mesh_va0 = va0;
-	gc_root(util_mesh_va0);
 	i32_array_sort(weld_sort, &util_mesh_calc_normals_sort);
 
 	i32_array_t *weld_id = i32_array_create(num_verts);
@@ -1265,19 +1276,23 @@ void util_mesh_bevel(f32 amount) {
 		i = j;
 	}
 
-	mesh_data_t *raw      = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
+	mesh_data_t *raw      = ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
 	                                                    .vertex_arrays = any_array_create_from_raw(
                                                        (void *[]){
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
                                                        },
                                                        3),
 	                                                    .index_array = new_inda,
 	                                                    .scale_pos   = o->data->scale_pos,
 	                                                    .scale_tex   = 1.0});
-	mesh_data_t *new_data = mesh_data_create(raw);
-	o->data               = new_data;
+	mesh_data_t *new_data    = mesh_data_create(raw);
+	new_data->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();
@@ -1391,19 +1406,23 @@ void util_mesh_subdivide() {
 		new_inda->buffer[b + 11] = e2;
 	}
 
-	mesh_data_t *raw       = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
+	mesh_data_t *raw       = ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
 	                                                     .vertex_arrays = any_array_create_from_raw(
                                                        (void *[]){
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                           ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
                                                        },
                                                        3),
 	                                                     .index_array = new_inda,
 	                                                     .scale_pos   = o->data->scale_pos,
 	                                                     .scale_tex   = 1.0});
-	mesh_data_t *new_data2 = mesh_data_create(raw);
-	o->data                = new_data2;
+	mesh_data_t *new_data2    = mesh_data_create(raw);
+	new_data2->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data2;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();

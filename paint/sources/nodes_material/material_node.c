@@ -10,12 +10,8 @@ char *material_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	slot_material_t        *m      = g_project->_->materials->buffer[mi];
 	ui_node_t_array_t      *_nodes = parser_material_nodes;
 	ui_node_link_t_array_t *_links = parser_material_links;
-	gc_unroot(parser_material_nodes);
 	parser_material_nodes = m->canvas->nodes;
-	gc_root(parser_material_nodes);
-	gc_unroot(parser_material_links);
 	parser_material_links = m->canvas->links;
-	gc_root(parser_material_links);
 	any_array_push(parser_material_parents, node);
 	ui_node_t *output_node = parser_material_node_by_type(parser_material_nodes, "OUTPUT_MATERIAL_PBR");
 	if (socket == node->outputs->buffer[0]) { // Base
@@ -24,12 +20,8 @@ char *material_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	else if (socket == node->outputs->buffer[5]) { // Normal
 		result = string_copy(parser_material_parse_vector_input(output_node->inputs->buffer[5]));
 	}
-	gc_unroot(parser_material_nodes);
 	parser_material_nodes = _nodes;
-	gc_root(parser_material_nodes);
-	gc_unroot(parser_material_links);
 	parser_material_links = _links;
-	gc_root(parser_material_links);
 	array_pop(parser_material_parents);
 	return result;
 }
@@ -42,12 +34,8 @@ char *material_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	slot_material_t        *m      = g_project->_->materials->buffer[mi];
 	ui_node_t_array_t      *_nodes = parser_material_nodes;
 	ui_node_link_t_array_t *_links = parser_material_links;
-	gc_unroot(parser_material_nodes);
 	parser_material_nodes = m->canvas->nodes;
-	gc_root(parser_material_nodes);
-	gc_unroot(parser_material_links);
 	parser_material_links = m->canvas->links;
-	gc_root(parser_material_links);
 	any_array_push(parser_material_parents, node);
 	ui_node_t *output_node = parser_material_node_by_type(parser_material_nodes, "OUTPUT_MATERIAL_PBR");
 	if (socket == node->outputs->buffer[1]) { // Opac
@@ -65,12 +53,8 @@ char *material_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	else if (socket == node->outputs->buffer[7]) { // Height
 		result = string_copy(parser_material_parse_value_input(output_node->inputs->buffer[7], false));
 	}
-	gc_unroot(parser_material_nodes);
 	parser_material_nodes = _nodes;
-	gc_root(parser_material_nodes);
-	gc_unroot(parser_material_links);
 	parser_material_links = _links;
-	gc_root(parser_material_links);
 	array_pop(parser_material_parents);
 	return result;
 }
@@ -78,7 +62,7 @@ char *material_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 void material_node_init() {
 
 	ui_node_t *material_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id      = 0,
+	    ALLOC_INIT(ui_node_t, {.id      = 0,
 	                              .name    = _tr("Material"),
 	                              .type    = "MATERIAL", // extension
 	                              .x       = 0,
@@ -87,7 +71,7 @@ void material_node_init() {
 	                              .inputs  = any_array_create_from_raw((void *[]){}, 0),
 	                              .outputs = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Base Color"),
 	                                                                       .type          = "RGBA",
@@ -97,7 +81,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Opacity"),
 	                                                                       .type          = "VALUE",
@@ -107,7 +91,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Occlusion"),
 	                                                                       .type          = "VALUE",
@@ -117,7 +101,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Roughness"),
 	                                                                       .type          = "VALUE",
@@ -127,7 +111,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Metallic"),
 	                                                                       .type          = "VALUE",
@@ -137,7 +121,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Normal Map"),
 	                                                                       .type          = "VECTOR",
@@ -147,7 +131,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Emission"),
 	                                                                       .type          = "VALUE",
@@ -157,7 +141,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Height"),
 	                                                                       .type          = "VALUE",
@@ -167,7 +151,7 @@ void material_node_init() {
 	                                                                       .max           = 1.0,
 	                                                                       .precision     = 100,
 	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                      ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                       .node_id       = 0,
 	                                                                       .name          = _tr("Subsurface"),
 	                                                                       .type          = "VALUE",
@@ -181,7 +165,7 @@ void material_node_init() {
 	                                  9),
 	                              .buttons = any_array_create_from_raw(
 	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Material"),
+	                                      ALLOC_INIT(ui_node_button_t, {.name          = _tr("Material"),
 	                                                                       .type          = "ENUM",
 	                                                                       .output        = -1,
 	                                                                       .default_value = f32_array_create_x(0),

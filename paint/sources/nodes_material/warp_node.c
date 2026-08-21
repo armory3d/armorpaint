@@ -7,19 +7,19 @@ char *warp_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	char *angle    = parser_material_parse_value_input(node->inputs->buffer[1], true);
 	char *mask     = parser_material_parse_value_input(node->inputs->buffer[2], true);
-	char *tex_name = string("texwarp_%s", parser_material_node_name(node, NULL));
-	node_shader_add_texture(parser_material_kong, tex_name, string("_%s", tex_name));
+	char *tex_name = string_tmp("texwarp_%s", parser_material_node_name(node, NULL));
+	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	char *store = parser_material_store_var_name(node);
 	f32   pi    = math_pi();
-	parser_material_write(parser_material_kong, string("var %s_rad: float = %s * (%s / 180.0);", store, angle, f32_to_string(pi)));
-	parser_material_write(parser_material_kong, string("var %s_x: float = cos(%s_rad);", store, store));
-	parser_material_write(parser_material_kong, string("var %s_y: float = sin(%s_rad);", store, store));
-	return string("sample(%s, sampler_linear, tex_coord + float2(%s_x, %s_y) * %s).rgb", tex_name, store, store, mask);
+	parser_material_write(parser_material_kong, string_tmp("var %s_rad: float = %s * (%s / 180.0);", store, angle, f32_to_string(pi)));
+	parser_material_write(parser_material_kong, string_tmp("var %s_x: float = cos(%s_rad);", store, store));
+	parser_material_write(parser_material_kong, string_tmp("var %s_y: float = sin(%s_rad);", store, store));
+	return string_tmp("sample(%s, sampler_linear, tex_coord + float2(%s_x, %s_y) * %s).rgb", tex_name, store, store, mask);
 }
 
 void warp_node_init() {
 
-	ui_node_t *warp_node_def = GC_ALLOC_INIT(ui_node_t, {.id     = 0,
+	ui_node_t *warp_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
 	                                                     .name   = _tr("Warp"),
 	                                                     .type   = "DIRECT_WARP", // extension
 	                                                     .x      = 0,
@@ -27,7 +27,7 @@ void warp_node_init() {
 	                                                     .color  = 0xff448c6d,
 	                                                     .inputs = any_array_create_from_raw(
 	                                                         (void *[]){
-	                                                             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                              .node_id       = 0,
 	                                                                                              .name          = _tr("Color"),
 	                                                                                              .type          = "RGBA",
@@ -37,7 +37,7 @@ void warp_node_init() {
 	                                                                                              .max           = 1.0,
 	                                                                                              .precision     = 100,
 	                                                                                              .display       = 0}),
-	                                                             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                              .node_id       = 0,
 	                                                                                              .name          = _tr("Angle"),
 	                                                                                              .type          = "VALUE",
@@ -47,7 +47,7 @@ void warp_node_init() {
 	                                                                                              .max           = 360.0,
 	                                                                                              .precision     = 10,
 	                                                                                              .display       = 0}),
-	                                                             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                              .node_id       = 0,
 	                                                                                              .name          = _tr("Mask"),
 	                                                                                              .type          = "VALUE",
@@ -61,7 +61,7 @@ void warp_node_init() {
 	                                                         3),
 	                                                     .outputs = any_array_create_from_raw(
 	                                                         (void *[]){
-	                                                             GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                             ALLOC_INIT(ui_node_socket_t, {.id            = 0,
 	                                                                                              .node_id       = 0,
 	                                                                                              .name          = _tr("Color"),
 	                                                                                              .type          = "RGBA",

@@ -17,7 +17,6 @@ void on_delete() {
 
 void main() {
 	plugin = plugin_create();
-	gc_root(plugin);
 
 	context_set_viewport_shader(viewport_shader);
 	plugin_notify_on_delete(plugin, on_delete);

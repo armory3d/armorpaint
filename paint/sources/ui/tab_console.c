@@ -65,14 +65,14 @@ bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
 #endif
 
 void tab_console_draw(ui_handle_t *htab) {
-	char *title = console_message_timer > 0 ? string("%s        ", console_message) : tr("Console");
+	char *title = console_message_timer > 0 ? string_tmp("%s        ", console_message) : tr("Console");
 	i32   color = console_message_timer > 0 ? console_message_color : -1;
 
 	if (ui_tab(htab, title, false, color, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS) // Copy
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		        -100,
@@ -80,7 +80,7 @@ void tab_console_draw(ui_handle_t *htab) {
 		    },
 		    3);
 #else
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		        -100,
@@ -92,9 +92,7 @@ void tab_console_draw(ui_handle_t *htab) {
 		ui_handle_t *h_input = ui_handle(__ID__);
 
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
-			gc_unroot(console_last_traces);
 			console_last_traces = any_array_create_from_raw((void *[]){}, 0);
-			gc_root(console_last_traces);
 			h_input->text = "";
 			text_to_text_node_clear();
 		}
@@ -155,7 +153,7 @@ void tab_console_draw(ui_handle_t *htab) {
 
 		g_theme->ELEMENT_OFFSET = _element_offset;
 
-		row = f32_array_create_from_raw(
+		row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        0.9,
 		        0.1,

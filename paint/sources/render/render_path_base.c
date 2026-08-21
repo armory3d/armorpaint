@@ -22,6 +22,8 @@ void render_path_base_apply_config() {
 				rt->scale = render_path_base_super_sample;
 			}
 		}
+		array_free(keys);
+		free(keys);
 		render_path_resize();
 	}
 }
@@ -189,9 +191,7 @@ void render_path_base_draw_bloom(char *source, char *target) {
 	}
 
 	if (render_path_base_bloom_mipmaps == NULL) {
-		gc_unroot(render_path_base_bloom_mipmaps);
 		render_path_base_bloom_mipmaps = any_array_create_from_raw((void *[]){}, 0);
-		gc_root(render_path_base_bloom_mipmaps);
 
 		f32 prev_scale = 1.0;
 		for (i32 i = 0; i < 10; ++i) {
@@ -349,7 +349,7 @@ void render_path_base_draw_taa(char *bufa, char *bufb) {
 void render_path_base_swap_buf(char *bufa) {
 	// Swap buf and last targets
 	render_target_t *last_target = any_map_get(render_path_render_targets, "last");
-	last_target->name            = string_copy(bufa);
+	last_target->name            = bufa;
 	render_target_t *buf_target  = any_map_get(render_path_render_targets, bufa);
 	buf_target->name             = "last";
 	any_map_set(render_path_render_targets, bufa, last_target);
@@ -392,7 +392,7 @@ void render_path_base_make_gbuffer_copy_textures() {
 }
 
 void render_path_base_copy_to_gbuffer() {
-	string_array_t *additional = any_array_create_from_raw(
+	string_array_t *additional = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "gbuffer1",
 	        "gbuffer2",
@@ -413,7 +413,7 @@ void render_path_base_draw_gbuffer() {
 	}
 
 	render_path_set_target("gbuffer0", NULL, "main", GPU_CLEAR_DEPTH, 0, 1.0); // Only clear gbuffer0
-	string_array_t *additional = any_array_create_from_raw(
+	string_array_t *additional = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "gbuffer1",
 	        "gbuffer2",
@@ -429,22 +429,18 @@ void render_path_base_draw_gbuffer() {
 			char *ping = i % 2 == 1 ? "_copy" : "";
 			char *pong = i % 2 == 1 ? "" : "_copy";
 			if (i == make_mesh_layer_pass_count - 1) {
-				render_path_set_target(string("gbuffer2%s", ping), NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
+				render_path_set_target(string_tmp("gbuffer2%s", ping), NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 			}
-			char           *g1ping     = string("gbuffer1%s", ping);
-			char           *g2ping     = string("gbuffer2%s", ping);
-			string_array_t *additional = any_array_create_from_raw(
-			    (void *[]){
-			        g1ping,
-			        g2ping,
-			    },
-			    2);
-			render_path_set_target(string("gbuffer0%s", ping), additional, "main", GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string("gbuffer0%s", pong), "gbuffer0");
-			render_path_bind_target(string("gbuffer1%s", pong), "gbuffer1");
-			render_path_bind_target(string("gbuffer2%s", pong), "gbuffer2");
+			static string_array_t additional = {0};
+			additional.length                = 0;
+			string_array_push(&additional, string_tmp("gbuffer1%s", ping));
+			string_array_push(&additional, string_tmp("gbuffer2%s", ping));
+			render_path_set_target(string_tmp("gbuffer0%s", ping), &additional, "main", GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target(string_tmp("gbuffer0%s", pong), "gbuffer0");
+			render_path_bind_target(string_tmp("gbuffer1%s", pong), "gbuffer1");
+			render_path_bind_target(string_tmp("gbuffer2%s", pong), "gbuffer2");
 			render_path_paint_bind_layers();
-			render_path_draw_meshes(string("mesh%d", i));
+			render_path_draw_meshes(string_tmp("mesh%d", i));
 			render_path_paint_unbind_layers();
 		}
 		if (make_mesh_layer_pass_count % 2 == 0) {
