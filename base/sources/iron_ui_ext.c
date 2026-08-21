@@ -1,5 +1,5 @@
 #include "iron_draw.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_string.h"
 #include "iron_system.h"
 #include "iron_ui.h"
@@ -1014,7 +1014,7 @@ ui_handle_t *ui_handle(char *s) {
 	ui_handle_t *h = any_map_get(ui_children, s);
 	if (h == NULL) {
 		h = ui_handle_create();
-		any_map_set(ui_children, s, h);
+		any_map_set(ui_children, string_copy(s), h);
 		return h;
 	}
 	h->init = false;
@@ -1022,13 +1022,13 @@ ui_handle_t *ui_handle(char *s) {
 }
 
 ui_t *ui_create(ui_options_t *ops) {
-	ui_t *raw = GC_ALLOC_INIT(ui_t, {0});
+	ui_t *raw = ALLOC_INIT(ui_t, {0});
 	ui_init(raw, ops);
 	return raw;
 }
 
 ui_theme_t *ui_theme_create() {
-	ui_theme_t *raw = GC_ALLOC_INIT(ui_theme_t, {0});
+	ui_theme_t *raw = ALLOC_INIT(ui_theme_t, {0});
 	ui_theme_default(raw);
 	return raw;
 }

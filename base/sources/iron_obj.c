@@ -1,7 +1,7 @@
 #include "iron_obj.h"
 
 #include "iron_array.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_math.h"
 #include "iron_string.h"
 #include <math.h>
@@ -220,7 +220,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 	bytes        = file_bytes->buffer;
 	bytes_length = file_bytes->length;
 
-	part            = gc_alloc(sizeof(raw_mesh_t));
+	part            = calloc(1, sizeof(raw_mesh_t));
 	part->scale_pos = 1.0;
 	part->scale_tex = 1.0;
 	part->pos       = start_pos;
@@ -247,9 +247,9 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		uv_temp  = *uv_first;
 	}
 	else {
-		memset(&pos_temp, 0, sizeof(pos_temp));
-		memset(&uv_temp, 0, sizeof(uv_temp));
-		memset(&nor_temp, 0, sizeof(nor_temp));
+		array_free(&pos_temp);
+		array_free(&uv_temp);
+		array_free(&nor_temp);
 	}
 
 	while (part->pos < bytes_length) {
@@ -446,6 +446,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			if (!udim) {
 				reading_object = true;
 			}
+			free(part->name);
 			part->name = string_copy(read_string());
 		}
 		else if (c0 == '\n') { // Empty line
@@ -650,5 +651,5 @@ void obj_destroy(raw_mesh_t *part) {
 	free(part->nora);
 	free(part->texa);
 	free(part->inda);
-	gc_free(part);
+	free(part);
 }

@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-void *gc_alloc(size_t size);
 
 #ifdef IRON_WASM
 #define PTR_SIZE 4
@@ -286,7 +285,7 @@ void *json_parse(char *s) {
 	load_tokens(s);
 
 	uint32_t out_size = strlen(s) * 2;
-	decoded           = gc_alloc(out_size);
+	decoded           = calloc(1, out_size);
 	wi                = 0;
 	bottom            = 0;
 	array_count       = 1;
@@ -331,36 +330,48 @@ any_map_t *json_parse_to_map(char *s) {
 	return m;
 }
 
-static char *encoded;
-static int   keys;
-static int   array_nest = -1;
-static int   array_length[16];
+static buffer_t encoded;
+static int      keys;
+static int      array_nest = -1;
+static int      array_length[16];
+
+static void enc(char *s) {
+	string_buffer_append(&encoded, s);
+}
 
 void json_encode_begin() {
-	encoded = "{";
-	keys    = 0;
+	if (encoded.buffer == NULL) {
+		string_buffer_init(&encoded);
+	}
+	string_buffer_reset(&encoded);
+	enc("{");
+	keys = 0;
 }
 
 char *json_encode_end() {
-	encoded = string("%s}", encoded);
-	return encoded;
+	enc("}");
+	return string_copy(string_buffer_get(&encoded));
 }
 
 void json_encode_key(char *k) {
 	if (keys > 0) {
-		encoded = string("%s,", encoded);
+		enc(",");
 	}
-	encoded = string("%s\"%s\":", encoded, k);
+	enc("\"");
+	enc(k);
+	enc("\":");
 	keys++;
 }
 
 void json_encode_null(char *k) {
 	json_encode_key(k);
-	encoded = string("%snull", encoded);
+	enc("null");
 }
 
 void json_encode_string_value(char *v) {
-	encoded = string("%s\"%s\"", encoded, v);
+	enc("\"");
+	enc(v);
+	enc("\"");
 }
 
 void json_encode_string(char *k, char *v) {
@@ -376,7 +387,7 @@ void json_encode_string_array(char *k, string_array_t *a) {
 	json_encode_begin_array(k);
 	for (uint32_t i = 0; i < a->length; ++i) {
 		if (i > 0) {
-			encoded = string("%s,", encoded);
+			enc(",");
 		}
 		json_encode_string_value(a->buffer[i]);
 	}
@@ -385,12 +396,12 @@ void json_encode_string_array(char *k, string_array_t *a) {
 
 void json_encode_f32(char *k, float f) {
 	json_encode_key(k);
-	encoded = string("%s%s", encoded, f32_to_string_with_zeros(f));
+	enc(f32_to_string_with_zeros(f));
 }
 
 void json_encode_i32(char *k, int i) {
 	json_encode_key(k);
-	encoded = string("%s%s", encoded, i32_to_string(i));
+	enc(i32_to_string(i));
 }
 
 void json_encode_f32_array(char *k, f32_array_t *a) {
@@ -401,9 +412,9 @@ void json_encode_f32_array(char *k, f32_array_t *a) {
 	json_encode_begin_array(k);
 	for (uint32_t i = 0; i < a->length; ++i) {
 		if (i > 0) {
-			encoded = string("%s,", encoded);
+			enc(",");
 		}
-		encoded = string("%s%s", encoded, f32_to_string_with_zeros(a->buffer[i]));
+		enc(f32_to_string_with_zeros(a->buffer[i]));
 	}
 	json_encode_end_array();
 }
@@ -416,43 +427,43 @@ void json_encode_i32_array(char *k, i32_array_t *a) {
 	json_encode_begin_array(k);
 	for (uint32_t i = 0; i < a->length; ++i) {
 		if (i > 0) {
-			encoded = string("%s,", encoded);
+			enc(",");
 		}
-		encoded = string("%s%s", encoded, i32_to_string(a->buffer[i]));
+		enc(i32_to_string(a->buffer[i]));
 	}
 	json_encode_end_array();
 }
 
 void json_encode_bool(char *k, bool b) {
 	json_encode_key(k);
-	encoded = string("%s%s", encoded, b ? "true" : "false");
+	enc(b ? "true" : "false");
 }
 
 void json_encode_begin_array(char *k) {
 	array_nest++;
 	array_length[array_nest] = 0;
 	json_encode_key(k);
-	encoded = string("%s[", encoded);
+	enc("[");
 }
 
 void json_encode_end_array() {
 	array_nest--;
-	encoded = string("%s]", encoded);
+	enc("]");
 }
 
 void json_encode_begin_object() {
 	if (array_nest > -1) {
 		if (array_length[array_nest] > 0) {
-			encoded = string("%s,", encoded);
+			enc(",");
 		}
 		array_length[array_nest]++;
 	}
-	keys    = 0;
-	encoded = string("%s{", encoded);
+	keys = 0;
+	enc("{");
 }
 
 void json_encode_end_object() {
-	encoded = string("%s}", encoded);
+	enc("}");
 }
 
 void json_encode_map(any_map_t *m) {
@@ -460,6 +471,8 @@ void json_encode_map(any_map_t *m) {
 	for (uint32_t i = 0; i < keys->length; i++) {
 		json_encode_string(keys->buffer[i], any_map_get(m, keys->buffer[i]));
 	}
+	array_free(keys);
+	free(keys);
 }
 
 static char      *jenc_src;

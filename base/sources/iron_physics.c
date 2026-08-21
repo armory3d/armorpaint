@@ -1326,7 +1326,7 @@ static bool mesh_bounds(object_t *obj, vec4_t *center, vec4_t *extent) {
 }
 
 physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float mass) {
-	physics_body_t *body = GC_ALLOC_INIT(physics_body_t, {0});
+	physics_body_t *body = ALLOC_INIT(physics_body_t, {0});
 	body->shape       = shape;
 	body->mass        = mass;
 	body->obj         = obj;

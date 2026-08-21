@@ -1,6 +1,6 @@
 #include "iron_input.h"
 
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_string.h"
 #include "iron_system.h"
 #include <math.h>
@@ -105,7 +105,6 @@ void input_register(void) {
 	_input_occupied = false;
 
 	_mouse_buttons = string_array_create(0);
-	gc_root(_mouse_buttons);
 	string_array_push(_mouse_buttons, "left");
 	string_array_push(_mouse_buttons, "right");
 	string_array_push(_mouse_buttons, "middle");
@@ -113,11 +112,8 @@ void input_register(void) {
 	string_array_push(_mouse_buttons, "side2");
 
 	_mouse_buttons_down = u8_array_create(0);
-	gc_root(_mouse_buttons_down);
 	_mouse_buttons_started = u8_array_create(0);
-	gc_root(_mouse_buttons_started);
 	_mouse_buttons_released = u8_array_create(0);
-	gc_root(_mouse_buttons_released);
 	for (i32 i = 0; i < 5; ++i) {
 		u8_array_push(_mouse_buttons_down, 0);
 		u8_array_push(_mouse_buttons_started, 0);
@@ -140,15 +136,11 @@ void input_register(void) {
 #endif
 
 	pen_buttons = string_array_create(0);
-	gc_root(pen_buttons);
 	string_array_push(pen_buttons, "tip");
 
 	pen_buttons_down = u8_array_create(0);
-	gc_root(pen_buttons_down);
 	pen_buttons_started = u8_array_create(0);
-	gc_root(pen_buttons_started);
 	pen_buttons_released = u8_array_create(0);
-	gc_root(pen_buttons_released);
 	u8_array_push(pen_buttons_down, 0);
 	u8_array_push(pen_buttons_started, 0);
 	u8_array_push(pen_buttons_released, 0);
@@ -165,7 +157,6 @@ void input_register(void) {
 	pen_last_y     = -1.0f;
 
 	keyboard_keys = string_array_create(0);
-	gc_root(keyboard_keys);
 	string_array_push(keyboard_keys, "a");
 	string_array_push(keyboard_keys, "b");
 	string_array_push(keyboard_keys, "c");
@@ -261,21 +252,16 @@ void input_register(void) {
 	string_array_push(keyboard_keys, "f12");
 
 	keyboard_keys_down = i32_map_create();
-	gc_root(keyboard_keys_down);
 	keyboard_keys_started = i32_map_create();
-	gc_root(keyboard_keys_started);
 	keyboard_keys_released = i32_map_create();
-	gc_root(keyboard_keys_released);
 
 	keyboard_keys_frame = string_array_create(0);
-	gc_root(keyboard_keys_frame);
 
 	keyboard_repeat_key  = false;
 	keyboard_repeat_time = 0.0f;
 
 #ifdef WITH_GAMEPAD
 	gamepad_buttons_ps = string_array_create(0);
-	gc_root(gamepad_buttons_ps);
 	string_array_push(gamepad_buttons_ps, "cross");
 	string_array_push(gamepad_buttons_ps, "circle");
 	string_array_push(gamepad_buttons_ps, "square");
@@ -296,7 +282,6 @@ void input_register(void) {
 	string_array_push(gamepad_buttons_ps, "touchpad");
 
 	gamepad_buttons_xbox = string_array_create(0);
-	gc_root(gamepad_buttons_xbox);
 	string_array_push(gamepad_buttons_xbox, "a");
 	string_array_push(gamepad_buttons_xbox, "b");
 	string_array_push(gamepad_buttons_xbox, "x");
@@ -319,7 +304,6 @@ void input_register(void) {
 	gamepad_buttons = gamepad_buttons_ps;
 
 	gamepad_raws = any_array_create(0);
-	gc_root(gamepad_raws);
 #endif
 
 	keyboard_reset();
@@ -892,7 +876,7 @@ void keyboard_up_listener(i32 code) {
 void gamepad_end_frame(void) {}
 
 gamepad_stick_t *gamepad_stick_create(void) {
-	gamepad_stick_t *raw = gc_alloc(sizeof(gamepad_stick_t));
+	gamepad_stick_t *raw = calloc(1, sizeof(gamepad_stick_t));
 	raw->x               = 0.0f;
 	raw->y               = 0.0f;
 	raw->last_x          = 0.0f;
@@ -904,7 +888,7 @@ gamepad_stick_t *gamepad_stick_create(void) {
 }
 
 gamepad_t *gamepad_create(void) {
-	gamepad_t *raw        = gc_alloc(sizeof(gamepad_t));
+	gamepad_t *raw        = calloc(1, sizeof(gamepad_t));
 	raw->buttons_down     = f32_array_create(0);
 	raw->buttons_started  = u8_array_create(0);
 	raw->buttons_released = u8_array_create(0);
@@ -915,9 +899,7 @@ gamepad_t *gamepad_create(void) {
 }
 
 void gamepad_reset(void) {
-	gc_unroot(gamepad_raws);
 	gamepad_raws = any_array_create(0);
-	gc_root(gamepad_raws);
 	for (i32 i = 0; i < 4; ++i) {
 		gamepad_t *g = gamepad_create();
 		any_array_push(gamepad_raws, g);

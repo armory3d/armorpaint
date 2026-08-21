@@ -749,10 +749,9 @@ static int xk_to_iron(KeySym symbol) {
 	return KEY_CODE_UNKNOWN;
 }
 
-void *gc_alloc(size_t size);
 
 static char *uri_decode(const char *src) {
-	char *res = gc_alloc(1024);
+	char *res = calloc(1, 1024);
 	char *dst = res;
 	char  a, b;
 	while (*src) {

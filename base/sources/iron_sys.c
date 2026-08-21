@@ -2,7 +2,7 @@
 
 #include "iron_array.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_input.h"
 #include "iron_map.h"
 #include "iron_string.h"
@@ -33,6 +33,7 @@ i32           iron_display_frequency(i32 index);
 i32           iron_display_ppi(i32 index);
 bool          iron_display_is_primary(i32 index);
 gpu_shader_t *gpu_create_shader(buffer_t *data, i32 shader_type);
+void          iron_delete_blob(buffer_t *buffer);
 char         *data_path(void);
 
 #ifdef WITH_GAMEPAD
@@ -66,13 +67,13 @@ static f32 _sys_time_real_delta = 0.0f;
 static i32 _sys_time_frequency  = -1;
 
 static sys_callback_t *_sys_callback_create(void (*f)(void)) {
-	sys_callback_t *cb = gc_alloc(sizeof(sys_callback_t));
+	sys_callback_t *cb = calloc(1, sizeof(sys_callback_t));
 	cb->f              = f;
 	return cb;
 }
 
 static callback_t *_callback_create(void (*f)(void *data), void *data) {
-	callback_t *cb = gc_alloc(sizeof(callback_t));
+	callback_t *cb = calloc(1, sizeof(callback_t));
 	cb->f          = f;
 	cb->data       = data;
 	return cb;
@@ -80,21 +81,13 @@ static callback_t *_callback_create(void (*f)(void *data), void *data) {
 
 void sys_start(iron_window_options_t *ops) {
 	_sys_foreground_listeners = any_array_create(0);
-	gc_root(_sys_foreground_listeners);
 	_sys_background_listeners = any_array_create(0);
-	gc_root(_sys_background_listeners);
 	_sys_shutdown_listeners = any_array_create(0);
-	gc_root(_sys_shutdown_listeners);
 	_sys_drop_files_listeners = any_array_create(0);
-	gc_root(_sys_drop_files_listeners);
 	_sys_on_next_frames = any_array_create(0);
-	gc_root(_sys_on_next_frames);
 	_sys_on_end_frames = any_array_create(0);
-	gc_root(_sys_on_end_frames);
 	_sys_on_updates = any_array_create(0);
-	gc_root(_sys_on_updates);
 	_sys_shaders = any_map_create();
-	gc_root(_sys_shaders);
 
 	_iron_init(ops);
 
@@ -137,8 +130,13 @@ void sys_start(iron_window_options_t *ops) {
 	strcat(path_text_frag, "draw_text.frag");
 	strcat(path_text_frag, ext);
 
-	draw_init(iron_load_blob(path_image_vert), iron_load_blob(path_image_frag), iron_load_blob(path_rect_vert), iron_load_blob(path_rect_frag),
-	          iron_load_blob(path_tris_vert), iron_load_blob(path_tris_frag), iron_load_blob(path_text_vert), iron_load_blob(path_text_frag));
+	buffer_t *draw_blobs[8] = {iron_load_blob(path_image_vert), iron_load_blob(path_image_frag), iron_load_blob(path_rect_vert),
+	                           iron_load_blob(path_rect_frag),  iron_load_blob(path_tris_vert),  iron_load_blob(path_tris_frag),
+	                           iron_load_blob(path_text_vert),  iron_load_blob(path_text_frag)};
+	draw_init(draw_blobs[0], draw_blobs[1], draw_blobs[2], draw_blobs[3], draw_blobs[4], draw_blobs[5], draw_blobs[6], draw_blobs[7]);
+	for (int i = 0; i < 8; ++i) {
+		iron_delete_blob(draw_blobs[i]);
+	}
 
 	_iron_set_update_callback(sys_render);
 	_iron_set_drop_files_callback(sys_drop_files_callback);
@@ -175,7 +173,7 @@ void sys_notify_on_app_state(void (*on_foreground)(void), void (*on_background)(
 }
 
 void sys_notify_on_drop_files(void (*drop_files_listener)(char *s)) {
-	sys_string_callback_t *cb = gc_alloc(sizeof(sys_string_callback_t));
+	sys_string_callback_t *cb = calloc(1, sizeof(sys_string_callback_t));
 	cb->f                     = drop_files_listener;
 	any_array_push(_sys_drop_files_listeners, cb);
 }
@@ -349,7 +347,9 @@ gpu_shader_t *sys_get_shader(char *name) {
 		strcat(path, name);
 		strcat(path, ext);
 		gpu_shader_type_t shader_type = ends_with(name, ".frag") ? GPU_SHADER_TYPE_FRAGMENT : GPU_SHADER_TYPE_VERTEX;
-		shader                        = gpu_create_shader(iron_load_blob(path), (i32)shader_type);
+		buffer_t         *blob        = iron_load_blob(path);
+		shader                        = gpu_create_shader(blob, (i32)shader_type);
+		iron_delete_blob(blob);
 		any_map_set(_sys_shaders, name, shader);
 	}
 	return shader;
@@ -403,17 +403,26 @@ static void _sys_run_callbacks(any_array_t *cbs, i32 len) {
 	}
 }
 
+static void _sys_run_callbacks_once(any_array_t *cbs, i32 len) {
+	for (i32 i = 0; i < len; ++i) {
+		callback_t *cb = cbs->buffer[i];
+		if (cb != NULL) {
+			cb->f(cb->data);
+			free(cb);
+		}
+	}
+	array_splice(cbs, 0, len);
+}
+
 void sys_render(void) {
 	i32 len = _sys_on_next_frames->length;
-	_sys_run_callbacks(_sys_on_next_frames, len);
-	array_splice(_sys_on_next_frames, 0, len);
+	_sys_run_callbacks_once(_sys_on_next_frames, len);
 
 	scene_render_frame();
 	_sys_run_callbacks(_sys_on_updates, _sys_on_updates->length);
 
 	len = _sys_on_end_frames->length;
-	_sys_run_callbacks(_sys_on_end_frames, len);
-	array_splice(_sys_on_end_frames, 0, len);
+	_sys_run_callbacks_once(_sys_on_end_frames, len);
 
 	input_end_frame();
 

@@ -8,6 +8,12 @@
 char *string_alloc(int size);
 char *string(char *fmt, ...);
 char *string_copy(char *a);
+
+// Frame temporary
+char *string_tmp_alloc(int size);
+char *string_tmp(char *fmt, ...);
+char *string_replace_all_tmp(char *s, char *search, char *replace);
+void  string_tmp_reset();
 int   string_length(char *str);
 bool  string_equals(char *a, char *b);
 char *i32_to_string(int32_t i);
@@ -22,6 +28,7 @@ int32_t      string_index_of(char *s, char *search);
 int32_t      string_index_of_pos(char *s, char *search, int pos);
 int32_t      string_last_index_of(char *s, char *search);
 any_array_t *string_split(char *s, char *sep);
+void         string_split_free(any_array_t *a);
 char        *string_array_join(any_array_t *a, char *separator);
 char        *string_replace_all(char *s, char *search, char *replace);
 char        *substring(char *s, int32_t start, int32_t end);

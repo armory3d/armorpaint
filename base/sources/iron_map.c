@@ -1,6 +1,6 @@
 
 #include "iron_map.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_string.h"
 
 static size_t hash(const char *k) {
@@ -56,12 +56,9 @@ static void resize(any_map_t *m, int elem_size) {
 	int        cap        = m->keys->capacity == 0 ? 16 : m->keys->capacity * 2;
 	any_map_t *tmp        = any_map_create();
 	tmp->keys->capacity   = cap;
-	tmp->keys->buffer     = gc_alloc(cap * sizeof(void *));
+	tmp->keys->buffer     = calloc(1, cap * sizeof(void *));
 	tmp->values->capacity = cap;
-	tmp->values->buffer   = gc_alloc(cap * elem_size);
-	if (elem_size < 8) {
-		gc_leaf(tmp->values->buffer);
-	}
+	tmp->values->buffer   = calloc(1, cap * elem_size);
 
 	any_array_t *old_keys = map_keys(m);
 	for (int i = 0; i < old_keys->length; ++i) {
@@ -78,8 +75,16 @@ static void resize(any_map_t *m, int elem_size) {
 		}
 	}
 
+	array_free(old_keys);
+	free(old_keys);
+
+	array_free(m->keys);
+	free(m->keys);
+	array_free(m->values);
+	free(m->values);
 	m->keys   = tmp->keys;
 	m->values = tmp->values;
+	free(tmp);
 }
 
 void i32_map_set(i32_map_t *m, char *k, int v) {
@@ -144,7 +149,7 @@ void map_delete(any_map_t *m, char *k) {
 }
 
 any_array_t *map_keys(any_map_t *m) {
-	string_array_t *keys = gc_alloc(sizeof(string_array_t));
+	string_array_t *keys = calloc(1, sizeof(string_array_t));
 	string_array_resize(keys, m->keys->length);
 	for (int i = 0; i < m->keys->capacity; ++i) {
 		if (m->keys->buffer[i] != NULL) {
@@ -154,17 +159,29 @@ any_array_t *map_keys(any_map_t *m) {
 	return keys;
 }
 
+// Stored keys and values are not owned by the map
+void map_free(any_map_t *m) {
+	if (m == NULL) {
+		return;
+	}
+	array_free(m->keys);
+	free(m->keys);
+	array_free(m->values);
+	free(m->values);
+	free(m);
+}
+
 i32_map_t *i32_map_create() {
-	i32_map_t *r = gc_alloc(sizeof(i32_map_t));
-	r->keys      = gc_alloc(sizeof(string_array_t));
-	r->values    = gc_alloc(sizeof(i32_array_t));
+	i32_map_t *r = calloc(1, sizeof(i32_map_t));
+	r->keys      = calloc(1, sizeof(string_array_t));
+	r->values    = calloc(1, sizeof(i32_array_t));
 	return r;
 }
 
 any_map_t *any_map_create() {
-	any_map_t *r = gc_alloc(sizeof(any_map_t));
-	r->keys      = gc_alloc(sizeof(string_array_t));
-	r->values    = gc_alloc(sizeof(any_array_t));
+	any_map_t *r = calloc(1, sizeof(any_map_t));
+	r->keys      = calloc(1, sizeof(string_array_t));
+	r->values    = calloc(1, sizeof(any_array_t));
 	return r;
 }
 
@@ -223,15 +240,15 @@ i32_array_t *imap_keys(any_imap_t *m) {
 }
 
 i32_imap_t *i32_imap_create() {
-	i32_imap_t *r = gc_alloc(sizeof(i32_imap_t));
-	r->keys       = gc_alloc(sizeof(i32_array_t));
-	r->values     = gc_alloc(sizeof(i32_array_t));
+	i32_imap_t *r = calloc(1, sizeof(i32_imap_t));
+	r->keys       = calloc(1, sizeof(i32_array_t));
+	r->values     = calloc(1, sizeof(i32_array_t));
 	return r;
 }
 
 any_imap_t *any_imap_create() {
-	any_imap_t *r = gc_alloc(sizeof(any_imap_t));
-	r->keys       = gc_alloc(sizeof(i32_array_t));
-	r->values     = gc_alloc(sizeof(any_array_t));
+	any_imap_t *r = calloc(1, sizeof(any_imap_t));
+	r->keys       = calloc(1, sizeof(i32_array_t));
+	r->values     = calloc(1, sizeof(any_array_t));
 	return r;
 }

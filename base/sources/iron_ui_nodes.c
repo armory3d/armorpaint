@@ -3,7 +3,7 @@
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_json.h"
 #include "iron_string.h"
@@ -66,7 +66,7 @@ void ui_nodes_init(ui_nodes_t *nodes) {
 	nodes->snap_from_id      = -1;
 	nodes->snap_to_id        = -1;
 	nodes->link_drag_id      = -1;
-	nodes->nodes_selected_id = gc_alloc(sizeof(i32_array_t));
+	nodes->nodes_selected_id = calloc(1, sizeof(i32_array_t));
 	nodes->handle            = ui_handle_create();
 }
 
@@ -561,9 +561,7 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 				ar->length = texts_count;
 			}
 			else {
-				gc_unroot(ar);
 				ar = (*ui_nodes_enum_texts)(node->type);
-				gc_root(ar);
 			}
 
 			strcpy(label, ui_tr(but->name));
@@ -842,8 +840,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		draw_begin(current, false, 0);
 	}
 	if (ui_nodes_exclude_remove == NULL) {
-		ui_nodes_exclude_remove = gc_alloc(sizeof(string_array_t));
-		gc_root(ui_nodes_exclude_remove);
+		ui_nodes_exclude_remove = calloc(1, sizeof(string_array_t));
 	}
 
 	float wx                      = current->_window_x;
@@ -1271,9 +1268,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_node_link_array_t links   = {.buffer = copy_links, .length = copy_links_count};
 			copy_canvas.nodes            = &nodes;
 			copy_canvas.links            = &links;
-			gc_unroot(ui_clipboard);
 			ui_clipboard = ui_node_canvas_to_json(&copy_canvas);
-			gc_root(ui_clipboard);
 			iron_copy_to_clipboard(ui_clipboard);
 		}
 		cut_selected = ui_is_cut;
@@ -1288,7 +1283,6 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		if (is_json) {
 
 			ui_node_canvas_t *paste_canvas = json_parse(ui_clipboard);
-			gc_root(paste_canvas); // TODO
 
 			// Convert button data from string to u8 array
 			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
@@ -1758,9 +1752,8 @@ void nodes_on_custom_button(i32 node_id, char *button_name) {
 }
 
 ui_nodes_t *ui_nodes_create() {
-	ui_nodes_t *raw = GC_ALLOC_INIT(ui_nodes_t, {0});
+	ui_nodes_t *raw = ALLOC_INIT(ui_nodes_t, {0});
 	ui_nodes_init(raw);
-	gc_unroot(ui_nodes_exclude_remove);
 	ui_nodes_exclude_remove = any_array_create_from_raw(
 	    (void *[]){
 	        "OUTPUT_MATERIAL_PBR",
@@ -1769,7 +1762,6 @@ ui_nodes_t *ui_nodes_create() {
 	        "brush_output_node",
 	    },
 	    4);
-	gc_root(ui_nodes_exclude_remove);
 	ui_nodes_on_custom_button = nodes_on_custom_button;
 	return raw;
 }

@@ -28,6 +28,7 @@ void   *any_map_get(any_map_t *m, char *k);
 
 void         map_delete(any_map_t *m, char *k);
 any_array_t *map_keys(any_map_t *m);
+void         map_free(any_map_t *m);
 
 i32_map_t *i32_map_create();
 any_map_t *any_map_create();

@@ -7,7 +7,7 @@
 #include "iron_array.h"
 #include "iron_draw.h"
 #include "iron_file.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_json.h"
 #include "iron_lz4.h"
@@ -61,6 +61,15 @@ buffer_t *embed_get(char *key) {
 		}
 	}
 	return NULL;
+}
+
+bool embed_owns(uint8_t *buffer) {
+	for (int i = 0; i < embed_count; ++i) {
+		if (embed_values[i] == buffer) {
+			return true;
+		}
+	}
+	return false;
 }
 #endif
 
@@ -147,13 +156,11 @@ int kickstart(int argc, char **argv) {
 
 	iron_threads_init();
 	iron_display_init();
-	gc_start(&argc);
 	_kickstart();
 
 #ifdef IRON_AUDIO
 	iron_a2_shutdown();
 #endif
-	gc_stop();
 	return 0;
 }
 
@@ -236,11 +243,9 @@ void _update() {
 #endif
 		return;
 	}
-	if (paused_frames == 30) {
-		gc_run();
-	}
 #endif
 
+	string_tmp_reset();
 	iron_net_update();
 	iron_update();
 	if (ui_get_current())
@@ -842,6 +847,10 @@ gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *forma
 
 void gpu_delete_texture(gpu_texture_t *texture) {
 	gpu_texture_destroy(texture);
+	if (texture->buffer != NULL) { // Cached by gpu_get_texture_pixels
+		free(texture->buffer->buffer);
+		free(texture->buffer);
+	}
 	free(texture);
 }
 
@@ -862,9 +871,11 @@ gpu_texture_t *iron_load_texture(char *file) {
 	iron_file_reader_read(&reader, data, size);
 	iron_file_reader_close(&reader);
 	buffer_t buf;
-	buf.buffer = data;
-	buf.length = size;
-	return gpu_create_texture_from_encoded_bytes(&buf, file);
+	buf.buffer                = data;
+	buf.length                = size;
+	gpu_texture_t *texture    = gpu_create_texture_from_encoded_bytes(&buf, file);
+	free(data); // Encoded bytes are decoded into a separate buffer
+	return texture;
 }
 
 void *iron_load_sound(char *file) {
@@ -893,6 +904,20 @@ buffer_t *iron_load_blob(char *file) {
 	iron_file_reader_read(&reader, buffer->buffer, reader_size);
 	iron_file_reader_close(&reader);
 	return buffer;
+}
+
+void iron_delete_blob(buffer_t *buffer) {
+	if (buffer == NULL) {
+		return;
+	}
+#ifdef WITH_EMBED
+	if (embed_owns(buffer->buffer)) {
+		free(buffer);
+		return;
+	}
+#endif
+	array_free(buffer);
+	free(buffer);
 }
 
 i32 iron_display_ppi(i32 index) {

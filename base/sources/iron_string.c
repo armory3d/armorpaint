@@ -6,13 +6,45 @@
 #include <stdlib.h>
 #include <string.h>
 
-void *gc_alloc(size_t size);
-void  gc_leaf(void *ptr);
-
 char *string_alloc(int size) {
-	char *r = gc_alloc(size);
-	gc_leaf(r);
+	char *r = calloc(1, size);
 	return r;
+}
+
+#define STRING_TMP_BUFFER_SIZE (4 * 1024 * 1024)
+static char  *string_tmp_buffer = NULL;
+static size_t string_tmp_pos    = 0;
+
+char *string_tmp_alloc(int size) {
+	if (string_tmp_buffer == NULL) {
+		string_tmp_buffer = malloc(STRING_TMP_BUFFER_SIZE);
+	}
+	if (string_tmp_pos + size > STRING_TMP_BUFFER_SIZE) {
+		return string_alloc(size);
+	}
+	char *r = string_tmp_buffer + string_tmp_pos;
+	string_tmp_pos += ((size_t)size + 7) & ~(size_t)7;
+	memset(r, 0, size);
+	return r;
+}
+
+void string_tmp_reset() {
+	string_tmp_pos = 0;
+}
+
+char *string_tmp(char *fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+
+	va_list args_copy;
+	va_copy(args_copy, args);
+	int len = vsnprintf(NULL, 0, fmt, args_copy);
+	va_end(args_copy);
+
+	char *str = string_tmp_alloc(len + 1);
+	vsnprintf(str, len + 1, fmt, args);
+	va_end(args);
+	return str;
 }
 
 char *string(char *fmt, ...) {
@@ -52,14 +84,14 @@ bool string_equals(char *a, char *b) {
 
 char *i32_to_string(int32_t i) {
 	int   l = snprintf(NULL, 0, "%d", i);
-	char *r = string_alloc(l + 1);
+	char *r = string_tmp_alloc(l + 1);
 	sprintf(r, "%d", i);
 	return r;
 }
 
 char *i32_to_string_hex(int32_t i) {
 	int   l = snprintf(NULL, 0, "%X", i);
-	char *r = string_alloc(l + 1);
+	char *r = string_tmp_alloc(l + 1);
 	sprintf(r, "%X", i);
 	return r;
 }
@@ -74,21 +106,21 @@ char *i32_to_string_hex(int32_t i) {
 
 char *i64_to_string(int64_t i) {
 	int   l = snprintf(NULL, 0, PERCENT_LD, i);
-	char *r = string_alloc(l + 1);
+	char *r = string_tmp_alloc(l + 1);
 	sprintf(r, PERCENT_LD, i);
 	return r;
 }
 
 char *u64_to_string(uint64_t i) {
 	int   l = snprintf(NULL, 0, PERCENT_LU, i);
-	char *r = string_alloc(l + 1);
+	char *r = string_tmp_alloc(l + 1);
 	sprintf(r, PERCENT_LU, i);
 	return r;
 }
 
 char *f32_to_string_with_zeros(float f) {
 	int   l = snprintf(NULL, 0, "%f", f);
-	char *r = string_alloc(l + 1);
+	char *r = string_tmp_alloc(l + 1);
 	sprintf(r, "%f", f);
 	return r;
 }
@@ -139,7 +171,7 @@ int32_t string_last_index_of(char *str, char *search) {
 }
 
 any_array_t *string_split(char *s, char *sep) {
-	any_array_t *a       = gc_alloc(sizeof(any_array_t));
+	any_array_t *a       = calloc(1, sizeof(any_array_t));
 	int          sep_len = strlen(sep);
 	char        *pos     = s;
 	while (true) {
@@ -156,6 +188,17 @@ any_array_t *string_split(char *s, char *sep) {
 		pos = next + sep_len;
 	}
 	return a;
+}
+
+void string_split_free(any_array_t *a) {
+	if (a == NULL) {
+		return;
+	}
+	for (int i = 0; i < a->length; ++i) {
+		free(a->buffer[i]);
+	}
+	array_free(a);
+	free(a);
 }
 
 char *string_array_join(any_array_t *a, char *separator) {
@@ -178,7 +221,7 @@ char *string_array_join(any_array_t *a, char *separator) {
 	return r;
 }
 
-char *string_replace_all(char *s, char *search, char *replace) {
+static char *string_replace_all_impl(char *s, char *search, char *replace, bool use_tmp) {
 	size_t search_len  = strlen(search);
 	size_t replace_len = strlen(replace);
 	size_t buffer_size = strlen(s) + 1;
@@ -192,7 +235,7 @@ char *string_replace_all(char *s, char *search, char *replace) {
 		buffer_size += count * (replace_len - search_len);
 	}
 
-	char *buffer     = string_alloc(buffer_size);
+	char *buffer     = use_tmp ? string_tmp_alloc(buffer_size) : string_alloc(buffer_size);
 	char *buffer_pos = buffer;
 	while (1) {
 		char *p = strstr(s, search);
@@ -207,6 +250,14 @@ char *string_replace_all(char *s, char *search, char *replace) {
 		s = p + search_len;
 	}
 	return buffer;
+}
+
+char *string_replace_all(char *s, char *search, char *replace) {
+	return string_replace_all_impl(s, search, replace, false);
+}
+
+char *string_replace_all_tmp(char *s, char *search, char *replace) {
+	return string_replace_all_impl(s, search, replace, true);
 }
 
 char *substring(char *s, int32_t start, int32_t end) {
@@ -242,6 +293,9 @@ bool starts_with(char *s, char *start) {
 bool ends_with(char *s, char *end) {
 	size_t len_s   = strlen(s);
 	size_t len_end = strlen(end);
+	if (len_end > len_s) {
+		return false;
+	}
 	return strncmp(s + len_s - len_end, end, len_end) == 0;
 }
 

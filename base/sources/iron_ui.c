@@ -1,7 +1,7 @@
 #include "iron_ui.h"
 #include "iron_draw.h"
 #include "iron_file.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_string.h"
 #include "iron_system.h"
@@ -114,7 +114,7 @@ void ui_set_current(ui_t *_current) {
 }
 
 ui_handle_t *ui_handle_create() {
-	ui_handle_t *h = (ui_handle_t *)gc_alloc(sizeof(ui_handle_t));
+	ui_handle_t *h = (ui_handle_t *)calloc(1, sizeof(ui_handle_t));
 	memset(h, 0, sizeof(ui_handle_t));
 	h->redraws = 2;
 	h->color   = 0xffffffff;
@@ -1703,7 +1703,6 @@ void ui_init(ui_t *ui, ui_options_t *ops) {
 	current->input_y             = -1;
 	if (ui_combo_search_handle == NULL) {
 		ui_combo_search_handle = ui_handle_create();
-		gc_root(ui_combo_search_handle);
 	}
 	if (_ui_row2 == NULL) {
 		_ui_row2 = f32_array_create_from_raw((float[]){1.0 / 2.0, 1.0 / 2.0}, 2);
@@ -1712,12 +1711,6 @@ void ui_init(ui_t *ui, ui_options_t *ops) {
 		_ui_row5 = f32_array_create_from_raw((float[]){1.0 / 5.0, 1.0 / 5.0, 1.0 / 5.0, 1.0 / 5.0, 1.0 / 5.0}, 5);
 		_ui_row6 = f32_array_create_from_raw((float[]){1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0}, 6);
 		_ui_row7 = f32_array_create_from_raw((float[]){1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0, 1.0 / 7.0}, 7);
-		gc_root(_ui_row2);
-		gc_root(_ui_row3);
-		gc_root(_ui_row4);
-		gc_root(_ui_row5);
-		gc_root(_ui_row6);
-		gc_root(_ui_row7);
 	}
 }
 
@@ -2262,13 +2255,26 @@ int ui_combo(ui_handle_t *handle, string_array_t *texts, char *label, bool show_
 	}
 	if (ui_get_released(UI_ELEMENT_H())) {
 		if (current->combo_selected_handle == NULL) {
+			static string_array_t texts_copy = {0};
+			static char           label_copy[256];
+			for (int i = 0; i < texts_copy.length; ++i) {
+				free(texts_copy.buffer[i]);
+			}
+			texts_copy.length = 0;
+			for (int i = 0; i < texts->length; ++i) {
+				string_array_push(&texts_copy, string_copy(texts->buffer[i]));
+			}
+			if (label != NULL) {
+				strncpy(label_copy, label, sizeof(label_copy) - 1);
+				label_copy[sizeof(label_copy) - 1] = '\0';
+			}
 			current->input_enabled                 = false;
 			current->combo_selected_handle         = handle;
 			current->combo_selected_window         = current->current_window;
 			current->combo_selected_align          = align;
-			current->combo_selected_texts          = texts;
+			current->combo_selected_texts          = &texts_copy;
 			current->combo_selected_images         = NULL;
-			current->combo_selected_label          = label;
+			current->combo_selected_label          = label != NULL ? label_copy : NULL;
 			current->combo_selected_x              = current->_x + current->_window_x;
 			current->combo_selected_y              = current->_y + current->_window_y + UI_ELEMENT_H();
 			current->combo_selected_w              = current->_w;

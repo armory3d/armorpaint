@@ -1,10 +1,11 @@
 #include "iron_path.h"
 
+#include <ctype.h>
 #include <string.h>
 
 #include "iron_array.h"
 #include "iron_file.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_map.h"
 #include "iron_string.h"
 
@@ -27,7 +28,6 @@ static string_array_t *_path_displacement_ext = NULL;
 string_array_t *path_mesh_formats(void) {
 	if (_path_mesh_formats == NULL) {
 		_path_mesh_formats = string_array_create(0);
-		gc_root(_path_mesh_formats);
 		string_array_push(_path_mesh_formats, "obj");
 		string_array_push(_path_mesh_formats, "blend");
 	}
@@ -37,7 +37,6 @@ string_array_t *path_mesh_formats(void) {
 string_array_t *path_texture_formats(void) {
 	if (_path_texture_formats == NULL) {
 		_path_texture_formats = string_array_create(0);
-		gc_root(_path_texture_formats);
 		string_array_push(_path_texture_formats, "jpg");
 		string_array_push(_path_texture_formats, "jpeg");
 		string_array_push(_path_texture_formats, "png");
@@ -54,7 +53,6 @@ string_array_t *path_texture_formats(void) {
 string_array_t *path_sound_formats(void) {
 	if (_path_sound_formats == NULL) {
 		_path_sound_formats = string_array_create(0);
-		gc_root(_path_sound_formats);
 		string_array_push(_path_sound_formats, "wav");
 		string_array_push(_path_sound_formats, "ogg");
 	}
@@ -64,7 +62,6 @@ string_array_t *path_sound_formats(void) {
 string_array_t *path_text_formats(void) {
 	if (_path_text_formats == NULL) {
 		_path_text_formats = string_array_create(0);
-		gc_root(_path_text_formats);
 		string_array_push(_path_text_formats, "txt");
 		string_array_push(_path_text_formats, "json");
 	}
@@ -74,7 +71,6 @@ string_array_t *path_text_formats(void) {
 string_array_t *path_base_color_ext(void) {
 	if (_path_base_color_ext == NULL) {
 		_path_base_color_ext = string_array_create(0);
-		gc_root(_path_base_color_ext);
 		string_array_push(_path_base_color_ext, "albedo");
 		string_array_push(_path_base_color_ext, "alb");
 		string_array_push(_path_base_color_ext, "basecol");
@@ -93,7 +89,6 @@ string_array_t *path_base_color_ext(void) {
 string_array_t *path_opacity_ext(void) {
 	if (_path_opacity_ext == NULL) {
 		_path_opacity_ext = string_array_create(0);
-		gc_root(_path_opacity_ext);
 		string_array_push(_path_opacity_ext, "opac");
 		string_array_push(_path_opacity_ext, "opacity");
 		string_array_push(_path_opacity_ext, "alpha");
@@ -104,7 +99,6 @@ string_array_t *path_opacity_ext(void) {
 string_array_t *path_normal_map_ext(void) {
 	if (_path_normal_map_ext == NULL) {
 		_path_normal_map_ext = string_array_create(0);
-		gc_root(_path_normal_map_ext);
 		string_array_push(_path_normal_map_ext, "normal");
 		string_array_push(_path_normal_map_ext, "normals");
 		string_array_push(_path_normal_map_ext, "nor");
@@ -118,7 +112,6 @@ string_array_t *path_normal_map_ext(void) {
 string_array_t *path_occlusion_ext(void) {
 	if (_path_occlusion_ext == NULL) {
 		_path_occlusion_ext = string_array_create(0);
-		gc_root(_path_occlusion_ext);
 		string_array_push(_path_occlusion_ext, "ao");
 		string_array_push(_path_occlusion_ext, "occlusion");
 		string_array_push(_path_occlusion_ext, "ambientOcclusion");
@@ -131,7 +124,6 @@ string_array_t *path_occlusion_ext(void) {
 string_array_t *path_roughness_ext(void) {
 	if (_path_roughness_ext == NULL) {
 		_path_roughness_ext = string_array_create(0);
-		gc_root(_path_roughness_ext);
 		string_array_push(_path_roughness_ext, "roughness");
 		string_array_push(_path_roughness_ext, "rough");
 		string_array_push(_path_roughness_ext, "r");
@@ -143,7 +135,6 @@ string_array_t *path_roughness_ext(void) {
 string_array_t *path_metallic_ext(void) {
 	if (_path_metallic_ext == NULL) {
 		_path_metallic_ext = string_array_create(0);
-		gc_root(_path_metallic_ext);
 		string_array_push(_path_metallic_ext, "metallic");
 		string_array_push(_path_metallic_ext, "metal");
 		string_array_push(_path_metallic_ext, "metalness");
@@ -156,13 +147,27 @@ string_array_t *path_metallic_ext(void) {
 string_array_t *path_displacement_ext(void) {
 	if (_path_displacement_ext == NULL) {
 		_path_displacement_ext = string_array_create(0);
-		gc_root(_path_displacement_ext);
 		string_array_push(_path_displacement_ext, "displacement");
 		string_array_push(_path_displacement_ext, "height");
 		string_array_push(_path_displacement_ext, "h");
 		string_array_push(_path_displacement_ext, "disp");
 	}
 	return _path_displacement_ext;
+}
+
+static bool has_ext(char *path, char *ext) {
+	size_t len_path = strlen(path);
+	size_t len_ext  = strlen(ext);
+	if (len_path < len_ext + 1 || path[len_path - len_ext - 1] != '.') {
+		return false;
+	}
+	char *tail = path + len_path - len_ext;
+	for (size_t i = 0; i < len_ext; ++i) {
+		if (tolower((unsigned char)tail[i]) != tolower((unsigned char)ext[i])) {
+			return false;
+		}
+	}
+	return true;
 }
 
 static char *data_path(void) {
@@ -181,7 +186,7 @@ char *path_to_relative(char *from, char *to) {
 	any_array_t *a = string_split(from, PATH_SEP);
 	any_array_t *b = string_split(to, PATH_SEP);
 	if (a->length > 0 && !path_is_folder(from)) {
-		array_pop(a);
+		free(array_pop(a));
 	}
 	while (a->length > 0 && b->length > 0) {
 		char *a0 = a->buffer[0];
@@ -189,23 +194,36 @@ char *path_to_relative(char *from, char *to) {
 		if (string_equals(a0, b0)) {
 			array_shift(a);
 			array_shift(b);
+			free(a0);
+			free(b0);
 		}
 		else {
 			break;
 		}
 	}
-	char *p = "";
+
+	buffer_t sb;
+	string_buffer_init(&sb);
 	for (uint32_t i = 0; i < a->length; ++i) {
-		p = string("%s.." PATH_SEP, p);
+		string_buffer_append(&sb, ".." PATH_SEP);
 	}
-	p = string("%s%s", p, string_array_join(b, PATH_SEP));
+	char *joined = string_array_join(b, PATH_SEP);
+	string_buffer_append(&sb, joined);
+	free(joined);
+
+	char *p = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	string_split_free(a);
+	string_split_free(b);
 	return p;
 }
 
 char *path_normalize(char *path) {
-	size_t path_len = strlen(path);
+	size_t path_len  = strlen(path);
+	char  *trimmed   = NULL;
 	if (path_len > 0 && ends_with(path, PATH_SEP)) {
-		path = substring(path, 0, path_len - 1);
+		trimmed = substring(path, 0, path_len - 1);
+		path    = trimmed;
 	}
 	any_array_t *ar = string_split(path, PATH_SEP);
 	uint32_t     i  = 0;
@@ -214,6 +232,8 @@ char *path_normalize(char *path) {
 			char *ar_i   = ar->buffer[i];
 			char *ar_i_1 = ar->buffer[i - 1];
 			if (string_equals(ar_i, "..") && !string_equals(ar_i_1, "..")) {
+				free(ar_i);
+				free(ar_i_1);
 				array_splice(ar, i - 1, 2);
 				i--;
 			}
@@ -225,7 +245,10 @@ char *path_normalize(char *path) {
 			i++;
 		}
 	}
-	return string_array_join(ar, PATH_SEP);
+	char *r = string_array_join(ar, PATH_SEP);
+	string_split_free(ar);
+	free(trimmed);
+	return r;
 }
 
 char *path_base_dir(char *path) {
@@ -239,86 +262,53 @@ char *path_base_name(char *path) {
 	return substring(path, last_sep + 1, last_dot);
 }
 
-bool path_is_mesh(char *path) {
-	char           *p       = to_lower_case(path);
-	string_array_t *formats = path_mesh_formats();
+static bool path_has_format(char *path, string_array_t *formats) {
 	for (uint32_t i = 0; i < formats->length; ++i) {
-		char *s   = formats->buffer[i];
-		char *ext = string(".%s", s);
-		if (ends_with(p, ext)) {
+		if (has_ext(path, formats->buffer[i])) {
 			return true;
 		}
 	}
 	return false;
+}
+
+bool path_is_mesh(char *path) {
+	return path_has_format(path, path_mesh_formats());
 }
 
 bool path_is_texture(char *path) {
-	char           *p       = to_lower_case(path);
-	string_array_t *formats = path_texture_formats();
-	for (uint32_t i = 0; i < formats->length; ++i) {
-		char *s   = formats->buffer[i];
-		char *ext = string(".%s", s);
-		if (ends_with(p, ext)) {
-			return true;
-		}
-	}
-	return false;
+	return path_has_format(path, path_texture_formats());
 }
 
 bool path_is_sound(char *path) {
-	char           *p       = to_lower_case(path);
-	string_array_t *formats = path_sound_formats();
-	for (uint32_t i = 0; i < formats->length; ++i) {
-		char *s   = formats->buffer[i];
-		char *ext = string(".%s", s);
-		if (ends_with(p, ext)) {
-			return true;
-		}
-	}
-	return false;
+	return path_has_format(path, path_sound_formats());
 }
 
 bool path_is_font(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".ttf") || ends_with(p, ".ttc") || ends_with(p, ".otf");
+	return has_ext(path, "ttf") || has_ext(path, "ttc") || has_ext(path, "otf");
 }
 
 bool path_is_project(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".arm");
+	return has_ext(path, "arm");
 }
 
 bool path_is_plugin(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".c");
+	return has_ext(path, "c");
 }
 
 bool path_is_json(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".json");
+	return has_ext(path, "json");
 }
 
 bool path_is_text(char *path) {
-	char           *p       = to_lower_case(path);
-	string_array_t *formats = path_text_formats();
-	for (uint32_t i = 0; i < formats->length; ++i) {
-		char *s   = formats->buffer[i];
-		char *ext = string(".%s", s);
-		if (ends_with(p, ext)) {
-			return true;
-		}
-	}
-	return false;
+	return path_has_format(path, path_text_formats());
 }
 
 bool path_is_ext_format(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".stl") || ends_with(p, ".svg");
+	return has_ext(path, "stl") || has_ext(path, "svg");
 }
 
 bool path_is_lut(char *path) {
-	char *p = to_lower_case(path);
-	return ends_with(p, ".cube");
+	return has_ext(path, "cube");
 }
 
 bool path_is_known(char *path) {
@@ -326,16 +316,52 @@ bool path_is_known(char *path) {
 	       path_is_text(path) || path_is_ext_format(path) || path_is_lut(path);
 }
 
-bool path_check_ext(char *p, string_array_t *exts) {
-	p = string_replace_all(p, "-", "_");
-	for (uint32_t i = 0; i < exts->length; ++i) {
-		char *ext            = exts->buffer[i];
-		char *ext_underscore = string("_%s", ext);
-		if (ends_with(p, ext_underscore)) {
+static char tag_char(char c) {
+	return c == '-' ? '_' : c;
+}
+
+static bool ends_with_tag(char *p, char *tag) {
+	size_t len_p   = strlen(p);
+	size_t len_tag = strlen(tag);
+	if (len_p < len_tag + 1) {
+		return false;
+	}
+	char *tail = p + len_p - len_tag;
+	if (tag_char(tail[-1]) != '_') {
+		return false;
+	}
+	for (size_t i = 0; i < len_tag; ++i) {
+		if (tag_char(tail[i]) != tag[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static bool contains_tag(char *p, char *tag) {
+	size_t len_tag = strlen(tag);
+	for (char *s = p; *s != '\0'; ++s) {
+		if (tag_char(*s) != '_') {
+			continue;
+		}
+		size_t i = 0;
+		while (i < len_tag && tag_char(s[1 + i]) == tag[i]) {
+			++i;
+		}
+		if (i == len_tag && tag_char(s[1 + len_tag]) == '_') {
 			return true;
 		}
-		char *ext_underscore_mid = string("_%s_", ext);
-		if (string_index_of(p, ext_underscore_mid) >= 0 && !ends_with(p, "_preview") && !ends_with(p, "_icon")) {
+	}
+	return false;
+}
+
+bool path_check_ext(char *p, string_array_t *exts) {
+	for (uint32_t i = 0; i < exts->length; ++i) {
+		char *ext = exts->buffer[i];
+		if (ends_with_tag(p, ext)) {
+			return true;
+		}
+		if (contains_tag(p, ext) && !ends_with_tag(p, "preview") && !ends_with_tag(p, "icon")) {
 			return true;
 		}
 	}
@@ -371,10 +397,13 @@ bool path_is_displacement_tex(char *p) {
 }
 
 bool path_is_folder(char *p) {
-	char        *p_slash = string_replace_all(p, "\\", "/");
-	any_array_t *split   = string_split(p_slash, "/");
-	char        *last    = array_pop(split);
-	return string_index_of(last, ".") < 0;
+	char *last = p;
+	for (char *s = p; *s != '\0'; ++s) {
+		if (*s == '/' || *s == '\\') {
+			last = s + 1;
+		}
+	}
+	return strchr(last, '.') == NULL;
 }
 
 bool path_is_protected(void) {
@@ -392,10 +421,8 @@ bool path_is_protected(void) {
 }
 
 char *path_join(char *a, char *b) {
-	char *path = a;
-	if (!ends_with(path, PATH_SEP)) {
-		path = string("%s" PATH_SEP, path);
+	if (ends_with(a, PATH_SEP)) {
+		return string("%s%s", a, b);
 	}
-	path = string("%s%s", path, b);
-	return path;
+	return string("%s" PATH_SEP "%s", a, b);
 }

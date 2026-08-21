@@ -1,7 +1,7 @@
 
 #include "iron_armpack.h"
 
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_json.h"
 #include "iron_string.h"
 #include <stdbool.h>
@@ -251,9 +251,8 @@ static uint8_t flag_to_byte_size(uint8_t flag) {
 static void store_typed_array(uint8_t flag, uint32_t count) {
 	uint32_t size = flag_to_byte_size(flag) * count;
 	if (size > 4096) {
-		void *data = gc_alloc(size);
+		void *data = calloc(1, size);
 		memcpy(data, encoded + ei, size);
-		gc_leaf(data);
 		*(uintptr_t *)(decoded + di - 4 - 4 - PTR_SIZE) = (uintptr_t)data; // Set buffer ptr
 		*(uint32_t *)(decoded + di - 4)                 = count;           // Set capacity
 	}
@@ -406,7 +405,7 @@ void *armpack_decode(buffer_t *b) {
 	encoded  = b->buffer;
 	capacity = traverse(0, true);
 	reset();
-	decoded = gc_alloc(capacity);
+	decoded = calloc(1, capacity);
 	read_store();
 	return decoded;
 }
@@ -592,7 +591,7 @@ uint32_t armpack_size_bool() {
 
 static char *read_string_alloc() {
 	char *s         = read_string();
-	char *allocated = gc_alloc(str_len + 1);
+	char *allocated = calloc(1, str_len + 1);
 	memcpy(allocated, s, str_len);
 	allocated[str_len] = '\0';
 	return allocated;

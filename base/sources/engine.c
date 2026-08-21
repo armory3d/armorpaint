@@ -46,7 +46,7 @@ gpu_shader_t *sys_get_shader(char *name);
 //  ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
 
 object_t *object_create(bool is_empty) {
-	object_t *raw  = gc_alloc(sizeof(object_t));
+	object_t *raw  = calloc(1, sizeof(object_t));
 	raw->name      = "";
 	raw->children  = any_array_create(0);
 	raw->visible   = true;
@@ -54,7 +54,7 @@ object_t *object_create(bool is_empty) {
 	raw->uid       = _object_uid_counter++;
 	raw->transform = transform_create(raw);
 	raw->is_empty  = is_empty;
-	raw->_         = gc_alloc(sizeof(object_runtime_t));
+	raw->_         = calloc(1, sizeof(object_runtime_t));
 	if (raw->is_empty) {
 		any_array_push(scene_empties, raw);
 	}
@@ -97,6 +97,17 @@ void object_remove_super(object_t *raw) {
 	}
 }
 
+void object_free(object_t *raw) {
+	if (raw->owns_raw && raw->raw != NULL) {
+		array_delete(raw->raw->dimensions);
+		free(raw->raw);
+	}
+	free(raw->transform);
+	array_delete(raw->children);
+	free(raw->_);
+	free(raw);
+}
+
 void object_remove(object_t *raw) {
 	if (string_equals(raw->ext_type, "mesh_object_t")) {
 		mesh_object_remove(raw->ext);
@@ -106,6 +117,7 @@ void object_remove(object_t *raw) {
 	}
 	else {
 		object_remove_super(raw);
+		object_free(raw);
 	}
 }
 
@@ -131,7 +143,7 @@ object_t *object_get_child(object_t *raw, char *name) {
 //    ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝
 
 transform_t *transform_create(object_t *object) {
-	transform_t *raw = gc_alloc(sizeof(transform_t));
+	transform_t *raw = calloc(1, sizeof(transform_t));
 	raw->scale_world = 1.0;
 	raw->object      = object;
 	transform_reset(raw);
@@ -225,9 +237,10 @@ void transform_compute_dim(transform_t *raw) {
 	if (raw->object->raw == NULL && string_equals(raw->object->ext_type, "mesh_object_t")) {
 		mesh_object_t *mo    = (mesh_object_t *)raw->object->ext;
 		vec4_t         aabb  = mesh_data_calculate_aabb(mo->data);
-		obj_t         *o_raw = gc_alloc(sizeof(obj_t));
+		obj_t         *o_raw = calloc(1, sizeof(obj_t));
 		o_raw->dimensions    = f32_array_create_xyz(aabb.x, aabb.y, aabb.z);
 		raw->object->raw     = o_raw;
+		raw->object->owns_raw = true;
 	}
 
 	if (raw->object->raw == NULL || raw->object->raw->dimensions == NULL) {
@@ -310,7 +323,7 @@ world_data_t *world_data_parse(char *name, char *id) {
 		return NULL;
 	}
 
-	raw->_                   = gc_alloc(sizeof(world_data_runtime_t));
+	raw->_                   = calloc(1, sizeof(world_data_runtime_t));
 	raw->_->radiance_mipmaps = any_array_create(0);
 
 	raw->_->irradiance = world_data_set_irradiance(raw);
@@ -349,7 +362,6 @@ world_data_t *world_data_get_raw_by_name(any_array_t *datas, char *name) {
 f32_array_t *world_data_get_empty_irradiance() {
 	if (_world_data_empty_irr == NULL) {
 		_world_data_empty_irr = f32_array_create(28);
-		gc_root(_world_data_empty_irr);
 		for (i32 i = 0; i < _world_data_empty_irr->length; ++i) {
 			_world_data_empty_irr->buffer[i] = 0.0;
 		}
@@ -386,7 +398,7 @@ void world_data_load_envmap(world_data_t *raw) {
 i32 _material_data_uid_counter = 0;
 
 material_data_t *material_data_create(material_data_t *raw, char *file) {
-	raw->_      = gc_alloc(sizeof(material_data_runtime_t));
+	raw->_      = calloc(1, sizeof(material_data_runtime_t));
 	raw->_->uid = (float)(++_material_data_uid_counter); // Start from 1
 
 	any_array_t *ref         = string_split(raw->shader, "/");
@@ -443,7 +455,7 @@ material_context_t *material_data_get_context(material_data_t *raw, char *name) 
 }
 
 void material_context_load(material_context_t *raw) {
-	raw->_ = gc_alloc(sizeof(material_context_runtime_t));
+	raw->_ = calloc(1, sizeof(material_context_runtime_t));
 	if (raw->bind_textures != NULL && raw->bind_textures->length > 0) {
 		raw->_->textures = any_array_create(0);
 		for (i32 i = 0; i < (i32)raw->bind_textures->length; ++i) {
@@ -526,7 +538,7 @@ shader_context_t *shader_data_get_context(shader_data_t *raw, char *name) {
 
 void shader_context_load(shader_context_t *raw) {
 	if (raw->_ == NULL) {
-		raw->_ = gc_alloc(sizeof(shader_context_runtime_t));
+		raw->_ = calloc(1, sizeof(shader_context_runtime_t));
 	}
 	shader_context_parse_vertex_struct(raw);
 	shader_context_compile(raw);
@@ -630,9 +642,9 @@ void shader_context_compile(shader_context_t *raw) {
 		raw->_->pipe->fragment_shader = sys_get_shader(raw->fragment_shader);
 		raw->_->pipe->vertex_shader   = sys_get_shader(raw->vertex_shader);
 #else
-		buffer_t *vs_buffer           = data_get_blob(string("%s%s", raw->vertex_shader, shader_data_ext()));
+		buffer_t *vs_buffer           = data_get_blob(string_tmp("%s%s", raw->vertex_shader, shader_data_ext()));
 		raw->_->pipe->vertex_shader   = gpu_create_shader(vs_buffer, GPU_SHADER_TYPE_VERTEX);
-		buffer_t *fs_buffer           = data_get_blob(string("%s%s", raw->fragment_shader, shader_data_ext()));
+		buffer_t *fs_buffer           = data_get_blob(string_tmp("%s%s", raw->fragment_shader, shader_data_ext()));
 		raw->_->pipe->fragment_shader = gpu_create_shader(fs_buffer, GPU_SHADER_TYPE_FRAGMENT);
 #endif
 	}
@@ -820,7 +832,7 @@ mesh_data_t *mesh_data_get_raw_by_name(any_array_t *datas, char *name) {
 }
 
 mesh_data_t *mesh_data_create(mesh_data_t *raw) {
-	raw->_ = gc_alloc(sizeof(mesh_data_runtime_t));
+	raw->_ = calloc(1, sizeof(mesh_data_runtime_t));
 	if (raw->scale_pos == 0.0) {
 		raw->scale_pos = 1.0;
 	}
@@ -940,6 +952,25 @@ vec4_t mesh_data_calculate_aabb(mesh_data_t *raw) {
 void mesh_data_delete(mesh_data_t *raw) {
 	gpu_delete_buffer(raw->_->vertex_buffer);
 	gpu_delete_buffer(raw->_->index_buffer);
+	if (raw->_->owns_arrays) {
+		// Skip armpack meshes pointing to a decoded blob
+		for (i32 i = 0; i < raw->vertex_arrays->length; ++i) {
+			vertex_array_t *va = raw->vertex_arrays->buffer[i];
+			if (va->values != NULL) {
+				array_free(va->values);
+				free(va->values);
+			}
+			free(va);
+		}
+		array_free(raw->vertex_arrays);
+		free(raw->vertex_arrays);
+		if (raw->index_array != NULL) {
+			array_free(raw->index_array);
+			free(raw->index_array);
+		}
+		free(raw->_);
+		free(raw);
+	}
 }
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗     ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
@@ -950,7 +981,7 @@ void mesh_data_delete(mesh_data_t *raw) {
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝     ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
 
 mesh_object_t *mesh_object_create(mesh_data_t *data, material_data_t *material) {
-	mesh_object_t *raw   = gc_alloc(sizeof(mesh_object_t));
+	mesh_object_t *raw   = calloc(1, sizeof(mesh_object_t));
 	raw->frustum_culling = true;
 	raw->base            = object_create(false);
 	raw->base->ext       = raw;
@@ -970,6 +1001,8 @@ void mesh_object_set_data(mesh_object_t *raw, mesh_data_t *data) {
 void mesh_object_remove(mesh_object_t *raw) {
 	array_remove(scene_meshes, raw);
 	object_remove_super(raw->base);
+	object_free(raw->base);
+	free(raw);
 }
 
 bool mesh_object_cull_material(mesh_object_t *raw, char *context) {
@@ -1031,9 +1064,7 @@ void mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_
 
 	if (scontext->_->pipe != _mesh_object_last_pipeline) {
 		gpu_set_pipeline(scontext->_->pipe);
-		gc_unroot(_mesh_object_last_pipeline);
 		_mesh_object_last_pipeline = scontext->_->pipe;
-		gc_root(_mesh_object_last_pipeline);
 	}
 	uniforms_set_context_consts(scontext, bind_params);
 	uniforms_set_obj_consts(scontext, raw->base);
@@ -1055,7 +1086,7 @@ bool mesh_object_valid_context(mesh_object_t *raw, material_data_t *mat, char *c
 //  ╚═════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝     ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
 
 camera_object_t *camera_object_create(camera_data_t *data) {
-	camera_object_t *raw = gc_alloc(sizeof(camera_object_t));
+	camera_object_t *raw = calloc(1, sizeof(camera_object_t));
 	raw->no_jitter_p     = mat4_identity();
 	raw->frame           = 0;
 	raw->base            = object_create(false);
@@ -1097,6 +1128,14 @@ void camera_object_build_proj(camera_object_t *raw, f32 screen_aspect) {
 void camera_object_remove(camera_object_t *raw) {
 	array_remove(scene_cameras, raw);
 	object_remove_super(raw->base);
+	object_free(raw->base);
+	if (raw->frustum_planes != NULL) {
+		for (i32 i = 0; i < raw->frustum_planes->length; ++i) {
+			free(raw->frustum_planes->buffer[i]);
+		}
+		array_delete(raw->frustum_planes);
+	}
+	free(raw);
 }
 
 void camera_object_proj_jitter(camera_object_t *raw) {
@@ -1186,7 +1225,7 @@ bool camera_object_sphere_in_frustum(frustum_plane_array_t *frustum_planes, tran
 // ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝    ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝
 
 frustum_plane_t *frustum_plane_create() {
-	frustum_plane_t *raw = gc_alloc(sizeof(frustum_plane_t));
+	frustum_plane_t *raw = calloc(1, sizeof(frustum_plane_t));
 	raw->normal          = (vec4_t){1.0, 0.0, 0.0, 0.0};
 	raw->constant        = 0.0;
 	return raw;
@@ -1526,7 +1565,7 @@ bool uniforms_set_context_const(i32 location, shader_const_t *c) {
 			v.y       = (-zfar * znear) / (zfar - znear);
 		}
 		else if (starts_with(c->link, "_size(")) {
-			char          *tex   = substring(c->link, 6, string_length(c->link) - 1);
+			char          *tex   = string_tmp("%.*s", string_length(c->link) - 7, c->link + 6);
 			gpu_texture_t *image = uniforms_tex_links != NULL ? uniforms_tex_links(NULL, NULL, tex) : NULL;
 			if (image != NULL) {
 				v.x = (f32)image->width;
@@ -1854,6 +1893,9 @@ buffer_t      *iron_load_blob(char *file);
 gpu_texture_t *iron_load_texture(char *file);
 void           gpu_delete_texture(gpu_texture_t *texture);
 void          *iron_load_sound(char *file);
+#ifdef WITH_EMBED
+bool           embed_owns(uint8_t *buffer);
+#endif
 
 char *data_path(void) {
 #ifdef IRON_ANDROID
@@ -1864,11 +1906,11 @@ char *data_path(void) {
 }
 
 bool data_is_abs(char *file) {
-	return char_at(file, 0)[0] == '/' || char_at(file, 1)[0] == ':' || (char_at(file, 0)[0] == '\\' && char_at(file, 1)[0] == '\\');
+	return file[0] == '/' || (file[0] != '\0' && file[1] == ':') || (file[0] == '\\' && file[1] == '\\');
 }
 
 bool data_is_up(char *file) {
-	return char_at(file, 0)[0] == '.' && char_at(file, 1)[0] == '.';
+	return file[0] == '.' && file[1] == '.';
 }
 
 char *data_resolve_path(char *file) {
@@ -1886,7 +1928,6 @@ char *data_resolve_path(char *file) {
 mesh_data_t *data_get_mesh(char *file, char *name) {
 	if (data_cached_meshes == NULL) {
 		data_cached_meshes = any_map_create();
-		gc_root(data_cached_meshes);
 	}
 	char        *handle = string("%s%s", file, name);
 	mesh_data_t *cached = (mesh_data_t *)any_map_get(data_cached_meshes, handle);
@@ -1894,7 +1935,7 @@ mesh_data_t *data_get_mesh(char *file, char *name) {
 		return cached;
 	}
 	mesh_data_t *b = mesh_data_parse(file, name);
-	any_map_set(data_cached_meshes, handle, b);
+	any_map_set(data_cached_meshes, string_copy(handle), b);
 	b->_->handle = handle;
 	return b;
 }
@@ -1902,7 +1943,6 @@ mesh_data_t *data_get_mesh(char *file, char *name) {
 camera_data_t *data_get_camera(char *file, char *name) {
 	if (data_cached_cameras == NULL) {
 		data_cached_cameras = any_map_create();
-		gc_root(data_cached_cameras);
 	}
 	char          *handle = string("%s%s", file, name);
 	camera_data_t *cached = (camera_data_t *)any_map_get(data_cached_cameras, handle);
@@ -1910,14 +1950,13 @@ camera_data_t *data_get_camera(char *file, char *name) {
 		return cached;
 	}
 	camera_data_t *b = camera_data_parse(file, name);
-	any_map_set(data_cached_cameras, handle, b);
+	any_map_set(data_cached_cameras, string_copy(handle), b);
 	return b;
 }
 
 material_data_t *data_get_material(char *file, char *name) {
 	if (data_cached_materials == NULL) {
 		data_cached_materials = any_map_create();
-		gc_root(data_cached_materials);
 	}
 	char            *handle = string("%s%s", file, name);
 	material_data_t *cached = (material_data_t *)any_map_get(data_cached_materials, handle);
@@ -1925,14 +1964,13 @@ material_data_t *data_get_material(char *file, char *name) {
 		return cached;
 	}
 	material_data_t *b = material_data_parse(file, name);
-	any_map_set(data_cached_materials, handle, b);
+	any_map_set(data_cached_materials, string_copy(handle), b);
 	return b;
 }
 
 world_data_t *data_get_world(char *file, char *name) {
 	if (data_cached_worlds == NULL) {
 		data_cached_worlds = any_map_create();
-		gc_root(data_cached_worlds);
 	}
 	char         *handle = string("%s%s", file, name);
 	world_data_t *cached = (world_data_t *)any_map_get(data_cached_worlds, handle);
@@ -1940,14 +1978,13 @@ world_data_t *data_get_world(char *file, char *name) {
 		return cached;
 	}
 	world_data_t *b = world_data_parse(file, name);
-	any_map_set(data_cached_worlds, handle, b);
+	any_map_set(data_cached_worlds, string_copy(handle), b);
 	return b;
 }
 
 shader_data_t *data_get_shader(char *file, char *name) {
 	if (data_cached_shaders == NULL) {
 		data_cached_shaders = any_map_create();
-		gc_root(data_cached_shaders);
 	}
 	// Only one context override per shader data for now
 	char          *handle = name; // Shader must have unique name
@@ -1956,14 +1993,13 @@ shader_data_t *data_get_shader(char *file, char *name) {
 		return cached;
 	}
 	shader_data_t *b = shader_data_parse(file, name);
-	any_map_set(data_cached_shaders, handle, b);
+	any_map_set(data_cached_shaders, string_copy(handle), b);
 	return b;
 }
 
 scene_t *data_get_scene_raw(char *file) {
 	if (data_cached_scene_raws == NULL) {
 		data_cached_scene_raws = any_map_create();
-		gc_root(data_cached_scene_raws);
 	}
 	scene_t *cached = (scene_t *)any_map_get(data_cached_scene_raws, file);
 	if (cached != NULL) {
@@ -1973,21 +2009,20 @@ scene_t *data_get_scene_raw(char *file) {
 	char     *ext    = ends_with(file, ".arm") ? "" : ".arm";
 	buffer_t *b      = data_get_blob(string("%s%s", file, ext));
 	scene_t  *parsed = (scene_t *)armpack_decode(b);
-	any_map_set(data_cached_scene_raws, file, parsed);
+	any_map_set(data_cached_scene_raws, string_copy(file), parsed);
 	return parsed;
 }
 
 buffer_t *data_get_blob(char *file) {
 	if (data_cached_blobs == NULL) {
 		data_cached_blobs = any_map_create();
-		gc_root(data_cached_blobs);
 	}
 	buffer_t *cached = (buffer_t *)any_map_get(data_cached_blobs, file);
 	if (cached != NULL) {
 		return cached;
 	}
 	buffer_t *b = iron_load_blob(data_resolve_path(file));
-	any_map_set(data_cached_blobs, file, b);
+	any_map_set(data_cached_blobs, string_copy(file), b);
 	data_assets_loaded++;
 	return b;
 }
@@ -1995,7 +2030,6 @@ buffer_t *data_get_blob(char *file) {
 gpu_texture_t *data_get_texture(char *file) {
 	if (data_cached_textures == NULL) {
 		data_cached_textures = any_map_create();
-		gc_root(data_cached_textures);
 	}
 	gpu_texture_t *cached = (gpu_texture_t *)any_map_get(data_cached_textures, file);
 	if (cached != NULL) {
@@ -2005,7 +2039,7 @@ gpu_texture_t *data_get_texture(char *file) {
 	if (b == NULL) {
 		return NULL;
 	}
-	any_map_set(data_cached_textures, file, b);
+	any_map_set(data_cached_textures, string_copy(file), b);
 	data_assets_loaded++;
 	return b;
 }
@@ -2013,7 +2047,6 @@ gpu_texture_t *data_get_texture(char *file) {
 video_t *data_get_video(char *file) {
 	if (data_cached_videos == NULL) {
 		data_cached_videos = any_map_create();
-		gc_root(data_cached_videos);
 	}
 	// Strip extension and use .webm
 	char    *base   = substring(file, 0, string_length(file) - 4);
@@ -2032,17 +2065,16 @@ video_t *data_get_video(char *file) {
 draw_font_t *data_get_font(char *file) {
 	if (data_cached_fonts == NULL) {
 		data_cached_fonts = any_map_create();
-		gc_root(data_cached_fonts);
 	}
 	draw_font_t *cached = (draw_font_t *)any_map_get(data_cached_fonts, file);
 	if (cached != NULL) {
 		return cached;
 	}
 	buffer_t    *blob = iron_load_blob(data_resolve_path(file));
-	draw_font_t *b    = gc_alloc(sizeof(draw_font_t));
+	draw_font_t *b    = calloc(1, sizeof(draw_font_t));
 	b->buf            = blob;
 	b->index          = 0;
-	any_map_set(data_cached_fonts, file, b);
+	any_map_set(data_cached_fonts, string_copy(file), b);
 	data_assets_loaded++;
 	return b;
 }
@@ -2050,14 +2082,13 @@ draw_font_t *data_get_font(char *file) {
 sound_t *data_get_sound(char *file) {
 	if (data_cached_sounds == NULL) {
 		data_cached_sounds = any_map_create();
-		gc_root(data_cached_sounds);
 	}
 	sound_t *cached = (sound_t *)any_map_get(data_cached_sounds, file);
 	if (cached != NULL) {
 		return cached;
 	}
 	sound_t *b = iron_load_sound(data_resolve_path(file));
-	any_map_set(data_cached_sounds, file, b);
+	any_map_set(data_cached_sounds, string_copy(file), b);
 	data_assets_loaded++;
 	return b;
 }
@@ -2097,6 +2128,14 @@ void data_delete_blob(char *handle) {
 		return;
 	}
 	map_delete(data_cached_blobs, handle);
+#ifdef WITH_EMBED
+	if (embed_owns(blob->buffer)) {
+		free(blob);
+		return;
+	}
+#endif
+	free(blob->buffer);
+	free(blob);
 }
 
 void data_delete_texture(char *handle) {
@@ -2158,59 +2197,41 @@ i32              _scene_objects_count     = 0;
 object_t *scene_create(scene_t *format) {
 	_scene_uid = _scene_uid_counter++;
 
-	gc_unroot(scene_meshes);
 	scene_meshes = any_array_create(0);
-	gc_root(scene_meshes);
 
-	gc_unroot(scene_cameras);
 	scene_cameras = any_array_create(0);
-	gc_root(scene_cameras);
 
-	gc_unroot(scene_empties);
 	scene_empties = any_array_create(0);
-	gc_root(scene_empties);
 
-	gc_unroot(scene_embedded);
 	scene_embedded = any_map_create();
-	gc_root(scene_embedded);
 
-	gc_unroot(_scene_root);
 	_scene_root = object_create(true);
-	gc_root(_scene_root);
 	_scene_root->name = format->name;
 
-	gc_unroot(_scene_raw);
 	_scene_raw = format;
-	gc_root(_scene_raw);
 
-	gc_unroot(scene_world);
 	scene_world = data_get_world(format->name, format->world_ref);
-	gc_root(scene_world);
 
 	// Startup scene
 	scene_add_scene(format->name);
 
-	gc_unroot(scene_camera);
 	scene_camera = (camera_object_t *)scene_cameras->buffer[0]; // format->camera_ref
-	gc_root(scene_camera);
 
 	return _scene_root;
 }
 
 void scene_remove(void) {
-	for (i32 i = 0; i < scene_meshes->length; ++i) {
-		mesh_object_t *o = (mesh_object_t *)scene_meshes->buffer[i];
-		mesh_object_remove(o);
+	while (scene_meshes->length > 0) {
+		mesh_object_remove((mesh_object_t *)scene_meshes->buffer[0]);
 	}
-	for (i32 i = 0; i < scene_cameras->length; ++i) {
-		camera_object_t *o = (camera_object_t *)scene_cameras->buffer[i];
-		camera_object_remove(o);
+	while (scene_cameras->length > 0) {
+		camera_object_remove((camera_object_t *)scene_cameras->buffer[0]);
 	}
-	for (i32 i = 0; i < scene_empties->length; ++i) {
-		object_t *o = (object_t *)scene_empties->buffer[i];
-		object_remove(o);
+	while (scene_empties->length > 0) {
+		object_remove((object_t *)scene_empties->buffer[0]);
 	}
-	object_remove(_scene_root);
+	_scene_root  = NULL;
+	scene_camera = NULL;
 }
 
 object_t *scene_set_active(char *scene_name) {
@@ -2405,6 +2426,11 @@ object_t *scene_return_mesh_object(char *object_file, char *data_ref, material_d
 
 object_t *scene_return_object(object_t *object, obj_t *o) {
 	if (object != NULL) {
+		if (object->owns_raw && object->raw != NULL) {
+			array_delete(object->raw->dimensions);
+			free(object->raw);
+			object->owns_raw = false;
+		}
 		object->raw     = o;
 		object->name    = o->name;
 		object->visible = o->visible;
@@ -2495,11 +2521,9 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 		render_path_end();
 	}
 
-	gc_unroot(_mesh_object_last_pipeline);
 	_mesh_object_last_pipeline = NULL;
 
 	if (string_equals(target, "")) { // Framebuffer
-		gc_unroot(_render_path_current_target);
 		_render_path_current_target = NULL;
 		render_path_current_w       = sys_w();
 		render_path_current_h       = sys_h();
@@ -2508,40 +2532,34 @@ void render_path_set_target(char *target, string_array_t *additional, char *dept
 	}
 	else { // Render target
 		render_target_t *rt = (render_target_t *)any_map_get(render_path_render_targets, target);
-		gc_unroot(_render_path_current_target);
 		_render_path_current_target = rt;
-		gc_root(_render_path_current_target);
-		any_array_t *additional_images = NULL;
+		static any_array_t additional_images_scratch = {0};
+		any_array_t       *additional_images         = NULL;
 		if (additional != NULL) {
-			additional_images = any_array_create(0);
+			additional_images_scratch.length = 0;
 			for (i32 i = 0; i < additional->length; ++i) {
 				char            *s = (char *)additional->buffer[i];
 				render_target_t *t = (render_target_t *)any_map_get(render_path_render_targets, s);
-				any_array_push(additional_images, t->_image);
+				any_array_push(&additional_images_scratch, t->_image);
 			}
+			additional_images = &additional_images_scratch;
 		}
 		render_path_current_w = rt->_image->width;
 		render_path_current_h = rt->_image->height;
 		render_target_t *db   = depth_buffer != NULL ? (render_target_t *)any_map_get(render_path_render_targets, depth_buffer) : NULL;
-		gc_unroot(_render_path_current_image);
 		_render_path_current_image = rt->_image;
-		gc_root(_render_path_current_image);
 		_gpu_begin(rt->_image, additional_images, db != NULL ? db->_image : NULL, flags, color, depth);
 	}
-	gc_unroot(_render_path_bind_params);
 	_render_path_bind_params = NULL;
 }
 
 void render_path_end(void) {
 	gpu_end();
-	gc_unroot(_render_path_current_image);
 	_render_path_current_image = NULL;
-	gc_unroot(_render_path_bind_params);
 	_render_path_bind_params = NULL;
 }
 
 void render_path_draw_meshes(char *context) {
-	gc_unroot(_mesh_object_last_pipeline);
 	_mesh_object_last_pipeline = NULL;
 	any_array_t *meshes        = scene_meshes;
 	for (i32 i = 0; i < meshes->length; ++i) {
@@ -2566,17 +2584,13 @@ void render_path_draw_skydome(char *handle) {
 }
 
 void render_path_bind_target(char *target, char *uniform) {
-	if (_render_path_bind_params != NULL) {
-		string_array_push(_render_path_bind_params, target);
-		string_array_push(_render_path_bind_params, uniform);
+	static string_array_t bind_params = {0};
+	if (_render_path_bind_params == NULL) {
+		bind_params.length       = 0;
+		_render_path_bind_params = &bind_params;
 	}
-	else {
-		_render_path_bind_params = string_array_create(2);
-		gc_root(_render_path_bind_params);
-		_render_path_bind_params->buffer[0] = target;
-		_render_path_bind_params->buffer[1] = uniform;
-		_render_path_bind_params->length    = 2;
-	}
+	string_array_push(_render_path_bind_params, target);
+	string_array_push(_render_path_bind_params, uniform);
 }
 
 void render_path_draw_shader(char *handle) {
@@ -2599,7 +2613,6 @@ void render_path_load_shader(char *handle) {
 	_render_path_loading++;
 	if (_render_path_cached_shader_contexts == NULL) {
 		_render_path_cached_shader_contexts = any_map_create();
-		gc_root(_render_path_cached_shader_contexts);
 	}
 	cached_shader_context_t *cc = (cached_shader_context_t *)any_map_get(_render_path_cached_shader_contexts, handle);
 	if (cc != NULL) {
@@ -2607,14 +2620,15 @@ void render_path_load_shader(char *handle) {
 		return;
 	}
 
-	cc = gc_alloc(sizeof(cached_shader_context_t));
-	any_map_set(_render_path_cached_shader_contexts, handle, cc);
+	cc = calloc(1, sizeof(cached_shader_context_t));
+	any_map_set(_render_path_cached_shader_contexts, string_copy(handle), cc); // Callers may pass frame-temporary handles
 
 	// file/data_name/context
 	any_array_t *shader_path = string_split(handle, "/");
 
 	shader_data_t *res = data_get_shader((char *)shader_path->buffer[0], (char *)shader_path->buffer[1]);
 	cc->context        = shader_data_get_context(res, (char *)shader_path->buffer[2]);
+	string_split_free(shader_path);
 	_render_path_loading--;
 }
 
@@ -2631,12 +2645,13 @@ void render_path_resize(void) {
 			rt->_image = render_path_create_image(rt);
 		}
 	}
+	array_free(render_targets_keys);
+	free(render_targets_keys);
 }
 
 render_target_t *render_path_create_render_target(render_target_t *t) {
 	if (render_path_render_targets == NULL) {
 		render_path_render_targets = any_map_create();
-		gc_root(render_path_render_targets);
 	}
 	t->_image = render_path_create_image(t);
 	any_map_set(render_path_render_targets, t->name, t);
@@ -2683,7 +2698,7 @@ gpu_texture_format_t render_path_get_tex_format(char *s) {
 }
 
 render_target_t *render_target_create(void) {
-	render_target_t *raw = gc_alloc(sizeof(render_target_t));
+	render_target_t *raw = calloc(1, sizeof(render_target_t));
 	raw->scale           = 1.0;
 	return raw;
 }

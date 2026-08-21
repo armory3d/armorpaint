@@ -1,6 +1,6 @@
 
 #include "iron_file.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_json.h"
 #include "iron_map.h"
 #include "iron_net.h"
@@ -509,7 +509,7 @@ any_array_t *file_read_directory(char *path) {
 			return files;
 		}
 		else {
-			return gc_alloc(sizeof(any_array_t));
+			return calloc(1, sizeof(any_array_t));
 		}
 	}
 
@@ -525,7 +525,6 @@ any_array_t *file_read_directory(char *path) {
 		buffer_t *blob = data_get_blob("data_list.json");
 		char     *s    = sys_buffer_to_string(blob);
 		file_internal  = json_parse_to_map(s);
-		gc_root(file_internal);
 	}
 	if (any_map_get(file_internal, path) != NULL) {
 		return string_split(any_map_get(file_internal, path), ",");
@@ -595,7 +594,6 @@ static void _file_download_to_callback(char *url, buffer_t *ab) {
 void file_download_to(char *url, char *dst_path, void (*done)(char *url), i32 size) {
 	if (_file_download_map == NULL) {
 		_file_download_map = any_map_create();
-		gc_root(_file_download_map);
 	}
 	file_download_data_t *fdd = malloc(sizeof(file_download_data_t));
 	fdd->done                 = done;
@@ -618,7 +616,6 @@ static void _file_cache_cloud_callback(char *url) {
 void file_cache_cloud(char *path, void (*done)(char *dest), char *server) {
 	if (_file_cache_cloud_map == NULL) {
 		_file_cache_cloud_map = any_map_create();
-		gc_root(_file_cache_cloud_map);
 	}
 
 	char dest[512];
@@ -658,14 +655,14 @@ void file_cache_cloud(char *path, void (*done)(char *dest), char *server) {
 
 static void _file_init_cloud_bytes_callback(char *url, buffer_t *buffer) {
 	if (buffer == NULL) {
-		any_array_t *empty = gc_alloc(sizeof(any_array_t));
+		any_array_t *empty = calloc(1, sizeof(any_array_t));
 		any_map_set(file_cloud, "cloud", empty);
 		console_error(strings_check_internet_connection());
 		return;
 	}
 
-	any_array_t *files     = gc_alloc(sizeof(any_array_t));
-	i32_array_t *sizes     = gc_alloc(sizeof(i32_array_t));
+	any_array_t *files     = calloc(1, sizeof(any_array_t));
+	i32_array_t *sizes     = calloc(1, sizeof(i32_array_t));
 	char        *str       = sys_buffer_to_string(buffer);
 	i32          str_len   = string_length(str);
 	i32          pos_start = 0;
@@ -689,7 +686,7 @@ static void _file_init_cloud_bytes_callback(char *url, buffer_t *buffer) {
 	for (i32 i = 0; i < (i32)files->length; ++i) {
 		char *file = files->buffer[i];
 		if (path_is_folder(file)) {
-			any_array_t *empty = gc_alloc(sizeof(any_array_t));
+			any_array_t *empty = calloc(1, sizeof(any_array_t));
 			any_map_set(file_cloud, substring(file, 0, string_length(file) - 1), empty);
 		}
 	}
@@ -721,8 +718,6 @@ void file_init_cloud_bytes(void (*done)(void), char *append, char *server) {
 
 void file_init_cloud(void (*done)(void), char *server) {
 	file_cloud = any_map_create();
-	gc_root(file_cloud);
 	file_cloud_sizes = i32_map_create();
-	gc_root(file_cloud_sizes);
 	file_init_cloud_bytes(done, NULL, server);
 }

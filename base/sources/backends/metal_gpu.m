@@ -513,6 +513,8 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 	id<MTLFunction> function  = (__bridge_transfer id<MTLFunction>)shader->impl.mtl_function;
 	function                  = nil;
 	shader->impl.mtl_function = NULL;
+	free(shader->impl.source);
+	shader->impl.source = NULL;
 }
 
 void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_shader_type_t type) {
@@ -527,7 +529,8 @@ void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_
 		shader->impl.name[i - 3] = source[i];
 	}
 
-	shader->impl.source = data;
+	shader->impl.source = malloc(length);
+	memcpy(shader->impl.source, data, length);
 	shader->impl.length = length;
 }
 

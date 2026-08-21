@@ -4,7 +4,7 @@
 #include "iron_array.h"
 #include "iron_audio.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_gpu.h"
 #include "iron_map.h"
 #include "iron_math.h"
@@ -106,6 +106,7 @@ typedef struct mesh_data_runtime {
 	gpu_vertex_structure_t structure;
 	buffer_t              *skin_blob; // Source file bytes
 	i32                    skin_frames;
+	bool                   owns_arrays;
 } mesh_data_runtime_t;
 
 typedef struct mesh_data {
@@ -329,6 +330,7 @@ typedef struct object {
 	bool              visible;
 	bool              culled;
 	bool              is_empty;
+	bool              owns_raw;
 	void             *ext;
 	char             *ext_type;
 	object_runtime_t *_;
@@ -346,6 +348,7 @@ extern i32 _object_uid_counter;
 object_t *object_create(bool is_empty);
 void      object_set_parent(object_t *raw, object_t *parent_object);
 void      object_remove_super(object_t *raw);
+void      object_free(object_t *raw);
 void      object_remove(object_t *raw);
 object_t *object_get_child(object_t *raw, char *name);
 

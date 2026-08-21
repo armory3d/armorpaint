@@ -63,18 +63,9 @@ typedef struct {
 	minic_token_t cur;
 } minic_lexer_t;
 
-void *gc_alloc(size_t size);
-void  gc_root(void *ptr);
-void  gc_unroot(void *ptr);
-void  gc_free(void *ptr);
-void  gc_resize(void *ptr, size_t size);
 
 static minic_u8 *minic_active_mem      = NULL;
 static int      *minic_active_mem_used = NULL;
-
-static void minic_mem_sync(void) {
-	gc_resize(minic_active_mem, (size_t)*minic_active_mem_used);
-}
 
 static const struct {
 	const char      *kw;
@@ -222,7 +213,6 @@ static void minic_lex_next(minic_lexer_t *l) {
 			}
 			minic_active_mem[wi++] = '\0';
 			*minic_active_mem_used = (wi + 7) & ~7;
-			minic_mem_sync();
 			if (l->src[l->pos] == '"') {
 				l->pos++; // Consume closing '"'
 			}
@@ -298,7 +288,6 @@ void *minic_alloc(int size) {
 	// Align to 8 bytes
 	int aligned            = (*minic_active_mem_used + 7) & ~7;
 	*minic_active_mem_used = aligned + size;
-	minic_mem_sync();
 	return &minic_active_mem[aligned];
 }
 
@@ -853,7 +842,6 @@ static minic_val_t minic_call_in_ctx(minic_ctx_t *ctx, minic_func_t *fn, minic_v
 	int         saved_used  = ctx->mem_used;
 	minic_val_t r           = minic_call(&ctx->e, fn, args, argc);
 	ctx->mem_used           = saved_used;
-	minic_mem_sync();
 	minic_active_mem      = prev_mem;
 	minic_active_mem_used = prev_mem_used;
 	return r;
@@ -2049,12 +2037,8 @@ static void minic_register_funcs(minic_env_t *e) {
 minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	minic_register_builtins();
 
-	// The arena stores every script variable, including pointers to GC-managed host objects
-	minic_ctx_t *ctx = (minic_ctx_t *)gc_alloc(sizeof(minic_ctx_t));
-	gc_root(ctx);
-	ctx->mem = (minic_u8 *)gc_alloc(MINIC_MEM_SIZE);
-	gc_root(ctx->mem);
-	gc_resize(ctx->mem, 0);
+	minic_ctx_t *ctx = (minic_ctx_t *)calloc(1, sizeof(minic_ctx_t));
+	ctx->mem = (minic_u8 *)calloc(1, MINIC_MEM_SIZE);
 	// Copy the source so the context stays valid after the caller frees its buffer
 	int src_len   = (int)strlen(src);
 	ctx->src_copy = (char *)malloc(src_len + 1);
@@ -2113,11 +2097,9 @@ minic_ctx_t *minic_eval(const char *src) {
 
 void minic_ctx_free(minic_ctx_t *ctx) {
 	if (ctx != NULL) {
-		gc_unroot(ctx->mem);
-		gc_free(ctx->mem);
+		free(ctx->mem);
 		free(ctx->src_copy);
-		gc_unroot(ctx);
-		gc_free(ctx);
+		free(ctx);
 	}
 }
 
