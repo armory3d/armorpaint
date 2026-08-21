@@ -170,6 +170,9 @@ void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_arr
 }
 
 void util_uv_cache_uv_island_map() {
+	if (util_uv_uvislandmap_cached) {
+		return;
+	}
 	util_uv_cache_dilate_map();
 	if (util_uv_dilate_bytes == NULL) {
 		gc_unroot(util_uv_dilate_bytes);
@@ -177,6 +180,8 @@ void util_uv_cache_uv_island_map() {
 		gc_root(util_uv_dilate_bytes);
 	}
 	util_render_pick_pos_nor_tex();
+	util_render_pick_fill_symmetry();
+	util_render_pick_fill_xray();
 	i32          w        = 2048; // config_get_texture_res_x()
 	i32          h        = 2048; // config_get_texture_res_y()
 	i32          x        = math_floor(g_context->uvx_picked * w);
@@ -192,6 +197,26 @@ void util_uv_cache_uv_island_map() {
 	        y,
 	    },
 	    1);
+
+	// Seed additional flood-fill starting points from the mirrored picks so the symmetric
+	// UV island(s) on the opposite side of the mesh are selected together with the original.
+	if (g_context->fill_sym_x_valid) {
+		i32_array_push(coords_x, math_floor(g_context->fill_sym_x_uvx * w));
+		i32_array_push(coords_y, math_floor(g_context->fill_sym_x_uvy * h));
+	}
+	if (g_context->fill_sym_y_valid) {
+		i32_array_push(coords_x, math_floor(g_context->fill_sym_y_uvx * w));
+		i32_array_push(coords_y, math_floor(g_context->fill_sym_y_uvy * h));
+	}
+	if (g_context->fill_sym_z_valid) {
+		i32_array_push(coords_x, math_floor(g_context->fill_sym_z_uvx * w));
+		i32_array_push(coords_y, math_floor(g_context->fill_sym_z_uvy * h));
+	}
+	if (g_context->fill_xray_valid) {
+		i32_array_push(coords_x, math_floor(g_context->fill_xray_uvx * w));
+		i32_array_push(coords_y, math_floor(g_context->fill_xray_uvy * h));
+	}
+
 	i32 r = math_floor(util_uv_dilatemap->width / (float)w);
 
 	while (coords_x->length > 0) {
