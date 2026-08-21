@@ -340,7 +340,22 @@ void render_path_paint_commands_paint(bool dilation) {
 			viewport_mode_t _viewport_mode = g_context->viewport_mode;
 			g_context->viewport_mode       = VIEWPORT_MODE_OBJECT_ID;
 			make_material_parse_mesh_material();
+
+			// Objects with assigned material do not write object id
+			material_data_t *base_material     = g_project->_->materials->buffer[0]->data;
+			any_array_t     *_object_materials = any_array_create(g_project->_->paint_objects->length);
+			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+				mesh_object_t *o             = g_project->_->paint_objects->buffer[i];
+				_object_materials->buffer[i] = o->material;
+				o->material                  = base_material;
+			}
+
 			render_path_base_draw_gbuffer();
+
+			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+				g_project->_->paint_objects->buffer[i]->material = _object_materials->buffer[i];
+			}
+
 			g_context->viewport_mode = _viewport_mode;
 			make_material_parse_mesh_material();
 
