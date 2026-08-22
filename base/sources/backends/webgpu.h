@@ -1217,3 +1217,8 @@ IMPORT("wgpuSurfaceConfigure") void wgpuSurfaceConfigure(WGPUSurface surface, WG
 IMPORT("wgpuInstanceRequestAdapterSync") WGPUAdapter wgpuInstanceRequestAdapterSync();
 IMPORT("wgpuAdapterRequestDeviceSync") WGPUDevice wgpuAdapterRequestDeviceSync();
 IMPORT("wgpuDeviceHasFeature") WGPUBool wgpuDeviceHasFeature(WGPUDevice device, WGPUFeatureName feature);
+
+IMPORT("wgpuCommandEncoderCopyTextureToBuffer")
+void wgpuCommandEncoderCopyTextureToBuffer(WGPUCommandEncoder commandEncoder, WGPUTexelCopyTextureInfo const *source,
+                                           WGPUTexelCopyBufferInfo const *destination, WGPUExtent3D const *copySize);
+IMPORT("wgpuBufferMapRead") void wgpuBufferMapRead(WGPUBuffer buffer, uint32_t offset, uint32_t size, void *data);

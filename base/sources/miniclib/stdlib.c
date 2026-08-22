@@ -51,6 +51,9 @@ void *malloc(size_t size) {
 	return (void *)(ptr + 1);
 }
 
+#ifdef IRON_WASM
+__attribute__((export_name("wasm_free")))
+#endif
 void free(void *mem) {
 	if (!mem) {
 		return;

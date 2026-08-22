@@ -1,20 +1,73 @@
 
-let memory          = null;
-let heapu8          = null;
-let heapu16         = null;
-let heapu32         = null;
-let heapi32         = null;
-let heapf32         = null;
-let heapf64         = null;
-let module          = null;
-let instance        = null;
-let wgpu_objects    = [ null ];
-let wgpu_free_ids   = [];
-let file_buffer     = null;
-let file_buffer_pos = 0;
-let file_dropped    = null;
-let virtual_fs      = new Map();
-let config_json     = "";
+let memory           = null;
+let heapu8           = null;
+let heapu16          = null;
+let heapu32          = null;
+let heapi32          = null;
+let heapf32          = null;
+let heapf64          = null;
+let module           = null;
+let instance         = null;
+let wgpu_objects     = [ null ];
+let wgpu_free_ids    = [];
+let wgpu_mapped      = new Map();
+let file_buffer      = null;
+let file_buffer_pos  = 0;
+let file_dropped     = null;
+let virtual_fs       = new Map();
+let config_json      = "";
+let wasm_update      = null;
+let wasm_can_suspend = false;
+let wasm_queued      = [];
+
+const jspi_supported = typeof WebAssembly.Suspending === "function" && typeof WebAssembly.promising === "function";
+
+function call_wasm(func, ...args) {
+	if (wasm_can_suspend) {
+		wasm_queued.push(() => func(...args));
+		return;
+	}
+	func(...args);
+}
+
+function flush_wasm_queue() {
+	while (wasm_queued.length > 0) {
+		wasm_queued.shift()();
+	}
+}
+
+function drop_file(name) {
+	let ptr = instance.exports.wasm_malloc(name.length + 1);
+	write_string(ptr, name);
+	instance.exports.wasm_drop_files(ptr);
+}
+
+function net_callback_with_text(callback_id, text) {
+	let buffer_ptr = 0;
+	if (text !== null) {
+		buffer_ptr = instance.exports.wasm_malloc(text.length + 1);
+		write_string(buffer_ptr, text);
+	}
+	instance.exports.wasm_net_callback(callback_id, buffer_ptr);
+}
+
+async function buffer_map_read_async(pbuffer, offset, size, pdata) {
+	let   buffer = id_to_ptr(pbuffer);
+	await buffer.mapAsync(GPUMapMode.READ, offset, size);
+	heapu8.set(new Uint8Array(buffer.getMappedRange(offset, size)), pdata);
+	buffer.unmap();
+}
+
+function buffer_map_read(pbuffer, offset, size, pdata) {
+	if (!wasm_can_suspend) {
+		return buffer_map_read_stub(pbuffer, offset, size, pdata);
+	}
+	return buffer_map_read_async(pbuffer, offset, size, pdata);
+}
+
+function buffer_map_read_stub(pbuffer, offset, size, pdata) {
+	heapu8.fill(0, pdata, pdata + size);
+}
 
 function ptr_to_id(ptr) {
 	if (ptr === null) {
@@ -276,16 +329,27 @@ async function init() {
 			},
 			wgpuBufferGetMappedRange : function(pbuffer, offset, size) {
 		        let buffer = id_to_ptr(pbuffer);
+		        let range  = buffer.getMappedRange(offset, size);
 		        let ptr    = instance.exports.wasm_malloc(size);
-		        let ab     = buffer.getMappedRange(offset, size);
-		        let u8     = new Uint8Array(ab);
-		        for (let i = 0; i < u8.length; ++i) {
-			        heapu8[ptr + i] = u8[i];
+		        heapu8.set(new Uint8Array(range), ptr);
+		        let ranges = wgpu_mapped.get(pbuffer);
+		        if (ranges === undefined) {
+			        ranges = [];
+			        wgpu_mapped.set(pbuffer, ranges);
 		        }
+		        ranges.push({range, ptr, size});
 		        return ptr;
 			},
 			wgpuBufferUnmap : function(pbuffer) {
 		        let buffer = id_to_ptr(pbuffer);
+		        let ranges = wgpu_mapped.get(pbuffer);
+		        if (ranges !== undefined) {
+			        for (let r of ranges) {
+				        new Uint8Array(r.range).set(heapu8.subarray(r.ptr, r.ptr + r.size));
+				        instance.exports.wasm_free(r.ptr);
+			        }
+			        wgpu_mapped.delete(pbuffer);
+		        }
 		        buffer.unmap();
 			},
 			wgpuDeviceCreateCommandEncoder : function(pdevice, pdescriptor) {
@@ -322,6 +386,7 @@ async function init() {
 		        queue.submit(command_buffers);
 			},
 			wgpuBufferRelease : function(pbuffer) {
+		        wgpu_mapped.delete(pbuffer);
 		        release_id(pbuffer);
 			},
 			wgpuDeviceCreateSampler : function(pdevice, pdescriptor) {
@@ -591,6 +656,21 @@ async function init() {
 		        let destination = id_to_ptr(pdestination);
 		        encoder.copyBufferToBuffer(source, Number(source_offset), destination, Number(destination_offset), Number(size));
 			},
+			wgpuCommandEncoderCopyTextureToBuffer : function(pcommand_encoder, psource, pdestination, pcopysize) {
+		        let encoder = id_to_ptr(pcommand_encoder);
+		        // WGPUTexelCopyTextureInfo
+		        let source = {texture : id_to_ptr(read_u32(psource))};
+		        // WGPUTexelCopyBufferInfo
+		        let destination = {
+			        bytesPerRow : read_u32(pdestination + 8),
+			        rowsPerImage : read_u32(pdestination + 12),
+			        buffer : id_to_ptr(read_u32(pdestination + 16))
+		        };
+		        // WGPUExtent3D
+		        let copysize = {width : read_u32(pcopysize), height : read_u32(pcopysize + 4), depthOrArrayLayers : read_u32(pcopysize + 8)};
+		        encoder.copyTextureToBuffer(source, destination, copysize);
+			},
+			wgpuBufferMapRead : jspi_supported ? new WebAssembly.Suspending(buffer_map_read) : buffer_map_read_stub,
 			wgpuSurfaceConfigure : function(psurface, pconfig) {
 		        let surface = id_to_ptr(psurface) || context;
 		        // WGPUSurfaceConfiguration
@@ -746,12 +826,10 @@ async function init() {
 		        window.open(read_string(str), "_blank");
 			},
 			js_open_dialog : async function() {
-		        let [handle]             = await window.showOpenFilePicker({multiple : false});
-		        let file                 = await     handle.getFile();
-		        file_dropped             = await file.arrayBuffer();
-		        let                  ptr = instance.exports.wasm_malloc(file.name.length + 1);
-		        write_string(ptr, file.name)
-		        instance.exports.wasm_drop_files(ptr);
+		        let [handle] = await window.showOpenFilePicker({multiple : false});
+		        let file     = await     handle.getFile();
+		        file_dropped = await file.arrayBuffer();
+		        call_wasm(drop_file, file.name);
 			},
 			js_save_dialog : function() {
 		        alert("Not implemented yet.")
@@ -769,52 +847,54 @@ async function init() {
 		        if (dst_path) {
 			        fetch(url, options).then(response => response.arrayBuffer()).then(buffer => {
 				        virtual_fs.set(dst_path, buffer);
-				        instance.exports.wasm_net_callback(callback_id, 0);
+				        call_wasm(instance.exports.wasm_net_callback, callback_id, 0);
 			        });
 		        }
 		        else {
-			        fetch(url, options).then(response => response.text()).then(text => {
-				        let buffer_ptr = 0;
-				        if (text !== null) {
-					        buffer_ptr = instance.exports.wasm_malloc(text.length + 1);
-					        write_string(buffer_ptr, text);
-				        }
-				        instance.exports.wasm_net_callback(callback_id, buffer_ptr);
-			        });
+			        fetch(url, options).then(response => response.text()).then(text => { call_wasm(net_callback_with_text, callback_id, text); });
 		        }
 			},
 		}
 	});
 
-	module   = result.module;
-	instance = result.instance;
+	module      = result.module;
+	instance    = result.instance;
+	wasm_update = jspi_supported ? WebAssembly.promising(instance.exports.wasm_update) : instance.exports.wasm_update;
 	instance.exports.wasm_start();
 
-	function update() {
-		instance.exports.wasm_update();
+	async function update() {
+		wasm_can_suspend = jspi_supported;
+		try {
+			await wasm_update();
+		} finally {
+			wasm_can_suspend = false;
+		}
+		flush_wasm_queue();
 		window.requestAnimationFrame(update);
 	}
 	window.requestAnimationFrame(update);
 
 	canvas.addEventListener('contextmenu', (event) => { event.preventDefault(); });
-	canvas.addEventListener('mousedown', (event) => { instance.exports.wasm_mousedown(button_to_iron_button(event.button), event.clientX, event.clientY); });
-	canvas.addEventListener('mouseup', (event) => { instance.exports.wasm_mouseup(button_to_iron_button(event.button), event.clientX, event.clientY); });
-	canvas.addEventListener('mousemove', (event) => { instance.exports.wasm_mousemove(event.clientX, event.clientY); });
-	canvas.addEventListener('wheel', (event) => { instance.exports.wasm_wheel(event.deltaY); });
+	canvas.addEventListener('mousedown',
+	                        (event) => { call_wasm(instance.exports.wasm_mousedown, button_to_iron_button(event.button), event.clientX, event.clientY); });
+	canvas.addEventListener('mouseup',
+	                        (event) => { call_wasm(instance.exports.wasm_mouseup, button_to_iron_button(event.button), event.clientX, event.clientY); });
+	canvas.addEventListener('mousemove', (event) => { call_wasm(instance.exports.wasm_mousemove, event.clientX, event.clientY); });
+	canvas.addEventListener('wheel', (event) => { call_wasm(instance.exports.wasm_wheel, event.deltaY); });
 	canvas.addEventListener('keydown', (event) => {
 		if (event.repeat) {
 			event.preventDefault();
 			return;
 		}
-		instance.exports.wasm_keydown(key_to_iron_key(event.key));
-		instance.exports.wasm_keypress(key_to_iron_key(event.key, true));
+		call_wasm(instance.exports.wasm_keydown, key_to_iron_key(event.key));
+		call_wasm(instance.exports.wasm_keypress, key_to_iron_key(event.key, true));
 	});
 	canvas.addEventListener('keyup', (event) => {
 		if (event.repeat) {
 			event.preventDefault();
 			return;
 		}
-		instance.exports.wasm_keyup(key_to_iron_key(event.key));
+		call_wasm(instance.exports.wasm_keyup, key_to_iron_key(event.key));
 	});
 
 	canvas.addEventListener('dragover', (event) => {
@@ -827,9 +907,7 @@ async function init() {
 		if (files.length > 0) {
 			let                  file = files[0];
 			file_dropped              = await file.arrayBuffer();
-			let                  ptr  = instance.exports.wasm_malloc(file.name.length + 1);
-			write_string(ptr, file.name)
-			instance.exports.wasm_drop_files(ptr);
+			call_wasm(drop_file, file.name);
 		}
 	});
 }

@@ -38,6 +38,10 @@ static int                                  current_width  = 0;
 static int                                  current_height = 0;
 static WGPURenderPassColorAttachment        current_color_attachment_infos[8];
 static WGPURenderPassDepthStencilAttachment current_depth_attachment_info;
+static int                                  current_viewport[4];
+static int                                  current_scissor[4];
+static uint8_t                             *readback_staging      = NULL;
+static int                                  readback_staging_size = 0;
 
 static WGPUTextureFormat convert_image_format(gpu_texture_format_t format) {
 	switch (format) {
@@ -371,36 +375,60 @@ void gpu_end_internal() {
 	render_pass_encoder = NULL;
 }
 
-void gpu_execute_and_wait() {
-	bool in_render_pass = (render_pass_encoder != NULL);
-	if (in_render_pass) {
-		wgpuRenderPassEncoderEnd(render_pass_encoder);
-		wgpuRenderPassEncoderRelease(render_pass_encoder);
-		render_pass_encoder = NULL;
+static void end_render_pass(void) {
+	if (render_pass_encoder == NULL) {
+		return;
 	}
+	wgpuRenderPassEncoderEnd(render_pass_encoder);
+	wgpuRenderPassEncoderRelease(render_pass_encoder);
+	render_pass_encoder = NULL;
+}
 
+static void submit_command_encoder(void) {
+	if (command_encoder == NULL) {
+		command_encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+		return;
+	}
 	WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(command_encoder, NULL);
 	wgpuQueueSubmit(queue, 1, &command_buffer);
 	wgpuCommandBufferRelease(command_buffer);
 	wgpuCommandEncoderRelease(command_encoder);
 	command_encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+}
 
+static void restore_render_pass(void) {
+	for (size_t i = 0; i < (size_t)current_render_targets_count; ++i) {
+		current_color_attachment_infos[i].loadOp = WGPULoadOp_Load;
+	}
+	if (current_depth_buffer != NULL) {
+		current_depth_attachment_info.depthLoadOp = WGPULoadOp_Load;
+	}
+	WGPURenderPassDescriptor render_pass_desc = {
+	    .colorAttachmentCount   = (uint32_t)current_render_targets_count,
+	    .colorAttachments       = current_color_attachment_infos,
+	    .depthStencilAttachment = current_depth_buffer ? &current_depth_attachment_info : NULL,
+	};
+	render_pass_encoder = wgpuCommandEncoderBeginRenderPass(command_encoder, &render_pass_desc);
+
+	if (current_pipeline != NULL && current_pipeline->impl.pipeline != NULL) {
+		wgpuRenderPassEncoderSetPipeline(render_pass_encoder, current_pipeline->impl.pipeline);
+	}
+	if (current_vb != NULL) {
+		wgpuRenderPassEncoderSetVertexBuffer(render_pass_encoder, 0, current_vb->impl.buf, 0, current_vb->impl.allocated_size);
+	}
+	if (current_ib != NULL) {
+		wgpuRenderPassEncoderSetIndexBuffer(render_pass_encoder, current_ib->impl.buf, WGPUIndexFormat_Uint32, 0, current_ib->impl.allocated_size);
+	}
+	gpu_viewport(current_viewport[0], current_viewport[1], current_viewport[2], current_viewport[3]);
+	gpu_scissor(current_scissor[0], current_scissor[1], current_scissor[2], current_scissor[3]);
+}
+
+void gpu_execute_and_wait() {
+	bool in_render_pass = (render_pass_encoder != NULL);
+	end_render_pass();
+	submit_command_encoder();
 	if (in_render_pass) {
-		for (size_t i = 0; i < (size_t)current_render_targets_count; ++i) {
-			current_color_attachment_infos[i].loadOp = WGPULoadOp_Load;
-		}
-		if (current_depth_buffer != NULL) {
-			current_depth_attachment_info.depthLoadOp = WGPULoadOp_Load;
-		}
-		WGPURenderPassDescriptor render_pass_desc = {
-		    .colorAttachmentCount   = (uint32_t)current_render_targets_count,
-		    .colorAttachments       = current_color_attachment_infos,
-		    .depthStencilAttachment = current_depth_buffer ? &current_depth_attachment_info : NULL,
-		};
-		render_pass_encoder   = wgpuCommandEncoderBeginRenderPass(command_encoder, &render_pass_desc);
-		gpu_texture_t *target = current_render_targets[0];
-		gpu_viewport(0, 0, target->width, target->height);
-		gpu_scissor(0, 0, target->width, target->height);
+		restore_render_pass();
 	}
 }
 
@@ -422,6 +450,10 @@ void gpu_draw_internal() {
 }
 
 void gpu_viewport(int x, int y, int width, int height) {
+	current_viewport[0] = x;
+	current_viewport[1] = y;
+	current_viewport[2] = width;
+	current_viewport[3] = height;
 	wgpuRenderPassEncoderSetViewport(render_pass_encoder, (float)x, (float)y, (float)width, (float)height, 0.0f, 1.0f);
 }
 
@@ -429,6 +461,10 @@ void gpu_scissor(int x, int y, int width, int height) {
 	if (width < 0 || height < 0) {
 		return;
 	}
+	current_scissor[0] = x;
+	current_scissor[1] = y;
+	current_scissor[2] = width;
+	current_scissor[3] = height;
 	wgpuRenderPassEncoderSetScissorRect(render_pass_encoder, (uint32_t)x, (uint32_t)y, (uint32_t)width, (uint32_t)height);
 }
 
@@ -455,9 +491,11 @@ void gpu_set_index_buffer(gpu_buffer_t *buffer) {
 }
 
 void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
-	int buffer_size              = render_target->width * render_target->height * gpu_texture_format_size(render_target->format);
-	int new_readback_buffer_size = buffer_size > (2048 * 2048 * 4) ? buffer_size : (2048 * 2048 * 4);
+	int row_size    = render_target->width * gpu_texture_format_size(render_target->format);
+	int aligned_bpr = bytes_per_row_align(row_size);
+	int buffer_size = aligned_bpr * render_target->height;
 
+	int new_readback_buffer_size = buffer_size > (2048 * 2048 * 4) ? buffer_size : (2048 * 2048 * 4);
 	if (readback_buffer_size < new_readback_buffer_size) {
 		if (readback_buffer_size > 0) {
 			wgpuBufferDestroy(readback_buffer);
@@ -471,20 +509,37 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 		readback_buffer = wgpuDeviceCreateBuffer(device, &readback_desc);
 	}
 
-	WGPUCommandEncoder       encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
-	WGPUTexelCopyTextureInfo src     = {.texture = render_target->impl.texture};
-	WGPUTexelCopyBufferInfo  dst     = {.layout = {.bytesPerRow  = bytes_per_row_align(render_target->width * gpu_texture_format_size(render_target->format)),
-	                                               .rowsPerImage = render_target->height},
-	                                    .buffer = readback_buffer};
-	WGPUExtent3D             extent  = {(uint32_t)render_target->width, (uint32_t)render_target->height, 1};
-	// wgpuCommandEncoderCopyTextureToBuffer(encoder, &src, &dst, &extent);
-	WGPUCommandBuffer cmd = wgpuCommandEncoderFinish(encoder, NULL);
-	wgpuQueueSubmit(queue, 1, &cmd);
-	wgpuCommandBufferRelease(cmd);
-	wgpuCommandEncoderRelease(encoder);
+	bool in_render_pass = (render_pass_encoder != NULL);
+	end_render_pass();
+	if (command_encoder == NULL) {
+		command_encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+	}
 
-	// memcpy(data, wgpuBufferGetConstMappedRange(readback_buffer, 0, buffer_size), buffer_size);
-	wgpuBufferUnmap(readback_buffer);
+	WGPUTexelCopyTextureInfo src    = {.texture = render_target->impl.texture};
+	WGPUTexelCopyBufferInfo  dst    = {.layout = {.bytesPerRow = aligned_bpr, .rowsPerImage = render_target->height}, .buffer = readback_buffer};
+	WGPUExtent3D             extent = {(uint32_t)render_target->width, (uint32_t)render_target->height, 1};
+	wgpuCommandEncoderCopyTextureToBuffer(command_encoder, &src, &dst, &extent);
+
+	submit_command_encoder();
+
+	if (aligned_bpr == row_size) {
+		wgpuBufferMapRead(readback_buffer, 0, buffer_size, data);
+	}
+	else {
+		if (readback_staging_size < buffer_size) {
+			free(readback_staging);
+			readback_staging      = malloc(buffer_size);
+			readback_staging_size = buffer_size;
+		}
+		wgpuBufferMapRead(readback_buffer, 0, buffer_size, readback_staging);
+		for (int row = 0; row < (int)render_target->height; ++row) {
+			memcpy(data + row * row_size, readback_staging + row * aligned_bpr, row_size);
+		}
+	}
+
+	if (in_render_pass) {
+		restore_render_pass();
+	}
 }
 
 static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
@@ -738,7 +793,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	    .sampleCount   = 1,
 	    .dimension     = WGPUTextureDimension_2D,
 	    .format        = wgpu_format,
-	    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_TextureBinding,
+	    .usage         = WGPUTextureUsage_CopyDst | WGPUTextureUsage_CopySrc | WGPUTextureUsage_TextureBinding,
 	};
 	texture->impl.texture = wgpuDeviceCreateTexture(device, &image_info);
 
