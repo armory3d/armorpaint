@@ -47,9 +47,10 @@ void io_psd_import_layer(char *file_name, char *layer_name, void *tex) {
 }
 
 static void *import_exr(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_exr_parse((char *)b->buffer, b->length);
 	data_delete_blob(path);
-	return io_exr_parse((char *)b->buffer, b->length);
+	return res;
 }
 
 static void *import_psd(char *path) {
@@ -65,21 +66,24 @@ static void *import_psd(char *path) {
 		}
 	}
 
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_psd_parse((uint8_t *)b->buffer, b->length, filename);
 	data_delete_blob(path);
-	return io_psd_parse((uint8_t *)b->buffer, b->length, filename);
+	return res;
 }
 
 static void *import_tiff(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_tiff_parse((uint8_t *)b->buffer, b->length);
 	data_delete_blob(path);
-	return io_tiff_parse((uint8_t *)b->buffer, b->length);
+	return res;
 }
 
 static void *import_svg(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_svg_parse((char *)b->buffer);
 	data_delete_blob(path);
-	return io_svg_parse((char *)b->buffer);
+	return res;
 }
 
 static void plugins_free_raw_mesh(raw_mesh_t *raw) {
@@ -122,26 +126,26 @@ int plugins_skin_frame_count() {
 
 static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
-	data_delete_blob(path);
 	if (plugins_skinning_frame == -1) {
-		return io_gltf_parse((char *)b->buffer, b->length, path);
+		void *res = io_gltf_parse((char *)b->buffer, b->length, path);
+		data_delete_blob(path);
+		return res;
 	}
 	else {
 		raw_mesh_t *raw = io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
-		raw->blob       = b;
+		if (raw != NULL) {
+			raw->blob = b;
+		}
 		return raw;
 	}
 }
 
 static void *import_fbx(char *path) {
 	buffer_t *b = data_get_blob(path);
+	void     *res =
+        plugins_skinning_frame == -1 ? io_fbx_parse((char *)b->buffer, b->length) : io_fbx_parse_skinned((char *)b->buffer, b->length, plugins_skinning_frame);
 	data_delete_blob(path);
-	if (plugins_skinning_frame == -1) {
-		return io_fbx_parse((char *)b->buffer, b->length);
-	}
-	else {
-		return io_fbx_parse_skinned((char *)b->buffer, b->length, plugins_skinning_frame);
-	}
+	return res;
 }
 
 void plugins_init() {
