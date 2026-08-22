@@ -13,7 +13,7 @@
 #include "iron_obj.h"
 #include "iron_shape.h"
 #include "iron_string.h"
-#include "iron_sys.h"
+#include "iron_system.h"
 #include "iron_ui.h"
 #include "minic.h"
 #include <math.h>
