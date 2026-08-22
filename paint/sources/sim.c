@@ -78,6 +78,20 @@ void sim_add_body(object_t *o, physics_shape_t shape, f32 mass) {
 	physics_body_create(o, shape, mass);
 }
 
+static void sim_shift_object_masks(i32 from) {
+	if (g_project->_->layers != NULL) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (l->object_mask >= from) {
+				++l->object_mask;
+			}
+		}
+	}
+	if (g_context->layer_filter >= from) {
+		++g_context->layer_filter;
+	}
+}
+
 mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	// Mesh
 	if (so == NULL) {
@@ -87,7 +101,12 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	mesh_data_t   *data = so->data;
 	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
 	transform_set_matrix(dup->base->transform, so->base->transform->local);
-	any_array_push(g_project->_->paint_objects, dup);
+
+	// Insert below the original
+	i32 index = array_index_of(g_project->_->paint_objects, so);
+	i32 at    = index < 0 ? g_project->_->paint_objects->length : index + 1;
+	array_insert((any_array_t *)g_project->_->paint_objects, at, dup);
+	sim_shift_object_masks(at + 1);
 
 	// Ensure unique name
 	char *oname = so->base->name;
@@ -111,6 +130,9 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	if (pb != NULL) {
 		physics_body_create(dup->base, pb->shape, pb->mass);
 	}
+
+	tab_meshes_sort_hierarchy();
+	tab_timeline_sync();
 
 	return dup;
 }
