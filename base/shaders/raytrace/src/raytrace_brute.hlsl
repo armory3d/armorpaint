@@ -8,10 +8,7 @@
 #endif
 // #define _RENDER
 
-
-#include "std/rand.hlsl"
-#include "std/attrib.hlsl"
-#include "std/math.hlsl"
+#include "math.hlsl"
 
 struct Vertex {
 	uint posxy;

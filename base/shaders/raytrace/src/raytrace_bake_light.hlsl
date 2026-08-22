@@ -1,6 +1,4 @@
-#include "std/rand.hlsl"
-#include "std/math.hlsl"
-#include "std/attrib.hlsl"
+#include "math.hlsl"
 
 struct Vertex {
 	uint posxy;
