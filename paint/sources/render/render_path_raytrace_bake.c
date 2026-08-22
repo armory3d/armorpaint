@@ -101,9 +101,9 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		render_path_raytrace_bake_last_layer      = g_context->layer->texpaint;
 		render_path_raytrace_bake_last_bake_type2 = g_context->bake_type;
 
-		gpu_texture_t *bnoise_sobol    = any_map_get(scene_embedded, "bnoise_sobol.k");
-		gpu_texture_t *bnoise_scramble = any_map_get(scene_embedded, "bnoise_scramble.k");
-		gpu_texture_t *bnoise_rank     = any_map_get(scene_embedded, "bnoise_rank.k");
+		gpu_texture_t *bnoise_sobol    = data_get_texture("bnoise_sobol.k");
+		gpu_texture_t *bnoise_scramble = data_get_texture("bnoise_scramble.k");
+		gpu_texture_t *bnoise_rank     = data_get_texture("bnoise_rank.k");
 
 		render_target_t *baketex0 = any_map_get(render_path_render_targets, "baketex0");
 		render_target_t *baketex1 = any_map_get(render_path_render_targets, "baketex1");

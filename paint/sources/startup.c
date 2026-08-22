@@ -4456,7 +4456,5 @@ scene_t *startup_get_scene(void) {
 		obj13->material_ref       = "Material";
 		scene->objects->buffer[4] = obj13;
 	}
-	scene->embedded_datas            = string_array_create(1);
-	scene->embedded_datas->buffer[0] = "noise256.k";
 	return scene;
 }

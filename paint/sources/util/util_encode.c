@@ -51,7 +51,7 @@ buffer_t *util_encode_scene(scene_t *raw) {
 	i32       size    = 8 * 1024 * 1024 + util_encode_mesh_data_size(raw->mesh_datas);
 	buffer_t *encoded = buffer_create(size);
 	armpack_encode_start(encoded->buffer);
-	armpack_encode_map(13);
+	armpack_encode_map(9);
 	armpack_encode_string("name");
 	armpack_encode_null();
 	armpack_encode_string("objects");
@@ -68,10 +68,6 @@ buffer_t *util_encode_scene(scene_t *raw) {
 	armpack_encode_string("world_datas");
 	armpack_encode_null();
 	armpack_encode_string("world_ref");
-	armpack_encode_null();
-	armpack_encode_string("speaker_datas"); // TODO: deprecated
-	armpack_encode_null();
-	armpack_encode_string("embedded_datas");
 	armpack_encode_null();
 	i32 ei          = armpack_encode_end();
 	encoded->length = ei;

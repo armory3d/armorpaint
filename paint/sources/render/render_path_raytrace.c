@@ -36,9 +36,9 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	if (render_path_raytrace_last_envmap != saved_envmap) {
 		render_path_raytrace_last_envmap = saved_envmap;
 
-		gpu_texture_t *bnoise_sobol    = any_map_get(scene_embedded, "bnoise_sobol.k");
-		gpu_texture_t *bnoise_scramble = any_map_get(scene_embedded, "bnoise_scramble.k");
-		gpu_texture_t *bnoise_rank     = any_map_get(scene_embedded, "bnoise_rank.k");
+		gpu_texture_t *bnoise_sobol    = data_get_texture("bnoise_sobol.k");
+		gpu_texture_t *bnoise_scramble = data_get_texture("bnoise_scramble.k");
+		gpu_texture_t *bnoise_rank     = data_get_texture("bnoise_rank.k");
 
 		slot_layer_t *l = layers_flatten(true, NULL);
 		gpu_raytrace_set_textures(l->texpaint, l->texpaint_nor, l->texpaint_pack, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank);
@@ -154,11 +154,7 @@ void render_path_raytrace_build_data() {
 void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 	if (render_path_raytrace_init_shader) {
 		render_path_raytrace_init_shader = false;
-		scene_embed_data("bnoise_sobol.k");
-		scene_embed_data("bnoise_scramble.k");
-		scene_embed_data("bnoise_rank.k");
-
-		buffer_t *shader = data_get_blob(shader_name);
+		buffer_t *shader                 = data_get_blob(shader_name);
 		_gpu_raytrace_init(shader);
 	}
 
