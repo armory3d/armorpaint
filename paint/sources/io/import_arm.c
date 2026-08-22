@@ -17,12 +17,42 @@ void import_arm_run_mesh_on_next_frame(void *_) {
 	layers_init();
 }
 
-static buffer_t *import_arm_get_mesh_skin(i32 i) {
-	if (g_project->mesh_skins == NULL || i >= g_project->mesh_skins->length) {
+static buffer_t *import_arm_get_mesh_skin(project_t *project, i32 i) {
+	if (project->mesh_skins == NULL || i >= project->mesh_skins->length) {
 		return NULL;
 	}
-	buffer_t *blob = g_project->mesh_skins->buffer[i];
+	buffer_t *blob = project->mesh_skins->buffer[i];
 	return (blob != NULL && blob->length > 0) ? blob : NULL; // Empty buffer = no skin
+}
+
+static mesh_data_t_array_t *import_arm_get_mesh_datas(project_t *project, string_array_t *mesh_names) {
+	mesh_data_t_array_t *mesh_datas = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < project->mesh_datas->length; ++i) {
+		mesh_data_t *raw = project->mesh_datas->buffer[i];
+		i32          source_index;
+		char        *object_name;
+		if (i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name)) {
+			any_array_push(mesh_datas, NULL);
+			string_array_push(mesh_names, object_name);
+		}
+		else {
+			mesh_data_t *md  = mesh_data_create(raw);
+			md->_->skin_blob = import_arm_get_mesh_skin(project, i);
+			any_array_push(mesh_datas, md);
+			string_array_push(mesh_names, md->name);
+		}
+	}
+	for (i32 i = 1; i < mesh_datas->length; ++i) {
+		if (mesh_datas->buffer[i] != NULL) {
+			continue;
+		}
+		i32   source_index;
+		char *object_name;
+		util_mesh_link_parse(((mesh_data_t *)project->mesh_datas->buffer[i])->name, &source_index, &object_name);
+		bool linked           = source_index >= 0 && source_index < mesh_datas->length && mesh_datas->buffer[source_index] != NULL;
+		mesh_datas->buffer[i] = linked ? mesh_datas->buffer[source_index] : mesh_datas->buffer[0];
+	}
+	return mesh_datas;
 }
 
 void import_arm_run_mesh(project_t *raw) {
@@ -50,6 +80,62 @@ void import_arm_run_mesh(project_t *raw) {
 	}
 	sys_notify_on_next_frame(&import_arm_run_mesh_on_next_frame, NULL);
 	history_reset();
+}
+
+static project_t *import_arm_decode_project(buffer_t *b) {
+	if (!import_arm_has_version(b)) { // Mesh only
+		scene_t *scene = armpack_decode(b);
+		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
+	}
+	if (import_arm_is_old(b)) {
+		return import_arm_from_old(b);
+	}
+	return armpack_decode(b);
+}
+
+void import_arm_run_mesh_append(char *path) {
+	buffer_t  *b       = data_get_blob(path);
+	project_t *project = import_arm_decode_project(b);
+	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
+		data_delete_blob(path);
+		return;
+	}
+
+	string_array_t      *mesh_names = string_array_create(0);
+	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(project, mesh_names);
+
+	for (i32 i = 0; i < mesh_datas->length; ++i) {
+		mesh_data_t   *md     = mesh_datas->buffer[i];
+		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
+		object->skip_context  = "paint";
+		object->base->name    = mesh_names->buffer[i];
+		md->_->handle         = md->name;
+		any_map_set(data_cached_meshes, md->_->handle, md);
+
+		object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
+		transform_build_matrix(object->base->transform);
+
+		any_array_push(g_project->_->paint_objects, object);
+		tab_stages_add_object(object->base->name);
+	}
+
+	if (g_project->_->paint_objects->length > 1) {
+		util_mesh_merge(NULL);
+		context_main_object()->skip_context     = "paint";
+		g_context->merged_object->base->visible = true;
+	}
+
+	make_material_parse_paint_material(true);
+	make_material_parse_mesh_material();
+	tab_meshes_reset_preview_map();
+	base_update_workflow();
+
+	util_uv_uvmap_cached                              = false;
+	util_uv_trianglemap_cached                        = false;
+	util_uv_dilatemap_cached                          = false;
+	g_context->ddirty                                 = 4;
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	data_delete_blob(path);
 }
 
 void import_arm_run_material_from_project_on_next_frame(slot_material_t_array_t *imported) {
@@ -389,33 +475,8 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
-	mesh_data_t_array_t *mesh_datas = any_array_create_from_raw((void *[]){}, 0);
 	string_array_t      *mesh_names = string_array_create(0);
-	for (i32 i = 0; i < g_project->mesh_datas->length; ++i) {
-		mesh_data_t *raw = g_project->mesh_datas->buffer[i];
-		i32          source_index;
-		char        *object_name;
-		if (i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name)) {
-			any_array_push(mesh_datas, NULL);
-			string_array_push(mesh_names, object_name);
-		}
-		else {
-			mesh_data_t *md  = mesh_data_create(raw);
-			md->_->skin_blob = import_arm_get_mesh_skin(i);
-			any_array_push(mesh_datas, md);
-			string_array_push(mesh_names, md->name);
-		}
-	}
-	for (i32 i = 1; i < mesh_datas->length; ++i) {
-		if (mesh_datas->buffer[i] != NULL) {
-			continue;
-		}
-		i32   source_index;
-		char *object_name;
-		util_mesh_link_parse(((mesh_data_t *)g_project->mesh_datas->buffer[i])->name, &source_index, &object_name);
-		bool linked           = source_index >= 0 && source_index < mesh_datas->length && mesh_datas->buffer[source_index] != NULL;
-		mesh_datas->buffer[i] = linked ? mesh_datas->buffer[source_index] : mesh_datas->buffer[0];
-	}
+	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(g_project, mesh_names);
 
 	mesh_data_t *md = mesh_datas->buffer[0];
 

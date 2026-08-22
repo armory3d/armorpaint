@@ -416,6 +416,16 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 
 					any_map_set(ui_files_icon_map, key, icon);
 				}
+
+				render_target_t *rt_empty = any_map_get(render_path_render_targets, "empty_black");
+				if (icon == rt_empty->_image) {
+					icon = NULL;
+					rect = cube;
+					if (ui_files_selected != i) {
+						col = base_darker(g_theme->LABEL_COL, 0x00202020);
+					}
+				}
+
 				if (icon != NULL) {
 					i32 w = 50;
 					if (i == ui_files_selected) {

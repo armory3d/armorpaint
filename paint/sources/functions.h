@@ -377,6 +377,7 @@ gpu_texture_t            *logic_node_input_get_as_image(logic_node_input_t *self
 void                      logic_node_input_set(logic_node_input_t *self, f32_array_t *value);
 void                      import_arm_run_project(char *path);
 void                      import_arm_run_material(char *path);
+void                      import_arm_run_mesh_append(char *path);
 void                      import_arm_run_brush(char *path);
 void                      import_arm_run_brush_from_project(project_t *project, char *path);
 void                      import_arm_run_swatches(char *path, bool replace_existing);
