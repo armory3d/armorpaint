@@ -17,6 +17,9 @@ static bool tab_meshes_is_collapsed(mesh_object_t *o) {
 }
 
 static void tab_meshes_set_collapsed(mesh_object_t *o, bool collapsed) {
+	if (collapsed == tab_meshes_is_collapsed(o)) {
+		return;
+	}
 	if (tab_meshes_collapsed == NULL) {
 		tab_meshes_collapsed = i32_array_create(0);
 	}
