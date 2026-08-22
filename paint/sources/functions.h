@@ -787,6 +787,7 @@ void                         tab_meshes_draw(ui_handle_t *htab);
 void                         tab_meshes_draw_context_menu_delete(mesh_object_t *o);
 void                         tab_meshes_reset_preview_map();
 void                         tab_meshes_accept_mesh_drop(mesh_object_t *mesh);
+void                         tab_meshes_sort_hierarchy();
 void                         tab_meshes_accept_material_drop(slot_material_t *material);
 mesh_object_t               *tab_meshes_append_shape(char *mesh_name);
 void                         tab_meshes_set_override(mesh_object_t *o, i32 mat_index);

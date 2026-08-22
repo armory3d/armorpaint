@@ -10,11 +10,33 @@ any_map_t *tab_meshes_override_map   = NULL; // object uid -> overridden materia
 
 static i32 tab_meshes_material_drop_index = -1;
 
+static i32_array_t *tab_meshes_collapsed = NULL;
+
+static bool tab_meshes_is_collapsed(mesh_object_t *o) {
+	return tab_meshes_collapsed != NULL && i32_array_index_of(tab_meshes_collapsed, o->base->uid) >= 0;
+}
+
+static void tab_meshes_set_collapsed(mesh_object_t *o, bool collapsed) {
+	if (tab_meshes_collapsed == NULL) {
+		tab_meshes_collapsed = i32_array_create(0);
+	}
+	collapsed ? i32_array_push(tab_meshes_collapsed, o->base->uid) : i32_array_remove(tab_meshes_collapsed, o->base->uid);
+}
+
 bool         tab_meshes_search_show   = false;
 bool         tab_meshes_search_focus  = false;
 ui_handle_t *tab_meshes_search_handle = NULL;
 
 static bool tab_meshes_slot_hidden(mesh_object_t *o) {
+	object_t *p = o->base->parent;
+	for (i32 i = 0; p != NULL && p != _scene_root && i < 4; ++i) {
+		mesh_object_t *po = p->ext_type != NULL && string_equals(p->ext_type, "mesh_object_t") ? p->ext : NULL;
+		if (po != NULL && tab_meshes_is_collapsed(po)) {
+			return true;
+		}
+		p = p->parent;
+	}
+
 	stage_t *stage = tab_stages_get_stage();
 	if (stage != NULL && string_array_index_of(stage->objects, o->base->name) < 0) {
 		return true;
@@ -28,6 +50,98 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 		return false;
 	}
 	return string_index_of(to_lower_case(o->base->name), to_lower_case(search)) < 0;
+}
+
+static bool tab_meshes_has_children(mesh_object_t *o) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (g_project->_->paint_objects->buffer[i]->base->parent == o->base) {
+			return true;
+		}
+	}
+	return false;
+}
+
+i32 tab_meshes_depth(mesh_object_t *o) {
+	i32       depth = 0;
+	object_t *p     = o->base->parent;
+	while (p != NULL && p != _scene_root && depth < 4) {
+		++depth;
+		p = p->parent;
+	}
+	return depth;
+}
+
+static void tab_meshes_collect_children(mesh_object_t_array_t *objects, mesh_object_t **out, i32 *count, object_t *parent) {
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *o = objects->buffer[i];
+		object_t      *p = o->base->parent == _scene_root ? NULL : o->base->parent;
+		if (p != parent) {
+			continue;
+		}
+		out[(*count)++] = o;
+		tab_meshes_collect_children(objects, out, count, o->base);
+	}
+}
+
+static i32 tab_meshes_remapped_mask(mesh_object_t **old_order, i32 length, i32 mask) {
+	if (mask < 1 || mask > length) {
+		return mask;
+	}
+	i32 index = array_index_of(g_project->_->paint_objects, old_order[mask - 1]);
+	return index >= 0 ? index + 1 : mask;
+}
+
+void tab_meshes_sort_hierarchy() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects == NULL || objects->length < 2) {
+		return;
+	}
+
+	i32             length = objects->length;
+	mesh_object_t **sorted = calloc(length, sizeof(mesh_object_t *));
+	i32             count  = 0;
+	tab_meshes_collect_children(objects, sorted, &count, NULL);
+
+	// Meshes parented outside of the list
+	for (i32 i = 0; i < length && count < length; ++i) {
+		bool collected = false;
+		for (i32 j = 0; j < count; ++j) {
+			if (sorted[j] == objects->buffer[i]) {
+				collected = true;
+				break;
+			}
+		}
+		if (!collected) {
+			sorted[count++] = objects->buffer[i];
+		}
+	}
+
+	bool changed = false;
+	for (i32 i = 0; i < length; ++i) {
+		if (sorted[i] != objects->buffer[i]) {
+			changed = true;
+			break;
+		}
+	}
+	if (!changed) {
+		free(sorted);
+		return;
+	}
+
+	mesh_object_t **old_order = malloc(length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, length * sizeof(mesh_object_t *));
+	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
+
+	if (g_project->_->layers != NULL) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			l->object_mask  = tab_meshes_remapped_mask(old_order, length, l->object_mask);
+		}
+	}
+	g_context->layer_filter = tab_meshes_remapped_mask(old_order, length, g_context->layer_filter);
+
+	free(old_order);
+	free(sorted);
 }
 
 void tab_meshes_set_drag_mesh(mesh_object_t *o, f32 off_x, f32 off_y) {
@@ -49,6 +163,7 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	array_remove(g_project->_->paint_objects, mesh);
 	i32 new_pos = dest > pos ? dest - 1 : dest;
 	array_insert(g_project->_->paint_objects, new_pos, mesh);
+	tab_meshes_sort_hierarchy();
 	tab_timeline_sync();
 }
 
@@ -261,6 +376,7 @@ void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
 	while (o->base->children->length > 0) {
 		tab_meshes_reparent_keep_world(o->base->children->buffer[0], new_root);
 	}
+	tab_meshes_sort_hierarchy();
 
 	sys_notify_on_next_frame(tab_meshes_draw_context_menu_delete_next_frame, o);
 }
@@ -513,6 +629,7 @@ void tab_meshes_draw_context_menu() {
 	if (hparent->changed) {
 		object_t *new_parent = hparent->i == 0 ? NULL : g_project->_->paint_objects->buffer[hparent->i - 1]->base;
 		object_set_parent(o->base, new_parent);
+		tab_meshes_sort_hierarchy();
 		g_project->mesh_parents = i32_array_create(0);
 	}
 
@@ -715,6 +832,8 @@ static icon_t tab_meshes_mesh_name_to_icon(char *s) {
 		return ICON_PLANE;
 	if (starts_with(s, "sphere"))
 		return ICON_UVSPHERE;
+	if (starts_with(s, "empty"))
+		return ICON_GIZMO;
 	return ICON_NONE;
 }
 
@@ -915,11 +1034,19 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 		tab_stages_apply_visible(o);
 	}
 
+	// Nested offset
+	i32 depth = tab_meshes_depth(o);
+	f32 offx  = depth * 14 * UI_SCALE();
+
 	// Mesh icon
 	i32 icon_h = (UI_ELEMENT_H() - 3) * 2;
-	g_ui->_x   = uix + uiw * 0.08;
-	g_ui->_y   = uiy + 3;
-	g_ui->_w   = math_max(uiw * 0.16, icon_h);
+	g_ui->_x   = uix + uiw * 0.08 + offx;
+	for (i32 d = 0; d < depth; ++d) {
+		g_ui->_x += (icon_h - icon_h * 0.9) / 2.0;
+		icon_h *= 0.9;
+	}
+	g_ui->_y = uiy + 3;
+	g_ui->_w = math_max(uiw * 0.16, icon_h);
 
 	char          *uid_key = i32_to_string(o->base->uid);
 	gpu_texture_t *preview = tab_meshes_preview_map != NULL ? any_map_get(tab_meshes_preview_map, uid_key) : NULL;
@@ -937,12 +1064,14 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 	}
 
 	// Material override
-	i32 override_idx = tab_meshes_get_linked_override(o);
-	f32 name_right   = uix + uiw;
+	bool has_children = tab_meshes_has_children(o);
+	i32  override_idx = tab_meshes_get_linked_override(o);
+	f32  right_edge   = has_children ? uix + uiw * 0.90 : uix + uiw;
+	f32  name_right   = right_edge;
 	if (override_idx >= 0 && override_idx < g_project->_->materials->length) {
 		slot_material_t *slot  = g_project->_->materials->buffer[override_idx];
 		i32              mat_h = icon_h * 0.9;
-		g_ui->_x               = uix + uiw - mat_h - 10 * UI_SCALE();
+		g_ui->_x               = right_edge - mat_h - 10 * UI_SCALE();
 		g_ui->_y               = uiy + 5;
 		g_ui->_w               = mat_h;
 		name_right -= mat_h + 8 * UI_SCALE();
@@ -956,7 +1085,7 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 	}
 
 	// Mesh name
-	f32 name_x = math_max(uix + uiw * 0.25, uix + uiw * 0.08 + icon_h + 4 * UI_SCALE());
+	f32 name_x = math_max(uix + uiw * 0.25 + offx, uix + uiw * 0.08 + offx + icon_h + 4 * UI_SCALE());
 	g_ui->_x   = name_x;
 	g_ui->_y   = uiy + center;
 	g_ui->_w   = name_right - name_x;
@@ -1025,6 +1154,16 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 			g_ui->is_key_pressed = false;
 			sys_notify_on_next_frame(&tab_meshes_duplicate_next_frame, NULL);
 		}
+	}
+
+	// Panel
+	if (has_children) {
+		g_ui->_x                = uix + uiw * 0.90;
+		g_ui->_y                = uiy + center;
+		g_ui->_w                = uiw * 0.15;
+		ui_handle_t *mesh_panel = ui_nest(ui_handle(__ID__), o->base->uid);
+		mesh_panel->b           = !tab_meshes_is_collapsed(o);
+		tab_meshes_set_collapsed(o, !ui_panel(mesh_panel, "", false, false, true));
 	}
 
 	g_ui->_x = uix;
@@ -1154,6 +1293,11 @@ void tab_meshes_draw(ui_handle_t *htab) {
 }
 
 void tab_meshes_reset_preview_map() {
+	if (tab_meshes_collapsed != NULL) {
+		array_delete(tab_meshes_collapsed);
+		tab_meshes_collapsed = NULL;
+	}
+
 	if (tab_meshes_preview_map == NULL) {
 		return;
 	}

@@ -333,13 +333,14 @@ void import_arm_run_project(char *path) {
 #else
 	bool is_cloud = string_index_of(path, "/cloud/") >= 0;
 #endif
-	if (import_arm_is_old(b) && !is_cloud) {
-		project = import_arm_from_old(b);
-	}
-	else if (!import_arm_has_version(b)) {
+
+	if (!import_arm_has_version(b)) {
 		import_as_mesh = true;
 		scene_raw_gc   = armpack_decode(b);
 		project        = ALLOC_INIT(project_t, {.mesh_datas = scene_raw_gc->mesh_datas});
+	}
+	else if (import_arm_is_old(b) && !is_cloud) {
+		project = import_arm_from_old(b);
 	}
 	else {
 		project = armpack_decode(b);
@@ -760,6 +761,8 @@ void import_arm_run_project(char *path) {
 			sim_add_body(g_project->_->paint_objects->buffer[i]->base, (physics_shape_t)shape, mass);
 		}
 	}
+
+	tab_meshes_sort_hierarchy();
 
 	tab_timeline_import(g_project);
 
