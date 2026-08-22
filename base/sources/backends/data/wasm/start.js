@@ -19,6 +19,8 @@ let config_json      = "";
 let wasm_update      = null;
 let wasm_can_suspend = false;
 let wasm_queued      = [];
+let bc7_supported    = false;
+let f32_filterable   = false;
 
 const jspi_supported = typeof WebAssembly.Suspending === "function" && typeof WebAssembly.promising === "function";
 
@@ -134,8 +136,7 @@ function id_to_texture_format(id) {
 	if (id === 0x00000028)
 		return "rgba16float";
 	if (id === 0x00000029)
-		return "rgba16float";
-	// return "rgba32float"; // Total color attachment bytes per sample (48) exceeds maximum (32)
+		return "rgba32float";
 	if (id === 0x00000009)
 		return "r16float";
 	if (id === 0x0000000E)
@@ -194,11 +195,23 @@ async function init() {
 	if (!navigator.gpu) {
 		throw new Error('WebGPU not supported');
 	}
-	let adapter                       = await navigator.gpu.requestAdapter();
-	let                 bc7_supported = adapter.features.has('texture-compression-bc');
-	let device                        = await adapter.requestDevice({
-        requiredFeatures : bc7_supported ? [ 'texture-compression-bc' ] : [],
-    });
+	let adapter    = await navigator.gpu.requestAdapter();
+	bc7_supported  = adapter.features.has('texture-compression-bc');
+	f32_filterable = adapter.features.has('float32-filterable');
+	let features   = [];
+	if (bc7_supported) {
+		features.push('texture-compression-bc');
+	}
+	if (f32_filterable) {
+		features.push('float32-filterable');
+	}
+	if (adapter.features.has('float32-blendable')) {
+		features.push('float32-blendable');
+	}
+	let device = await adapter.requestDevice({
+		requiredFeatures : features,
+		requiredLimits : {maxColorAttachmentBytesPerSample : adapter.limits.maxColorAttachmentBytesPerSample},
+	});
 
 	let canvas    = document.getElementById('iron');
 	canvas.width  = window.innerWidth;
@@ -243,6 +256,10 @@ async function init() {
 		        // WGPUFeatureName_TextureCompressionBC = 4
 		        if (feature === 4) {
 			        return bc7_supported ? 1 : 0;
+		        }
+		        // WGPUFeatureName_Float32Filterable = 14
+		        if (feature === 14) {
+			        return f32_filterable ? 1 : 0;
 		        }
 		        return 0;
 			},

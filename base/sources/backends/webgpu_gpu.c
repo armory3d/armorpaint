@@ -11,7 +11,7 @@ extern uint32_t                             constant_buffer_index;
 static gpu_buffer_t                        *current_vb;
 static gpu_buffer_t                        *current_ib;
 static WGPUBindGroupLayout                  descriptor_layout;
-static WGPUBindGroupLayout                  descriptor_layout_depth;
+static WGPUBindGroupLayout                  descriptor_layout_unfilterable;
 static WGPUSampler                          linear_sampler;
 static WGPUSampler                          point_sampler;
 static bool                                 linear_sampling = true;
@@ -42,6 +42,7 @@ static int                                  current_viewport[4];
 static int                                  current_scissor[4];
 static uint8_t                             *readback_staging      = NULL;
 static int                                  readback_staging_size = 0;
+static bool                                 float32_filterable    = false;
 
 static WGPUTextureFormat convert_image_format(gpu_texture_format_t format) {
 	switch (format) {
@@ -110,6 +111,22 @@ static int bytes_per_row_align(int bpr) {
 	return (bpr + 255) & ~255;
 }
 
+static bool unfilterable_texture_bound(void) {
+	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
+		if (current_textures[i] == NULL) {
+			continue;
+		}
+		gpu_texture_format_t format = current_textures[i]->format;
+		if (format == GPU_TEXTURE_FORMAT_D32) {
+			return true;
+		}
+		if (!float32_filterable && (format == GPU_TEXTURE_FORMAT_RGBA128 || format == GPU_TEXTURE_FORMAT_R32)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static void create_descriptors(void) {
 	WGPUBindGroupLayoutEntry bindings[18];
 	memset(bindings, 0, sizeof(bindings));
@@ -138,9 +155,11 @@ static void create_descriptors(void) {
 	};
 	descriptor_layout = wgpuDeviceCreateBindGroupLayout(device, &layout_create_info);
 
-	bindings[1].sampler.type       = WGPUSamplerBindingType_NonFiltering;
-	bindings[2].texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
-	descriptor_layout_depth        = wgpuDeviceCreateBindGroupLayout(device, &layout_create_info);
+	bindings[1].sampler.type = WGPUSamplerBindingType_NonFiltering;
+	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
+		bindings[2 + i].texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
+	}
+	descriptor_layout_unfilterable = wgpuDeviceCreateBindGroupLayout(device, &layout_create_info);
 
 	WGPUTextureDescriptor dummy_desc = {
 	    .size          = {1, 1, 1},
@@ -295,7 +314,8 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	// }
 	device = wgpuAdapterRequestDeviceSync();
 
-	queue = wgpuDeviceGetQueue(device);
+	queue              = wgpuDeviceGetQueue(device);
+	float32_filterable = wgpuDeviceHasFeature(device, WGPUFeatureName_Float32Filterable);
 	create_descriptors();
 
 	// WGPUSurfaceCapabilities caps = {0};
@@ -316,7 +336,7 @@ void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
 		create_swapchain();
 	}
 
-	if (!framebuffer_acquired) {
+	if (!framebuffer_acquired && current_render_targets[0] == &framebuffers[framebuffer_index]) {
 		WGPUSurfaceTexture surface_texture;
 		wgpuSurfaceGetCurrentTexture(surface, &surface_texture);
 		framebuffers[0].impl.texture        = surface_texture.texture;
@@ -443,8 +463,8 @@ void gpu_present_internal() {
 }
 
 void gpu_draw_internal() {
-	if (current_textures[0] != NULL && current_textures[0]->format == GPU_TEXTURE_FORMAT_D32) {
-		wgpuRenderPassEncoderSetPipeline(render_pass_encoder, current_pipeline->impl.pipeline_depth);
+	if (unfilterable_texture_bound()) {
+		wgpuRenderPassEncoderSetPipeline(render_pass_encoder, current_pipeline->impl.pipeline_unfilterable);
 	}
 	wgpuRenderPassEncoderDrawIndexed(render_pass_encoder, current_ib->count, 1, 0, 0, 0);
 }
@@ -537,6 +557,8 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 		}
 	}
 
+	framebuffer_acquired = false;
+
 	if (in_render_pass) {
 		restore_render_pass();
 	}
@@ -546,7 +568,8 @@ static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
 	WGPUBindGroupEntry entries[18];
 	memset(entries, 0, sizeof(entries));
 
-	int entry_count              = 0;
+	bool unfilterable            = unfilterable_texture_bound();
+	int  entry_count             = 0;
 	entries[entry_count].binding = 0;
 	entries[entry_count].buffer  = buffer;
 	entries[entry_count].offset  = 0;
@@ -554,7 +577,7 @@ static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
 	entry_count++;
 
 	entries[entry_count].binding = 1;
-	entries[entry_count].sampler = (linear_sampling && current_textures[0]->format != GPU_TEXTURE_FORMAT_D32) ? linear_sampler : point_sampler;
+	entries[entry_count].sampler = (linear_sampling && !unfilterable) ? linear_sampler : point_sampler;
 	entry_count++;
 
 	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
@@ -564,7 +587,7 @@ static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
 	}
 
 	WGPUBindGroupDescriptor desc = {
-	    .layout     = current_textures[0]->format == GPU_TEXTURE_FORMAT_D32 ? descriptor_layout_depth : descriptor_layout,
+	    .layout     = unfilterable ? descriptor_layout_unfilterable : descriptor_layout,
 	    .entryCount = entry_count,
 	    .entries    = entries,
 	};
@@ -588,9 +611,9 @@ void gpu_use_linear_sampling(bool b) {
 
 void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipeline) {
 	wgpuRenderPipelineRelease(pipeline->impl.pipeline);
-	wgpuRenderPipelineRelease(pipeline->impl.pipeline_depth);
+	wgpuRenderPipelineRelease(pipeline->impl.pipeline_unfilterable);
 	wgpuPipelineLayoutRelease(pipeline->impl.pipeline_layout);
-	wgpuPipelineLayoutRelease(pipeline->impl.pipeline_layout_depth);
+	wgpuPipelineLayoutRelease(pipeline->impl.pipeline_layout_unfilterable);
 }
 
 static WGPUShaderModule create_shader_module(const void *code, size_t size) {
@@ -609,8 +632,8 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	};
 	pipeline->impl.pipeline_layout = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_create_info);
 
-	pipeline_layout_create_info.bindGroupLayouts = &descriptor_layout_depth;
-	pipeline->impl.pipeline_layout_depth         = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_create_info);
+	pipeline_layout_create_info.bindGroupLayouts = &descriptor_layout_unfilterable;
+	pipeline->impl.pipeline_layout_unfilterable  = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_create_info);
 
 	WGPURenderPipelineDescriptor pipeline_desc = {0};
 	pipeline_desc.layout                       = pipeline->impl.pipeline_layout;
@@ -704,8 +727,8 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 
 	pipeline->impl.pipeline = wgpuDeviceCreateRenderPipeline(device, &pipeline_desc);
 
-	pipeline_desc.layout          = pipeline->impl.pipeline_layout_depth;
-	pipeline->impl.pipeline_depth = wgpuDeviceCreateRenderPipeline(device, &pipeline_desc);
+	pipeline_desc.layout                 = pipeline->impl.pipeline_layout_unfilterable;
+	pipeline->impl.pipeline_unfilterable = wgpuDeviceCreateRenderPipeline(device, &pipeline_desc);
 
 	wgpuShaderModuleRelease(pipeline_desc.vertex.module);
 	wgpuShaderModuleRelease(pipeline_desc.fragment->module);
