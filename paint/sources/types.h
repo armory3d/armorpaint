@@ -527,6 +527,7 @@ typedef struct {
 	char           *name;
 	string_array_t *objects;
 	string_array_t *layers;
+	string_array_t *hidden;
 } stage_t;
 
 typedef struct {

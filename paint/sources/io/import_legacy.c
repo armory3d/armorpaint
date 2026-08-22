@@ -304,11 +304,22 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			d->name        = any_map_get(old, "name");
 			d->objects     = any_map_get(old, "objects");
 			d->layers      = any_map_get(old, "layers");
+			d->hidden      = any_map_get(old, "hidden");
 			any_array_push(project->stages, d);
 		}
 	}
 
 	return project;
+}
+
+project_t *import_arm_from_version_14(any_map_t *old) {
+	any_array_t *stages = any_map_get(old, "stages");
+	if (stages != NULL) {
+		for (i32 i = 0; i < stages->length; ++i) {
+			any_map_set(stages->buffer[i], "hidden", NULL);
+		}
+	}
+	return import_arm_from_map_to_arm(old);
 }
 
 project_t *import_arm_from_version_13(any_map_t *old) {
@@ -319,7 +330,7 @@ project_t *import_arm_from_version_13(any_map_t *old) {
 			armpack_map_set_i32(ld, "path_text", 0);
 		}
 	}
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_14(old);
 }
 
 project_t *import_arm_from_version_12(any_map_t *old) {
@@ -454,6 +465,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,  import_arm_from_version_4,
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
 	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13,
+	    import_arm_from_version_14,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

@@ -15,6 +15,11 @@ bool         tab_meshes_search_focus  = false;
 ui_handle_t *tab_meshes_search_handle = NULL;
 
 static bool tab_meshes_slot_hidden(mesh_object_t *o) {
+	stage_t *stage = tab_stages_get_stage();
+	if (stage != NULL && string_array_index_of(stage->objects, o->base->name) < 0) {
+		return true;
+	}
+
 	if (!tab_meshes_search_show || tab_meshes_search_handle == NULL) {
 		return false;
 	}
@@ -851,21 +856,6 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	g_context->ddirty = 0;
 }
 
-void tab_meshes_apply_visible(mesh_object_t *o) {
-	stage_t *stage = tab_stages_get_stage();
-	if (stage != NULL) {
-		i32 idx = string_array_index_of(stage->objects, o->base->name);
-		if (o->base->visible && idx < 0) {
-			string_array_push(stage->objects, o->base->name);
-		}
-		else if (!o->base->visible && idx >= 0) {
-			array_splice(stage->objects, idx, 1);
-		}
-	}
-
-	util_mesh_visibility_changed();
-}
-
 static char *tab_meshes_mesh_info(mesh_object_t *o, i32 i) {
 	i32 owner = util_mesh_data_owner(o->data);
 	if (!util_mesh_data_is_shared(o->data)) {
@@ -922,7 +912,7 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 	i32 col              = g_theme->HOVER_COL + 0x00282828;
 	if (ui_sub_image(icons, col, 18 * UI_SCALE(), r->x, r->y, r->w, r->h) == UI_STATE_RELEASED) {
 		o->base->visible = !o->base->visible;
-		tab_meshes_apply_visible(o);
+		tab_stages_apply_visible(o);
 	}
 
 	// Mesh icon

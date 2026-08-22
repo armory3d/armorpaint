@@ -561,13 +561,15 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->stages != NULL) {
 		armpack_encode_array(raw->stages->length);
 		for (i32 i = 0; i < raw->stages->length; ++i) {
-			armpack_encode_map(3);
+			armpack_encode_map(4);
 			armpack_encode_string("name");
 			armpack_encode_string(raw->stages->buffer[i]->name);
 			armpack_encode_string("objects");
 			armpack_encode_array_string(raw->stages->buffer[i]->objects);
 			armpack_encode_string("layers");
 			armpack_encode_array_string(raw->stages->buffer[i]->layers);
+			armpack_encode_string("hidden");
+			armpack_encode_array_string(raw->stages->buffer[i]->hidden);
 		}
 	}
 	else {

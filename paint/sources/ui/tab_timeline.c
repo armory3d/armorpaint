@@ -65,7 +65,7 @@ static i32             tab_timeline_tween_tex0   = 0;
 static i32             tab_timeline_tween_tex1   = 0;
 static i32             tab_timeline_tween_factor = 0;
 
-static bool tab_timeline_stage_rename_init = false;
+static bool tab_timeline_stage_edit_init = false;
 
 static void tab_timeline_copy_tex(gpu_texture_t *dst, gpu_texture_t *src) {
 	draw_begin(dst, true, 0x00000000);
@@ -1112,18 +1112,47 @@ void tab_timeline_draw_edit() {
 	}
 }
 
-void tab_timeline_stage_rename_box_draw() {
-	stage_t     *s = tab_stages_get_stage();
+void tab_timeline_stage_edit_box_draw() {
+	stage_t *s = tab_stages_get_stage();
+	if (s == NULL) {
+		return;
+	}
 	ui_handle_t *h = ui_handle(__ID__);
 
-	if (tab_timeline_stage_rename_init) {
+	if (tab_timeline_stage_edit_init) {
 		h->text = string_copy(s->name);
 		ui_start_text_edit(h, UI_ALIGN_LEFT);
-		tab_timeline_stage_rename_init = false;
+		tab_timeline_stage_edit_init = false;
 	}
 
 	char *name = ui_text_input(h, tr("Name"), UI_ALIGN_LEFT, true, false);
 	ui_end_element();
+
+	ui_text(tr("Meshes"), UI_ALIGN_LEFT, 0x00000000);
+
+	ui_handle_t *hmeshes = ui_handle(__ID__);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o     = g_project->_->paint_objects->buffer[i];
+		i32            idx   = string_array_index_of(s->objects, o->base->name);
+		ui_handle_t   *hmesh = ui_nest(hmeshes, i);
+		hmesh->b             = idx >= 0;
+		ui_check(hmesh, o->base->name, "");
+		if (hmesh->changed) {
+			if (hmesh->b) {
+				string_array_push(s->objects, o->base->name);
+			}
+			else {
+				array_splice(s->objects, idx, 1);
+			}
+
+			o->base->visible = hmesh->b;
+			tab_stages_set_hidden(s, o->base->name, false);
+			util_mesh_visibility_changed();
+			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		}
+	}
+	ui_end_element();
+
 	ui_row2();
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
 		ui_box_hide();
@@ -1154,9 +1183,9 @@ void tab_timeline_draw_stage_menu() {
 	}
 	g_ui->enabled = true;
 
-	if (ui_menu_button(tr("Rename"), "", ICON_EDIT)) {
-		tab_timeline_stage_rename_init = true;
-		ui_box_show_custom(&tab_timeline_stage_rename_box_draw, 400, 130, NULL, true, tr("Rename Stage"));
+	if (ui_menu_button(tr("Edit"), "", ICON_EDIT)) {
+		tab_timeline_stage_edit_init = true;
+		ui_box_show_custom(&tab_timeline_stage_edit_box_draw, 400, 430, NULL, true, tr("Edit Stage"));
 	}
 }
 
@@ -1385,12 +1414,7 @@ void tab_timeline_draw(ui_handle_t *htab) {
 			bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
 			if (eye_hover && g_ui->input_released) {
 				mesh->base->visible = !mesh->base->visible;
-
-				util_mesh_merge(util_mesh_get_visible());
-				util_uv_uvmap_cached       = false;
-				util_uv_trianglemap_cached = false;
-				util_uv_dilatemap_cached   = false;
-				g_context->ddirty          = 2;
+				tab_stages_apply_visible(mesh);
 			}
 
 			rect_t *rect = resource_tile50(icons, ICON_CUBE);
