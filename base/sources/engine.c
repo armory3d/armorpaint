@@ -2155,7 +2155,6 @@ void data_delete_video(char *handle) {
 	if (video == NULL) {
 		return;
 	}
-	video_unload(video);
 	map_delete(data_cached_videos, handle);
 }
 

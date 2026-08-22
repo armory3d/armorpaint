@@ -10,7 +10,6 @@
 #include "iron_math.h"
 #include "iron_path.h"
 #include "iron_string.h"
-#include "iron_sys.h"
 #include "iron_system.h"
 #include "iron_thread.h"
 #include <math.h>
