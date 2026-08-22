@@ -76,13 +76,8 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	render_path_raytrace_f32a->buffer[1] = transform_world_y(ct);
 	render_path_raytrace_f32a->buffer[2] = transform_world_z(ct);
 	render_path_raytrace_f32a->buffer[3] = render_path_raytrace_frame;
-#ifdef IRON_METAL
-	// render_path_raytrace_frame = (render_path_raytrace_frame % (16)) + 1; // _PAINT
-	render_path_raytrace_frame = render_path_raytrace_frame + 1; // _RENDER
-#else
-	render_path_raytrace_frame = (render_path_raytrace_frame % 4) + 1; // _PAINT
+	render_path_raytrace_frame           = (render_path_raytrace_frame % 4) + 1; // _PAINT
 // render_path_raytrace_frame = render_path_raytrace_frame + 1; // _RENDER
-#endif
 	render_path_raytrace_f32a->buffer[4]  = render_path_raytrace_help_mat.m00;
 	render_path_raytrace_f32a->buffer[5]  = render_path_raytrace_help_mat.m01;
 	render_path_raytrace_f32a->buffer[6]  = render_path_raytrace_help_mat.m02;
@@ -114,11 +109,7 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	_gpu_raytrace_dispatch_rays(framebuffer->_image, render_path_raytrace_f32a);
 
 	if (g_context->ddirty == 1 || g_context->pdirty == 1) {
-#ifdef IRON_METAL
-		g_context->rdirty = 128;
-#else
 		g_context->rdirty = 4;
-#endif
 	}
 	g_context->ddirty--;
 	g_context->pdirty--;
@@ -192,14 +183,6 @@ void render_path_raytrace_draw(bool use_live_layer) {
 	if (g_context->ddirty > 1 || g_context->pdirty > 0 || is_live || is_player) {
 		render_path_raytrace_frame = 0;
 	}
-
-#ifdef IRON_METAL
-	// Delay path tracing additional samples while painting
-	bool down = mouse_down("left") || pen_down("tip");
-	if (context_in_3d_view() && down && !ui_menu_show) {
-		render_path_raytrace_frame = 0;
-	}
-#endif
 
 	render_path_raytrace_commands(use_live_layer);
 	render_path_set_target("buf", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);

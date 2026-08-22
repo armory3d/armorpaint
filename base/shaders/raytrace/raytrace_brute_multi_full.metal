@@ -1,3 +1,5 @@
+#define _MULTI
+#define _FULL
 #ifdef _FULL
 #define _EMISSION
 #define _SUBSURFACE

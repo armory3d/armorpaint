@@ -24,3 +24,5 @@ typedef struct {
 typedef struct {
 	void *_accelerationStructure;
 } gpu_acceleration_structure_impl_t;
+
+#define GPU_RAYTRACE_MAX_OBJECTS 64

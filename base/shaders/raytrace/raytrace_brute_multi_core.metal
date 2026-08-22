@@ -1,5 +1,4 @@
-#define _FULL
-
+#define _MULTI
 #ifdef _FULL
 #define _EMISSION
 #define _SUBSURFACE
@@ -8,7 +7,7 @@
 // #define _TRANSPARENCY
 // #define _FRESNEL
 #endif
-#define _RENDER
+// #define _RENDER
 
 using namespace metal;
 using namespace raytracing;
@@ -19,6 +18,12 @@ struct Vertex {
 	uint nor;
 	uint tex;
 };
+
+#ifdef _MULTI
+typedef intersector<triangle_data, instancing, world_space_data> intersector_t;
+#else
+typedef intersector<triangle_data, instancing> intersector_t;
+#endif
 
 struct RayGenConstantBuffer {
 	float4 eye; // xyz, frame
@@ -32,9 +37,9 @@ struct RayPayload {
 	float3 ray_dir;
 };
 
-constant int SAMPLES = 2; // 64
+constant int SAMPLES = 8;
 #ifdef _TRANSLUCENCY
-constant int DEPTH = 6;
+constant int DEPTH = 16;
 #else
 constant int DEPTH = 3; // Opaque hits
 #endif
@@ -102,7 +107,7 @@ float2 s16_to_f32(uint val) {
 	return float2(a, b) / 32767.0f;
 }
 
-float3 hit_world_position(ray ray, typename intersector<triangle_data, instancing>::result_type intersection) {
+float3 hit_world_position(ray ray, intersector_t::result_type intersection) {
 	return ray.origin + ray.direction * intersection.distance;
 }
 
@@ -138,17 +143,13 @@ float3 surface_specular(const float3 base_color, const float metalness) {
 	return mix(float3(0.04, 0.04, 0.04), base_color, metalness);
 }
 
-float3 env_brdf_approx(float3 specular, float roughness, float dotnv) {
-	const float4 c0 = float4(-1, -0.0275, -0.572, 0.022);
-	const float4 c1 = float4(1, 0.0425, 1.04, -0.04);
-	float4 r = roughness * c0 + c1;
-	float a004 = min(r.x * r.x, exp2(-9.28 * dotnv)) * r.x + r.y;
-	float2 ab = float2(-1.04, 1.04) * a004 + r.zw;
-	return specular * ab.x + ab.y;
-}
-
 float fresnel(float3 normal, float3 incident) {
 	return mix(0.5, 1.0, pow(1.0 + dot(normal, incident), 5.0));
+}
+
+float4 read_texel(texture2d<float, access::read> tex, float2 tex_coord) {
+	uint2 size = uint2(tex.get_width(), tex.get_height());
+	return tex.read(uint2(fract(tex_coord) * float2(size)), 0);
 }
 
 kernel void raytracingKernel(
@@ -167,24 +168,32 @@ kernel void raytracingKernel(
 	device void *indices [[buffer(2)]],
 	device void *vertices [[buffer(3)]]
 ) {
+	uint2 dim = uint2(render_target.get_width(), render_target.get_height());
+	if (tid.x >= dim.x || tid.y >= dim.y) {
+		return;
+	}
+
+	int frame = int(constant_buffer.eye.w);
 	uint thread_seed = 0;
 	float3 accum = float3(0, 0, 0);
 
 	for (int j = 0; j < SAMPLES; ++j) {
+		int sample_index = frame * SAMPLES + j;
+
 		// AA
 		float2 xy = float2(tid) + float2(0.5f, 0.5f);
-		xy.x += rand(tid.x, tid.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
+		xy.x += rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
 		thread_seed += 1;
-		xy.y += rand(tid.x, tid.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
+		xy.y += rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
 
-		float2 screen_pos = xy / float2(render_target.get_width(), render_target.get_height()) * 2.0 - 1.0;
+		float2 screen_pos = xy / float2(dim) * 2.0 - 1.0;
 		ray ray;
 		ray.min_distance = 0.0001;
-		ray.max_distance = 10.0;
+		ray.max_distance = 100.0;
 		generate_camera_ray(screen_pos, ray.origin, ray.direction, constant_buffer.eye.xyz, constant_buffer.inv_vp);
 
 		RayPayload payload;
-		payload.color = float4(1, 1, 1, j);
+		payload.color = float4(1, 1, 1, sample_index);
 
 		#ifdef _TRANSPARENCY
 		int transparent_hits = 0;
@@ -195,7 +204,7 @@ kernel void raytracingKernel(
 			#ifdef _ROULETTE
 			float rr_factor = 1.0;
 			if (i >= rr_start) {
-				float f = rand(tid.x, tid.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
+				float f = rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
 				if (f <= rr_probability) {
 					break;
 				}
@@ -203,90 +212,131 @@ kernel void raytracingKernel(
 			}
 			#endif
 
-			// #ifdef _SUBSURFACE
-			// TraceRay(scene, RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, ray, payload);
-			// #else
-			// TraceRay(scene, RAY_FLAG_FORCE_OPAQUE, ~0, 0, 1, 0, ray, payload);
-			// #endif
-
-			intersector<triangle_data, instancing> in;
+			intersector_t in;
 			in.assume_geometry_type(geometry_type::triangle);
 			in.force_opacity(forced_opacity::opaque);
 			in.accept_any_intersection(false);
-			// in.set_triangle_cull_mode(triangle_cull_mode::none);
 
-			typename intersector<triangle_data, instancing>::result_type intersection;
+			intersector_t::result_type intersection;
 			intersection = in.intersect(ray, scene);
+
+			// Miss
 			if (intersection.type == intersection_type::none) {
 				#ifdef _EMISSION
-				if (payload.color.a == -2.0) {
-					return;
+				if (payload.color.a == -3.0) {
+					accum += payload.color.rgb;
+					break;
 				}
 				#endif
 
-				float2 tex_coord = fract(equirect(ray.direction, constant_buffer.params.y));
-				float3 texenv = mytexture_env.sample(linear_sampler, tex_coord).rgb * abs(constant_buffer.params.x);
-				payload.color = float4(payload.color.rgb * texenv.rgb, -1);
+				if (i == 0 && constant_buffer.params.x < 0.0) { // No envmap
+					payload.color.rgb = float3(0.0275, 0.0275, 0.0275);
+				}
+				else {
+					float2 tex_coord = equirect(ray.direction, constant_buffer.params.y);
+					float3 texenv = mytexture_env.sample(linear_sampler, tex_coord, level(0)).rgb * abs(constant_buffer.params.x);
+					payload.color.rgb *= texenv;
+				}
+
+				accum += clamp(payload.color.rgb, 0.0, 8.0);
+				break;
 			}
-			else {
-				device uint32_t *inda = (device uint32_t *)(indices);
-				uint3 indices_sample = uint3(
-					inda[intersection.primitive_id * 3],
-					inda[intersection.primitive_id * 3 + 1],
-					inda[intersection.primitive_id * 3 + 2]
-				);
 
-				device Vertex *verta = (device Vertex *)(vertices);
-				float2 vertex_uvs[3] = {
-					s16_to_f32(verta[indices_sample[0]].tex),
-					s16_to_f32(verta[indices_sample[1]].tex),
-					s16_to_f32(verta[indices_sample[2]].tex)
-				};
-				float2 barycentrics = intersection.triangle_barycentric_coord;
-				float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics) * constant_buffer.params.z;
+			device uint32_t *inda = (device uint32_t *)(indices);
+			uint base_index = intersection.primitive_id * 3;
 
-				uint2 size = uint2(mytexture0.get_width(), mytexture0.get_height());
-				uint3 utex_coord = uint3(uint2((tex_coord - float2(uint2(tex_coord))) * float2(size)), 0);
-				float4 texpaint0 = mytexture0.read(utex_coord.xy, utex_coord.z);
+			#ifdef _MULTI
+			base_index += intersection.user_instance_id;
+			#endif
 
-				#ifdef _TRANSPARENCY
-				if (texpaint0.a <= 0.1) {
-					payload.ray_dir = ray.direction;
-					payload.ray_origin = hit_world_position(ray, intersection) + payload.ray_dir * 0.0001f;
-					payload.color.a = -2;
-					return;
+			uint3 indices_sample = uint3(
+				inda[base_index],
+				inda[base_index + 1],
+				inda[base_index + 2]
+			);
+
+			device Vertex *verta = (device Vertex *)(vertices);
+			float2 vertex_uvs[3] = {
+				s16_to_f32(verta[indices_sample[0]].tex),
+				s16_to_f32(verta[indices_sample[1]].tex),
+				s16_to_f32(verta[indices_sample[2]].tex)
+			};
+			float2 barycentrics = intersection.triangle_barycentric_coord;
+			float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics) * constant_buffer.params.z;
+
+			float3 hit = hit_world_position(ray, intersection);
+			float4 texpaint0 = read_texel(mytexture0, tex_coord);
+
+			#ifdef _TRANSPARENCY
+			if (texpaint0.a <= 0.01) {
+				ray.origin = hit + ray.direction * 0.0001f;
+				if (transparent_hits < DEPTH_TRANSPARENT) {
+					payload.color.a = sample_index;
+					transparent_hits++;
+					i--;
 				}
-				#endif
+				else {
+					payload.color.a = -2;
+				}
+				continue;
+			}
+			#endif
 
-				float3 vertex_normals[3] = {
-					float3(s16_to_f32(verta[indices_sample[0]].nor), s16_to_f32(verta[indices_sample[0]].poszw).y),
-					float3(s16_to_f32(verta[indices_sample[1]].nor), s16_to_f32(verta[indices_sample[1]].poszw).y),
-					float3(s16_to_f32(verta[indices_sample[2]].nor), s16_to_f32(verta[indices_sample[2]].poszw).y)
-				};
-				float3 n = normalize(hit_attribute(vertex_normals, barycentrics));
+			float3 vertex_normals[3] = {
+				float3(s16_to_f32(verta[indices_sample[0]].nor), s16_to_f32(verta[indices_sample[0]].poszw).y),
+				float3(s16_to_f32(verta[indices_sample[1]].nor), s16_to_f32(verta[indices_sample[1]].poszw).y),
+				float3(s16_to_f32(verta[indices_sample[2]].nor), s16_to_f32(verta[indices_sample[2]].poszw).y)
+			};
+			float3 n = normalize(hit_attribute(vertex_normals, barycentrics));
 
-				float4 texpaint1 = mytexture1.read(utex_coord.xy, utex_coord.z);
-				float4 texpaint2 = mytexture2.read(utex_coord.xy, utex_coord.z);
-				float3 texcolor = pow(texpaint0.rgb, float3(2.2, 2.2, 2.2));
+			#ifdef _MULTI
+			float4x3 obj_to_world = intersection.object_to_world_transform;
+			n = normalize(float3x3(obj_to_world[0], obj_to_world[1], obj_to_world[2]) * n);
+			#endif
 
-				float3 tangent = float3(0, 0, 0);
-				float3 binormal = float3(0, 0, 0);
-				create_basis(n, tangent, binormal);
+			float4 texpaint1 = read_texel(mytexture1, tex_coord);
+			float4 texpaint2 = read_texel(mytexture2, tex_coord);
+			float3 texcolor = pow(texpaint0.rgb, float3(2.2, 2.2, 2.2));
 
-				texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
-				texpaint1.g = -texpaint1.g;
-				n = float3x3(tangent, binormal, n) * texpaint1.rgb;
+			#ifdef _TRANSLUCENCY
+			if (!intersection.triangle_front_facing) {
+				float3 absorption = pow(max(texcolor, float3(0.001)), float3(intersection.distance * texpaint0.a));
+				payload.color.rgb *= absorption;
+			}
+			#endif
 
-				float f = rand(tid.x, tid.y, payload.color.a, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				thread_seed += 1;
+			float3 tangent = float3(0, 0, 0);
+			float3 binormal = float3(0, 0, 0);
+			create_basis(n, tangent, binormal);
 
+			texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
+			texpaint1.g = -texpaint1.g;
+			n = float3x3(tangent, binormal, n) * texpaint1.rgb;
+
+			uint bounce_seed = 0;
+
+			float f = rand(tid.x, tid.y, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
+			bounce_seed += 1;
+
+			bool scatter = false;
+
+			#ifdef _TRANSLUCENCY
+			if (f > texpaint0.a) {
+				float roughness = texpaint2.g;
+				float3 scatter_dir = cos_weighted_hemisphere_direction(tid, ray.direction, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
+				payload.ray_dir = normalize(mix(ray.direction, scatter_dir, roughness * roughness * 0.5));
+				payload.ray_origin = hit + payload.ray_dir * 0.0001f;
+				scatter = true;
+			}
+			#endif
+
+			if (!scatter) {
 				#ifdef _TRANSLUCENCY
-				float3 diffuse_dir = texpaint0.a < f ?
-					cos_weighted_hemisphere_direction(tid, ray.direction, payload.color.a, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank) :
-					cos_weighted_hemisphere_direction(tid, n, payload.color.a, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				#else
-				float3 diffuse_dir = cos_weighted_hemisphere_direction(tid, n, payload.color.a, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
+				f = rand(tid.x, tid.y, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
+				bounce_seed += 1;
 				#endif
+
+				float3 diffuse_dir = cos_weighted_hemisphere_direction(tid, n, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
 
 				#ifdef _FRESNEL
 				float specular_chance = fresnel(n, ray.direction);
@@ -295,12 +345,7 @@ kernel void raytracingKernel(
 				#endif
 
 				if (f < specular_chance) {
-					#ifdef _TRANSLUCENCY
-					float3 specular_dir = texpaint0.a < f * 2 ? ray.direction : reflect(ray.direction, n);
-					#else
 					float3 specular_dir = reflect(ray.direction, n);
-					#endif
-
 					payload.ray_dir = mix(specular_dir, diffuse_dir, texpaint2.g * texpaint2.g);
 					float3 specular = surface_specular(texcolor, texpaint2.b);
 					payload.color.xyz *= specular;
@@ -316,59 +361,44 @@ kernel void raytracingKernel(
 					payload.color.xyz /= 1.0 - specular_chance;
 					#endif
 				}
+
 				#ifdef _FRESNEL
 				payload.color.xyz *= 0.5;
 				#endif
 
-				// float dotnv = abs(dot(n, -WorldRayDirection()));
-				// payload.ray_origin = hit_world_position() + n * mix(0.1f, 0.0001f, dotnv);
-				payload.ray_origin = hit_world_position(ray, intersection) + payload.ray_dir * 0.0001f;
+				payload.ray_origin = hit + payload.ray_dir * 0.0001f;
 
 				#ifdef _EMISSION
 				if (int(texpaint1.a * 255.0f) % 3 == 1) { // matid
 					payload.color.xyz *= 100.0f;
-					payload.color.a = -2.0;
+					payload.color.a = -3.0;
 				}
 				#endif
 
 				#ifdef _SUBSURFACE
 				if (int(texpaint1.a * 255.0f) % 3 == 2) {
-					payload.ray_origin += ray.direction * f;
+					float d = min(1.0 / min(intersection.distance * 2.0, 1.0) / 10.0, 0.5);
+					payload.color.xyz += payload.color.xyz * d;
+					if (f < 0.5) {
+						payload.ray_origin += ray.direction * f * 0.001;
+					}
 				}
 				#endif
 			}
 
 			#ifdef _EMISSION
-			if (payload.color.a == -2) {
+			if (payload.color.a == -3.0) {
 				accum += payload.color.rgb;
 				break;
 			}
 			#endif
 
-			// Miss
-			if (payload.color.a < 0) {
-				#ifdef _TRANSPARENCY
-				if (payload.color.a == -2 && transparent_hits < DEPTH_TRANSPARENT) {
-					payload.color.a = j;
-					transparent_hits++;
-					i--;
-				}
-				#endif
-
-				if (i == 0 && constant_buffer.params.x < 0) { // No envmap
-					payload.color.rgb = float3(0.0275, 0.0275, 0.0275);
-				}
-
-				accum += clamp(payload.color.rgb, 0.0, 8.0);
-				break;
-			}
+			ray.origin = payload.ray_origin;
+			ray.direction = payload.ray_dir;
 
 			#ifdef _ROULETTE
 			payload.color.rgb *= rr_factor;
 			#endif
-
-			ray.origin = payload.ray_origin;
-			ray.direction = payload.ray_dir;
 		}
 	}
 
@@ -384,6 +414,6 @@ kernel void raytracingKernel(
 	if (constant_buffer.eye.w == 0) {
 		color = accum;
 	}
-	render_target.write(float4(mix(color, accum, 1.0 / 16.0), 1.0f), tid);
+	render_target.write(float4(mix(color, accum, 1.0 / 4.0), 1.0f), tid);
 	#endif
 }
