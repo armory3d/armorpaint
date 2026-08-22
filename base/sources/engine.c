@@ -1293,10 +1293,7 @@ void uniforms_set_context_consts(shader_context_t *context, string_array_t *bind
 				continue;
 			}
 
-			if (tulink[0] == '$') { // Link to embedded data
-				gpu_set_texture(context->_->tex_units->buffer[j], any_map_get(scene_embedded, substring(tulink, 1, string_length(tulink))));
-			}
-			else if (string_equals(tulink, "_envmap_radiance")) {
+			if (string_equals(tulink, "_envmap_radiance")) {
 				world_data_t *w = scene_world;
 				if (w != NULL) {
 					gpu_set_texture(context->_->tex_units->buffer[j], w->_->radiance);
@@ -2186,7 +2183,6 @@ world_data_t    *scene_world              = NULL;
 any_array_t     *scene_meshes             = NULL;
 any_array_t     *scene_cameras            = NULL;
 any_array_t     *scene_empties            = NULL;
-any_map_t       *scene_embedded           = NULL;
 i32              _scene_uid_counter       = 0;
 i32              _scene_uid               = 0;
 scene_t         *_scene_raw               = NULL;
@@ -2195,28 +2191,17 @@ i32              _scene_objects_traversed = 0;
 i32              _scene_objects_count     = 0;
 
 object_t *scene_create(scene_t *format) {
-	_scene_uid = _scene_uid_counter++;
-
-	scene_meshes = any_array_create(0);
-
-	scene_cameras = any_array_create(0);
-
-	scene_empties = any_array_create(0);
-
-	scene_embedded = any_map_create();
-
+	_scene_uid        = _scene_uid_counter++;
+	scene_meshes      = any_array_create(0);
+	scene_cameras     = any_array_create(0);
+	scene_empties     = any_array_create(0);
 	_scene_root       = object_create(true);
 	_scene_root->name = format->name;
-
-	_scene_raw = format;
-
-	scene_world = data_get_world(format->name, format->world_ref);
-
+	_scene_raw        = format;
+	scene_world       = data_get_world(format->name, format->world_ref);
 	// Startup scene
 	scene_add_scene(format->name);
-
 	scene_camera = (camera_object_t *)scene_cameras->buffer[0]; // format->camera_ref
-
 	return _scene_root;
 }
 
@@ -2313,7 +2298,6 @@ void scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *obje
 
 void scene_add_scene(char *scene_name) {
 	scene_t *format = data_get_scene_raw(scene_name);
-	scene_load_embedded_data(format->embedded_datas); // Additional scene assets
 	_scene_objects_traversed = 0;
 	_scene_objects_count     = scene_get_objects_count(format->objects);
 
@@ -2448,21 +2432,6 @@ void scene_gen_transform(obj_t *object, transform_t *transform) {
 	if (transform->object->parent != NULL) {
 		transform_update(transform);
 	}
-}
-
-void scene_load_embedded_data(string_array_t *datas) {
-	if (datas == NULL) {
-		return;
-	}
-	for (i32 i = 0; i < datas->length; ++i) {
-		char *file = datas->buffer[i];
-		scene_embed_data(file);
-	}
-}
-
-void scene_embed_data(char *file) {
-	gpu_texture_t *image = data_get_texture(file);
-	any_map_set(scene_embedded, file, image);
 }
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗██╗  ██╗

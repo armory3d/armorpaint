@@ -182,8 +182,6 @@ typedef struct scene {
 	any_array_t    *shader_datas;   // shader_data_t[]
 	any_array_t    *world_datas;    // world_data_t[]
 	char           *world_ref;
-	any_array_t    *speaker_datas;  // TODO: deprecated
-	string_array_t *embedded_datas; // Preload for this scene, images only for now
 } scene_t;
 
 typedef struct shader_context_runtime {
@@ -602,7 +600,6 @@ extern world_data_t    *scene_world;
 extern any_array_t     *scene_meshes;
 extern any_array_t     *scene_cameras;
 extern any_array_t     *scene_empties;
-extern any_map_t       *scene_embedded;
 extern i32              _scene_uid_counter;
 extern i32              _scene_uid;
 extern scene_t         *_scene_raw;
@@ -630,8 +627,6 @@ object_t        *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *p
 object_t        *scene_return_mesh_object(char *object_file, char *data_ref, material_data_t *material, object_t *parent, obj_t *o);
 object_t        *scene_return_object(object_t *object, obj_t *o);
 void             scene_gen_transform(obj_t *object, transform_t *transform);
-void             scene_load_embedded_data(string_array_t *datas);
-void             scene_embed_data(char *file);
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗██╗  ██╗
 // ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗    ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║
