@@ -56,6 +56,7 @@ physics_pair_t_array_t *physics_get_contact_pairs(physics_body_t *body);
 
 physics_body_t *physics_body_create(struct object *obj, physics_shape_t shape, float mass);
 void            physics_body_set_mass(physics_body_t *body, float mass);
+void            physics_body_set_dim(physics_body_t *body, float dimx, float dimy, float dimz);
 void            physics_body_apply_impulse(void *body, vec4_t impulse);
 void            physics_body_get_pos(void *body, vec4_t *pos);
 void            physics_body_get_rot(void *body, quat_t *rot);

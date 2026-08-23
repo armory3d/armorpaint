@@ -414,6 +414,11 @@ static inline quat_t quat_conj(quat_t q) {
 	return (quat_t){-q.x, -q.y, -q.z, q.w};
 }
 
+static float box_inv_inertia(vec4_t half, float mass) {
+	float inertia = mass / 3.0f * (half.x * half.x + half.y * half.y + half.z * half.z) * (2.0f / 3.0f);
+	return mass > 0.0f && inertia > 0.0f ? 1.0f / inertia : 0.0f;
+}
+
 static vec4_t box_corner(box_t *b, int c) {
 	vec4_t local = {(c & 1) ? b->half.x : -b->half.x, (c & 2) ? b->half.y : -b->half.y, (c & 4) ? b->half.z : -b->half.z};
 	return vec4_add(b->position, vec4_apply_quat(local, b->rotation));
@@ -1188,15 +1193,10 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 			return NULL;
 		}
 
-		vec4_t half    = {dimx / 2.0f, dimy / 2.0f, dimz / 2.0f};
-		float  inertia = mass / 3.0f * (half.x * half.x + half.y * half.y + half.z * half.z) * (2.0f / 3.0f);
+		vec4_t half = {dimx / 2.0f, dimy / 2.0f, dimz / 2.0f};
 
-		boxes[slot] = (box_t){.position    = {x, y, z},
-		                      .rotation    = {0.0f, 0.0f, 0.0f, 1.0f},
-		                      .half        = half,
-		                      .mass        = mass,
-		                      .inv_inertia = mass > 0.0f && inertia > 0.0f ? 1.0f / inertia : 0.0f,
-		                      .active      = 1};
+		boxes[slot] = (box_t){
+		    .position = {x, y, z}, .rotation = {0.0f, 0.0f, 0.0f, 1.0f}, .half = half, .mass = mass, .inv_inertia = box_inv_inertia(half, mass), .active = 1};
 
 		return (void *)(uintptr_t)(slot | BOX_TAG);
 	}
@@ -1383,8 +1383,34 @@ physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float 
 }
 
 void physics_body_set_mass(physics_body_t *body, float mass) {
-	body->mass                  = mass;
-	*body_ref(body->_body).mass = mass;
+	body_ref_t ref = body_ref(body->_body);
+	body->mass     = mass;
+	*ref.mass      = mass;
+	if (body_is_box(body->_body)) {
+		box_t *b       = &boxes[body_slot(body->_body)];
+		b->inv_inertia = box_inv_inertia(b->half, mass);
+		if (mass == 0.0f) {
+			b->angular = (vec4_t){0.0f, 0.0f, 0.0f};
+		}
+	}
+	if (mass == 0.0f) {
+		*ref.velocity = (vec4_t){0.0f, 0.0f, 0.0f};
+	}
+	body_wake(body->_body);
+}
+
+void physics_body_set_dim(physics_body_t *body, float dimx, float dimy, float dimz) {
+	body->dimx = dimx;
+	body->dimy = dimy;
+	body->dimz = dimz;
+	if (body_is_box(body->_body)) {
+		box_t *b       = &boxes[body_slot(body->_body)];
+		b->half        = (vec4_t){dimx / 2.0f, dimy / 2.0f, dimz / 2.0f};
+		b->inv_inertia = box_inv_inertia(b->half, b->mass);
+	}
+	else if (body_is_sphere(body->_body)) {
+		spheres[body_slot(body->_body)].radius = dimx / 2.0f;
+	}
 	body_wake(body->_body);
 }
 
