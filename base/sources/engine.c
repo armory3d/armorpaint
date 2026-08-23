@@ -1911,14 +1911,9 @@ bool data_is_up(char *file) {
 }
 
 char *data_resolve_path(char *file) {
-	if (data_is_abs(file) || data_is_up(file)) {
+	if (data_is_abs(file) || data_is_up(file) || starts_with(file, "./")) {
 		return file;
 	}
-#ifdef IRON_WASM
-	if (starts_with(file, "./")) {
-		return file;
-	}
-#endif
 	return string("%s%s", data_path(), file);
 }
 
