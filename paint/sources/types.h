@@ -158,7 +158,7 @@ typedef struct slot_material {
 	struct gpu_texture    *image;
 	struct gpu_texture    *image_icon;
 	bool                   preview_ready;
-	struct material_data  *data;
+	struct shader_data    *data;
 	i32                    id;
 	bool                   paint_base;
 	bool                   paint_opac;
@@ -697,11 +697,6 @@ typedef struct rect {
 	i32 w;
 	i32 h;
 } rect_t;
-
-typedef struct parse_node_preview_result {
-	struct shader_context   *scon;
-	struct material_context *mcon;
-} parse_node_preview_result_t;
 
 typedef struct ui_node_t_array *node_list_t;
 

@@ -8,42 +8,11 @@ f32_array_t *util_clone_f32_array(f32_array_t *f32a) {
 	return f32_array_create_from_array(f32a);
 }
 
-u32_array_t *util_clone_u32_array(u32_array_t *u32a) {
-	if (u32a == NULL) {
-		return NULL;
-	}
-	return u32_array_create_from_array(u32a);
-}
-
 u8_array_t *util_clone_u8_array(u8_array_t *u8a) {
 	if (u8a == NULL) {
 		return NULL;
 	}
 	return u8_array_create_from_array(u8a);
-}
-
-string_array_t *util_clone_string_array(string_array_t *a) {
-	if (a == NULL) {
-		return NULL;
-	}
-	string_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < a->length; ++i) {
-		char *s = a->buffer[i];
-		any_array_push(r, s);
-	}
-	return r;
-}
-
-u8_array_t *util_clone_bool_array(u8_array_t *a) {
-	if (a == NULL) {
-		return NULL;
-	}
-	u8_array_t *r = u8_array_create_from_raw((u8[]){}, 0);
-	for (i32 i = 0; i < a->length; ++i) {
-		bool s = a->buffer[i];
-		u8_array_push(r, s);
-	}
-	return r;
 }
 
 ui_node_socket_t_array_t *util_clone_canvas_sockets(ui_node_socket_t_array_t *sockets) {
@@ -156,135 +125,6 @@ ui_node_canvas_t *util_clone_canvas(ui_node_canvas_t *c) {
 	r->name             = string_copy(c->name);
 	r->nodes            = util_clone_canvas_nodes(c->nodes);
 	r->links            = util_clone_canvas_links(c->links);
-	return r;
-}
-
-vertex_element_t_array_t *util_clone_vertex_elements(vertex_element_t_array_t *elems) {
-	if (elems == NULL) {
-		return NULL;
-	}
-	vertex_element_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < elems->length; ++i) {
-		vertex_element_t *e = ALLOC_INIT(vertex_element_t, {0});
-		e->name             = string_copy(elems->buffer[i]->name);
-		e->data             = string_copy(elems->buffer[i]->data);
-		any_array_push(r, e);
-	}
-	return r;
-}
-
-shader_const_t_array_t *util_clone_shader_consts(shader_const_t_array_t *consts) {
-	if (consts == NULL) {
-		return NULL;
-	}
-	shader_const_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < consts->length; ++i) {
-		shader_const_t *s = ALLOC_INIT(shader_const_t, {0});
-		s->name           = string_copy(consts->buffer[i]->name);
-		s->type           = string_copy(consts->buffer[i]->type);
-		s->link           = string_copy(consts->buffer[i]->link);
-		any_array_push(r, s);
-	}
-	return r;
-}
-
-tex_unit_t_array_t *util_clone_tex_units(tex_unit_t_array_t *units) {
-	if (units == NULL) {
-		return NULL;
-	}
-	tex_unit_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < units->length; ++i) {
-		tex_unit_t *u = ALLOC_INIT(tex_unit_t, {0});
-		u->name       = string_copy(units->buffer[i]->name);
-		u->link       = string_copy(units->buffer[i]->link);
-		any_array_push(r, u);
-	}
-	return r;
-}
-
-shader_context_t_array_t *util_clone_shader_contexts(shader_context_t_array_t *contexts) {
-	if (contexts == NULL) {
-		return NULL;
-	}
-	shader_context_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < contexts->length; ++i) {
-		shader_context_t *c        = ALLOC_INIT(shader_context_t, {0});
-		c->name                    = string_copy(contexts->buffer[i]->name);
-		c->depth_write             = contexts->buffer[i]->depth_write;
-		c->compare_mode            = string_copy(contexts->buffer[i]->compare_mode);
-		c->cull_mode               = string_copy(contexts->buffer[i]->cull_mode);
-		c->vertex_shader           = string_copy(contexts->buffer[i]->vertex_shader);
-		c->fragment_shader         = string_copy(contexts->buffer[i]->fragment_shader);
-		c->shader_from_source      = contexts->buffer[i]->shader_from_source;
-		c->blend_source            = string_copy(contexts->buffer[i]->blend_source);
-		c->blend_destination       = string_copy(contexts->buffer[i]->blend_destination);
-		c->alpha_blend_source      = string_copy(contexts->buffer[i]->alpha_blend_source);
-		c->alpha_blend_destination = string_copy(contexts->buffer[i]->alpha_blend_destination);
-		c->color_writes_red        = util_clone_bool_array(contexts->buffer[i]->color_writes_red);
-		c->color_writes_green      = util_clone_bool_array(contexts->buffer[i]->color_writes_green);
-		c->color_writes_blue       = util_clone_bool_array(contexts->buffer[i]->color_writes_blue);
-		c->color_writes_alpha      = util_clone_bool_array(contexts->buffer[i]->color_writes_alpha);
-		c->color_attachments       = util_clone_string_array(contexts->buffer[i]->color_attachments);
-		c->depth_attachment        = string_copy(contexts->buffer[i]->depth_attachment);
-		c->vertex_elements         = util_clone_vertex_elements(contexts->buffer[i]->vertex_elements);
-		c->constants               = util_clone_shader_consts(contexts->buffer[i]->constants);
-		c->texture_units           = util_clone_tex_units(contexts->buffer[i]->texture_units);
-		any_array_push(r, c);
-	}
-	return r;
-}
-
-bind_const_t_array_t *util_clone_bind_constants(bind_const_t_array_t *consts) {
-	if (consts == NULL) {
-		return NULL;
-	}
-	bind_const_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < consts->length; ++i) {
-		bind_const_t *c = ALLOC_INIT(bind_const_t, {0});
-		c->name         = string_copy(consts->buffer[i]->name);
-		c->vec          = util_clone_f32_array(consts->buffer[i]->vec);
-		any_array_push(r, c);
-	}
-	return r;
-}
-
-bind_tex_t_array_t *util_clone_bind_textures(bind_tex_t_array_t *texs) {
-	if (texs == NULL) {
-		return NULL;
-	}
-	bind_tex_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < texs->length; ++i) {
-		bind_tex_t *t = ALLOC_INIT(bind_tex_t, {0});
-		t->name       = string_copy(texs->buffer[i]->name);
-		t->file       = string_copy(texs->buffer[i]->file);
-		any_array_push(r, t);
-	}
-	return r;
-}
-
-material_context_t_array_t *util_clone_material_contexts(material_context_t_array_t *contexts) {
-	if (contexts == NULL) {
-		return NULL;
-	}
-	material_context_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < contexts->length; ++i) {
-		material_context_t *c = ALLOC_INIT(material_context_t, {0});
-		c->name               = string_copy(contexts->buffer[i]->name);
-		c->bind_constants     = util_clone_bind_constants(contexts->buffer[i]->bind_constants);
-		c->bind_textures      = util_clone_bind_textures(contexts->buffer[i]->bind_textures);
-		any_array_push(r, c);
-	}
-	return r;
-}
-
-material_data_t *util_clone_material_data(material_data_t *m) {
-	if (m == NULL) {
-		return NULL;
-	}
-	material_data_t *r = ALLOC_INIT(material_data_t, {0});
-	r->name            = string_copy(m->name);
-	r->shader          = string_copy(m->shader);
-	r->contexts        = util_clone_material_contexts(m->contexts);
 	return r;
 }
 

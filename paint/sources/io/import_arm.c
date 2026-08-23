@@ -271,7 +271,7 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 		import_texture_run(abs, true);
 	}
 
-	material_data_t *m0 = data_get_material("Scene", "Material");
+	shader_data_t *m0 = data_get_shader("Scene", "Material");
 
 	slot_material_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
 
@@ -671,7 +671,7 @@ void import_arm_run_project(char *path) {
 	context_set_layer(g_project->_->layers->buffer[0]);
 
 	// Materials
-	material_data_t *m0     = data_get_material("Scene", "Material");
+	shader_data_t *m0       = data_get_shader("Scene", "Material");
 	g_project->_->materials = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->material_nodes->length; ++i) {
 		ui_node_canvas_t *n = g_project->material_nodes->buffer[i];

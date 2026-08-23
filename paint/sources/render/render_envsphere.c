@@ -101,22 +101,11 @@ static mesh_object_t *create_envsphere_object(char *name, f32 roughness, f32 met
 	node_shader_context_t *con = make_envsphere_shader(name, roughness, metallic);
 	shader_context_load(con->data);
 
-	shader_data_t      *sd   = ALLOC_INIT(shader_data_t, {
-	                                                         .name     = name,
-	                                                         .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
-                                                  });
-	material_context_t *mcon = ALLOC_INIT(material_context_t, {
-	                                                              .name           = "overlay",
-	                                                              .bind_constants = any_array_create_from_raw((void *[]){}, 0),
-	                                                              .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
-	                                                          });
-	material_context_load(mcon);
-	material_data_t *mat = ALLOC_INIT(material_data_t, {
-	                                                       .name     = name,
-	                                                       .shader   = "",
-	                                                       .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
-	                                                       ._        = ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
-	                                                   });
+	shader_data_t *mat = ALLOC_INIT(shader_data_t, {
+	                                                   .name     = name,
+	                                                   .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
+	                                                   ._        = ALLOC_INIT(shader_data_runtime_t, {.uid = 0.0}),
+	                                               });
 
 	mesh_object_t *obj   = mesh_object_create(md, mat);
 	obj->base->name      = name;

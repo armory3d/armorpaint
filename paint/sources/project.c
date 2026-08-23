@@ -177,7 +177,7 @@ void project_new(bool reset_layers) {
 	if (in_use)
 		draw_end();
 
-	material_data_t *m = data_get_material("Scene", "Material");
+	shader_data_t *m = data_get_shader("Scene", "Material");
 	if (g_context->paint_object == NULL) {
 		g_context->paint_object             = mesh_object_create(md, m);
 		g_context->paint_object->base->name = "paint_object";

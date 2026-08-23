@@ -67,7 +67,7 @@ class ArmoryExporter(bpy.types.Operator, ExportHelper):
 
         self.output["camera_datas"] = None
         self.output["camera_ref"] = None
-        self.output["material_datas"] = None
+        self.output["material_datas"] = None  # TODO: deprecated
         self.output["shader_datas"] = None
         self.output["world_datas"] = None
         self.output["world_ref"] = None

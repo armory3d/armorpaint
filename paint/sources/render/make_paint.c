@@ -97,16 +97,16 @@ string_array_t *make_paint_color_attachments() {
 	return res;
 }
 
-node_shader_context_t *make_paint_run(material_t *data, material_context_t *matcon) {
-	return make_paint_run_context(data, matcon, "paint");
+node_shader_context_t *make_paint_run(material_t *data) {
+	return make_paint_run_context(data, "paint");
 }
 
-node_shader_context_t *make_paint_run_context(material_t *data, material_context_t *matcon, char *context_id) {
+node_shader_context_t *make_paint_run_context(material_t *data, char *context_id) {
 	bool picking_tool = g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL ||
 	                    g_context->tool == TOOL_TYPE_CURSOR;
 	bool is_atlas = string_equals(context_id, "atlas");
 	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool) {
-		return sculpt_make_sculpt_run(data, matcon);
+		return sculpt_make_sculpt_run(data);
 	}
 
 	shader_context_t      *props     = ALLOC_INIT(shader_context_t, {.name            = context_id,
@@ -343,7 +343,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect = decal;
 		parser_material_sample_uv_scale    = is_atlas ? "1.0" : "constants.brush_scale";
-		shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
+		shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_paint, kong);
 		parser_material_parse_emission     = false;
 		parser_material_parse_subsurface   = false;
 		parser_material_parse_height       = false;

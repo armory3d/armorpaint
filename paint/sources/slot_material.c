@@ -3,7 +3,7 @@
 
 buffer_t *slot_material_default_canvas = NULL;
 
-slot_material_t *slot_material_create(material_data_t *m, ui_node_canvas_t *c) {
+slot_material_t *slot_material_create(shader_data_t *m, ui_node_canvas_t *c) {
 	slot_material_t *raw = ALLOC_INIT(slot_material_t, {0});
 	raw->nodes           = ui_nodes_create();
 	raw->preview_ready   = false;

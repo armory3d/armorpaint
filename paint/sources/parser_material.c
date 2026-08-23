@@ -133,18 +133,17 @@ shader_out_t *parser_material_parse_output_pbr(ui_node_t *node) {
 	return parser_material_parse_shader(node, NULL);
 }
 
-shader_out_t *parser_material_parse(ui_node_canvas_t *canvas, node_shader_context_t *_con, node_shader_t *_kong, material_context_t *_matcon) {
+shader_out_t *parser_material_parse(ui_node_canvas_t *canvas, node_shader_context_t *_con, node_shader_t *_kong) {
 	parser_material_init();
 	parser_material_canvases = any_array_create_from_raw(
 	    (void *[]){
 	        canvas,
 	    },
 	    1);
-	parser_material_nodes  = canvas->nodes;
-	parser_material_links  = canvas->links;
-	parser_material_con    = _con;
-	parser_material_kong   = _kong;
-	parser_material_matcon = _matcon;
+	parser_material_nodes = canvas->nodes;
+	parser_material_links = canvas->links;
+	parser_material_con   = _con;
+	parser_material_kong  = _kong;
 
 	if (parser_material_start_group != NULL) {
 		parser_material_push_group(parser_material_start_group);

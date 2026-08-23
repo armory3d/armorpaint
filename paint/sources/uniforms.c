@@ -1,7 +1,7 @@
 
 #include "global.h"
 
-i32 uniforms_ext_i32_link(object_t *object, material_data_t *mat, char *link) {
+i32 uniforms_ext_i32_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_bloom_current_mip")) {
 		return render_path_base_bloom_current_mip;
 	}
@@ -11,7 +11,7 @@ i32 uniforms_ext_i32_link(object_t *object, material_data_t *mat, char *link) {
 	return INT_MAX;
 }
 
-f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
+f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_brush_radius")) {
 		bool decal                   = context_is_decal();
 		bool decal_mask              = context_is_decal_mask_paint_pass();
@@ -162,7 +162,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	return NAN;
 }
 
-vec2_t uniforms_ext_vec2_link(object_t *object, material_data_t *mat, char *link) {
+vec2_t uniforms_ext_vec2_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_gbuffer_size")) {
 		render_target_t *gbuffer2 = any_map_get(render_path_render_targets, "gbuffer2");
 		return (vec2_t){gbuffer2->_image->width, gbuffer2->_image->height};
@@ -196,7 +196,7 @@ f32 uniforms_ext_vec2d(f32 x) {
 	return res;
 }
 
-vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link) {
+vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) {
 	vec4_t v = vec4_nan();
 	if (string_equals(link, "_brush_direction")) {
 		// Discard first paint for directional brush (no prev position yet)
@@ -262,7 +262,7 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 	return v;
 }
 
-vec4_t uniforms_ext_vec4_link(object_t *object, material_data_t *mat, char *link) {
+vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_input_brush")) {
 		bool   down = mouse_down("left") || pen_down("tip");
 		vec4_t v    = (vec4_t){g_context->paint_vec.x, g_context->paint_vec.y, down ? 1.0 : 0.0, g_context->paint2d ? 1.0 : 0.0};
@@ -314,7 +314,7 @@ vec4_t uniforms_ext_vec4_link(object_t *object, material_data_t *mat, char *link
 	return vec4_nan();
 }
 
-mat4_t uniforms_ext_mat4_link(object_t *object, material_data_t *mat, char *link) {
+mat4_t uniforms_ext_mat4_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_sculpt_symmetry_reflect")) {
 		transform_t *t       = object->transform;
 		mat4_t       W       = t->world;
@@ -373,7 +373,7 @@ static gpu_texture_t *_uniforms_ext_get_target(char *name) {
 	return rt->_image;
 }
 
-gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, char *link) {
+gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
 		return _uniforms_ext_get_target(string_tmp("texpaint_undo%d", i));

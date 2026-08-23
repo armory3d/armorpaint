@@ -402,7 +402,7 @@ slot_material_t *script_material_create(char *name) {
 	if (g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL || g_project->_->materials->length == 0) {
 		return NULL;
 	}
-	material_data_t *data = g_project->_->materials->buffer[0]->data;
+	shader_data_t   *data = g_project->_->materials->buffer[0]->data;
 	slot_material_t *m    = slot_material_create(data, NULL);
 	if (name != NULL && name[0] != '\0') {
 		m->canvas->name = string_copy(name);
@@ -436,7 +436,7 @@ void script_material_set(slot_material_t *m) {
 }
 
 static slot_material_t *script_object_material_slot = NULL;
-static material_data_t *script_object_material_data = NULL;
+static shader_data_t   *script_object_material_data = NULL;
 
 static void script_object_material_reset(void) {
 	script_object_material_slot = NULL;

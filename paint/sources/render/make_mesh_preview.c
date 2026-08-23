@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_t *matcon, bool viewport) {
+node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	char             *context_id = "mesh";
 	shader_context_t *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                             .depth_write     = true,
@@ -44,7 +44,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 	parser_material_sample_keep_aspect = decal;
 	parser_material_sample_uv_scale    = brush_scale;
 	parser_material_parse_height       = make_material_height_used;
-	shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_mesh, kong, matcon);
+	shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_mesh, kong);
 	parser_material_parse_height       = false;
 	parser_material_sample_keep_aspect = false;
 	char *base                         = sout->out_basecol;
@@ -137,15 +137,13 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, material_context_
 	return con_mesh;
 }
 
-material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
+shader_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	slot_material_t *_material = g_context->material;
 	g_context->material        = slot;
 
-	material_context_t    *mcon = ALLOC_INIT(material_context_t, {.name = "mesh", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
-	material_t            *mm   = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
-	node_shader_context_t *con  = make_mesh_preview_run(mm, mcon, true);
+	material_t            *mm  = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
+	node_shader_context_t *con = make_mesh_preview_run(mm, true);
 	shader_context_load(con->data);
-	material_context_load(mcon);
 
 	tool_type_t    _tool                = g_context->tool;
 	i32            _fill_type           = g_context->fill_type;
@@ -166,11 +164,9 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	g_context->brush_mask_image         = NULL;
 	g_context->brush_blending           = BLEND_TYPE_MIX;
 
-	material_context_t    *amcon = ALLOC_INIT(material_context_t, {.name = "atlas", .bind_textures = any_array_create_from_raw((void *[]){}, 0)});
-	material_t            *amm   = ALLOC_INIT(material_t, {.name = "Material", .canvas = slot->canvas});
-	node_shader_context_t *acon  = make_paint_run_context(amm, amcon, "atlas");
+	material_t            *amm  = ALLOC_INIT(material_t, {.name = "Material", .canvas = slot->canvas});
+	node_shader_context_t *acon = make_paint_run_context(amm, "atlas");
 	shader_context_load(acon->data);
-	material_context_load(amcon);
 
 	g_context->tool      = _tool;
 	g_context->fill_type = _fill_type;
@@ -183,18 +179,12 @@ material_data_t *make_mesh_preview_viewport(slot_material_t *slot) {
 	g_context->brush_mask_image    = _brush_mask_image;
 	g_context->brush_blending      = _brush_blending;
 
-	shader_data_t *sd = ALLOC_INIT(shader_data_t, {0});
-	sd->name          = string("_material_%s", i32_to_string(slot->id));
-	sd->contexts      = any_array_create_from_raw((void *[]){con->data, acon->data}, 2);
+	shader_data_t *md = ALLOC_INIT(shader_data_t, {0});
+	md->name          = string("_material_%s", i32_to_string(slot->id));
+	md->contexts      = any_array_create_from_raw((void *[]){con->data, acon->data}, 2);
+	md->_             = ALLOC_INIT(shader_data_runtime_t, {.uid = 0});
 	node_shader_context_free(con);
 	node_shader_context_free(acon);
-
-	material_data_t *md = ALLOC_INIT(material_data_t, {0});
-	md->name            = sd->name;
-	md->contexts        = any_array_create_from_raw((void *[]){mcon, amcon}, 2);
-	md->_               = ALLOC_INIT(material_data_runtime_t, {0});
-	md->_->shader       = sd;
-	md->_->uid          = 0;
 
 	g_context->material = _material;
 	return md;

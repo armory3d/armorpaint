@@ -605,16 +605,7 @@ void minic_register_builtins() {
 	MINIC_O(vertex_elements, vertex_element_t_array_t);
 	MINIC_O(constants, shader_const_t_array_t);
 	MINIC_O(texture_units, tex_unit_t_array_t);
-	MINIC_END();
-
-	MINIC_STRUCT(shader_data_t);
-	MINIC_S(name);
-	MINIC_O(contexts, any_array_t);
-	MINIC_END();
-
-	MINIC_STRUCT(bind_const_t);
-	MINIC_S(name);
-	MINIC_O(vec, f32_array_t);
+	MINIC_O(bind_textures, bind_tex_t_array_t);
 	MINIC_END();
 
 	MINIC_STRUCT(bind_tex_t);
@@ -622,17 +613,9 @@ void minic_register_builtins() {
 	MINIC_S(file);
 	MINIC_END();
 
-	MINIC_STRUCT(material_context_t);
+	MINIC_STRUCT(shader_data_t);
 	MINIC_S(name);
-	MINIC_O(bind_constants, bind_const_t_array_t);
-	MINIC_O(bind_textures, bind_tex_t_array_t);
-	MINIC_P(_);
-	MINIC_END();
-
-	MINIC_STRUCT(material_data_t);
-	MINIC_S(name);
-	MINIC_S(shader);
-	MINIC_O(contexts, material_context_t_array_t);
+	MINIC_O(contexts, any_array_t);
 	MINIC_P(_);
 	MINIC_END();
 
@@ -663,7 +646,7 @@ void minic_register_builtins() {
 	MINIC_STRUCT(mesh_object_t);
 	MINIC_O(base, object_t);
 	MINIC_O(data, mesh_data_t);
-	MINIC_O(material, material_data_t);
+	MINIC_O(material, shader_data_t);
 	MINIC_F(camera_dist);
 	MINIC_I(frustum_culling);
 	MINIC_S(skip_context);
@@ -784,12 +767,6 @@ void minic_register_builtins() {
 	R(world_data_parse, "p:world_data_t(p:char name,p:char id)");
 	R(world_data_load_envmap, "v(p:world_data_t raw)");
 
-	// material_data
-	// R(material_data_create, "p:material_data_t(p:material_data_t raw,p:char file)");
-	R(material_data_parse, "p:material_data_t(p:char file,p:char name)");
-	R(material_data_get_context, "p:material_context_t(p:material_data_t raw,p:char name)");
-	R(material_context_load, "v(p:material_context_t raw)");
-
 	// shader_data
 	// R(shader_data_create, "p:shader_data_t(p:shader_data_t raw)");
 	R(shader_data_parse, "p:shader_data_t(p:char file,p:char name)");
@@ -798,6 +775,7 @@ void minic_register_builtins() {
 
 	// shader_context
 	R(shader_context_load, "v(p:shader_context_t raw)");
+	R(shader_context_load_textures, "v(p:shader_context_t raw)");
 	R(shader_context_compile, "v(p:shader_context_t raw)");
 	R(shader_context_finish_compile, "v(p:shader_context_t raw)");
 	R(shader_context_delete, "v(p:shader_context_t raw)");
@@ -815,7 +793,7 @@ void minic_register_builtins() {
 	R(mesh_data_delete, "v(p:mesh_data_t raw)");
 
 	// mesh_object
-	// R(mesh_object_create, "p:mesh_object_t(p:mesh_data_t data,p:material_data_t material)");
+	// R(mesh_object_create, "p:mesh_object_t(p:mesh_data_t data,p:shader_data_t material)");
 	R(mesh_object_set_data, "v(p:mesh_object_t raw,p:mesh_data_t data)");
 	R(mesh_object_remove, "v(p:mesh_object_t raw)");
 	R(mesh_object_render, "v(p:mesh_object_t raw,p:char context,p:string_array_t bind_params)");
@@ -823,7 +801,6 @@ void minic_register_builtins() {
 	// data
 	R(data_get_mesh, "p:mesh_data_t(p:char file,p:char name)");
 	R(data_get_camera, "p:camera_data_t(p:char file,p:char name)");
-	R(data_get_material, "p:material_data_t(p:char file,p:char name)");
 	R(data_get_world, "p:world_data_t(p:char file,p:char name)");
 	R(data_get_shader, "p:shader_data_t(p:char file,p:char name)");
 	R(data_get_scene_raw, "p:scene_t(p:char file)");
@@ -846,13 +823,13 @@ void minic_register_builtins() {
 	R(scene_set_active, "p:object_t(p:char scene_name)");
 	R(scene_add_object, "p:object_t(p:object_t parent)");
 	R(scene_get_child, "p:object_t(p:char name)");
-	R(scene_add_mesh_object, "p:mesh_object_t(p:mesh_data_t data,p:material_data_t material,p:object_t parent)");
+	R(scene_add_mesh_object, "p:mesh_object_t(p:mesh_data_t data,p:shader_data_t material,p:object_t parent)");
 	R(scene_add_camera_object, "p:camera_object_t(p:camera_data_t data,p:object_t parent)");
 	R(scene_add_scene, "v(p:char scene_name)");
 	R(scene_spawn_object, "p:object_t(p:char name,p:object_t parent,i spawn_children)");
 	R(scene_get_raw_object_by_name, "p:obj_t(p:scene_t format,p:char name)");
 	// R(scene_create_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent)");
-	// R(scene_create_mesh_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent,p:material_data_t material)");
+	// R(scene_create_mesh_object, "p:object_t(p:obj_t o,p:scene_t format,p:object_t parent,p:shader_data_t material)");
 	R(scene_gen_transform, "v(p:obj_t object,p:transform_t transform)");
 
 	// render_path

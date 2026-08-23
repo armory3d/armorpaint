@@ -319,6 +319,7 @@ node_shader_context_t *node_shader_context_create(material_t *material, shader_c
 	                                          .fragment_shader         = "",
 	                                          .vertex_shader           = "",
 	                                          .vertex_elements         = vertex_elements,
+	                                          .bind_textures           = any_array_create_from_raw((void *[]){}, 0),
 	                                          .color_attachments       = props->color_attachments,
 	                                          .depth_attachment        = props->depth_attachment});
 

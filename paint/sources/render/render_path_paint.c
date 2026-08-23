@@ -394,8 +394,8 @@ void render_path_paint_commands_paint(bool dilation) {
 			make_material_parse_mesh_material();
 
 			// Objects with assigned material do not write object id
-			material_data_t *base_material     = g_project->_->materials->buffer[0]->data;
-			any_array_t     *_object_materials = any_array_create(g_project->_->paint_objects->length);
+			shader_data_t *base_material     = g_project->_->materials->buffer[0]->data;
+			any_array_t   *_object_materials = any_array_create(g_project->_->paint_objects->length);
 			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 				mesh_object_t *o             = g_project->_->paint_objects->buffer[i];
 				_object_materials->buffer[i] = o->material;
@@ -1109,11 +1109,11 @@ void render_path_paint_set_plane_mesh() {
 		                             .index_array = u32_array_create_from_array(inda),
 		                             .scale_pos   = 1.5,
 		                             .scale_tex   = 1.0});
-		mesh_data_t     *md       = mesh_data_create(raw);
-		mesh_object_t   *mo       = scene_get_child(".Plane")->ext;
-		material_data_t *material = mo->material;
-		mesh_object_t   *o        = scene_add_mesh_object(md, material, NULL);
-		o->base->name             = ".PlaneTiled";
+		mesh_data_t   *md       = mesh_data_create(raw);
+		mesh_object_t *mo       = scene_get_child(".Plane")->ext;
+		shader_data_t *material = mo->material;
+		mesh_object_t *o        = scene_add_mesh_object(md, material, NULL);
+		o->base->name           = ".PlaneTiled";
 	}
 
 	render_path_paint_planeo = scene_get_child(tiled ? ".PlaneTiled" : ".Plane")->ext;

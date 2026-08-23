@@ -85,7 +85,7 @@ void import_json_material_run(char *path) {
 		import_json_material_add_output_node(canvas);
 	}
 
-	material_data_t *m0 = data_get_material("Scene", "Material");
+	shader_data_t *m0   = data_get_shader("Scene", "Material");
 	g_context->material = slot_material_create(m0, canvas);
 	any_array_push(g_project->_->materials, g_context->material);
 

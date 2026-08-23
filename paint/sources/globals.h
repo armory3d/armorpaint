@@ -202,7 +202,6 @@ bool                      viewport_recording         = false;
 bool                      node_shader_dump_to_script = false;
 node_shader_context_t    *parser_material_con;
 node_shader_t            *parser_material_kong;
-material_context_t       *parser_material_matcon;
 string_array_t           *parser_material_parsed;
 ui_node_t_array_t        *parser_material_parents;
 ui_node_canvas_t_array_t *parser_material_canvases;

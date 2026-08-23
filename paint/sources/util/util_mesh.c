@@ -362,7 +362,7 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	util_mesh_remove_merged();
 	mesh_data_t *md                         = mesh_data_create(raw);
 	md->_->owns_arrays                      = true;
-	material_data_t *paint_material         = g_project->_->materials->buffer[0]->data;
+	shader_data_t *paint_material           = g_project->_->materials->buffer[0]->data;
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
 	g_context->merged_object->force_context = "paint";

@@ -16,7 +16,7 @@ bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) 
 }
 
 char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_name, i32 color_space) {
-	any_array_push(parser_material_matcon->bind_textures, tex);
+	any_array_push(parser_material_con->data->bind_textures, tex);
 	node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 	node_shader_add_texture(parser_material_kong, tex_name, NULL);
 	char *uv_name = "";

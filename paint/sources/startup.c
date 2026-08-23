@@ -2782,76 +2782,11 @@ scene_t *startup_get_scene(void) {
 		scene->world_datas->buffer[0] = wd;
 	}
 
-	// material_datas
-	scene->material_datas = any_array_create(4);
-	{
-		material_data_t *mat = (material_data_t *)calloc(1, sizeof(material_data_t));
-		mat->name            = "armdefault";
-		mat->shader          = "armdefault_data";
-		mat->contexts        = (material_context_t_array_t *)any_array_create(1);
-		{
-			material_context_t *mc   = (material_context_t *)calloc(1, sizeof(material_context_t));
-			mc->name                 = "mesh";
-			mc->bind_constants       = (bind_const_t_array_t *)any_array_create(0);
-			mc->bind_textures        = (bind_tex_t_array_t *)any_array_create(0);
-			mat->contexts->buffer[0] = mc;
-		}
-		scene->material_datas->buffer[0] = mat;
-	}
-	{
-		material_data_t *mat = (material_data_t *)calloc(1, sizeof(material_data_t));
-		mat->name            = ".Gizmo";
-		mat->shader          = "Gizmo_data";
-		mat->contexts        = (material_context_t_array_t *)any_array_create(1);
-		{
-			material_context_t *mc   = (material_context_t *)calloc(1, sizeof(material_context_t));
-			mc->name                 = "overlay";
-			mc->bind_constants       = (bind_const_t_array_t *)any_array_create(0);
-			mc->bind_textures        = (bind_tex_t_array_t *)any_array_create(0);
-			mat->contexts->buffer[0] = mc;
-		}
-		scene->material_datas->buffer[1] = mat;
-	}
-	{
-		material_data_t *mat = (material_data_t *)calloc(1, sizeof(material_data_t));
-		mat->name            = "Material";
-		mat->shader          = "Material_data";
-		mat->contexts        = (material_context_t_array_t *)any_array_create(1);
-		{
-			material_context_t *mc = (material_context_t *)calloc(1, sizeof(material_context_t));
-			mc->name               = "mesh";
-			mc->bind_constants     = (bind_const_t_array_t *)any_array_create(0);
-			mc->bind_textures      = (bind_tex_t_array_t *)any_array_create(1);
-			{
-				bind_tex_t *bt               = (bind_tex_t *)calloc(1, sizeof(bind_tex_t));
-				bt->name                     = string_copy("ImageTexture"); // Owned - freed with the context on material recompile
-				bt->file                     = string_copy("");
-				mc->bind_textures->buffer[0] = bt;
-			}
-			mat->contexts->buffer[0] = mc;
-		}
-		scene->material_datas->buffer[2] = mat;
-	}
-	{
-		material_data_t *mat = (material_data_t *)calloc(1, sizeof(material_data_t));
-		mat->name            = "Material2";
-		mat->shader          = "Material2_data";
-		mat->contexts        = (material_context_t_array_t *)any_array_create(1);
-		{
-			material_context_t *mc   = (material_context_t *)calloc(1, sizeof(material_context_t));
-			mc->name                 = "mesh";
-			mc->bind_constants       = (bind_const_t_array_t *)any_array_create(0);
-			mc->bind_textures        = (bind_tex_t_array_t *)any_array_create(0);
-			mat->contexts->buffer[0] = mc;
-		}
-		scene->material_datas->buffer[3] = mat;
-	}
-
 	// shader_datas
 	scene->shader_datas = any_array_create(18);
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "armdefault_data";
+		sd->name          = "armdefault";
 		sd->contexts      = any_array_create(1);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
@@ -2902,7 +2837,7 @@ scene_t *startup_get_scene(void) {
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "Gizmo_data";
+		sd->name          = ".Gizmo";
 		sd->contexts      = any_array_create(1);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
@@ -2943,7 +2878,7 @@ scene_t *startup_get_scene(void) {
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "Material_data";
+		sd->name          = "Material";
 		sd->contexts      = any_array_create(1);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
@@ -3006,13 +2941,20 @@ scene_t *startup_get_scene(void) {
 				tu->name                     = "ImageTexture";
 				sc->texture_units->buffer[0] = tu;
 			}
+			sc->bind_textures = (bind_tex_t_array_t *)any_array_create(1);
+			{
+				bind_tex_t *bt               = (bind_tex_t *)calloc(1, sizeof(bind_tex_t));
+				bt->name                     = string_copy("ImageTexture");
+				bt->file                     = string_copy("");
+				sc->bind_textures->buffer[0] = bt;
+			}
 			sd->contexts->buffer[0] = sc;
 		}
 		scene->shader_datas->buffer[2] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "Material2_data";
+		sd->name          = "Material2";
 		sd->contexts      = any_array_create(1);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));

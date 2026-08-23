@@ -170,7 +170,7 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	tab_timeline_sync();
 }
 
-static void tab_meshes_delete_override_material(material_data_t *md) {
+static void tab_meshes_delete_override_material(shader_data_t *md) {
 	if (md == NULL || md->name == NULL || !starts_with(md->name, "_material_")) {
 		return;
 	}
@@ -180,30 +180,23 @@ static void tab_meshes_delete_override_material(material_data_t *md) {
 			return; // Still in use
 		}
 	}
-	shader_data_t *sd = md->_->shader;
-	for (i32 i = 0; i < sd->contexts->length; ++i) {
-		make_material_delete_context(sd->contexts->buffer[i]);
-	}
-	array_free(sd->contexts);
-	free(sd->contexts);
-	free(sd->name); // Shared with md->name
-	free(sd);
 	for (i32 i = 0; i < md->contexts->length; ++i) {
-		make_material_delete_material_context(md->contexts->buffer[i]);
+		make_material_delete_context(md->contexts->buffer[i]);
 	}
 	array_free(md->contexts);
 	free(md->contexts);
+	free(md->name);
 	free(md->_);
 	free(md);
 }
 
-void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, material_data_t *data) {
+void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, shader_data_t *data) {
 	// Render an object with a chosen material instead of the painted layers
 	if (tab_meshes_override_map == NULL) {
 		tab_meshes_override_map = any_map_create();
 	}
-	material_data_t *old     = o->material;
-	char            *uid_key = i32_to_string(o->base->uid);
+	shader_data_t *old     = o->material;
+	char          *uid_key = i32_to_string(o->base->uid);
 	if (mat_index < 0 || mat_index >= g_project->_->materials->length) {
 		o->material = g_project->_->materials->buffer[0]->data;
 		map_delete(tab_meshes_override_map, uid_key);
@@ -272,7 +265,7 @@ void tab_meshes_refresh_overrides(slot_material_t *material) {
 	if (mat_index < 0) {
 		return;
 	}
-	material_data_t *data = NULL;
+	shader_data_t *data = NULL;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
 		if (tab_meshes_get_override(o) != mat_index) {
@@ -895,8 +888,8 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = o;
 
-	material_data_t *_override = o->material;
-	o->material                = g_project->_->materials->buffer[0]->data;
+	shader_data_t *_override = o->material;
+	o->material              = g_project->_->materials->buffer[0]->data;
 
 	g_context->saved_camera = scene_camera->base->transform->local;
 	mat4_t m =

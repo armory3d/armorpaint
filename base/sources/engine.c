@@ -388,87 +388,6 @@ void world_data_load_envmap(world_data_t *raw) {
 	}
 }
 
-// ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗         ██████╗  █████╗ ████████╗ █████╗
-// ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║        ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
-// ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║        ██║  ██║███████║   ██║   ███████║
-// ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║        ██║  ██║██╔══██║   ██║   ██╔══██║
-// ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗   ██████╔╝██║  ██║   ██║   ██║  ██║
-// ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝
-
-i32 _material_data_uid_counter = 0;
-
-material_data_t *material_data_create(material_data_t *raw, char *file) {
-	raw->_      = calloc(1, sizeof(material_data_runtime_t));
-	raw->_->uid = (float)(++_material_data_uid_counter); // Start from 1
-
-	any_array_t *ref         = string_split(raw->shader, "/");
-	char        *object_file = "";
-	char        *data_ref    = "";
-	if (ref->length == 2) { // File reference
-		object_file = (char *)ref->buffer[0];
-		data_ref    = (char *)ref->buffer[1];
-	}
-	else { // Local data
-		object_file = file;
-		data_ref    = raw->shader;
-	}
-
-	raw->_->shader = data_get_shader(object_file, data_ref);
-	for (i32 i = 0; i < (i32)raw->contexts->length; ++i) {
-		material_context_t *c = (material_context_t *)raw->contexts->buffer[i];
-		material_context_load(c);
-	}
-	return raw;
-}
-
-material_data_t *material_data_parse(char *file, char *name) {
-	scene_t         *format = data_get_scene_raw(file);
-	material_data_t *raw    = material_data_get_raw_by_name(format->material_datas, name);
-	if (raw == NULL) {
-		iron_log("Material data '%s' not found!", name);
-		return NULL;
-	}
-	return material_data_create(raw, file);
-}
-
-material_data_t *material_data_get_raw_by_name(any_array_t *datas, char *name) {
-	if (strcmp(name, "") == 0) {
-		return (material_data_t *)datas->buffer[0];
-	}
-	for (i32 i = 0; i < (i32)datas->length; ++i) {
-		material_data_t *d = (material_data_t *)datas->buffer[i];
-		if (strcmp(d->name, name) == 0) {
-			return d;
-		}
-	}
-	return NULL;
-}
-
-material_context_t *material_data_get_context(material_data_t *raw, char *name) {
-	for (i32 i = 0; i < (i32)raw->contexts->length; ++i) {
-		material_context_t *c = (material_context_t *)raw->contexts->buffer[i];
-		if (strcmp(c->name, name) == 0) {
-			return c;
-		}
-	}
-	return NULL;
-}
-
-void material_context_load(material_context_t *raw) {
-	raw->_ = calloc(1, sizeof(material_context_runtime_t));
-	if (raw->bind_textures != NULL && raw->bind_textures->length > 0) {
-		raw->_->textures = any_array_create(0);
-		for (i32 i = 0; i < (i32)raw->bind_textures->length; ++i) {
-			bind_tex_t *tex = (bind_tex_t *)raw->bind_textures->buffer[i];
-			if (strcmp(tex->file, "") == 0) { // Empty texture
-				continue;
-			}
-			gpu_texture_t *image = data_get_texture(tex->file);
-			any_array_push(raw->_->textures, image);
-		}
-	}
-}
-
 // ███████╗██╗  ██╗ █████╗ ██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗ █████╗
 // ██╔════╝██║  ██║██╔══██╗██╔══██╗██╔════╝██╔══██╗    ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
 // ███████╗███████║███████║██║  ██║█████╗  ██████╔╝    ██║  ██║███████║   ██║   ███████║
@@ -476,7 +395,11 @@ void material_context_load(material_context_t *raw) {
 // ███████║██║  ██║██║  ██║██████╔╝███████╗██║  ██║    ██████╔╝██║  ██║   ██║   ██║  ██║
 // ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝
 
+i32 _shader_data_uid_counter = 0;
+
 shader_data_t *shader_data_create(shader_data_t *raw) {
+	raw->_      = calloc(1, sizeof(shader_data_runtime_t));
+	raw->_->uid = (float)(++_shader_data_uid_counter); // Start from 1
 	for (i32 i = 0; i < raw->contexts->length; ++i) {
 		shader_context_t *c = (shader_context_t *)raw->contexts->buffer[i];
 		shader_context_load(c);
@@ -540,8 +463,23 @@ void shader_context_load(shader_context_t *raw) {
 	if (raw->_ == NULL) {
 		raw->_ = calloc(1, sizeof(shader_context_runtime_t));
 	}
+	shader_context_load_textures(raw);
 	shader_context_parse_vertex_struct(raw);
 	shader_context_compile(raw);
+}
+
+void shader_context_load_textures(shader_context_t *raw) {
+	if (raw->bind_textures == NULL) {
+		return;
+	}
+	if (raw->_->textures == NULL) {
+		raw->_->textures = any_array_create(0);
+	}
+	raw->_->textures->length = 0;
+	for (i32 i = 0; i < raw->bind_textures->length; ++i) {
+		bind_tex_t *tex = (bind_tex_t *)raw->bind_textures->buffer[i];
+		any_array_push(raw->_->textures, strcmp(tex->file, "") == 0 ? NULL : data_get_texture(tex->file));
+	}
 }
 
 static void shader_context_delete_shaders(shader_context_t *raw) {
@@ -980,7 +918,7 @@ void mesh_data_delete(mesh_data_t *raw) {
 // ██║ ╚═╝ ██║███████╗███████║██║  ██║    ╚██████╔╝██████╔╝╚█████╔╝███████╗╚██████╗   ██║
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝     ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
 
-mesh_object_t *mesh_object_create(mesh_data_t *data, material_data_t *material) {
+mesh_object_t *mesh_object_create(mesh_data_t *data, shader_data_t *material) {
 	mesh_object_t *raw   = calloc(1, sizeof(mesh_object_t));
 	raw->frustum_culling = true;
 	raw->base            = object_create(false);
@@ -1050,17 +988,7 @@ void mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_
 	uniforms_tex_unpack = raw->data->scale_tex;
 	transform_update(raw->base->transform);
 
-	shader_context_t   *scontext = NULL;
-	material_context_t *mcontext = NULL;
-	material_data_t    *mat      = raw->material;
-	for (i32 j = 0; j < (i32)mat->contexts->length; ++j) {
-		material_context_t *c = (material_context_t *)mat->contexts->buffer[j];
-		if (string_equals(c->name, context)) {
-			scontext = shader_data_get_context(mat->_->shader, context);
-			mcontext = c;
-			break;
-		}
-	}
+	shader_context_t *scontext = shader_data_get_context(raw->material, context);
 
 	if (scontext->_->pipe != _mesh_object_last_pipeline) {
 		gpu_set_pipeline(scontext->_->pipe);
@@ -1068,14 +996,13 @@ void mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_
 	}
 	uniforms_set_context_consts(scontext, bind_params);
 	uniforms_set_obj_consts(scontext, raw->base);
-	uniforms_set_material_consts(scontext, mcontext);
 	gpu_set_vertex_buffer(raw->data->_->vertex_buffer);
 	gpu_set_index_buffer(raw->data->_->index_buffer);
 	gpu_draw();
 }
 
-bool mesh_object_valid_context(mesh_object_t *raw, material_data_t *mat, char *context) {
-	return material_data_get_context(mat, context) != NULL;
+bool mesh_object_valid_context(mesh_object_t *raw, shader_data_t *mat, char *context) {
+	return shader_data_get_context(mat, context) != NULL;
 }
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗      ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
@@ -1256,14 +1183,30 @@ void frustum_plane_set_components(frustum_plane_t *raw, f32 x, f32 y, f32 z, f32
 f32 uniforms_pos_unpack = 1.0;
 f32 uniforms_tex_unpack = 1.0;
 
-gpu_texture_t *(*uniforms_tex_links)(object_t *o, material_data_t *md, char *s)     = NULL;
-mat4_t (*uniforms_mat4_links)(object_t *o, material_data_t *md, char *s)            = NULL;
-vec4_t (*uniforms_vec4_links)(object_t *o, material_data_t *md, char *s)            = NULL;
-vec4_t (*uniforms_vec3_links)(object_t *o, material_data_t *md, char *s)            = NULL;
-vec2_t (*uniforms_vec2_links)(object_t *o, material_data_t *md, char *s)            = NULL;
-f32 (*uniforms_f32_links)(object_t *o, material_data_t *md, char *s)                = NULL;
-f32_array_t *(*uniforms_f32_array_links)(object_t *o, material_data_t *md, char *s) = NULL;
-i32 (*uniforms_i32_links)(object_t *o, material_data_t *md, char *s)                = NULL;
+gpu_texture_t *(*uniforms_tex_links)(object_t *o, shader_data_t *md, char *s)     = NULL;
+mat4_t (*uniforms_mat4_links)(object_t *o, shader_data_t *md, char *s)            = NULL;
+vec4_t (*uniforms_vec4_links)(object_t *o, shader_data_t *md, char *s)            = NULL;
+vec4_t (*uniforms_vec3_links)(object_t *o, shader_data_t *md, char *s)            = NULL;
+vec2_t (*uniforms_vec2_links)(object_t *o, shader_data_t *md, char *s)            = NULL;
+f32 (*uniforms_f32_links)(object_t *o, shader_data_t *md, char *s)                = NULL;
+f32_array_t *(*uniforms_f32_array_links)(object_t *o, shader_data_t *md, char *s) = NULL;
+i32 (*uniforms_i32_links)(object_t *o, shader_data_t *md, char *s)                = NULL;
+
+static void uniforms_set_bound_texture(shader_context_t *context, i32 j) {
+	if (context->_->textures == NULL) {
+		return;
+	}
+	char *name = context->texture_units->buffer[j]->name;
+	for (i32 i = 0; i < context->_->textures->length; ++i) {
+		if (context->_->textures->buffer[i] == NULL) { // Empty texture
+			continue;
+		}
+		if (string_equals(context->bind_textures->buffer[i]->name, name)) {
+			gpu_set_texture(context->_->tex_units->buffer[j], context->_->textures->buffer[i]);
+			break;
+		}
+	}
+}
 
 void uniforms_set_context_consts(shader_context_t *context, string_array_t *bind_params) {
 	// On shader compile error, _.constants.length will be 0
@@ -1289,7 +1232,8 @@ void uniforms_set_context_consts(shader_context_t *context, string_array_t *bind
 	if (context->texture_units != NULL && context->texture_units->length == context->_->tex_units->length) {
 		for (i32 j = 0; j < context->texture_units->length; ++j) {
 			char *tulink = context->texture_units->buffer[j]->link;
-			if (tulink == NULL) {
+			if (tulink == NULL) { // Texture bound by name
+				uniforms_set_bound_texture(context, j);
 				continue;
 			}
 
@@ -1800,70 +1744,12 @@ void uniforms_set_obj_const(object_t *obj, i32 loc, shader_const_t *c) {
 	}
 }
 
-void uniforms_set_material_consts(shader_context_t *context, material_context_t *material_context) {
-	if (material_context->bind_constants != NULL) {
-		for (i32 i = 0; i < material_context->bind_constants->length; ++i) {
-			bind_const_t *matc = material_context->bind_constants->buffer[i];
-			i32           pos  = -1;
-			for (i32 j = 0; j < context->constants->length; ++j) {
-				char *name = context->constants->buffer[j]->name;
-				if (string_equals(name, matc->name)) {
-					pos = j;
-					break;
-				}
-			}
-			if (pos == -1) {
-				continue;
-			}
-			shader_const_t *c = context->constants->buffer[pos];
-
-			uniforms_set_material_const(context->_->constants->buffer[pos], c, matc);
-		}
-	}
-
-	if (material_context->_->textures != NULL) {
-		for (i32 i = 0; i < material_context->_->textures->length; ++i) {
-			char *mname = material_context->bind_textures->buffer[i]->name;
-
-			for (i32 j = 0; j < context->_->tex_units->length; ++j) {
-				char *sname = context->texture_units->buffer[j]->name;
-				if (string_equals(mname, sname)) {
-					gpu_set_texture(context->_->tex_units->buffer[j], material_context->_->textures->buffer[i]);
-					break;
-				}
-			}
-		}
-	}
-}
-
-material_data_t *current_material(object_t *object) {
+shader_data_t *current_material(object_t *object) {
 	if (object != NULL && object->ext != NULL) {
 		mesh_object_t *mo = object->ext;
 		return mo->material;
 	}
 	return NULL;
-}
-
-void uniforms_set_material_const(i32 location, shader_const_t *shader_const, bind_const_t *material_const) {
-	if (string_equals(shader_const->type, "float4")) {
-		gpu_set_float4(location, material_const->vec->buffer[0], material_const->vec->buffer[1], material_const->vec->buffer[2],
-		               material_const->vec->buffer[3]);
-	}
-	else if (string_equals(shader_const->type, "float3")) {
-		gpu_set_float3(location, material_const->vec->buffer[0], material_const->vec->buffer[1], material_const->vec->buffer[2]);
-	}
-	else if (string_equals(shader_const->type, "float2")) {
-		gpu_set_float2(location, material_const->vec->buffer[0], material_const->vec->buffer[1]);
-	}
-	else if (string_equals(shader_const->type, "float")) {
-		gpu_set_float(location, material_const->vec->buffer[0]);
-	}
-	else if (string_equals(shader_const->type, "bool")) {
-		gpu_set_bool(location, material_const->vec->buffer[0] > 0.0f);
-	}
-	else if (string_equals(shader_const->type, "int")) {
-		gpu_set_int(location, (i32)math_floor(material_const->vec->buffer[0]));
-	}
 }
 
 // ██████╗  █████╗ ████████╗ █████╗
@@ -1876,7 +1762,6 @@ void uniforms_set_material_const(i32 location, shader_const_t *shader_const, bin
 any_map_t *data_cached_scene_raws = NULL;
 any_map_t *data_cached_meshes     = NULL;
 any_map_t *data_cached_cameras    = NULL;
-any_map_t *data_cached_materials  = NULL;
 any_map_t *data_cached_worlds     = NULL;
 any_map_t *data_cached_shaders    = NULL;
 any_map_t *data_cached_blobs      = NULL;
@@ -1943,20 +1828,6 @@ camera_data_t *data_get_camera(char *file, char *name) {
 	}
 	camera_data_t *b = camera_data_parse(file, name);
 	any_map_set(data_cached_cameras, string_copy(handle), b);
-	return b;
-}
-
-material_data_t *data_get_material(char *file, char *name) {
-	if (data_cached_materials == NULL) {
-		data_cached_materials = any_map_create();
-	}
-	char            *handle = string("%s%s", file, name);
-	material_data_t *cached = (material_data_t *)any_map_get(data_cached_materials, handle);
-	if (cached != NULL) {
-		return cached;
-	}
-	material_data_t *b = material_data_parse(file, name);
-	any_map_set(data_cached_materials, string_copy(handle), b);
 	return b;
 }
 
@@ -2254,7 +2125,7 @@ object_t *scene_get_child(char *name) {
 	return object_get_child(_scene_root, name);
 }
 
-mesh_object_t *scene_add_mesh_object(mesh_data_t *data, material_data_t *material, object_t *parent) {
+mesh_object_t *scene_add_mesh_object(mesh_data_t *data, shader_data_t *material, object_t *parent) {
 	mesh_object_t *object = mesh_object_create(data, material);
 	if (parent != NULL) {
 		object_set_parent(object->base, parent);
@@ -2291,7 +2162,7 @@ void scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *obje
 }
 
 void scene_add_scene(char *scene_name) {
-	scene_t *format = data_get_scene_raw(scene_name);
+	scene_t *format          = data_get_scene_raw(scene_name);
 	_scene_objects_traversed = 0;
 	_scene_objects_count     = scene_get_objects_count(format->objects);
 
@@ -2367,8 +2238,7 @@ object_t *scene_create_object(obj_t *o, scene_t *format, object_t *parent) {
 			return scene_create_mesh_object(o, format, parent, NULL);
 		}
 		else {
-			char            *ref = o->material_ref;
-			material_data_t *mat = data_get_material(scene_name, ref);
+			shader_data_t *mat = data_get_shader(scene_name, o->material_ref);
 			return scene_create_mesh_object(o, format, parent, mat);
 		}
 	}
@@ -2379,7 +2249,7 @@ object_t *scene_create_object(obj_t *o, scene_t *format, object_t *parent) {
 	return NULL;
 }
 
-object_t *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, material_data_t *material) {
+object_t *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, shader_data_t *material) {
 	// Mesh reference
 	any_array_t *ref         = string_split(o->data_ref, "/");
 	char        *object_file = "";
@@ -2396,7 +2266,7 @@ object_t *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, 
 	return scene_return_mesh_object(object_file, data_ref, material, parent, o);
 }
 
-object_t *scene_return_mesh_object(char *object_file, char *data_ref, material_data_t *material, object_t *parent, obj_t *o) {
+object_t *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, obj_t *o) {
 	mesh_data_t   *mesh   = data_get_mesh(object_file, data_ref);
 	mesh_object_t *object = scene_add_mesh_object(mesh, material, parent);
 	return scene_return_object(object->base, o);

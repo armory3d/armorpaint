@@ -126,7 +126,7 @@ static char *sculpt_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 	}
 }
 
-node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context_t *matcon) {
+node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 	char                  *context_id = "paint";
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                  .depth_write     = false,
@@ -483,7 +483,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data, material_context
 
 	// parser_material_parse may add vertex elements
 	i32           velen                      = con_paint->data->vertex_elements->length;
-	shader_out_t *sout                       = parser_material_parse(g_context->material->canvas, con_paint, kong, matcon);
+	shader_out_t *sout                       = parser_material_parse(g_context->material->canvas, con_paint, kong);
 	con_paint->data->vertex_elements->length = velen;
 	parser_material_triplanar                = false;
 	node_shader_write_frag(kong, string_tmp("var disp: float3 = %s;", sout->out_basecol));
@@ -1052,21 +1052,12 @@ void render_path_sculpt_displace_pass(char *texpaint_sculpt) {
 	render_path_bind_target("texpaint_blend1", "paintmask");
 	render_path_bind_target("gbuffer0_undo", "gbuffer0_undo");
 
-	material_context_t *material_context = NULL;
-	shader_context_t   *shader_context   = NULL;
-	material_data_t    *mat              = g_project->_->paint_objects->buffer[0]->material;
-	for (i32 j = 0; j < mat->contexts->length; ++j) {
-		if (string_equals(mat->contexts->buffer[j]->name, "paint")) {
-			shader_context   = shader_data_get_context(mat->_->shader, "paint");
-			material_context = mat->contexts->buffer[j];
-			break;
-		}
-	}
+	shader_data_t    *mat            = g_project->_->paint_objects->buffer[0]->material;
+	shader_context_t *shader_context = shader_data_get_context(mat, "paint");
 
 	gpu_set_pipeline(shader_context->_->pipe);
 	uniforms_set_context_consts(shader_context, _render_path_bind_params);
 	uniforms_set_obj_consts(shader_context, g_project->_->paint_objects->buffer[0]->base);
-	uniforms_set_material_consts(shader_context, material_context);
 	gpu_set_vertex_buffer(const_data_screen_aligned_vb);
 	gpu_set_index_buffer(const_data_screen_aligned_ib);
 	gpu_draw();

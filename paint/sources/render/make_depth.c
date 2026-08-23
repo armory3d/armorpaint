@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-node_shader_context_t *make_depth_run(material_t *data, material_context_t *matcon) {
+node_shader_context_t *make_depth_run(material_t *data) {
 	shader_context_t      *props     = ALLOC_INIT(shader_context_t, {.name            = "depth",
 	                                                                 .depth_write     = true,
 	                                                                 .compare_mode    = "less",

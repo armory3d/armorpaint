@@ -517,8 +517,8 @@ void util_render_create_screen_aligned_full_data() {
 }
 
 void util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gpu_texture_t *image, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
-	parse_node_preview_result_t *res = make_material_parse_node_preview_material(node, group, parents);
-	if (res == NULL || res->scon == NULL) {
+	shader_context_t *scon = make_material_parse_node_preview_material(node, group, parents);
+	if (scon == NULL) {
 		return;
 	}
 
@@ -531,7 +531,7 @@ void util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gp
 	transform_build_matrix(g_context->paint_object->base->transform);
 
 	_gpu_begin(image, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	gpu_set_pipeline(res->scon->_->pipe);
+	gpu_set_pipeline(scon->_->pipe);
 	static string_array_t *empty = NULL;
 	if (empty == NULL) {
 		empty = any_array_create_from_raw(
@@ -540,17 +540,14 @@ void util_render_make_node_preview(ui_node_canvas_t *canvas, ui_node_t *node, gp
 		    },
 		    1);
 	}
-	uniforms_set_context_consts(res->scon, empty);
-	uniforms_set_obj_consts(res->scon, g_context->paint_object->base);
-	uniforms_set_material_consts(res->scon, res->mcon);
+	uniforms_set_context_consts(scon, empty);
+	uniforms_set_obj_consts(scon, g_context->paint_object->base);
 	gpu_set_vertex_buffer(util_render_screen_aligned_full_vb);
 	gpu_set_index_buffer(util_render_screen_aligned_full_ib);
 	gpu_draw();
 	gpu_end();
 
-	make_material_delete_context(res->scon);
-	make_material_delete_material_context(res->mcon);
-	free(res);
+	make_material_delete_context(scon);
 
 	g_context->paint_object->base->transform->scale_world = _scale_world;
 	transform_build_matrix(g_context->paint_object->base->transform);

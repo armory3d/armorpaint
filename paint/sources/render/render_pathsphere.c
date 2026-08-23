@@ -100,22 +100,11 @@ static void create_pathsphere_object() {
 	node_shader_context_t *con = make_pathsphere_shader("render_pathsphere");
 	shader_context_load(con->data);
 
-	shader_data_t      *sd   = ALLOC_INIT(shader_data_t, {
-	                                                         .name     = "render_pathsphere",
-	                                                         .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
-                                                  });
-	material_context_t *mcon = ALLOC_INIT(material_context_t, {
-	                                                              .name           = "overlay",
-	                                                              .bind_constants = any_array_create_from_raw((void *[]){}, 0),
-	                                                              .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
-	                                                          });
-	material_context_load(mcon);
-	material_data_t *mat = ALLOC_INIT(material_data_t, {
-	                                                       .name     = "render_pathsphere",
-	                                                       .shader   = "",
-	                                                       .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
-	                                                       ._        = ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
-	                                                   });
+	shader_data_t *mat = ALLOC_INIT(shader_data_t, {
+	                                                   .name     = "render_pathsphere",
+	                                                   .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
+	                                                   ._        = ALLOC_INIT(shader_data_runtime_t, {.uid = 0.0}),
+	                                               });
 
 	render_pathsphere_obj                  = mesh_object_create(md, mat);
 	render_pathsphere_obj->base->name      = "render_pathsphere";

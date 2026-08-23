@@ -1,8 +1,7 @@
 
 #include "../global.h"
 
-node_shader_context_t *make_node_preview_run(material_t *data, material_context_t *matcon, ui_node_t *node, ui_node_canvas_t *group,
-                                             ui_node_t_array_t *parents) {
+node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
 	char                  *context_id = "mesh";
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                  .depth_write     = false,
@@ -53,9 +52,8 @@ node_shader_context_t *make_node_preview_run(material_t *data, material_context_
 	               {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
 	any_array_push(links, link);
 
-	parser_material_con    = con_mesh;
-	parser_material_kong   = kong;
-	parser_material_matcon = matcon;
+	parser_material_con  = con_mesh;
+	parser_material_kong = kong;
 
 	parser_material_transform_color_space = false;
 	char *res                             = parser_material_write_result(link);
