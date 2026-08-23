@@ -110,3 +110,47 @@ any_map_t *keymap_get_default() {
 	any_map_set(keymap, "swap_brush_eraser", "");
 	return keymap;
 }
+
+bool keymap_shortcut(char *s, shortcut_type_t type) {
+	if (string_equals(s, "") || g_config->workspace == WORKSPACE_PLAYER) {
+		return false;
+	}
+	bool shift = string_index_of(s, "shift") >= 0;
+	bool ctrl  = string_index_of(s, "ctrl") >= 0;
+	bool alt   = string_index_of(s, "alt") >= 0;
+	bool flag  = shift == keyboard_down("shift") && ctrl == keyboard_down("control") && alt == keyboard_down("alt");
+
+	if (string_index_of(s, "+") > 0) {
+		s = s + string_last_index_of(s, "+") + 1;
+		if (string_equals(s, "number")) {
+			return flag;
+		}
+	}
+	else if (shift || ctrl || alt) {
+		return flag;
+	}
+
+	bool key = false;
+	if (string_equals(s, "left") || string_equals(s, "right") || string_equals(s, "middle")) {
+		if (type == SHORTCUT_TYPE_DOWN) {
+			key = mouse_down(s);
+		}
+		else {
+			key = mouse_started(s);
+		}
+	}
+	else if (type == SHORTCUT_TYPE_REPEAT) {
+		key = keyboard_repeat(s);
+	}
+	else if (type == SHORTCUT_TYPE_DOWN) {
+		key = keyboard_down(s);
+	}
+	else if (type == SHORTCUT_TYPE_RELEASED) {
+		key = keyboard_released(s);
+	}
+	else {
+		key = keyboard_started(s);
+	}
+
+	return flag && key;
+}

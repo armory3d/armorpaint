@@ -43,7 +43,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 		static bool pivot_valid = false;
 
 		bool rotate_started =
-		    operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
+		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
 			pivot_valid = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
@@ -106,7 +106,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 		static bool pivot_valid = false;
 
 		bool rotate_started =
-		    operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
+		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
 			pivot_valid = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
@@ -175,7 +175,7 @@ f32 camera_get_zoom_delta() {
 static void camera_zoom_action(bool modif_key) {
 	camera_object_t *camera = scene_camera;
 
-	if (operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN)) {
 		camera_redraws = 2;
 		f32 f          = camera_get_zoom_delta() / (float)(150.0 * (1.0 / (camera_distance() / 2.0)));
 		f *= camera_get_zoom_speed();
@@ -261,7 +261,7 @@ i32 camera_index() {
 
 void camera_pan_action(bool modif, bool default_keymap) {
 	camera_object_t *camera = scene_camera;
-	if (operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) || (mouse_down("middle") && !modif && default_keymap)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) || (mouse_down("middle") && !modif && default_keymap)) {
 		camera_redraws                 = 2;
 		f32    f                       = 150 * (1.0 / (float)(camera_distance() / 4.0));
 		vec4_t look                    = vec4_mult(transform_look(camera->base->transform), mouse_movement_y / (float)f * g_config->camera_pan_speed);
@@ -306,17 +306,17 @@ void camera_update(void *_) {
 	// Restrict the rotation to the horizontal axis
 	bool ruler = keyboard_down(any_map_get(g_keymap, "brush_ruler"));
 
-	if (operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) ||
-	    operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) ||
-	    operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
-	    operator_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && (!modif || ruler)) ||
+	if (keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) ||
+	    keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) ||
+	    keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
+	    keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && (!modif || ruler)) ||
 	    (mouse_started("middle") && !modif) || (mouse_wheel_delta != 0 && !modif_key)) {
 		camera_controls_down = true;
 	}
-	else if (!operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) &&
-	         !operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) &&
-	         !operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) &&
-	         !operator_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN) && !(mouse_down("right") && !modif) &&
+	else if (!keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) &&
+	         !keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) &&
+	         !keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) &&
+	         !keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN) && !(mouse_down("right") && !modif) &&
 	         !(mouse_down("middle") && !modif) && (mouse_wheel_delta == 0 && !modif_key)) {
 		camera_controls_down = false;
 	}
@@ -328,7 +328,7 @@ void camera_update(void *_) {
 	camera_controls_t controls = g_context->camera_controls;
 
 	bool rotate_down =
-	    operator_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && (!modif || ruler) && default_keymap);
+	    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && (!modif || ruler) && default_keymap);
 
 	if (controls == CAMERA_CONTROLS_ORBIT && rotate_down) {
 		camera_orbit_action(modif, default_keymap, ruler);
@@ -345,11 +345,11 @@ void camera_update(void *_) {
 		camera_fly_action(modif_key);
 	}
 
-	if (operator_shortcut(any_map_get(g_keymap, "view_pivot_center"), SHORTCUT_TYPE_STARTED)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "view_pivot_center"), SHORTCUT_TYPE_STARTED)) {
 		camera_set_pivot_center_to_mouse();
 	}
 
-	if (operator_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN)) {
 		camera_redraws = 2;
 		g_context->envmap_angle -= mouse_movement_x / 100.0;
 	}

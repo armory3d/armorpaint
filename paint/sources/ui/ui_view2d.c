@@ -219,15 +219,15 @@ void ui_view2d_update(void *_) {
 		bool decal_mask = context_is_decal_mask_paint();
 		bool set_clone_source =
 		    g_context->tool == TOOL_TYPE_CLONE &&
-		    operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+		    keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
 
 		if (!g_ui->input_down) {
 			ui_view2d_layer_touched = false;
 		}
 
 		if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover &&
-		    (operator_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
-		     operator_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
+		    (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
+		     keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
 		     decal_mask || set_clone_source || g_config->brush_live)) {
 
 			if (g_config->touch_ui) {
@@ -296,7 +296,7 @@ void ui_view2d_update(void *_) {
 				ui_view2d_pan_y = -tw / 2.0 - hh / 2.0 + border;
 			}
 
-			if (operator_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
+			if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
 				ui_view2d_pan_x     = 0.0;
 				ui_view2d_pan_y     = 0.0;
 				ui_view2d_pan_scale = 1.0;

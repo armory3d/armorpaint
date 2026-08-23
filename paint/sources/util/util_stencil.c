@@ -2,7 +2,7 @@
 #include "../global.h"
 
 void util_stencil_transform() {
-	if (g_context->brush_stencil_image != NULL && operator_shortcut(any_map_get(g_keymap, "stencil_transform"), SHORTCUT_TYPE_DOWN)) {
+	if (g_context->brush_stencil_image != NULL && keymap_shortcut(any_map_get(g_keymap, "stencil_transform"), SHORTCUT_TYPE_DOWN)) {
 		rect_t *r = ui_base_get_brush_stencil_rect();
 		if (mouse_started("left")) {
 			g_context->brush_stencil_scaling = ui_base_hit_rect(mouse_x, mouse_y, r->x - 8, r->y - 8, 16, 16) ||

@@ -17,7 +17,7 @@ bool   input_node_registered   = false;
 vec4_t input_node_coords       = (vec4_t){0.0, 0.0, 0.0, 1.0};
 
 static void input_node_grid_snap() {
-	bool snap_shortcut = operator_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN);
+	bool snap_shortcut = keymap_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN);
 	bool in_2d         = context_in_2d_view(VIEW_2D_TYPE_LAYER);
 	bool in_3d         = context_in_3d_view();
 
@@ -92,8 +92,8 @@ void input_node_update(float_node_t *self) {
 
 	bool  decal_mask  = context_is_decal_mask_paint();
 	char *ruler_paint = string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint"));
-	bool  lazy_paint  = g_context->brush_lazy_radius > 0 && (operator_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
-                                                           operator_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
+	bool  lazy_paint  = g_context->brush_lazy_radius > 0 && (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
+                                                           keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
 
 	f32 paint_x = mouse_view_x() / (float)sys_w();
 	f32 paint_y = mouse_view_y() / (float)sys_h();
@@ -112,7 +112,7 @@ void input_node_update(float_node_t *self) {
 		input_node_start_y = pen_view_y() / (float)sys_h();
 	}
 
-	if (operator_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN)) {
+	if (keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN)) {
 		if (input_node_lock_x) {
 			paint_x = input_node_start_x;
 		}

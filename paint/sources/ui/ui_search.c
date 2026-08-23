@@ -41,7 +41,7 @@ void ui_base_operator_search_menu_draw() {
 					g_ui->changed = true;
 					count         = 6; // Trigger break
 				}
-				operator_run(n);
+				// operator_run(n);
 			}
 			if (++count > 6) {
 				break;

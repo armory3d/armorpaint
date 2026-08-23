@@ -21,7 +21,6 @@ ui_t        *g_ui;
 draw_font_t *g_font;
 ui_theme_t  *g_theme;
 any_map_t   *g_plugins;
-any_map_t   *g_operators;
 
 any_map_t       *ui_children;
 any_map_t       *ui_nodes_custom_buttons;

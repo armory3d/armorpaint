@@ -250,7 +250,7 @@ void tab_materials_draw_slots(bool mini) {
 			// Draw material numbers when selecting a material via keyboard shortcut
 			bool is_typing = g_ui->is_typing;
 			if (!is_typing) {
-				if (i < 9 && operator_shortcut(any_map_get(g_keymap, "select_material"), SHORTCUT_TYPE_DOWN)) {
+				if (i < 9 && keymap_shortcut(any_map_get(g_keymap, "select_material"), SHORTCUT_TYPE_DOWN)) {
 					char *number = i32_to_string(i + 1);
 					i32   width  = draw_string_width(g_font, g_ui->font_size, number) + 10;
 					i32   height = draw_font_height(g_font, g_ui->font_size);

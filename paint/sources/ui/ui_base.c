@@ -8,16 +8,6 @@ void ui_base_init_on_next_frame(void *_) {
 	layers_init();
 }
 
-void ui_base_view_top() {
-	bool is_typing = g_ui->is_typing;
-
-	if (context_in_paint_area() && !is_typing) {
-		if (mouse_view_x() < sys_w()) {
-			viewport_set_view(0, 0, 1, 0, 0, 0);
-		}
-	}
-}
-
 void ui_base_on_border_hover(ui_handle_t *handle, i32 side) {
 	if (!base_ui_enabled) {
 		return;
@@ -162,8 +152,6 @@ void ui_base_init() {
 	if (string_equals(g_project->_->filepath, "")) {
 		sys_notify_on_next_frame(&ui_base_init_on_next_frame, NULL);
 	}
-
-	operator_register("view_top", ui_base_view_top);
 }
 
 void ui_base_menu_draw_viewport_mode() {
@@ -228,7 +216,6 @@ void ui_base_update(void *_) {
 		util_shortcut_viewport();
 		util_resize_borders();
 		util_particle_update();
-		operator_update();
 	}
 
 	string_array_t *keys = map_keys(g_plugins);

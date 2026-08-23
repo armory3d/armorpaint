@@ -453,7 +453,7 @@ void render_path_base_draw_gbuffer() {
 		render_path_draw_meshes("depth");
 	}
 
-	bool hide     = operator_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN) || keyboard_down("control");
+	bool hide     = keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN) || keyboard_down("control");
 	bool is_decal = base_is_decal_layer();
 	if (is_decal && !hide) {
 		line_draw_color            = 0xff000000;

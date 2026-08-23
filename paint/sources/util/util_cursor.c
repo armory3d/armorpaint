@@ -20,7 +20,7 @@ void util_cursor_render(void *_) {
 
 	if (g_context->brush_stencil_image != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_COLORID) {
 		rect_t *r = ui_base_get_brush_stencil_rect();
-		if (!operator_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN)) {
+		if (!keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN)) {
 			draw_set_color(0x88ffffff);
 			f32 angle = g_context->brush_stencil_angle;
 			draw_set_transform(mat3_multmat(mat3_multmat(mat3_translation(0.5, 0.5), mat3_rotation(-angle)), mat3_translation(-0.5, -0.5)));
@@ -28,7 +28,7 @@ void util_cursor_render(void *_) {
 			draw_set_transform(mat3_nan());
 			draw_set_color(0xffffffff);
 		}
-		bool transform = operator_shortcut(any_map_get(g_keymap, "stencil_transform"), SHORTCUT_TYPE_DOWN);
+		bool transform = keymap_shortcut(any_map_get(g_keymap, "stencil_transform"), SHORTCUT_TYPE_DOWN);
 		if (transform) {
 			// Outline
 			draw_rect(r->x, r->y, r->w, r->h, 1.0);

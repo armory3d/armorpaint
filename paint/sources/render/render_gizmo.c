@@ -12,7 +12,7 @@ void render_gizmo_update() {
 	bool is_decal  = base_is_decal_layer();
 
 	object_t *gizmo = g_context->gizmo;
-	bool      hide  = operator_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN);
+	bool      hide  = keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN);
 	gizmo->visible  = (is_object || is_decal) && !hide && g_config->workspace != WORKSPACE_PLAYER;
 	if (!gizmo->visible) {
 		return;
@@ -347,7 +347,7 @@ void render_gizmo_update() {
 		}
 
 		gizmo_drag_raw = g_context->gizmo_drag;
-		if (operator_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN) || g_config->grid_snap) {
+		if (keymap_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN) || g_config->grid_snap) {
 			bool is_rotate             = g_context->rotate_x || g_context->rotate_y || g_context->rotate_z;
 			f32  step                  = is_rotate ? IRON_PI / 4.0 : 0.5; // 45 degrees / 0.5 units
 			g_context->gizmo_drag      = math_round(g_context->gizmo_drag / step) * step;

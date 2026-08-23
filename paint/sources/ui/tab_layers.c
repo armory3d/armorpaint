@@ -135,7 +135,7 @@ ui_state_t tab_layers_draw_layer_icon(slot_layer_t *l, i32 i, f32 uix, f32 uiy, 
 		// Draw layer numbers when selecting a layer via keyboard shortcut
 		bool is_typing = g_ui->is_typing;
 		if (!is_typing) {
-			if (i < 9 && operator_shortcut(any_map_get(g_keymap, "select_layer"), SHORTCUT_TYPE_DOWN)) {
+			if (i < 9 && keymap_shortcut(any_map_get(g_keymap, "select_layer"), SHORTCUT_TYPE_DOWN)) {
 				char *number = i32_to_string(i + 1);
 				i32   width  = draw_string_width(g_font, g_ui->font_size, number) + 10;
 				i32   height = draw_font_height(g_font, g_ui->font_size);

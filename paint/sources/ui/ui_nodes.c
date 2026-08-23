@@ -436,12 +436,12 @@ ui_canvas_control_t *ui_nodes_get_canvas_control(bool controls_down, bool is_nod
 			iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
 		}
 	}
-	if (operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
-	    operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) || g_ui->input_started_r || g_ui->input_wheel_delta != 0.0) {
+	if (keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
+	    keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) || g_ui->input_started_r || g_ui->input_wheel_delta != 0.0) {
 		controls_down = true;
 	}
-	else if (!operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) &&
-	         !operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) && !g_ui->input_down_r && g_ui->input_wheel_delta == 0.0) {
+	else if (!keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) &&
+	         !keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) && !g_ui->input_down_r && g_ui->input_wheel_delta == 0.0) {
 		controls_down = false;
 	}
 
@@ -450,8 +450,8 @@ ui_canvas_control_t *ui_nodes_get_canvas_control(bool controls_down, bool is_nod
 		return cc;
 	}
 
-	bool                 pan        = g_ui->input_down_r || operator_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN);
-	f32                  zoom_delta = operator_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) ? ui_nodes_get_zoom_delta() / 100.0 : 0.0;
+	bool                 pan        = g_ui->input_down_r || keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN);
+	f32                  zoom_delta = keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) ? ui_nodes_get_zoom_delta() / 100.0 : 0.0;
 	ui_canvas_control_t *control    = ALLOC_INIT(ui_canvas_control_t, {.pan_x = pan ? g_ui->input_dx : 0.0,
 	                                                                   .pan_y = pan ? g_ui->input_dy : 0.0,
 	                                                                   .zoom  = g_ui->input_wheel_delta != 0.0 ? -g_ui->input_wheel_delta / 10 : zoom_delta,
@@ -757,7 +757,7 @@ void ui_nodes_update(void *_) {
 			}
 
 			// Node search popup
-			if (operator_shortcut(any_map_get(g_keymap, "node_search"), SHORTCUT_TYPE_STARTED)) {
+			if (keymap_shortcut(any_map_get(g_keymap, "node_search"), SHORTCUT_TYPE_STARTED)) {
 				ui_nodes_node_search(-1, -1, NULL);
 			}
 			if (ui_nodes_node_search_spawn != NULL) {
@@ -766,13 +766,13 @@ void ui_nodes_update(void *_) {
 				ui_nodes_node_search_spawn = NULL;
 			}
 
-			if (operator_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
+			if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
 				nodes->pan_x = 0.0;
 				nodes->pan_y = 0.0;
 				nodes->zoom  = 1.0;
 			}
 
-			if (operator_shortcut(any_map_get(g_keymap, "node_overview"), SHORTCUT_TYPE_STARTED)) {
+			if (keymap_shortcut(any_map_get(g_keymap, "node_overview"), SHORTCUT_TYPE_STARTED)) {
 				nodes->zoom = nodes->zoom == 1.0 ? 0.2 : 1.0;
 				nodes->uiw  = ui_nodes_ww;
 				nodes->uih  = ui_nodes_wh;

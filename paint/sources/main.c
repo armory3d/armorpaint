@@ -213,7 +213,6 @@
 #include "node_shader.c"
 #include "nodes_brush.c"
 #include "nodes_material.c"
-#include "operator.c"
 #include "parser_logic.c"
 #include "parser_material.c"
 #include "pipes.c"
@@ -241,7 +240,6 @@ void _kickstart() {
 	_render_path_cached_shader_contexts = any_map_create();
 	ui_children                         = any_map_create();
 	ui_nodes_custom_buttons             = any_map_create();
-	g_operators                         = any_map_create();
 	box_export_htab                     = ui_handle_create();
 	box_export_mesh_handle              = ui_handle_create();
 	box_export_hpreset                  = ui_handle_create();
