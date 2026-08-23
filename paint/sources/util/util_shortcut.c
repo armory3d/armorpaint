@@ -330,7 +330,7 @@ void util_shortcut_viewport() {
 				ui_menu_draw(&ui_base_menu_draw_viewport_mode, -1, -1);
 			}
 		}
-		if (keymap_shortcut(any_map_get(g_keymap, "operator_search"), SHORTCUT_TYPE_STARTED)) {
+		if (keymap_shortcut(any_map_get(g_keymap, "keymap_search"), SHORTCUT_TYPE_STARTED)) {
 			ui_base_operator_search();
 		}
 	}

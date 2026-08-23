@@ -86,7 +86,7 @@ any_map_t *keymap_get_default() {
 	any_map_set(keymap, "toggle_browser", "`");
 	any_map_set(keymap, "node_overview", "z");
 	any_map_set(keymap, "node_search", "space");
-	any_map_set(keymap, "operator_search", "space");
+	any_map_set(keymap, "keymap_search", "space");
 	any_map_set(keymap, "decal_mask", "ctrl");
 	any_map_set(keymap, "brush_camera_align", "z");
 	any_map_set(keymap, "grid_snap", "x");
