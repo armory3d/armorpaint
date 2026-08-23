@@ -347,7 +347,7 @@ void render_gizmo_update() {
 		}
 
 		gizmo_drag_raw = g_context->gizmo_drag;
-		if (operator_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN)) {
+		if (operator_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN) || g_config->grid_snap) {
 			bool is_rotate             = g_context->rotate_x || g_context->rotate_y || g_context->rotate_z;
 			f32  step                  = is_rotate ? IRON_PI / 4.0 : 0.5; // 45 degrees / 0.5 units
 			g_context->gizmo_drag      = math_round(g_context->gizmo_drag / step) * step;
