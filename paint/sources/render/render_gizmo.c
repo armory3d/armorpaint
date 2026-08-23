@@ -1,10 +1,11 @@
 
 #include "../global.h"
 
-static vec4_t gizmo_v  = (vec4_t){0.0, 0.0, 0.0, 1.0};
-static vec4_t gizmo_v0 = (vec4_t){0.0, 0.0, 0.0, 1.0};
-static quat_t gizmo_q  = (quat_t){0.0, 0.0, 0.0, 1.0};
-static quat_t gizmo_q0 = (quat_t){0.0, 0.0, 0.0, 1.0};
+static vec4_t gizmo_v        = (vec4_t){0.0, 0.0, 0.0, 1.0};
+static vec4_t gizmo_v0       = (vec4_t){0.0, 0.0, 0.0, 1.0};
+static quat_t gizmo_q        = (quat_t){0.0, 0.0, 0.0, 1.0};
+static quat_t gizmo_q0       = (quat_t){0.0, 0.0, 0.0, 1.0};
+static f32    gizmo_drag_raw = 0.0;
 
 void render_gizmo_update() {
 	bool is_object = g_context->tool == TOOL_TYPE_CURSOR;
@@ -259,6 +260,10 @@ void render_gizmo_update() {
 			gizmo_v = (vec4_t){g_context->layer->decal_mat.m30, g_context->layer->decal_mat.m31, g_context->layer->decal_mat.m32, 1.0};
 		}
 
+		if (!g_context->gizmo_started) {
+			g_context->gizmo_drag = gizmo_drag_raw;
+		}
+
 		// Project the world axis into screen space and map per-frame mouse delta onto it
 		if (g_context->translate_x || g_context->scale_x) {
 			if (g_context->gizmo_started) {
@@ -339,6 +344,14 @@ void render_gizmo_update() {
 				}
 				g_context->gizmo_drag = math_atan2(v, u) - g_context->gizmo_offset;
 			}
+		}
+
+		gizmo_drag_raw = g_context->gizmo_drag;
+		if (operator_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN)) {
+			bool is_rotate             = g_context->rotate_x || g_context->rotate_y || g_context->rotate_z;
+			f32  step                  = is_rotate ? IRON_PI / 4.0 : 0.5; // 45 degrees / 0.5 units
+			g_context->gizmo_drag      = math_round(g_context->gizmo_drag / step) * step;
+			g_context->gizmo_drag_last = math_round(g_context->gizmo_drag_last / step) * step;
 		}
 
 		if (g_context->gizmo_started) {
