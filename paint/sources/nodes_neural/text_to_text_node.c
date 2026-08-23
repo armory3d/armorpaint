@@ -256,6 +256,13 @@ void text_to_text_node_clear(void) {
 	iron_delete_file(string("%s%sprompt.txt", gdir, PATH_SEP));
 }
 
+char *text_to_text_node_reference(void) {
+	char *api      = minic_api_header_generate();
+	char *nodes    = text_to_text_node_nodes_reference();
+	char *contents = text_to_text_node_project_contents();
+	return string("%s\n%s\n%s\n%s\n", api, nodes, contents, text_to_text_node_guide);
+}
+
 void text_to_text_node_run(char *prompt, void (*done)(char *)) {
 	char *dir = neural_node_dir();
 	if (string_equals(file_read_directory(dir)->buffer[0], "")) {
@@ -263,14 +270,9 @@ void text_to_text_node_run(char *prompt, void (*done)(char *)) {
 	}
 	text_to_text_node_backend = g_config->console_model;
 
-	char *api       = minic_api_header_generate();
-	char *nodes     = text_to_text_node_nodes_reference();
-	char *contents  = text_to_text_node_project_contents();
-	char *reference = string("%s\n%s\n%s\n%s\n", api, nodes, contents, text_to_text_node_guide);
-
 	string_array_t *argv;
 	if (text_to_text_node_backend == CONSOLE_MODEL_CLAUDE) {
-		iron_file_save_bytes(string("%s%sapi.h", dir, PATH_SEP), sys_string_to_buffer(reference), 0);
+		iron_file_save_bytes(string("%s%sapi.h", dir, PATH_SEP), sys_string_to_buffer(text_to_text_node_reference()), 0);
 		argv = text_to_text_node_claude_args(dir, prompt);
 	}
 	else if (text_to_text_node_backend == CONSOLE_MODEL_GROK) {
@@ -278,15 +280,15 @@ void text_to_text_node_run(char *prompt, void (*done)(char *)) {
 		if (string_equals(file_read_directory(gdir)->buffer[0], "")) {
 			iron_create_directory(gdir);
 		}
-		char *rules = string("%s\n%s\n", api, text_to_text_node_guide);
+		char *rules = string("%s\n%s\n", minic_api_header_generate(), text_to_text_node_guide);
 		iron_file_save_bytes(string("%s%sAGENTS.md", gdir, PATH_SEP), sys_string_to_buffer(rules), 0);
 
-		char *full = string("%s\n%s\n\n%s", contents, prompt, text_to_text_node_guide);
+		char *full = string("%s\n%s\n\n%s", text_to_text_node_project_contents(), prompt, text_to_text_node_guide);
 		iron_file_save_bytes(string("%s%sprompt.txt", gdir, PATH_SEP), sys_string_to_buffer(full), 0);
 		argv = text_to_text_node_grok_args(gdir);
 	}
 	else {
-		char *full = string("%s%s", reference, prompt);
+		char *full = string("%s%s", text_to_text_node_reference(), prompt);
 		iron_file_save_bytes(string("%s%sprompt.txt", dir, PATH_SEP), sys_string_to_buffer(full), 0);
 		argv = text_to_text_node_qwen_args(dir);
 	}
