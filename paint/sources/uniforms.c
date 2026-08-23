@@ -365,7 +365,7 @@ void uniforms_ext_cache_uv_map(void *_) {
 	util_uv_cache_uv_map();
 }
 
-static gpu_texture_t *_uniforms_ext_undo_target(char *name) {
+static gpu_texture_t *_uniforms_ext_get_target(char *name) {
 	render_target_t *rt = any_map_get(render_path_render_targets, name);
 	if (rt == NULL) {
 		rt = any_map_get(render_path_render_targets, "empty_black");
@@ -376,18 +376,27 @@ static gpu_texture_t *_uniforms_ext_undo_target(char *name) {
 gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string_tmp("texpaint_undo%d", i));
+		return _uniforms_ext_get_target(string_tmp("texpaint_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_nor_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string_tmp("texpaint_nor_undo%d", i));
+		return _uniforms_ext_get_target(string_tmp("texpaint_nor_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_pack_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		return _uniforms_ext_undo_target(string_tmp("texpaint_pack_undo%d", i));
+		return _uniforms_ext_get_target(string_tmp("texpaint_pack_undo%d", i));
+	}
+	else if (string_equals(link, "_texpaint_ref")) {
+		return _uniforms_ext_get_target("texpaint_ref");
+	}
+	else if (string_equals(link, "_texpaint_nor_ref")) {
+		return _uniforms_ext_get_target("texpaint_nor_ref");
+	}
+	else if (string_equals(link, "_texpaint_pack_ref")) {
+		return _uniforms_ext_get_target("texpaint_pack_ref");
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
-		return _uniforms_ext_undo_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
+		return _uniforms_ext_get_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {

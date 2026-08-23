@@ -169,6 +169,49 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 	}
 }
 
+static void render_path_paint_ref_target(char *name, char *format) {
+	render_target_t *rt = any_map_get(render_path_render_targets, name);
+	if (rt != NULL && (rt->width != config_get_texture_res_x() || rt->height != config_get_texture_res_y() || !string_equals(rt->format, format))) {
+		gpu_delete_texture(rt->_image);
+		map_delete(render_path_render_targets, name);
+		rt = NULL;
+	}
+	if (rt == NULL) {
+		render_target_t *t = render_target_create();
+		t->name            = name;
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = format;
+		render_path_create_render_target(t);
+	}
+}
+
+static void render_path_paint_ref_snapshot(i32 tid, bool is_mask) {
+	if (is_mask) {
+		render_path_paint_ref_target("texpaint_ref", "RGBA32");
+		render_path_set_target("texpaint_ref", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_bind_target(string_tmp("texpaint%d", tid), "tex");
+		render_path_draw_shader("Scene/copy_pass/copy_pass");
+		return;
+	}
+	char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	render_path_paint_ref_target("texpaint_ref", format);
+	render_path_paint_ref_target("texpaint_nor_ref", format);
+	render_path_paint_ref_target("texpaint_pack_ref", format);
+	string_array_t *additional = any_array_create_from_raw_tmp(
+	    (void *[]){
+	        "texpaint_nor_ref",
+	        "texpaint_pack_ref",
+	    },
+	    2);
+	render_path_set_target("texpaint_ref", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target(string_tmp("texpaint%d", tid), "tex0");
+	render_path_bind_target(string_tmp("texpaint_nor%d", tid), "tex1");
+	render_path_bind_target(string_tmp("texpaint_pack%d", tid), "tex2");
+	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : string_equals(format, "RGBA64") ? "copy_mrt3RGBA64_pass" : "copy_mrt3RGBA128_pass";
+	render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
+}
+
 void render_path_paint_commands_paint(bool dilation) {
 	i32 tid = g_context->layer->id;
 
@@ -417,6 +460,10 @@ void render_path_paint_commands_paint(bool dilation) {
 		// Read texcoords from gbuffer
 		bool read_tc = (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_FACE) || g_context->tool == TOOL_TYPE_CLONE ||
 		               g_context->tool == TOOL_TYPE_BLUR;
+
+		if (g_context->tool == TOOL_TYPE_BLUR) {
+			render_path_paint_ref_snapshot(tid, is_mask);
+		}
 
 		if (g_context->tool == TOOL_TYPE_PARTICLE) {
 			render_path_paint_commands_particle(tid, texpaint, is_mask);

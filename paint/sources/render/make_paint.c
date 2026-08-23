@@ -195,6 +195,14 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	bool uv_island_fill = g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_UV_ISLAND;
 	bool decal          = context_is_decal();
 
+	bool  accum         = g_context->tool == TOOL_TYPE_BLUR;
+	char *tex_src       = accum ? "texpaint_ref" : "texpaint_undo";
+	char *tex_nor_src   = accum ? "texpaint_nor_ref" : "texpaint_nor_undo";
+	char *tex_pack_src  = accum ? "texpaint_pack_ref" : "texpaint_pack_undo";
+	char *tex_src_link  = accum ? "_texpaint_ref" : "_texpaint_undo";
+	char *tex_nor_link  = accum ? "_texpaint_nor_ref" : "_texpaint_nor_undo";
+	char *tex_pack_link = accum ? "_texpaint_pack_ref" : "_texpaint_pack_undo";
+
 	char *tuv = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
 	if (is_atlas) {
 		node_shader_add_constant(kong, "atlas_transform: float3", "_atlas_transform");
@@ -316,9 +324,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	if (g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_texture(kong, "gbuffer2", NULL);
 		node_shader_add_constant(kong, "gbuffer_size: float2", "_gbuffer_size");
-		node_shader_add_texture(kong, "texpaint_undo", "_texpaint_undo");
-		node_shader_add_texture(kong, "texpaint_nor_undo", "_texpaint_nor_undo");
-		node_shader_add_texture(kong, "texpaint_pack_undo", "_texpaint_pack_undo");
+		node_shader_add_texture(kong, tex_src, tex_src_link);
+		node_shader_add_texture(kong, tex_nor_src, tex_nor_link);
+		node_shader_add_texture(kong, tex_pack_src, tex_pack_link);
 
 		if (g_context->tool == TOOL_TYPE_CLONE) {
 			make_clone_run(kong);
@@ -495,11 +503,16 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	node_shader_write_frag(kong, "sample_tc.y = 1.0 - sample_tc.y;");
 	node_shader_add_texture(kong, "paintmask", NULL);
 	node_shader_write_frag(kong, "var sample_mask: float = sample_lod(paintmask, sampler_linear, sample_tc, 0.0).r;");
-	node_shader_write_frag(kong, "var base_str: float = max(str, sample_mask);");
-	node_shader_write_frag(kong, "str = base_str + str * (1.0 - base_str) * 0.1;");
+	if (accum) {
+		node_shader_write_frag(kong, "str *= 0.5;");
+	}
+	else {
+		node_shader_write_frag(kong, "var base_str: float = max(str, sample_mask);");
+		node_shader_write_frag(kong, "str = base_str + str * (1.0 - base_str) * 0.1;");
+	}
 
-	node_shader_add_texture(kong, "texpaint_undo", "_texpaint_undo");
-	node_shader_write_frag(kong, "var sample_undo: float4 = sample_lod(texpaint_undo, sampler_linear, sample_tc, 0.0);");
+	node_shader_add_texture(kong, tex_src, tex_src_link);
+	node_shader_write_frag(kong, string_tmp("var sample_undo: float4 = sample_lod(%s, sampler_linear, sample_tc, 0.0);", tex_src));
 
 	f32 matid = g_context->material->id / 255.0;
 	if (g_context->picker_paint_mask) {
@@ -532,10 +545,10 @@ node_shader_context_t *make_paint_run_context(material_t *data, material_context
 	}
 
 	// Output
-	node_shader_add_texture(kong, "texpaint_nor_undo", "_texpaint_nor_undo");
-	node_shader_add_texture(kong, "texpaint_pack_undo", "_texpaint_pack_undo");
-	node_shader_write_frag(kong, "var sample_nor_undo: float4 = sample_lod(texpaint_nor_undo, sampler_linear, sample_tc, 0.0);");
-	node_shader_write_frag(kong, "var sample_pack_undo: float4 = sample_lod(texpaint_pack_undo, sampler_linear, sample_tc, 0.0);");
+	node_shader_add_texture(kong, tex_nor_src, tex_nor_link);
+	node_shader_add_texture(kong, tex_pack_src, tex_pack_link);
+	node_shader_write_frag(kong, string_tmp("var sample_nor_undo: float4 = sample_lod(%s, sampler_linear, sample_tc, 0.0);", tex_nor_src));
+	node_shader_write_frag(kong, string_tmp("var sample_pack_undo: float4 = sample_lod(%s, sampler_linear, sample_tc, 0.0);", tex_pack_src));
 
 	bool is_mask = slot_layer_is_mask(g_context->layer);
 	if (g_context->tool == TOOL_TYPE_ERASER && !is_mask) {
