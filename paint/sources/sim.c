@@ -1,8 +1,7 @@
 
 #include "global.h"
 
-any_array_t *sim_transforms;
-bool         sim_initialized = false;
+bool sim_initialized = false;
 
 void sim_init() {
 	if (sim_initialized) {
@@ -19,58 +18,16 @@ void sim_update() {
 		trait_update();
 		physics_world_update();
 		iron_delay_idle_sleep();
-		if (sim_record) {
-			render_target_t *rt     = any_map_get(render_path_render_targets, "last");
-			buffer_t        *pixels = gpu_get_texture_pixels(rt->_image);
-#ifdef IRON_BGRA
-			buffer_bgra_swap(pixels);
-#endif
-			// iron_mp4_encode(pixels);
-		}
 	}
 }
 
 void sim_play() {
 	sim_running = true;
-
-	if (sim_record) {
-		if (string_equals(g_project->_->filepath, "")) {
-			console_error(tr("Save project first"));
-			sim_record = false;
-			return;
-		}
-		char            *path = string("%s/output.mp4", path_base_dir(g_project->_->filepath));
-		render_target_t *rt   = any_map_get(render_path_render_targets, "last");
-		// iron_mp4_begin(path, rt._image.width, rt._image.height);
-	}
-
-	// Save transforms
-	sim_transforms             = any_array_create_from_raw((void *[]){}, 0);
-	mesh_object_t_array_t *pos = g_project->_->paint_objects;
-	for (i32 i = 0; i < pos->length; ++i) {
-		mat4_t *m = calloc(1, sizeof(mat4_t));
-		memcpy(m->m, pos->buffer[i]->base->transform->local.m, sizeof(m->m));
-		any_array_push(sim_transforms, m);
-	}
 }
 
 void sim_stop() {
 	sim_running = false;
 	trait_stop();
-
-	if (sim_record) {
-		// iron_mp4_end();
-	}
-
-	// Restore transforms
-	mesh_object_t_array_t *pos = g_project->_->paint_objects;
-	for (i32 i = 0; i < pos->length; ++i) {
-		transform_set_matrix(pos->buffer[i]->base->transform, *(mat4_t *)sim_transforms->buffer[i]);
-		physics_body_t *pb = pos->buffer[i]->base->_->body;
-		if (pb != NULL) {
-			physics_body_sync_transform(pb);
-		}
-	}
 }
 
 void sim_add_body(object_t *o, physics_shape_t shape, f32 mass) {

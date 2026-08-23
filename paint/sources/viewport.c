@@ -153,7 +153,10 @@ void viewport_capture_video_update(void *_) {
 #ifdef IRON_BGRA
 	buffer_bgra_swap(pixels);
 #endif
+
+#ifdef WITH_VIDEO_WRITE
 	iron_mp4_encode(pixels);
+#endif
 }
 
 void viewport_capture_video_begin() {
@@ -164,12 +167,16 @@ void viewport_capture_video_begin() {
 	viewport_recording    = true;
 	char            *path = string("%s/output.mp4", path_base_dir(g_project->_->filepath));
 	render_target_t *rt   = any_map_get(render_path_render_targets, "last");
+#ifdef WITH_VIDEO_WRITE
 	iron_mp4_begin(path, rt->_image->width, rt->_image->height);
+#endif
 	sys_notify_on_update(viewport_capture_video_update, NULL);
 }
 
 void viewport_capture_video_end() {
 	sys_remove_update(viewport_capture_video_update);
+#ifdef WITH_VIDEO_WRITE
 	iron_mp4_end();
+#endif
 	viewport_recording = false;
 }
