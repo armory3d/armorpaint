@@ -83,9 +83,7 @@ static descriptor_set_groups  all_descriptor_set_groups;
 static allocated_global allocated_globals[1024];
 size_t                  allocated_globals_size = 0;
 
-const char all_names[1024 * 1024];
-uint64_t   next_variable_id = 1;
-variable   all_variables[1024 * 1024];
+uint64_t next_variable_id = 1;
 
 bool               kong_error          = false;
 static function   *functions           = NULL;
@@ -858,10 +856,9 @@ variable find_variable(block *parent, name_id name) {
 
 variable allocate_variable(type_ref type, variable_kind kind) {
 	variable v;
-	v.index                = next_variable_id;
-	v.type                 = type;
-	v.kind                 = kind;
-	all_variables[v.index] = v;
+	v.index = next_variable_id;
+	v.type  = type;
+	v.kind  = kind;
 	++next_variable_id;
 	return v;
 }
