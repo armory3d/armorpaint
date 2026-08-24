@@ -196,12 +196,21 @@ const char *test12 = " \n\
 		minic_ctx_free(_c);                                                           \
 	} while (0)
 
+static minic_val_t mw_test2_get(minic_val_t *a, int n) {
+	return minic_val_ptr(test2_get(minic_arg_i(a, n, 0)));
+}
+
+static minic_val_t mw_test3_call(minic_val_t *a, int n) {
+	test3_call(minic_arg_p(a, n, 0));
+	return minic_val_int(0);
+}
+
 void minic_tests() {
 	MINIC_TEST(0, test0);
 	MINIC_TEST(1, test1);
-	minic_register("test2_get", "p(i)", (minic_ext_fn_raw_t)test2_get);
+	minic_register("test2_get", "p(i)", mw_test2_get);
 	MINIC_TEST(2, test2);
-	minic_register("test3_call", "v(p)", (minic_ext_fn_raw_t)test3_call);
+	minic_register("test3_call", "v(p)", mw_test3_call);
 	{
 		minic_ctx_t *_c = minic_eval(test3);
 		minic_ctx_result(_c) == 0.0f ? printf("3: PASS (2/2)\n") : printf("3: FAIL\n");

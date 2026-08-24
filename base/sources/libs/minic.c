@@ -2262,41 +2262,6 @@ void minic_register_enum(const char *typedef_name, const char **names, const int
 	}
 }
 
-static minic_type_t minic_sig_char(char c) {
-	switch (c) {
-	case 'f':
-		return MINIC_T_FLOAT;
-	case 'p':
-		return MINIC_T_PTR;
-	case 'b':
-		return MINIC_T_BOOL;
-	case 'c':
-		return MINIC_T_CHAR;
-	case 'v':
-		return MINIC_T_VOID;
-	default:
-		return MINIC_T_INT;
-	}
-}
-
-static void minic_parse_sig(minic_ext_func_t *ef) {
-	const char *s = ef->sig;
-	ef->ret_type  = minic_sig_char(*s);
-	if (*s) {
-		s++; // skip ret type char
-	}
-	if (*s == '(') {
-		s++; // skip '('
-	}
-	ef->param_count = 0;
-	while (*s && *s != ')') {
-		if (*s != ',' && ef->param_count < MINIC_MAX_PARAMS) {
-			ef->param_types[ef->param_count++] = minic_sig_char(*s);
-		}
-		s++;
-	}
-}
-
 static minic_ext_func_t *minic_ext_func_add(const char *name) {
 	minic_ext_func_t *ef = minic_ext_func_get(name);
 	if (ef == NULL && minic_ext_func_count < MINIC_MAX_EXTFUNS) {
@@ -2307,28 +2272,61 @@ static minic_ext_func_t *minic_ext_func_add(const char *name) {
 	return ef;
 }
 
-void minic_register(const char *name, const char *sig, minic_ext_fn_raw_t fn) {
+void minic_register(const char *name, const char *sig, minic_native_fn_t fn) {
 	minic_ext_func_t *ef = minic_ext_func_add(name);
 	if (ef == NULL) {
 		return;
 	}
 	strncpy(ef->sig, sig != NULL ? sig : "i()", MINIC_MAX_SIG - 1);
 	ef->fn = fn;
-	minic_parse_sig(ef);
 }
 
 void minic_register_native(const char *name, minic_native_fn_t fn) {
 	minic_ext_func_t *ef = minic_ext_func_add(name);
 	if (ef != NULL) {
-		ef->native_fn = fn;
+		ef->fn = fn;
 	}
 }
 
-minic_ext_func_t *minic_ext_func_get(const char *name) {
+#define MINIC_EXT_HASH_SIZE 2048
+
+static int16_t minic_ext_hash[MINIC_EXT_HASH_SIZE];
+static int     minic_ext_hash_count = -1;
+
+static unsigned minic_name_hash(const char *s) {
+	unsigned h = 2166136261u; // FNV-1a
+	while (*s != '\0') {
+		h ^= (unsigned char)*s++;
+		h *= 16777619u;
+	}
+	return h & (MINIC_EXT_HASH_SIZE - 1);
+}
+
+static void minic_ext_hash_build(void) {
+	for (int i = 0; i < MINIC_EXT_HASH_SIZE; ++i) {
+		minic_ext_hash[i] = -1;
+	}
 	for (int i = 0; i < minic_ext_func_count; ++i) {
-		if (strcmp(minic_ext_funcs[i].name, name) == 0) {
-			return &minic_ext_funcs[i];
+		unsigned h = minic_name_hash(minic_ext_funcs[i].name);
+		while (minic_ext_hash[h] != -1) {
+			h = (h + 1) & (MINIC_EXT_HASH_SIZE - 1);
 		}
+		minic_ext_hash[h] = (int16_t)i;
+	}
+	minic_ext_hash_count = minic_ext_func_count;
+}
+
+minic_ext_func_t *minic_ext_func_get(const char *name) {
+	if (minic_ext_hash_count != minic_ext_func_count) {
+		minic_ext_hash_build();
+	}
+	unsigned h = minic_name_hash(name);
+	while (minic_ext_hash[h] != -1) {
+		minic_ext_func_t *ef = &minic_ext_funcs[minic_ext_hash[h]];
+		if (strcmp(ef->name, name) == 0) {
+			return ef;
+		}
+		h = (h + 1) & (MINIC_EXT_HASH_SIZE - 1);
 	}
 	return NULL;
 }
@@ -2376,278 +2374,22 @@ int minic_enum_const_value_at(int i) {
 // ██████╔╝██║███████║██║     ██║  ██║   ██║   ╚██████╗██║  ██║
 // ╚═════╝ ╚═╝╚══════╝╚═╝     ╚═╝  ╚═╝   ╚═╝    ╚═════╝╚═╝  ╚═╝
 //
-// Args are normalized into int/float/ptr slots and the C function is called
-// through an exactly-typed cast (required for wasm and all native ABIs).
-// One D-line per supported signature; add new combinations to the table below.
+float minic_arg_f(minic_val_t *args, int argc, int i) {
+	return i < argc ? (float)minic_val_to_d(args[i]) : 0.0f;
+}
 
-typedef union {
-	int   i;
-	float f;
-	void *p;
-} minic_arg_t;
+int minic_arg_i(minic_val_t *args, int argc, int i) {
+	return i < argc ? (int)minic_val_to_d(args[i]) : 0;
+}
 
-// Per-class C types and argument accessors
-#define TY_i   int
-#define TY_f   float
-#define TY_p   void *
-#define A_i(k) a[k].i
-#define A_f(k) a[k].f
-#define A_p(k) a[k].p
-
-// C return types and result boxing per minic return class
-#define CT_INT       int
-#define CT_BOOL      bool
-#define CT_CHAR      char
-#define CT_FLOAT     float
-#define CT_PTR       void *
-#define CT_VOID      void
-#define RET_INT(x)   return minic_val_int(x)
-#define RET_BOOL(x)  return minic_val_int((int)(x))
-#define RET_CHAR(x)  return minic_val_int((int)(x))
-#define RET_FLOAT(x) return minic_val_float(x)
-#define RET_PTR(x)   return minic_val_ptr(x)
-#define RET_VOID(x)              \
-	do {                         \
-		x;                       \
-		return minic_val_int(0); \
-	} while (0)
-
-// Exactly-typed call builders per arity
-#define C0(R)                     ((CT_##R (*)(void))fn)()
-#define C1(R, a0)                 ((CT_##R (*)(TY_##a0))fn)(A_##a0(0))
-#define C2(R, a0, a1)             ((CT_##R (*)(TY_##a0, TY_##a1))fn)(A_##a0(0), A_##a1(1))
-#define C3(R, a0, a1, a2)         ((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2))fn)(A_##a0(0), A_##a1(1), A_##a2(2))
-#define C4(R, a0, a1, a2, a3)     ((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3))
-#define C5(R, a0, a1, a2, a3, a4) ((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4))
-#define C6(R, a0, a1, a2, a3, a4, a5) \
-	((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4, TY_##a5))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4), A_##a5(5))
-#define C7(R, a0, a1, a2, a3, a4, a5, a6) \
-	((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4, TY_##a5, TY_##a6))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4), A_##a5(5), A_##a6(6))
-#define C8(R, a0, a1, a2, a3, a4, a5, a6, a7)                                                                                                                  \
-	((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4, TY_##a5, TY_##a6, TY_##a7))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4), A_##a5(5), \
-	                                                                                         A_##a6(6), A_##a7(7))
-#define C9(R, a0, a1, a2, a3, a4, a5, a6, a7, a8)                                                                                                            \
-	((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4, TY_##a5, TY_##a6, TY_##a7, TY_##a8))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4), \
-	                                                                                                  A_##a5(5), A_##a6(6), A_##a7(7), A_##a8(8))
-#define C10(R, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)                                            \
-	((CT_##R (*)(TY_##a0, TY_##a1, TY_##a2, TY_##a3, TY_##a4, TY_##a5, TY_##a6, TY_##a7, TY_##a8, \
-	             TY_##a9))fn)(A_##a0(0), A_##a1(1), A_##a2(2), A_##a3(3), A_##a4(4), A_##a5(5), A_##a6(6), A_##a7(7), A_##a8(8), A_##a9(9))
-
-// Dispatch table entries: match return class + arg descriptor, then call
-#define D0(R)                                  \
-	if (rt == MINIC_T_##R && adesc[0] == '\0') \
-	RET_##R(C0(R))
-#define D1(R, a0)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0) == 0) \
-	RET_##R(C1(R, a0))
-#define D2(R, a0, a1)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1) == 0) \
-	RET_##R(C2(R, a0, a1))
-#define D3(R, a0, a1, a2)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2) == 0) \
-	RET_##R(C3(R, a0, a1, a2))
-#define D4(R, a0, a1, a2, a3)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3) == 0) \
-	RET_##R(C4(R, a0, a1, a2, a3))
-#define D5(R, a0, a1, a2, a3, a4)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4) == 0) \
-	RET_##R(C5(R, a0, a1, a2, a3, a4))
-#define D6(R, a0, a1, a2, a3, a4, a5)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4 #a5) == 0) \
-	RET_##R(C6(R, a0, a1, a2, a3, a4, a5))
-#define D7(R, a0, a1, a2, a3, a4, a5, a6)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4 #a5 #a6) == 0) \
-	RET_##R(C7(R, a0, a1, a2, a3, a4, a5, a6))
-#define D8(R, a0, a1, a2, a3, a4, a5, a6, a7)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4 #a5 #a6 #a7) == 0) \
-	RET_##R(C8(R, a0, a1, a2, a3, a4, a5, a6, a7))
-#define D9(R, a0, a1, a2, a3, a4, a5, a6, a7, a8)                                     \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4 #a5 #a6 #a7 #a8) == 0) \
-	RET_##R(C9(R, a0, a1, a2, a3, a4, a5, a6, a7, a8))
-#define D10(R, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9)                                    \
-	if (rt == MINIC_T_##R && strcmp(adesc, #a0 #a1 #a2 #a3 #a4 #a5 #a6 #a7 #a8 #a9) == 0) \
-	RET_##R(C10(R, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9))
+void *minic_arg_p(minic_val_t *args, int argc, int i) {
+	return i < argc ? minic_val_to_ptr(args[i]) : NULL;
+}
 
 minic_val_t minic_dispatch(minic_ext_func_t *ef, minic_val_t *args, int argc) {
-	if (ef->native_fn != NULL) {
-		return ef->native_fn(args, argc);
+	if (ef->fn == NULL) {
+		fprintf(stderr, "minic: '%s' has no thunk, add it to minic_api_list.h\n", ef->name);
+		return minic_val_int(0);
 	}
-
-	// Normalize args by declared param type, build the arg descriptor
-	minic_arg_t a[MINIC_MAX_PARAMS] = {0};
-	char        adesc[MINIC_MAX_PARAMS + 1];
-	int         n = argc < ef->param_count ? argc : ef->param_count;
-	for (int i = 0; i < n; i++) {
-		double dv = minic_val_to_d(args[i]);
-		switch (ef->param_types[i]) {
-		case MINIC_T_FLOAT:
-			a[i].f   = (float)dv;
-			adesc[i] = 'f';
-			break;
-		case MINIC_T_EMBED:
-		case MINIC_T_PTR:
-			a[i].p   = (args[i].type == MINIC_T_PTR) ? args[i].p : ((dv == 0.0) ? NULL : (void *)(uintptr_t)(uint64_t)dv);
-			adesc[i] = 'p';
-			break;
-		default:
-			a[i].i   = (int)dv;
-			adesc[i] = 'i';
-			break;
-		}
-	}
-	adesc[n] = '\0';
-
-	minic_ext_fn_raw_t fn = ef->fn;
-	minic_type_t       rt = ef->ret_type;
-
-	D0(INT);
-	D1(INT, i);
-	D1(INT, f);
-	D1(INT, p);
-	D2(INT, i, i);
-	D2(INT, f, f);
-	D2(INT, i, p);
-	D2(INT, p, f);
-	D2(INT, p, i);
-	D2(INT, p, p);
-	D3(INT, i, i, i);
-	D3(INT, p, i, i);
-	D3(INT, p, i, p);
-	D3(INT, p, p, i);
-	D3(INT, p, p, p);
-	D4(INT, i, i, i, i);
-	D4(INT, p, i, i, p);
-	D4(INT, p, p, p, p);
-	D6(INT, p, p, f, f, f, f);
-	D6(INT, p, p, p, i, i, i);
-	D7(INT, p, i, f, f, i, p, p);
-	D7(INT, p, i, i, i, i, i, i);
-
-	D0(BOOL);
-	D1(BOOL, i);
-	D1(BOOL, f);
-	D1(BOOL, p);
-	D2(BOOL, p, i);
-	D2(BOOL, p, p);
-	D3(BOOL, p, i, i);
-	D3(BOOL, p, i, p);
-	D3(BOOL, p, p, i);
-	D3(BOOL, p, p, p);
-	D4(BOOL, f, f, f, f);
-	D4(BOOL, p, i, p, p);
-	D4(BOOL, p, p, i, i);
-	D5(BOOL, p, p, i, i, i);
-	D6(BOOL, p, i, i, i, i, i);
-
-	D0(CHAR);
-	D1(CHAR, i);
-	D1(CHAR, p);
-	D2(CHAR, p, i);
-	D2(CHAR, p, p);
-
-	D0(FLOAT);
-	D1(FLOAT, f);
-	D1(FLOAT, i);
-	D1(FLOAT, p);
-	D2(FLOAT, f, f);
-	D2(FLOAT, p, f);
-	D2(FLOAT, p, i);
-	D2(FLOAT, p, p);
-	D3(FLOAT, f, f, f);
-	D3(FLOAT, p, f, f);
-	D3(FLOAT, p, p, i);
-	D4(FLOAT, f, f, f, f);
-	D4(FLOAT, p, f, f, f);
-	D4(FLOAT, p, p, i, f);
-	D5(FLOAT, f, f, f, f, f);
-	D5(FLOAT, p, f, f, f, f);
-	D5(FLOAT, p, i, p, i, i);
-	D6(FLOAT, f, f, f, f, f, f);
-	D6(FLOAT, p, f, f, f, f, f);
-	D7(FLOAT, f, f, f, f, f, f, f);
-	D7(FLOAT, p, f, f, f, f, f, f);
-	D8(FLOAT, p, f, f, f, f, f, f, f);
-	D9(FLOAT, f, f, f, f, f, f, f, f, f);
-	D9(FLOAT, p, p, f, f, i, f, i, i, i);
-
-	D0(VOID);
-	D1(VOID, f);
-	D1(VOID, i);
-	D1(VOID, p);
-	D2(VOID, f, f);
-	D2(VOID, f, p);
-	D2(VOID, i, i);
-	D2(VOID, p, f);
-	D2(VOID, p, i);
-	D2(VOID, p, p);
-	D3(VOID, f, f, f);
-	D3(VOID, i, i, f);
-	D3(VOID, i, i, i);
-	D3(VOID, i, p, p);
-	D3(VOID, p, f, f);
-	D3(VOID, p, i, f);
-	D3(VOID, p, i, i);
-	D3(VOID, p, i, p);
-	D3(VOID, p, p, f);
-	D3(VOID, p, p, i);
-	D3(VOID, p, p, p);
-	D4(VOID, f, f, f, f);
-	D4(VOID, f, f, f, i);
-	D4(VOID, f, f, f, p);
-	D4(VOID, i, i, i, i);
-	D4(VOID, p, f, f, f);
-	D4(VOID, p, i, i, f);
-	D4(VOID, p, i, i, i);
-	D4(VOID, p, i, i, p);
-	D4(VOID, p, i, p, i);
-	D4(VOID, p, p, i, f);
-	D4(VOID, p, p, i, i);
-	D4(VOID, p, p, i, p);
-	D4(VOID, p, p, p, i);
-	D4(VOID, p, p, p, p);
-	D5(VOID, f, f, f, f, f);
-	D5(VOID, f, f, f, f, i);
-	D5(VOID, f, f, f, i, f);
-	D5(VOID, i, f, f, f, f);
-	D5(VOID, p, f, f, f, f);
-	D5(VOID, p, f, f, i, i);
-	D5(VOID, p, i, i, i, i);
-	D5(VOID, p, p, p, p, p);
-	D6(VOID, f, f, f, f, f, f);
-	D6(VOID, f, f, f, f, i, f);
-	D6(VOID, i, i, f, f, f, f);
-	D6(VOID, i, i, i, i, i, i);
-	D6(VOID, p, i, i, f, f, f);
-	D6(VOID, p, p, p, i, i, f);
-	D7(VOID, p, f, f, f, f, f, f);
-	D7(VOID, p, f, f, f, f, i, i);
-	D7(VOID, p, i, i, f, f, f, f);
-	D9(VOID, p, f, f, f, f, f, f, f, f);
-	D10(VOID, p, p, p, p, p, p, p, p, p, p);
-
-	D0(PTR);
-	D1(PTR, f);
-	D1(PTR, i);
-	D1(PTR, p);
-	D2(PTR, f, f);
-	D2(PTR, i, i);
-	D2(PTR, p, i);
-	D2(PTR, p, p);
-	D3(PTR, f, f, f);
-	D3(PTR, i, i, i);
-	D3(PTR, p, f, f);
-	D3(PTR, p, i, i);
-	D3(PTR, p, p, i);
-	D3(PTR, p, p, p);
-	D4(PTR, f, f, f, f);
-	D4(PTR, p, p, p, i);
-	D4(PTR, p, p, p, p);
-	D5(PTR, f, f, f, f, f);
-	D5(PTR, p, i, i, p, i);
-	D5(PTR, p, p, i, i, i);
-	D5(PTR, p, p, p, p, f);
-	D5(PTR, p, p, p, p, p);
-
-	fprintf(stderr, "minic: unsupported signature '%s' for '%s'\n", ef->sig, ef->name);
-	return minic_val_int(0);
+	return ef->fn(args, argc);
 }

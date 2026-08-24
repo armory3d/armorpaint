@@ -56,18 +56,13 @@ typedef struct {
 extern minic_struct_t minic_structs[MINIC_MAX_STRUCTS];
 extern int            minic_struct_count;
 
-typedef void (*minic_ext_fn_raw_t)(void); // type-erased
 typedef struct minic_ctx_s minic_ctx_t;
 typedef minic_val_t (*minic_native_fn_t)(minic_val_t *args, int argc);
 
 typedef struct {
-	char               name[MINIC_MAX_NAME];
-	char               sig[MINIC_MAX_SIG];
-	minic_ext_fn_raw_t fn;
-	minic_native_fn_t  native_fn; // if non-NULL, bypasses typed dispatch
-	minic_type_t       ret_type;
-	minic_type_t       param_types[MINIC_MAX_PARAMS];
-	int                param_count;
+	char              name[MINIC_MAX_NAME];
+	char              sig[MINIC_MAX_SIG]; // documentation only
+	minic_native_fn_t fn;
 } minic_ext_func_t;
 
 // Script evaluation
@@ -83,8 +78,8 @@ void       *minic_alloc(int size);   // allocate in the active context's arena
 bool        minic_in_arena(void *p); // true if p points into the active arena (script value) vs native C memory
 
 // Host api registration (idempotent, safe to re-run)
-void minic_register(const char *name, const char *sig, minic_ext_fn_raw_t fn); // sig like "f(p,i)" using i/f/p/b/c/v
-void minic_register_native(const char *name, minic_native_fn_t fn);
+void minic_register(const char *name, const char *sig, minic_native_fn_t fn); // sig like "f(p,i)" using i/f/p/b/c/v
+void minic_register_native(const char *name, minic_native_fn_t fn);           // no sig, for variadic natives
 void minic_struct_begin(const char *name, int size);
 void minic_struct_field(const char *field, int offset, minic_type_t type, minic_type_t deref_type, const char *struct_type);
 void minic_register_struct(const char *name, const char **fields, int field_count);                   // script-layout struct (boxed fields)
@@ -93,6 +88,10 @@ void minic_enum_const_add(const char *name, int value);
 void minic_int_typedef_add(const char *name);
 void minic_register_global(const char *name, const void *ptr, minic_type_t type);
 void minic_register_builtins(void);
+
+float minic_arg_f(minic_val_t *args, int argc, int i);
+int   minic_arg_i(minic_val_t *args, int argc, int i);
+void *minic_arg_p(minic_val_t *args, int argc, int i);
 
 // Registry enumeration (used for editor autocomplete and api.h generation)
 int          minic_ext_func_count_get(void);
