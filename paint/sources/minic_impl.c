@@ -1035,6 +1035,52 @@ void *plugin_material_kong_get() {
 	return parser_material_kong;
 }
 
+static char *_script_message    = NULL;
+static i32   _script_message_id = 0;
+
+static void script_message_draw(void *_) {
+	if (_script_message == NULL) {
+		return;
+	}
+
+	f32 scale = UI_SCALE();
+	i32 size  = math_floor(22 * scale);
+
+	draw_begin(NULL, false, 0);
+	draw_set_font(g_font, size);
+
+	f32 w = draw_string_width(draw_font, draw_font_size, _script_message);
+	f32 h = draw_font_height(draw_font, draw_font_size);
+	f32 x = (iron_window_width() - w) / 2.0;
+	f32 y = iron_window_height() - 100 * scale;
+
+	draw_set_color(0x99000000);
+	draw_filled_rect(x - 12 * scale, y - 6 * scale, w + 24 * scale, h + 12 * scale);
+	draw_set_color(0xffffffff);
+	draw_string(_script_message, x, y);
+	draw_end();
+}
+
+static void script_message_hide(void *data) {
+	if ((i32)(intptr_t)data != _script_message_id) {
+		return;
+	}
+	sys_remove_update(script_message_draw);
+	_script_message = NULL;
+}
+
+void script_show_message(char *text, f32 seconds) {
+	if (text == NULL) {
+		return;
+	}
+	if (_script_message == NULL) {
+		sys_notify_on_update(script_message_draw, NULL);
+	}
+	_script_message = string_copy(text);
+	_script_message_id++;
+	tween_timer(seconds, script_message_hide, (void *)(intptr_t)_script_message_id);
+}
+
 static f32   _script_fade_opacity = 0.0f;
 static char *_script_fade_stage   = NULL;
 
