@@ -11,9 +11,10 @@ f32                  _ui_view2d_render_x;
 f32                  _ui_view2d_render_y;
 f32                  _ui_view2d_render_tw;
 f32                  _ui_view2d_render_th;
-gpu_texture_t       *ui_view2d_grid          = NULL;
-bool                 ui_view2d_layer_touched = false;
-gpu_texture_t       *ui_view2d_tex           = NULL;
+gpu_texture_t       *ui_view2d_grid            = NULL;
+bool                 ui_view2d_layer_touched   = false;
+gpu_texture_t       *ui_view2d_tex             = NULL;
+char                *ui_view2d_layer_name_prev = NULL;
 
 void ui_view2d_init() {
 	ui_view2d_pipe = gpu_create_pipeline();
@@ -582,11 +583,20 @@ void ui_view2d_update(void *_) {
 				}
 			}
 			else if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
-				h->text        = string_copy(l->name);
-				char *new_name = string_copy(ui_text_input(h, "", UI_ALIGN_LEFT, true, false));
+				bool was_editing = g_ui->text_selected_handle == h;
+				h->text          = string_copy(l->name);
+				char *new_name   = string_copy(ui_text_input(h, "", UI_ALIGN_LEFT, true, false));
 				tab_stages_rename_layer(l->name, new_name);
 				l->name                    = new_name;
 				ui_view2d_text_input_hover = g_ui->is_hovered;
+
+				if (!was_editing && g_ui->text_selected_handle == h) {
+					ui_view2d_layer_name_prev = string_copy(l->name);
+				}
+				else if (was_editing && g_ui->text_selected_handle != h && ui_view2d_layer_name_prev != NULL &&
+				         !string_equals(ui_view2d_layer_name_prev, l->name)) {
+					history_layer_name(l, ui_view2d_layer_name_prev);
+				}
 			}
 			else if (ui_view2d_type == VIEW_2D_TYPE_FONT) {
 				h->text               = string_copy(g_context->font->name);

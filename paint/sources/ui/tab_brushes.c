@@ -22,10 +22,13 @@ void tab_brushes_draw_duplicate(void *_) {
 	g_context->brush->canvas = cloned;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
+	history_duplicate_brush();
 }
 
 void tab_brushes_delete_brush(slot_brush_t *b) {
-	i32 i = array_index_of(g_project->_->brushes, b);
+	i32 i            = array_index_of(g_project->_->brushes, b);
+	g_context->brush = b;
+	history_delete_brush();
 	context_select_brush(i == g_project->_->brushes->length - 1 ? i - 1 : i + 1);
 	array_splice(g_project->_->brushes, i, 1);
 	ui_base_hwnds->buffer[1]->redraws = 2;
@@ -64,6 +67,7 @@ void tab_brushes_draw(ui_handle_t *htab) {
 			g_context->brush = slot_brush_create(NULL);
 			any_array_push(g_project->_->brushes, g_context->brush);
 			make_material_parse_brush();
+			history_new_brush();
 			ui_nodes_hwnd->redraws = 2;
 		}
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {

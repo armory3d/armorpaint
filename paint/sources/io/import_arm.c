@@ -306,6 +306,8 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 }
 
 void import_arm_run_swatches_from_project(project_t *project, char *path, bool replace_existing) {
+	history_replace_swatches(tr("Import Swatches"));
+
 	if (replace_existing) {
 		g_project->swatches = any_array_create_from_raw((void *[]){}, 0);
 

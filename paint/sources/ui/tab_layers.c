@@ -1,9 +1,10 @@
 
 #include "../global.h"
 
-i32  tab_layers_layer_name_edit   = -1;
-bool tab_layers_show_context_menu = false;
-bool tab_layers_mini;
+i32   tab_layers_layer_name_edit   = -1;
+char *tab_layers_layer_name_prev   = NULL;
+bool  tab_layers_show_context_menu = false;
+bool  tab_layers_mini;
 
 bool         tab_layers_search_show   = false;
 bool         tab_layers_search_focus  = false;
@@ -266,11 +267,16 @@ ui_handle_t *tab_layers_combo_object(slot_layer_t *l, bool label) {
 	}
 	ui_handle_t *object_handle = ui_nest(ui_handle(__ID__), l->id);
 	object_handle->i           = l->object_mask;
+	i32 prev_object_mask       = l->object_mask;
 	l->object_mask             = ui_combo(object_handle, ar, tr("Object"), label, UI_ALIGN_LEFT, true);
 	array_free(ar);
 	free(ar);
 	if (object_handle->changed) {
+		i32 new_object_mask = l->object_mask;
+		l->object_mask      = prev_object_mask;
 		context_set_layer(l);
+		history_layer_object();
+		l->object_mask = new_object_mask;
 		make_material_parse_mesh_material();
 		if (l->fill_material != NULL) {
 			sys_notify_on_next_frame(&tab_layers_combo_object_layer_clear, l);
@@ -318,6 +324,7 @@ ui_handle_t *tab_layers_combo_blending(slot_layer_t *l, bool label) {
 }
 
 void tab_layers_layer_toggle_visible(slot_layer_t *l) {
+	history_layer_visible(l);
 	l->visible              = !l->visible;
 	ui_view2d_hwnd->redraws = 2;
 	make_material_parse_mesh_material();
@@ -421,6 +428,9 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		l->name = new_name;
 		if (g_ui->text_selected_handle != tab_layers_layer_name_handle) {
 			tab_layers_layer_name_edit = -1;
+			if (tab_layers_layer_name_prev != NULL && !string_equals(tab_layers_layer_name_prev, l->name)) {
+				history_layer_name(l, tab_layers_layer_name_prev);
+			}
 		}
 	}
 	else {
@@ -441,6 +451,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		if (state == UI_STATE_RELEASED) {
 			if (sys_time() - g_context->select_time < 0.2) {
 				tab_layers_layer_name_edit         = l->id;
+				tab_layers_layer_name_prev         = string_copy(l->name);
 				tab_layers_layer_name_handle->text = string_copy(l->name);
 				ui_start_text_edit(tab_layers_layer_name_handle, UI_ALIGN_LEFT);
 			}
@@ -810,10 +821,17 @@ void tab_layers_draw_layer_context_menu_draw() {
 		ui_menu_align();
 		ui_handle_t *scale_handle = ui_nest(ui_handle(__ID__), l->id);
 		scale_handle->f           = l->scale;
+		f32 prev_scale            = l->scale;
 		l->scale                  = ui_slider(scale_handle, tr("UV Scale"), 0.0, 5.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		if (scale_handle->changed) {
 			context_set_material(l->fill_material);
 			context_set_layer(l);
+			if (g_ui->input_started) {
+				f32 new_scale = l->scale;
+				l->scale      = prev_scale;
+				history_layer_scale();
+				l->scale = new_scale;
+			}
 			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_update_fill_layers, NULL);
 			ui_menu_keep_open = true;
 		}
@@ -821,10 +839,17 @@ void tab_layers_draw_layer_context_menu_draw() {
 		ui_menu_align();
 		ui_handle_t *angle_handle = ui_nest(ui_handle(__ID__), l->id);
 		angle_handle->f           = l->angle;
+		f32 prev_angle            = l->angle;
 		l->angle                  = ui_slider(angle_handle, tr("Angle"), 0.0, 360, true, 1, true, UI_ALIGN_RIGHT, true);
 		if (angle_handle->changed) {
 			context_set_material(l->fill_material);
 			context_set_layer(l);
+			if (g_ui->input_started) {
+				f32 new_angle = l->angle;
+				l->angle      = prev_angle;
+				history_layer_angle();
+				l->angle = new_angle;
+			}
 			make_material_parse_paint_material(true);
 			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_update_fill_layers, NULL);
 			ui_menu_keep_open = true;
@@ -840,10 +865,15 @@ void tab_layers_draw_layer_context_menu_draw() {
 		        tr("Project"),
 		    },
 		    3);
-		l->uv_type = ui_inline_radio(uv_type_handle, uv_type_items, UI_ALIGN_LEFT);
+		i32 prev_uv_type = l->uv_type;
+		l->uv_type       = ui_inline_radio(uv_type_handle, uv_type_items, UI_ALIGN_LEFT);
 		if (uv_type_handle->changed) {
+			i32 new_uv_type = l->uv_type;
+			l->uv_type      = prev_uv_type;
 			context_set_material(l->fill_material);
 			context_set_layer(l);
+			history_layer_uv_type();
+			l->uv_type = new_uv_type;
 			make_material_parse_paint_material(true);
 			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_update_fill_layers, NULL);
 			ui_menu_keep_open = true;

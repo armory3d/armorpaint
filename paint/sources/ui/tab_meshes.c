@@ -390,9 +390,10 @@ void tab_meshes_merge_geometry_next_frame(void *_) {
 }
 
 void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
-	transform_t *t       = o->base->transform;
-	bool         changed = false;
-	f32          f       = 0.0;
+	transform_t *t        = o->base->transform;
+	vec4_t       prev_loc = t->loc;
+	bool         changed  = false;
+	f32          f        = 0.0;
 
 	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text        = string_copy(f32_to_string2(t->loc.x));
@@ -419,6 +420,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 	}
 
 	if (changed) {
+		history_object_transform(o, prev_loc, t->rot, t->scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
 	}
@@ -456,6 +458,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 	}
 
 	if (changed) {
+		history_object_transform(o, t->loc, t->rot, t->scale);
 		rot    = vec4_mult(rot, 3.141592 / 180.0);
 		t->rot = quat_from_euler(rot.x, rot.y, rot.z);
 		transform_build_matrix(t);
@@ -464,9 +467,10 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 }
 
 void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
-	transform_t *t       = o->base->transform;
-	bool         changed = false;
-	f32          f       = 0.0;
+	transform_t *t          = o->base->transform;
+	vec4_t       prev_scale = t->scale;
+	bool         changed    = false;
+	f32          f          = 0.0;
 
 	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
 	h->text        = string_copy(f32_to_string2(t->scale.x));
@@ -493,6 +497,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 	}
 
 	if (changed) {
+		history_object_transform(o, t->loc, t->rot, prev_scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
 	}

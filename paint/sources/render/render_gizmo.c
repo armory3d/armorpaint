@@ -1,6 +1,15 @@
 
 #include "../global.h"
 
+static vec4_t gizmo_undo_loc;
+static quat_t gizmo_undo_rot;
+static vec4_t gizmo_undo_scale;
+static bool   gizmo_undo_stored = false;
+
+static bool gizmo_quat_equals(quat_t a, quat_t b) {
+	return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
 static vec4_t gizmo_v        = (vec4_t){0.0, 0.0, 0.0, 1.0};
 static vec4_t gizmo_v0       = (vec4_t){0.0, 0.0, 0.0, 1.0};
 static quat_t gizmo_q        = (quat_t){0.0, 0.0, 0.0, 1.0};
@@ -247,6 +256,22 @@ void render_gizmo_update() {
 		g_context->translate_x = g_context->translate_y = g_context->translate_z = false;
 		g_context->scale_x = g_context->scale_y = g_context->scale_z = false;
 		g_context->rotate_x = g_context->rotate_y = g_context->rotate_z = false;
+
+		if (gizmo_undo_stored) {
+			gizmo_undo_stored = false;
+			transform_t *t    = paint_object->transform;
+			if (!vec4_equals(t->loc, gizmo_undo_loc) || !gizmo_quat_equals(t->rot, gizmo_undo_rot) || !vec4_equals(t->scale, gizmo_undo_scale)) {
+				history_object_transform(g_context->paint_object, gizmo_undo_loc, gizmo_undo_rot, gizmo_undo_scale);
+			}
+		}
+	}
+
+	if (is_object && g_context->gizmo_started) {
+		transform_t *t    = paint_object->transform;
+		gizmo_undo_loc    = t->loc;
+		gizmo_undo_rot    = t->rot;
+		gizmo_undo_scale  = t->scale;
+		gizmo_undo_stored = true;
 	}
 
 	if (g_context->translate_x || g_context->translate_y || g_context->translate_z || g_context->scale_x || g_context->scale_y || g_context->scale_z ||

@@ -4,6 +4,7 @@
 gpu_texture_t *_tab_swatches_empty;
 i32            tab_swatches_drag_pos = -1;
 i32            _tab_swatches_draw_i;
+swatch_color_t tab_swatches_edit_prev;
 
 gpu_texture_t *tab_swatches_empty_get() {
 	if (_tab_swatches_empty == NULL) {
@@ -20,7 +21,8 @@ gpu_texture_t *tab_swatches_empty_get() {
 }
 
 void tab_swatches_delete_swatch(swatch_color_t *swatch) {
-	i32 i             = array_index_of(g_project->swatches, swatch);
+	i32 i = array_index_of(g_project->swatches, swatch);
+	history_delete_swatch(swatch);
 	g_context->swatch = g_project->swatches->buffer[i == g_project->swatches->length - 1 ? i - 1 : i + 1];
 	array_splice(g_project->swatches, i, 1);
 	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
@@ -32,6 +34,7 @@ void tab_swatches_draw_menu() {
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
 		g_context->swatch = project_clone_swatch(g_context->swatch);
 		any_array_push(g_project->swatches, g_context->swatch);
+		history_duplicate_swatch();
 	}
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
 	else if (ui_menu_button(tr("Copy Hex Code"), "", ICON_HASH)) {
@@ -56,14 +59,24 @@ void tab_swatches_draw_menu() {
 }
 
 void tab_swatches_draw_color_picker_callback(swatch_color_t *color) {
-	i32 i                          = _tab_swatches_draw_i;
+	i32 i = _tab_swatches_draw_i;
+	if (i >= g_project->swatches->length) {
+		return;
+	}
+	history_edit_swatch(i, g_project->swatches->buffer[i]);
 	g_project->swatches->buffer[i] = project_clone_swatch(color);
+	g_context->swatch              = g_project->swatches->buffer[i];
 }
 
 void tab_swatches_draw_color_picker() {
 	g_context->color_picker_previous_tool = g_context->tool;
 	context_select_tool(TOOL_TYPE_PICKER);
 	g_context->color_picker_callback = &tab_swatches_draw_color_picker_callback;
+}
+
+static bool tab_swatches_color_equals(swatch_color_t *a, swatch_color_t *b) {
+	return a->base == b->base && a->opacity == b->opacity && a->occlusion == b->occlusion && a->roughness == b->roughness && a->metallic == b->metallic &&
+	       a->normal == b->normal && a->emission == b->emission && a->height == b->height && a->subsurface == b->subsurface;
 }
 
 void tab_swatches_draw_edit_menu() {
@@ -100,6 +113,12 @@ void tab_swatches_draw_edit_menu() {
 		g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 		ui_header_handle->redraws = 2;
 	}
+
+	i32 index = array_index_of(g_project->swatches, g_context->swatch);
+	if (index != -1 && !g_ui->input_down && !g_ui->is_typing && !tab_swatches_color_equals(&tab_swatches_edit_prev, g_context->swatch)) {
+		history_edit_swatch(index, &tab_swatches_edit_prev);
+		tab_swatches_edit_prev = *g_context->swatch;
+	}
 }
 
 void tab_swatches_draw_import() {
@@ -130,6 +149,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
 			g_context->swatch = project_make_swatch(0xffffffff);
 			any_array_push(g_project->swatches, g_context->swatch);
+			history_new_swatch();
 		}
 		if (g_ui->is_hovered) {
 			ui_tooltip(tr("Add new swatch"));
@@ -150,6 +170,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 		}
 
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
+			history_replace_swatches(tr("Clear Swatches"));
 			g_context->swatch   = project_make_swatch(0xffffffff);
 			g_project->swatches = any_array_create_from_raw(
 			    (void *[]){
@@ -159,6 +180,7 @@ void tab_swatches_draw(ui_handle_t *htab) {
 		}
 
 		if (ui_icon_button(tr("Restore"), ICON_REPLAY, UI_ALIGN_CENTER)) {
+			history_replace_swatches(tr("Restore Swatches"));
 			project_set_default_swatches();
 			g_context->swatch = g_project->swatches->buffer[0];
 		}
@@ -228,7 +250,8 @@ void tab_swatches_draw(ui_handle_t *htab) {
 				}
 				else if (state == UI_STATE_RELEASED) {
 					if (sys_time() - g_context->select_time < 0.2) {
-						_tab_swatches_draw_i = i;
+						_tab_swatches_draw_i   = i;
+						tab_swatches_edit_prev = *g_project->swatches->buffer[i];
 						ui_menu_draw(&tab_swatches_draw_edit_menu, -1, -1);
 					}
 

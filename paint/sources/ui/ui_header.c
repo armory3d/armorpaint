@@ -229,6 +229,7 @@ void ui_header_draw_tool_properties() {
 			new_swatch->base           = color_set_ab(new_swatch->base, 255);
 			g_context->swatch          = new_swatch;
 			any_array_push(g_project->swatches, new_swatch);
+			history_new_swatch();
 			ui_base_hwnds->buffer[2]->redraws = 1;
 		}
 		if (g_ui->is_hovered) {

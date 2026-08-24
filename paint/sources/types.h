@@ -476,21 +476,31 @@ typedef struct node_shader_context {
 } node_shader_context_t;
 
 typedef struct history_step {
-	char                  *name;
-	history_action_t       action;
-	struct ui_node_canvas *canvas; // Node history
-	i32                    canvas_group;
-	i32                    layer;
-	layer_slot_type_t      layer_type;
-	i32                    layer_parent;
-	i32                    object;
-	i32                    material;
-	i32                    brush;
-	f32                    layer_opacity;
-	i32                    layer_object;
-	i32                    layer_blending;
-	i32                    prev_order; // Previous layer position
-	i32                    canvas_type;
+	char                        *name;
+	history_action_t             action;
+	struct ui_node_canvas       *canvas; // Node history
+	i32                          canvas_group;
+	i32                          layer;
+	layer_slot_type_t            layer_type;
+	i32                          layer_parent;
+	i32                          object;
+	i32                          material;
+	i32                          brush;
+	f32                          layer_opacity;
+	i32                          layer_object;
+	i32                          layer_blending;
+	i32                          prev_order; // Previous layer position
+	i32                          canvas_type;
+	char                        *layer_name;
+	f32                          layer_scale;
+	f32                          layer_angle;
+	i32                          layer_uv_type;
+	i32                          swatch;
+	struct swatch_color         *swatch_color;
+	struct swatch_color_t_array *swatch_colors;
+	vec4_t                       object_loc;
+	quat_t                       object_rot;
+	vec4_t                       object_scale;
 } history_step_t;
 
 typedef struct logic_node {

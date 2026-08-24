@@ -312,6 +312,7 @@ void ui_viewnodes_on_canvas_context_menu() {
 			swatch_color_t *new_swatch = project_make_swatch(color_from_floats(color->buffer[0], color->buffer[1], color->buffer[2], color->buffer[3]));
 			g_context->swatch          = new_swatch;
 			any_array_push(g_project->swatches, new_swatch);
+			history_new_swatch();
 			ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 1;
 		}
 	}
