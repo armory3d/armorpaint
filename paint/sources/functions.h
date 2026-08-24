@@ -120,6 +120,7 @@ bool                      config_is_iphone();
 bool                      config_is_raytrace_fast();
 bool                      config_is_raytrace_multi();
 void                      config_apply_raytrace_multi();
+void                      box_append_show(char *path);
 void                      box_export_show_textures();
 void                      box_export_show_bake_material();
 void                      box_export_show_mesh();
@@ -389,6 +390,8 @@ void                      logic_node_input_set(logic_node_input_t *self, f32_arr
 void                      import_arm_run_project(char *path);
 void                      import_arm_run_material(char *path);
 void                      import_arm_run_mesh_append(char *path);
+project_t                *import_arm_decode_project(buffer_t *b);
+void                      import_arm_append(project_t *project, char *path, i32_array_t *mesh_selected, i32_array_t *material_selected);
 void                      import_arm_run_brush(char *path);
 void                      import_arm_run_brush_from_project(project_t *project, char *path);
 void                      import_arm_run_swatches(char *path, bool replace_existing);

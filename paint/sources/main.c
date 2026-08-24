@@ -145,6 +145,7 @@
 #include "traits/trait_point_and_click_controller.c"
 #include "traits/trait_third_person_controller.c"
 
+#include "ui/box_append.c"
 #include "ui/box_export.c"
 #include "ui/box_import_mesh.c"
 #include "ui/box_new_project.c"

@@ -91,12 +91,8 @@ void tab_browser_draw_context_menu_draw_import(void (*done)(void)) {
 	import_asset_run(file, -1.0, -1.0, true, true, done);
 }
 
-void tab_browser_draw_import_meshes(void *_) {
-	import_arm_run_mesh_append(_tab_browser_draw_file);
-}
-
-void tab_browser_draw_import_materials(void *_) {
-	import_arm_run_material(_tab_browser_draw_file);
+void tab_browser_draw_append(void *_) {
+	box_append_show(_tab_browser_draw_file);
 }
 
 void tab_browser_draw_context_menu_draw() {
@@ -105,11 +101,8 @@ void tab_browser_draw_context_menu_draw() {
 		sys_notify_on_next_frame(&tab_browser_draw_context_menu_draw_import, NULL);
 	}
 	if (path_is_project(file)) {
-		if (ui_menu_button(tr("Import Meshes"), "", ICON_NONE)) {
-			sys_notify_on_next_frame(&tab_browser_draw_import_meshes, NULL);
-		}
-		if (ui_menu_button(tr("Import Materials"), "", ICON_NONE)) {
-			sys_notify_on_next_frame(&tab_browser_draw_import_materials, NULL);
+		if (ui_menu_button(tr("Append"), "", ICON_PLUS)) {
+			sys_notify_on_next_frame(&tab_browser_draw_append, NULL);
 		}
 	}
 	if (path_is_texture(file)) {

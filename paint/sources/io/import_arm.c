@@ -82,7 +82,7 @@ void import_arm_run_mesh(project_t *raw) {
 	history_reset();
 }
 
-static project_t *import_arm_decode_project(buffer_t *b) {
+project_t *import_arm_decode_project(buffer_t *b) {
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
 		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
@@ -93,18 +93,43 @@ static project_t *import_arm_decode_project(buffer_t *b) {
 	return armpack_decode(b);
 }
 
-void import_arm_run_mesh_append(char *path) {
-	buffer_t  *b       = data_get_blob(path);
-	project_t *project = import_arm_decode_project(b);
+static bool import_arm_is_selected(i32_array_t *selected, i32 i) {
+	return selected == NULL || (i < selected->length && selected->buffer[i] != 0);
+}
+
+static bool import_arm_has_selected(i32_array_t *selected) {
+	if (selected == NULL) {
+		return true;
+	}
+	for (i32 i = 0; i < selected->length; ++i) {
+		if (selected->buffer[i] != 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static i32 import_arm_mesh_material_index(project_t *project, i32 mesh_i) {
+	if (project->mesh_materials == NULL || mesh_i < 0 || mesh_i >= project->mesh_materials->length) {
+		return -1;
+	}
+	return project->mesh_materials->buffer[mesh_i];
+}
+
+static void import_arm_run_mesh_append_from_project(project_t *project, i32_array_t *selected, i32_array_t *src_to_dest_mat) {
 	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
-		data_delete_blob(path);
 		return;
 	}
 
 	string_array_t      *mesh_names = string_array_create(0);
 	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(project, mesh_names);
 
+	i32  appended = 0;
+	bool assigned = false;
 	for (i32 i = 0; i < mesh_datas->length; ++i) {
+		if (!import_arm_is_selected(selected, i)) {
+			continue;
+		}
 		mesh_data_t   *md     = mesh_datas->buffer[i];
 		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 		object->skip_context  = "paint";
@@ -117,6 +142,26 @@ void import_arm_run_mesh_append(char *path) {
 
 		any_array_push(g_project->_->paint_objects, object);
 		tab_stages_add_object(object->base->name);
+		appended++;
+
+		if (src_to_dest_mat != NULL) {
+			i32 src_mat = import_arm_mesh_material_index(project, i);
+			if (src_mat >= 0 && src_mat < src_to_dest_mat->length) {
+				i32 dest_mat = src_to_dest_mat->buffer[src_mat];
+				if (dest_mat >= 0) {
+					tab_meshes_set_override(object, dest_mat);
+					assigned = true;
+				}
+			}
+		}
+	}
+
+	if (appended == 0) {
+		return;
+	}
+
+	if (assigned) {
+		g_project->mesh_materials = i32_array_create(0);
 	}
 
 	if (g_project->_->paint_objects->length > 1) {
@@ -135,6 +180,12 @@ void import_arm_run_mesh_append(char *path) {
 	util_uv_dilatemap_cached                          = false;
 	g_context->ddirty                                 = 4;
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+}
+
+void import_arm_run_mesh_append(char *path) {
+	buffer_t  *b       = data_get_blob(path);
+	project_t *project = import_arm_decode_project(b);
+	import_arm_run_mesh_append_from_project(project, NULL, NULL);
 	data_delete_blob(path);
 }
 
@@ -250,25 +301,34 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool cop
 	}
 }
 
-void import_arm_run_material_from_project(project_t *project, char *path) {
+static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
+	if (project->material_nodes == NULL || project->material_nodes->length == 0) {
+		if (delete_blob) {
+			data_delete_blob(path);
+		}
+		return;
+	}
+
 	char *base = path_base_dir(path);
-	for (i32 i = 0; i < project->assets->length; ++i) {
-		char *file = project->assets->buffer[i];
+	if (project->assets != NULL) {
+		for (i32 i = 0; i < project->assets->length; ++i) {
+			char *file = project->assets->buffer[i];
 #ifdef IRON_WINDOWS
-		file = string_copy(string_replace_all(file, "/", "\\"));
+			file = string_copy(string_replace_all(file, "/", "\\"));
 #else
-		file = string_copy(string_replace_all(file, "\\", "/"));
+			file = string_copy(string_replace_all(file, "\\", "/"));
 #endif
-		// Convert image path from relative to absolute
-		char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
-		if (project->packed_assets != NULL) {
-			abs = string_copy(path_normalize(abs));
-			import_arm_unpack_asset(project, abs, file, true);
+			// Convert image path from relative to absolute
+			char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
+			if (project->packed_assets != NULL) {
+				abs = string_copy(path_normalize(abs));
+				import_arm_unpack_asset(project, abs, file, true);
+			}
+			if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
+				import_arm_make_pink(abs);
+			}
+			import_texture_run(abs, true);
 		}
-		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
-			import_arm_make_pink(abs);
-		}
-		import_texture_run(abs, true);
 	}
 
 	shader_data_t *m0 = data_get_shader("Scene", "Material");
@@ -276,6 +336,9 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 	slot_material_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
 
 	for (i32 i = 0; i < project->material_nodes->length; ++i) {
+		if (!import_arm_is_selected(selected, i)) {
+			continue;
+		}
 		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
 		import_arm_init_nodes(c->nodes);
 		g_context->material = slot_material_create(m0, c);
@@ -302,6 +365,36 @@ void import_arm_run_material_from_project(project_t *project, char *path) {
 	sys_notify_on_next_frame(&import_arm_run_material_from_project_on_next_frame, imported);
 	ui_nodes_group_stack                              = any_array_create_from_raw((void *[]){}, 0);
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+	if (delete_blob) {
+		data_delete_blob(path);
+	}
+}
+
+void import_arm_run_material_from_project(project_t *project, char *path) {
+	import_arm_import_materials(project, path, NULL, true);
+}
+
+void import_arm_append(project_t *project, char *path, i32_array_t *mesh_selected, i32_array_t *material_selected) {
+	i32_array_t *src_to_dest_mat = NULL;
+	i32          mat_base        = g_project->_->materials->length;
+
+	if (project->material_nodes != NULL && import_arm_has_selected(material_selected)) {
+		import_arm_import_materials(project, path, material_selected, false);
+		src_to_dest_mat = i32_array_create(project->material_nodes->length);
+		i32 dest        = mat_base;
+		for (i32 i = 0; i < src_to_dest_mat->length; ++i) {
+			if (import_arm_is_selected(material_selected, i)) {
+				src_to_dest_mat->buffer[i] = dest++;
+			}
+			else {
+				src_to_dest_mat->buffer[i] = -1;
+			}
+		}
+	}
+
+	if (project->mesh_datas != NULL && import_arm_has_selected(mesh_selected)) {
+		import_arm_run_mesh_append_from_project(project, mesh_selected, src_to_dest_mat);
+	}
 	data_delete_blob(path);
 }
 
