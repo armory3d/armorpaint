@@ -388,6 +388,18 @@ void script_append_mesh(char *path) {
 	g_context->ddirty = 2;
 }
 
+void script_append_mesh_obj(char *data) {
+	if (data == NULL || data[0] == '\0') {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_mesh_run_obj(data);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
 void script_export_mesh(char *path) {
 	if (path == NULL) {
 		return;

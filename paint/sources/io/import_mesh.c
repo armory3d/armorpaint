@@ -65,6 +65,17 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 #endif
 }
 
+void import_mesh_run_obj(char *data) {
+	import_mesh_clear_layers = false;
+	import_mesh_no_reset     = true;
+	import_mesh_append       = true;
+	g_context->layer_filter  = 0;
+
+	buffer_t *b = buffer_create_from_raw((u8 *)data, strlen(data));
+	import_obj_parse(b, false);
+	free(b);
+}
+
 i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 	mesh_object_t *a = *(pa);
 	mesh_object_t *b = *(pb);

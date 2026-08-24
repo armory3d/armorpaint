@@ -1199,6 +1199,7 @@ void minic_register_builtins() {
 	R(script_project_open, "v(p:char path)");
 	R(script_import_asset, "v(p:char path,i hdr_as_envmap)");
 	R(script_append_mesh, "v(p:char path)");
+	R(script_append_mesh_obj, "v(p:char data)");
 	R(script_export_mesh, "v(p:char path)");
 	R(script_export_material, "v(p:char path)");
 	R(project_filepath_get, "p:char()");
