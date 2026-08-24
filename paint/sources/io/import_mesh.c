@@ -173,6 +173,34 @@ char *_import_mesh_number_ext(i32 i) {
 	return string_tmp(".%s", i32_to_string(i));
 }
 
+static i32 _import_mesh_split_number_ext(char *name, char **base) {
+	*base   = name;
+	i32 dot = string_last_index_of(name, ".");
+	i32 len = string_length(name);
+	if (dot <= 0 || len - dot - 1 < 3) {
+		return 0;
+	}
+	for (i32 i = dot + 1; i < len; ++i) {
+		i32 c = char_code_at(name, i);
+		if (c < '0' || c > '9') {
+			return 0;
+		}
+	}
+	*base = string_tmp("%.*s", dot, name);
+	return parse_int(name + dot + 1);
+}
+
+char *_import_mesh_unique_name(char *name) {
+	// Returns the name or the next free .00X variant
+	char *base;
+	i32   i   = _import_mesh_split_number_ext(name, &base);
+	char *res = i == 0 ? base : string_tmp("%s%s", base, _import_mesh_number_ext(i));
+	while (!_import_mesh_is_unique_name(res)) {
+		res = string_tmp("%s%s", base, _import_mesh_number_ext(++i));
+	}
+	return res;
+}
+
 void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	if (mesh == NULL || mesh->posa == NULL || mesh->nora == NULL || mesh->inda == NULL || mesh->posa->length == 0) {
 		console_error(strings_failed_to_read_mesh_data());
@@ -272,15 +300,10 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	object->skip_context  = "paint";
 
 	// Ensure unique names
-	char *oname = object->base->name;
-	char *ext   = "";
-	i32   i     = 0;
-	while (!_import_mesh_is_unique_name(string_tmp("%s%s", oname, ext))) {
-		ext = _import_mesh_number_ext(++i);
-	}
-	if (!string_equals(ext, "")) {
-		object->base->name = string("%s%s", oname, ext);
-		raw->name          = string("%s%s", oname, ext);
+	char *uname = _import_mesh_unique_name(object->base->name);
+	if (!string_equals(uname, object->base->name)) {
+		object->base->name = string_copy(uname);
+		raw->name          = string_copy(uname);
 	}
 
 	any_array_push(g_project->_->paint_objects, object);

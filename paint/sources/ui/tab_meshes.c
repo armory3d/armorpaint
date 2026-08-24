@@ -802,12 +802,7 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	g_project->mesh_parents = i32_array_create(0);
 
 	// Ensure unique name
-	char *ext = "";
-	i32   n   = 0;
-	while (!_import_mesh_is_unique_name(string("%s%s", md->name, ext))) {
-		ext = string_copy(_import_mesh_number_ext(++n));
-	}
-	mo->base->name = string("%s%s", md->name, ext);
+	mo->base->name = string_copy(_import_mesh_unique_name(md->name));
 
 	obj_t *o      = ALLOC_INIT(obj_t, {0});
 	o->_          = ALLOC_INIT(obj_runtime_t, {._gc = scene_raw});

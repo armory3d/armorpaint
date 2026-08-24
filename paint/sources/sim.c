@@ -66,13 +66,7 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 	sim_shift_object_masks(at + 1);
 
 	// Ensure unique name
-	char *oname = so->base->name;
-	char *ext   = "";
-	i32   i     = 0;
-	while (!_import_mesh_is_unique_name(string("%s%s", oname, ext))) {
-		ext = string_copy(_import_mesh_number_ext(++i));
-	}
-	dup->base->name = string("%s%s", oname, ext);
+	dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
 	tab_stages_add_object(dup->base->name);
 
 	// Material override
@@ -95,7 +89,12 @@ mesh_object_t *sim_duplicate_object(mesh_object_t *so) {
 }
 
 void sim_duplicate() {
-	sim_duplicate_object(g_context->paint_object);
+	mesh_object_t *dup = sim_duplicate_object(g_context->paint_object);
+	if (dup != NULL) {
+		g_context->paint_object                           = dup;
+		ui_header_handle->redraws                         = 2;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
 	util_mesh_merge(NULL);
 	g_context->ddirty = 2;
 }
