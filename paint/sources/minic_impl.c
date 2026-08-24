@@ -799,6 +799,94 @@ void script_physics_sync_transform(object_t *o) {
 	}
 }
 
+static bool script_pick_hit(object_t *o, ray_t *ray, f32 margin, f32 *out_t) {
+	if (o->ext == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return false;
+	}
+	mesh_data_t *data = ((mesh_object_t *)o->ext)->data;
+	if (data == NULL) {
+		return false;
+	}
+
+	vec4_t min;
+	vec4_t max;
+	mesh_data_calculate_aabb_min_max(data, &min, &max);
+
+	vec4_t scale = o->transform->scale;
+	vec4_t grow  = (vec4_t){scale.x != 0.0 ? margin / math_abs(scale.x) : 0.0, scale.y != 0.0 ? margin / math_abs(scale.y) : 0.0,
+                           scale.z != 0.0 ? margin / math_abs(scale.z) : 0.0, 0.0};
+	min = (vec4_t){min.x - grow.x, min.y - grow.y, min.z - grow.z, 0.0};
+	max = (vec4_t){max.x + grow.x, max.y + grow.y, max.z + grow.z, 0.0};
+
+	mat4_t inv    = mat4_inv(o->transform->world);
+	vec4_t origin = vec4_apply_mat4((vec4_t){ray->origin.x, ray->origin.y, ray->origin.z, 1.0}, inv);
+	vec4_t dir    = vec4_apply_mat4((vec4_t){ray->dir.x, ray->dir.y, ray->dir.z, 0.0}, inv);
+
+	f32 t0         = -10000.0;
+	f32 t1         = 10000.0;
+	f32 o_axis[3]  = {origin.x, origin.y, origin.z};
+	f32 d_axis[3]  = {dir.x, dir.y, dir.z};
+	f32 lo_axis[3] = {min.x, min.y, min.z};
+	f32 hi_axis[3] = {max.x, max.y, max.z};
+
+	for (i32 i = 0; i < 3; ++i) {
+		if (math_abs(d_axis[i]) < 1e-9) {
+			if (o_axis[i] < lo_axis[i] || o_axis[i] > hi_axis[i]) {
+				return false;
+			}
+			continue;
+		}
+
+		f32 ta = (lo_axis[i] - o_axis[i]) / d_axis[i];
+		f32 tb = (hi_axis[i] - o_axis[i]) / d_axis[i];
+		if (ta > tb) {
+			f32 tmp = ta;
+			ta      = tb;
+			tb      = tmp;
+		}
+		if (ta > t0) {
+			t0 = ta;
+		}
+		if (tb < t1) {
+			t1 = tb;
+		}
+		if (t0 > t1) {
+			return false;
+		}
+	}
+
+	if (t1 < 0.0) {
+		return false;
+	}
+	*out_t = t0 >= 0.0 ? t0 : t1;
+	return true;
+}
+
+object_t *script_pick_object() {
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->paint_objects == NULL) {
+		return NULL;
+	}
+
+	ray_t *ray = raycast_get_ray(mouse_view_x(), mouse_view_y(), scene_camera);
+	if (ray == NULL) {
+		return NULL;
+	}
+
+	object_t *hit    = NULL;
+	f32       best_t = 10000.0;
+
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	for (i32 i = 0; i < objects->length; ++i) {
+		object_t *o = objects->buffer[i]->base;
+		f32       t;
+		if (o->visible && script_pick_hit(o, ray, 0.02, &t) && t < best_t) {
+			best_t = t;
+			hit    = o;
+		}
+	}
+	return hit;
+}
+
 extern string_array_t *_path_texture_formats;
 extern string_array_t *_path_mesh_formats;
 extern string_array_t *_path_text_formats;

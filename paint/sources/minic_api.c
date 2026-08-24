@@ -636,9 +636,9 @@ void minic_register_builtins() {
 	MINIC_O(transform, transform_t);
 	MINIC_P(parent);
 	MINIC_O(children, any_array_t);
-	MINIC_I(visible);
-	MINIC_I(culled);
-	MINIC_I(is_empty);
+	MINIC_B(visible);
+	MINIC_B(culled);
+	MINIC_B(is_empty);
 	MINIC_P(ext);
 	MINIC_S(ext_type);
 	MINIC_END();
@@ -1214,11 +1214,14 @@ void minic_register_builtins() {
 	R(script_shape_add, "p:object_t(p:char name)");
 	R(script_object_duplicate, "p:object_t(p:object_t o)");
 	R(script_add_trait, "v(p:char object,p:char trait)");
+	R(trait_point_and_click_controller_walk_to, "v(f x,f y,p on_arrive)");
 	R(script_physics_set_shape, "v(p:object_t o,i shape)");
 	R(script_physics_set_mass, "v(p:object_t o,f mass)");
 	R(script_physics_apply_impulse, "v(p:object_t o,f x,f y,f z)");
 	R(script_physics_set_velocity, "v(p:object_t o,f x,f y,f z)");
 	R(script_physics_sync_transform, "v(p:object_t o)");
+	R(script_pick_object, "p:object_t()");
+	R(script_show_message, "v(p:char text,f seconds)");
 	R(script_set_stage, "v(p:char name)");
 	R(script_show_envmap, "v(i b)");
 	R(script_fade_to_stage, "v(p:char stage)");
