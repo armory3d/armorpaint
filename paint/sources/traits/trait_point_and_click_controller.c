@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-#define PAC_SPEED     1.0
+#define PAC_SPEED     0.4
 #define PAC_ARRIVE    0.1
 #define PAC_CLEARANCE 0.15
 #define PAC_TERRAIN   "Terrain"
@@ -13,6 +13,7 @@
 static char  *trait_point_and_click_controller_object = NULL;
 static quat_t trait_point_and_click_controller_rot    = {0.0, 0.0, 0.0, 1.0};
 static bool   trait_point_and_click_controller_moving = false;
+static void  *trait_point_and_click_controller_arrive = NULL;
 
 typedef struct {
 	f32 min_x;
@@ -34,6 +35,7 @@ void trait_point_and_click_controller_init(char *object) {
 	trait_point_and_click_controller_object = string_copy(object);
 	trait_point_and_click_controller_moving = false;
 	trait_point_and_click_controller_rot    = (quat_t){0.0, 0.0, 0.0, 1.0};
+	trait_point_and_click_controller_arrive = NULL;
 	pac_path_count                          = 0;
 	pac_path_index                          = 0;
 }
@@ -85,7 +87,7 @@ static void pac_gather_rects(physics_body_t *self) {
 	}
 }
 
-static vec4_t pac_push_out(vec4_t p) {
+static vec4_t pac_push_out(vec4_t p, vec4_t ref) {
 	for (i32 pass = 0; pass < 4; ++pass) {
 		bool moved = false;
 		for (i32 i = 0; i < pac_rect_count; ++i) {
@@ -94,23 +96,24 @@ static vec4_t pac_push_out(vec4_t p) {
 				continue;
 			}
 
-			f32 left  = p.x - r->min_x;
-			f32 right = r->max_x - p.x;
-			f32 down  = p.y - r->min_y;
-			f32 up    = r->max_y - p.y;
-			f32 best  = math_min(math_min(left, right), math_min(down, up));
-			if (best == left) {
-				p.x = r->min_x - PAC_EPS;
+			vec4_t exits[4] = {
+			    {r->min_x - PAC_EPS, p.y, 0.0, 1.0},
+			    {r->max_x + PAC_EPS, p.y, 0.0, 1.0},
+			    {p.x, r->min_y - PAC_EPS, 0.0, 1.0},
+			    {p.x, r->max_y + PAC_EPS, 0.0, 1.0},
+			};
+
+			i32 best      = 0;
+			f32 best_dist = pac_dist(exits[0], ref);
+			for (i32 e = 1; e < 4; ++e) {
+				f32 dist = pac_dist(exits[e], ref);
+				if (dist < best_dist) {
+					best_dist = dist;
+					best      = e;
+				}
 			}
-			else if (best == right) {
-				p.x = r->max_x + PAC_EPS;
-			}
-			else if (best == down) {
-				p.y = r->min_y - PAC_EPS;
-			}
-			else {
-				p.y = r->max_y + PAC_EPS;
-			}
+
+			p     = exits[best];
 			moved = true;
 		}
 		if (!moved) {
@@ -255,8 +258,9 @@ static bool pac_plan(physics_body_t *body, vec4_t goal) {
 	physics_body_get_pos(body->_body, &pos);
 
 	pac_gather_rects(body);
-	vec4_t start = pac_push_out((vec4_t){pos.x, pos.y, 0.0, 1.0});
-	goal         = pac_push_out((vec4_t){goal.x, goal.y, 0.0, 1.0});
+	vec4_t here  = (vec4_t){pos.x, pos.y, 0.0, 1.0};
+	vec4_t start = pac_push_out(here, here);
+	goal         = pac_push_out((vec4_t){goal.x, goal.y, 0.0, 1.0}, start);
 
 	if (pac_clear(start, goal)) {
 		pac_path[0]    = goal;
@@ -268,6 +272,24 @@ static bool pac_plan(physics_body_t *body, vec4_t goal) {
 	pac_build_nodes(start, goal);
 	pac_build_visibility();
 	return pac_search();
+}
+
+static void pac_trim(vec4_t from, f32 dist) {
+	if (dist <= 0.0 || pac_path_count == 0) {
+		return;
+	}
+
+	vec4_t prev = pac_path_count > 1 ? pac_path[pac_path_count - 2] : from;
+	vec4_t goal = pac_path[pac_path_count - 1];
+	f32    d    = pac_dist(goal, prev);
+	if (d <= dist) {
+		pac_path_count--;
+		return;
+	}
+
+	f32 t                          = (d - dist) / d;
+	pac_path[pac_path_count - 1].x = prev.x + (goal.x - prev.x) * t;
+	pac_path[pac_path_count - 1].y = prev.y + (goal.y - prev.y) * t;
 }
 
 static quat_t trait_point_and_click_controller_facing(vec4_t dir) {
@@ -386,9 +408,12 @@ void trait_point_and_click_controller_run() {
 	}
 
 	vec4_t target;
-	if (mouse_started("left") && trait_point_and_click_controller_pick(&target) && !pac_plan(body, target)) {
-		pac_path_count = 0;
-		pac_path_index = 0;
+	if (mouse_started("left") && trait_point_and_click_controller_pick(&target)) {
+		trait_point_and_click_controller_arrive = NULL;
+		if (!pac_plan(body, target)) {
+			pac_path_count = 0;
+			pac_path_index = 0;
+		}
 	}
 
 	bool moving = trait_point_and_click_controller_move(body);
@@ -397,13 +422,48 @@ void trait_point_and_click_controller_run() {
 	if (moving) {
 		g_context->ddirty = 2;
 	}
+	else if (trait_point_and_click_controller_arrive != NULL) {
+		void *fn                                = trait_point_and_click_controller_arrive;
+		trait_point_and_click_controller_arrive = NULL;
+		minic_call_fn(fn, NULL, 0);
+	}
 }
 
 void trait_point_and_click_controller_stop() {
-	pac_path_count = 0;
-	pac_path_index = 0;
-	object_t *o    = script_get_object(trait_point_and_click_controller_object);
+	trait_point_and_click_controller_arrive = NULL;
+	pac_path_count                          = 0;
+	pac_path_index                          = 0;
+	object_t *o                             = script_get_object(trait_point_and_click_controller_object);
 	if (o != NULL) {
 		trait_point_and_click_controller_set_moving(o, false);
 	}
+}
+
+void trait_point_and_click_controller_walk_to(f32 x, f32 y, void *on_arrive) {
+	trait_point_and_click_controller_arrive = NULL;
+	if (trait_point_and_click_controller_object == NULL) {
+		return;
+	}
+
+	object_t *o = script_get_object(trait_point_and_click_controller_object);
+	if (o == NULL) {
+		return;
+	}
+	physics_body_t *body = trait_point_and_click_controller_body(o);
+	if (body == NULL) {
+		return;
+	}
+
+	if (!pac_plan(body, (vec4_t){x, y, 0.0, 1.0})) {
+		pac_path_count = 0;
+		pac_path_index = 0;
+		return;
+	}
+
+	vec4_t pos;
+	physics_body_get_pos(body->_body, &pos);
+	f32 stop_dist = 0.0;
+	pac_trim((vec4_t){pos.x, pos.y, 0.0, 1.0}, stop_dist);
+
+	trait_point_and_click_controller_arrive = on_arrive;
 }
