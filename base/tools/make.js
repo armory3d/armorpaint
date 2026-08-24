@@ -161,8 +161,23 @@ function os_argv() {
 }
 
 function os_cpus_length() {
-	// return os.cpus().length;
-	return 8;
+	let cores = 0;
+	if (os_platform() === "win32") {
+		cores = parseInt(os_env("NUMBER_OF_PROCESSORS"));
+	}
+	else if (os_platform() === "darwin") {
+		cores = parseInt(os_popen("sysctl", [ "-n", "hw.logicalcpu" ]).stdout);
+	}
+	else {
+		let cpuinfo = fs_readfile("/proc/cpuinfo");
+		if (cpuinfo != null) {
+			cores = (cpuinfo.match(/^processor\s*:/gm) || []).length;
+		}
+	}
+	if (!(cores > 0)) {
+		cores = 8;
+	}
+	return cores;
 }
 
 function os_chmod(p, m) {
@@ -945,9 +960,12 @@ class WasmExporter extends Exporter {
 		this.compile_commands = new CompilerCommandsExporter();
 		let compiler          = "clang --target=wasm32 -nostdlib -matomics -mbulk-memory";
 		let compilerFlags     = "";
-		this.make =
-		    new MakeExporter(compiler, compiler, compilerFlags, compilerFlags,
-							 '--target=wasm32 -nostdlib -matomics -mbulk-memory "-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=671088640,--max-memory=671088640,-z,stack-size=256000"', '.wasm');
+		let linkerFlags =
+		    '--target=wasm32 -nostdlib -matomics -mbulk-memory "-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=671088640,--max-memory=671088640,-z,stack-size=256000"';
+		if (!goptions.debug) {
+			linkerFlags += " -Wl,--strip-all";
+		}
+		this.make = new MakeExporter(compiler, compiler, compilerFlags, compilerFlags, linkerFlags, '.wasm');
 	}
 
 	export_solution(project) {
@@ -1955,6 +1973,10 @@ class LinuxExporter extends Exporter {
 			compilerFlags += "-flto";
 			linkerFlags += " -flto";
 		}
+		if (!goptions.debug) {
+			compilerFlags += " -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables";
+			linkerFlags += " -Wl,--gc-sections -Wl,-s";
+		}
 		this.make             = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, compilerFlags, compilerFlags, linkerFlags, '');
 		this.compile_commands = new CompilerCommandsExporter();
 	}
@@ -2581,6 +2603,12 @@ class ShaderCompiler {
 		return shaders;
 	}
 
+	shader_outputs(to) {
+		let ext  = this.type === 'hlsl' ? 'd3d11' : this.type;
+		let base = to.substring(0, to.lastIndexOf('.') + 1);
+		return [ base + 'vert.' + ext, base + 'frag.' + ext ];
+	}
+
 	compile_shader(file, options) {
 		let from = file;
 		let to   = path_join(this.to, path_basename_noext(file) + '.' + this.type);
@@ -2600,7 +2628,19 @@ class ShaderCompiler {
 			return compiled_shader;
 		}
 
-		if (!from_time || (to_time && to_time > from_time)) {
+		let out_time;
+		for (let out of this.shader_outputs(to)) {
+			if (!fs_exists(out)) {
+				out_time = undefined;
+				break;
+			}
+			let t = fs_mtime(out);
+			if (out_time === undefined || t < out_time) {
+				out_time = t;
+			}
+		}
+
+		if (!from_time || (out_time && out_time > from_time)) {
 			return null;
 		}
 		else {
@@ -2653,7 +2693,9 @@ class IronExporter {
 			fs_ensuredir(path_join("build", "temp", path_dirname(to)));
 			to_full = path_join("build", "temp", to);
 		}
-		fs_copyfile(from, to_full);
+		if (!fs_exists(to_full) || fs_mtime(to_full) <= fs_mtime(from)) {
+			fs_copyfile(from, to_full);
+		}
 		return [ to ];
 	}
 
@@ -3087,7 +3129,8 @@ function export_amake_project() {
 
 	let exporter = null;
 	if (goptions.ccompiler === "tcc") {
-		exporter = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, "", "", "", "");
+		let cFlags = goptions.debug ? "" : "-fno-asynchronous-unwind-tables";
+		exporter   = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, cFlags, cFlags, "", "");
 	}
 	else if (goptions.target === 'ios' || goptions.target === 'macos') {
 		exporter = new XCodeExporter();
