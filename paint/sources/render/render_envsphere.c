@@ -76,10 +76,10 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	node_shader_write_frag(kong, "var lodc1: float3 = envmap_sample(lod1, envmap_coord);");
 	node_shader_write_frag(kong, "var prefiltered_color: float3 = lerp3(lodc0, lodc1, lodf);");
 	// Rotate normal by envmap angle for irradiance
-	node_shader_write_frag(kong, "var indirect: float3 = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z - n.y * constants.envmap_data.y, n.x * "
-	                             "constants.envmap_data.y + n.y * constants.envmap_data.z, n.z)) / 3.14159265);");
-	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * 0.5;");
-	node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
+	node_shader_write_frag(kong, "var indirect: float3 = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z + n.y * constants.envmap_data.y, n.y * "
+	                             "constants.envmap_data.z - n.x * constants.envmap_data.y, n.z)) / 3.14159265);");
+	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv);");
+	node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w * 0.5;");
 	node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
 
 	// Filmic tone-mapping (matches compositor_pass)

@@ -8,7 +8,6 @@ gpu_texture_t         *import_envmap_radiance = NULL;
 i32                    import_envmap_noise_loc;
 gpu_texture_t_array_t *import_envmap_mips   = NULL;
 vec4_t                 import_envmap_params = (vec4_t){0.0, 0.0, 0.0, 1.0};
-vec4_t                 import_envmap_n      = (vec4_t){0.0, 0.0, 0.0, 1.0};
 
 void import_envmap_get_radiance_mip(gpu_texture_t *mip, i32 level, gpu_texture_t *radiance) {
 #ifdef IRON_METAL
@@ -36,53 +35,46 @@ void import_envmap_get_radiance_mip(gpu_texture_t *mip, i32 level, gpu_texture_t
 	}
 }
 
-vec4_t import_envmap_reverse_equirect(f32 x, f32 y) {
-	f32 theta = x * math_pi() * 2 - math_pi();
-	f32 phi   = y * math_pi();
-	// return n.set(math_sin(phi) * math_cos(theta), -(math_sin(phi) * math_sin(theta)), math_cos(phi));
-	import_envmap_n = (vec4_t){-math_cos(phi), math_sin(phi) * math_cos(theta), -(math_sin(phi) * math_sin(theta)), 1.0};
-	return import_envmap_n;
-}
-
-// https://ndotl.wordpress.com/2015/03/07/pbr-cubemap-filtering
-// https://seblagarde.wordpress.com/2012/06/10/amd-cubemapgen-for-physically-based-rendering
 f32_array_t *import_envmap_get_spherical_harmonics(buffer_t *source, i32 source_width, i32 source_height) {
-	f32_array_t *sh      = f32_array_create(9 * 3 + 1); // Align to mult of 4 - 27->28
-	f32          accum   = 0.0;
-	f32          weight  = 1.0;
-	f32          weight1 = weight * 4 / 17.0;
-	f32          weight2 = weight * 8 / 17.0;
-	f32          weight3 = weight * 15 / 17.0;
-	f32          weight4 = weight * 5 / 68.0;
-	f32          weight5 = weight * 15 / 68.0;
-
-	for (i32 x = 0; x < source_width; ++x) {
-		for (i32 y = 0; y < source_height; ++y) {
-			import_envmap_n = import_envmap_reverse_equirect(x / (float)source_width, y / (float)source_height);
-
-			for (i32 i = 0; i < 3; ++i) {
-				f32 value = buffer_get_f16(source, ((x + y * source_width) * 8 + i * 2));
-				value     = math_pow(value, 1.0 / 2.2);
-
-				sh->buffer[0 + i] += value * weight1;
-				sh->buffer[3 + i] += value * weight2 * import_envmap_n.x;
-				sh->buffer[6 + i] += value * weight2 * import_envmap_n.y;
-				sh->buffer[9 + i] += value * weight2 * import_envmap_n.z;
-
-				sh->buffer[12 + i] += value * weight3 * import_envmap_n.x * import_envmap_n.z;
-				sh->buffer[15 + i] += value * weight3 * import_envmap_n.z * import_envmap_n.y;
-				sh->buffer[18 + i] += value * weight3 * import_envmap_n.y * import_envmap_n.x;
-
-				sh->buffer[21 + i] += value * weight4 * (3.0 * import_envmap_n.z * import_envmap_n.z - 1.0);
-				sh->buffer[24 + i] += value * weight5 * (import_envmap_n.x * import_envmap_n.x - import_envmap_n.y * import_envmap_n.y);
-
-				accum += weight;
-			}
-		}
+	f32_array_t *sh = f32_array_create(9 * 3 + 1); // Align to mult of 4 - 27->28
+	for (i32 i = 0; i < sh->length; ++i) {
+		sh->buffer[i] = 0.0f;
 	}
 
-	for (i32 i = 0; i < sh->length; ++i) {
-		sh->buffer[i] /= accum / 16.0;
+	f32 dtheta = math_pi() * 2.0f / (f32)source_width;
+	f32 dphi   = math_pi() / (f32)source_height;
+
+	for (i32 y = 0; y < source_height; ++y) {
+		f32 phi     = (y + 0.5f) * dphi;
+		f32 sin_phi = math_sin(phi);
+		f32 cos_phi = math_cos(phi);
+		f32 domega  = sin_phi * dtheta * dphi;
+
+		for (i32 x = 0; x < source_width; ++x) {
+			f32 theta = (x + 0.5f) * dtheta - math_pi();
+			f32 nx    = sin_phi * math_cos(theta);
+			f32 ny    = -(sin_phi * math_sin(theta));
+			f32 nz    = cos_phi;
+
+			// Y00, Y1-1, Y10, Y11, Y2-2, Y2-1, Y20, Y21, Y22
+			f32 basis[9];
+			basis[0] = 0.282095f;
+			basis[1] = 0.488603f * ny;
+			basis[2] = 0.488603f * nz;
+			basis[3] = 0.488603f * nx;
+			basis[4] = 1.092548f * nx * ny;
+			basis[5] = 1.092548f * ny * nz;
+			basis[6] = 0.315392f * (3.0f * nz * nz - 1.0f);
+			basis[7] = 1.092548f * nx * nz;
+			basis[8] = 0.546274f * (nx * nx - ny * ny);
+
+			for (i32 i = 0; i < 3; ++i) {
+				f32 value = buffer_get_f16(source, ((x + y * source_width) * 8 + i * 2)) * domega;
+				for (i32 j = 0; j < 9; ++j) {
+					sh->buffer[j * 3 + i] += value * basis[j];
+				}
+			}
+		}
 	}
 
 	return sh;

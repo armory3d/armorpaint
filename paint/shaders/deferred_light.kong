@@ -155,16 +155,16 @@ fun sh_irradiance(nor: float3): float3 {
 	var cl21: float3 = float3(constants.shirr5.y, constants.shirr5.z, constants.shirr5.w);
 	var cl22: float3 = float3(constants.shirr6.x, constants.shirr6.y, constants.shirr6.z);
 	return (
-		cl22 * c1 * (nor.y * nor.y - (-nor.z) * (-nor.z)) +
-		cl20 * c3 * nor.x * nor.x +
+		cl22 * c1 * (nor.x * nor.x - nor.y * nor.y) +
+		cl20 * c3 * nor.z * nor.z +
 		cl00 * c4 -
 		cl20 * c5 +
-		cl2m2 * 2.0 * c1 * nor.y * (-nor.z) +
-		cl21  * 2.0 * c1 * nor.y * nor.x +
-		cl2m1 * 2.0 * c1 * (-nor.z) * nor.x +
-		cl11  * 2.0 * c2 * nor.y +
-		cl1m1 * 2.0 * c2 * (-nor.z) +
-		cl10  * 2.0 * c2 * nor.x
+		cl2m2 * 2.0 * c1 * nor.x * nor.y +
+		cl21  * 2.0 * c1 * nor.x * nor.z +
+		cl2m1 * 2.0 * c1 * nor.y * nor.z +
+		cl11  * 2.0 * c2 * nor.x +
+		cl1m1 * 2.0 * c2 * nor.y +
+		cl10  * 2.0 * c2 * nor.z
 	);
 }
 
@@ -196,6 +196,11 @@ fun envmap_sample(lod: float, coord: float2): float3 {
 		return sample_lod(senvmap_radiance3, sampler_linear, coord, 0.0).rgb;
 	}
 	return sample_lod(senvmap_radiance4, sampler_linear, coord, 0.0).rgb;
+}
+
+fun specular_occlusion(dotnv: float, ao: float, roughness: float): float {
+	var e: float = exp((-16.0 * roughness - 1.0) * log(2.0)); // exp2()
+	return clamp(pow(dotnv + ao, e) - 1.0 + ao, 0.0, 1.0);
 }
 
 // https://www.unrealengine.com/en-US/blog/physically-based-shading-on-mobile
@@ -235,25 +240,30 @@ fun deferred_light_frag(input: vert_out): float4 {
 	metallic = clamp((-0.06250047610269868710814625956118106842041015625 * float(matid) + g0.a) / 0.062485207147583624058737396240234375, 0.0, 1.0);
 
 	var g1: float4 = sample_lod(gbuffer1, sampler_linear, input.tex, 0.0); // basecolor.rgb, occ
-	var occ: float = g1.a;
 	var albedo: float3 = surface_albedo(g1.rgb, metallic);
 	var f0: float3 = surface_f0(g1.rgb, metallic);
 
 	var depth: float = sample_lod(gbufferD, sampler_linear, input.tex, 0.0).r;
 	var p: float3 = get_pos(constants.eye, constants.eye_look, normalize(input.view_ray), depth, constants.camera_proj);
 	var v: float3 = normalize(constants.eye - p);
-	var dotnv: float = max(0.0, dot(n, v));
-	occ = lerp(1.0, occ, dotnv); // ao fresnel
+
+	var dotnv: float = dot(n, v);
+	if (dotnv < 0.05) {
+		n = normalize(n + v * (0.05 - dotnv));
+		dotnv = dot(n, v);
+	}
+	dotnv = max(0.0001, dotnv);
+
+	var ao: float = g1.a * sample_lod(ssaotex, sampler_linear, input.tex, 0.0).r;
 
 	// Envmap
 	var envl: float3 = sh_irradiance(
 		float3(
-			n.x * constants.envmap_data.z - n.y * constants.envmap_data.y,
-			n.x * constants.envmap_data.y + n.y * constants.envmap_data.z,
+			n.x * constants.envmap_data.z + n.y * constants.envmap_data.y,
+			n.y * constants.envmap_data.z - n.x * constants.envmap_data.y,
 			n.z
 		)
 	);
-	// envl /= PI;
 	envl = envl / PI;
 
 	var reflection_world: float3 = reflect(-v, n);
@@ -268,24 +278,19 @@ fun deferred_light_frag(input: vert_out): float4 {
 	var lodc1: float3 = envmap_sample(lod1, envmap_coord);
 	var prefiltered_color: float3 = lerp3(lodc0, lodc1, lodf);
 
-	envl.rgb = envl.rgb * albedo;
-	// Indirect specular
-	// var env_brdf: float4 = senvmap_brdf[uint2(uint(dotnv * 255.0), uint(roughness * 255.0))];
-	// envl.rgb += prefiltered_color * (f0 * env_brdf.x + env_brdf.y);
-	// envl.rgb = envl.rgb + (prefiltered_color * (f0 * env_brdf.x + env_brdf.y));
-	envl.rgb = envl.rgb + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * 0.5;
+	// Emission - basecolor holds the emitted color, it is not an albedo
+	var emission: float3 = float3(0.0, 0.0, 0.0);
+	if (matid == uint(1.0)) { // materialid
+		emission = g1.rgb;
+		albedo = float3(0.0, 0.0, 0.0);
+	}
 
-	envl.rgb = envl.rgb * constants.envmap_data.w * occ;
+	envl.rgb = envl.rgb * albedo * ao;
+	envl.rgb = envl.rgb + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * specular_occlusion(dotnv, ao, roughness);
+	envl.rgb = envl.rgb * constants.envmap_data.w * 0.5;
 
 	var color: float4;
-	color.rgb = envl.rgb;
-	color.rgb = color.rgb * sample_lod(ssaotex, sampler_linear, input.tex, 0.0).r;
-
-	// if (matid == uint(1)) { // Emission
-	if (matid == uint(1.0)) { // Emission
-		color.rgb = color.rgb + g1.rgb; // materialid
-		//albedo = float3(0.0, 0.0, 0.0);
-	}
+	color.rgb = envl.rgb + emission;
 
 	color.rgb = max3(color.rgb, float3(0.0, 0.0, 0.0));
 	color.a = 1.0; // Mark as opaque
