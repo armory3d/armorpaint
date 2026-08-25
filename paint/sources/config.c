@@ -72,7 +72,7 @@ void config_save() {
 	json_encode_i32("window_frequency", g_config->window_frequency);
 	json_encode_f32("window_scale", g_config->window_scale);
 	json_encode_f32("rp_supersample", g_config->rp_supersample);
-	json_encode_bool("rp_ssao", g_config->rp_ssao);
+	json_encode_f32("rp_ssao", g_config->rp_ssao);
 	json_encode_f32("rp_bloom", g_config->rp_bloom);
 	json_encode_f32("rp_vignette", g_config->rp_vignette);
 	json_encode_f32("rp_grain", g_config->rp_grain);
@@ -189,9 +189,9 @@ void config_init() {
 		g_config->lut_path         = "";
 		g_config->texture_filter   = true;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->rp_ssao = false;
+		g_config->rp_ssao = 0.0;
 #else
-		g_config->rp_ssao = true;
+		g_config->rp_ssao = 1.0;
 #endif
 		g_config->rp_supersample = 1.0;
 #ifdef IRON_ANDROID

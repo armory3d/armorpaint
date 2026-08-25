@@ -12,12 +12,13 @@ void render_path_base_init() {
 
 void render_path_base_apply_config() {
 	if (render_path_base_super_sample != g_config->rp_supersample) {
+		f32 last                      = render_path_base_super_sample;
 		render_path_base_super_sample = g_config->rp_supersample;
 		string_array_t *keys          = map_keys(render_path_render_targets);
 		for (i32 i = 0; i < keys->length; ++i) {
 			render_target_t *rt = any_map_get(render_path_render_targets, keys->buffer[i]);
 			if (rt->width == 0) {
-				rt->scale = render_path_base_super_sample;
+				rt->scale = rt->scale / last * render_path_base_super_sample;
 			}
 		}
 		array_free(keys);
@@ -190,19 +191,13 @@ void render_path_base_draw_bloom(char *source, char *target) {
 }
 
 void render_path_base_init_ssao() {
-#if defined(IRON_MACOS) || defined(IRON_IOS) || defined(IRON_ANDROID)
-	f32 scale = 0.5;
-#else
-	f32 scale = 1.0;
-#endif
-
 	{
 		render_target_t *t = render_target_create();
 		t->name            = "singlea";
 		t->width           = 0;
 		t->height          = 0;
 		t->format          = "R8";
-		t->scale           = scale * render_path_base_get_super_sampling();
+		t->scale           = render_path_base_get_super_sampling();
 		render_path_create_render_target(t);
 	}
 
@@ -212,7 +207,17 @@ void render_path_base_init_ssao() {
 		t->width           = 0;
 		t->height          = 0;
 		t->format          = "R8";
-		t->scale           = scale * render_path_base_get_super_sampling();
+		t->scale           = render_path_base_get_super_sampling();
+		render_path_create_render_target(t);
+	}
+
+	{
+		render_target_t *t = render_target_create();
+		t->name            = "singlec";
+		t->width           = 0;
+		t->height          = 0;
+		t->format          = "R8";
+		t->scale           = render_path_base_get_super_sampling();
 		render_path_create_render_target(t);
 	}
 
@@ -221,24 +226,30 @@ void render_path_base_init_ssao() {
 	render_path_load_shader("Scene/ssao_blur_pass/ssao_blur_pass_y");
 }
 
+char *render_path_base_ssao_target() {
+	return scene_camera->frame % 2 == 0 ? "singlea" : "singlec";
+}
+
 void render_path_base_draw_ssao() {
-	bool ssao = g_config->rp_ssao != false && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
+	bool ssao = g_config->rp_ssao > 0.0 && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
 	if (ssao && g_context->ddirty > -6 && _render_path_frame > 0) {
 		if (any_map_get(render_path_render_targets, "singlea") == NULL) {
 			render_path_base_init_ssao();
 		}
 
-		render_path_set_target("singlea", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		char *target = render_path_base_ssao_target();
+
+		render_path_set_target(target, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("main", "gbufferD");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_pass/ssao_pass");
 
 		render_path_set_target("singleb", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target("singlea", "tex");
+		render_path_bind_target(target, "tex");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_blur_pass/ssao_blur_pass_x");
 
-		render_path_set_target("singlea", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(target, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("singleb", "tex");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_blur_pass/ssao_blur_pass_y");
@@ -250,9 +261,9 @@ void render_path_base_draw_deferred_light() {
 	render_path_bind_target("main", "gbufferD");
 	render_path_bind_target("gbuffer0", "gbuffer0");
 	render_path_bind_target("gbuffer1", "gbuffer1");
-	bool ssao = g_config->rp_ssao != false && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
+	bool ssao = g_config->rp_ssao > 0.0 && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
 	if (ssao && _render_path_frame > 0) {
-		render_path_bind_target("singlea", "ssaotex");
+		render_path_bind_target(render_path_base_ssao_target(), "ssaotex");
 	}
 	else {
 		render_path_bind_target("empty_white", "ssaotex");

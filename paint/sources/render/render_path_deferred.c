@@ -87,7 +87,7 @@ void render_path_deferred_init() {
 		any_map_set(render_path_render_targets, t->name, t);
 	}
 
-	if (g_config->rp_ssao) {
+	if (g_config->rp_ssao > 0.0) {
 		render_path_base_init_ssao();
 	}
 

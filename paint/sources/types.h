@@ -94,7 +94,7 @@ typedef struct config {
 	f32  window_scale;
 	// Render path
 	f32   rp_supersample;
-	bool  rp_ssao;
+	f32   rp_ssao;
 	f32   rp_bloom;
 	f32   rp_vignette;
 	f32   rp_grain;

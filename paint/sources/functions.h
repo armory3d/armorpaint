@@ -429,6 +429,7 @@ f32                       render_path_base_get_super_sampling();
 void                      render_path_base_commands(void (*draw_commands)(void));
 void                      render_path_base_draw_bloom(char *source, char *target);
 void                      render_path_base_init_ssao();
+char                     *render_path_base_ssao_target();
 void                      render_path_base_draw_ssao();
 void                      render_path_base_draw_deferred_light();
 void                      render_path_base_draw_taa(char *bufa, char *bufb);

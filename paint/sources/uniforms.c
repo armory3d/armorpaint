@@ -143,6 +143,12 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_taa_blend")) {
 		return scene_camera->frame == 0 ? 0.0 : 0.5;
 	}
+	else if (string_equals(link, "_ssao_strength")) {
+		return g_config->rp_ssao;
+	}
+	else if (string_equals(link, "_ssao_frame")) {
+		return scene_camera->frame % 2 == 0 ? 0.0 : 0.5;
+	}
 	if (parser_material_script_links != NULL) {
 		string_array_t *keys   = map_keys(parser_material_script_links);
 		bool            found  = keys->length > 0;

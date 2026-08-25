@@ -3401,7 +3401,7 @@ scene_t *startup_get_scene(void) {
 				ve->data                       = "float2";
 				sc->vertex_elements->buffer[0] = ve;
 			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(4);
+			sc->constants = (shader_const_t_array_t *)any_array_create(6);
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "invP";
@@ -3411,24 +3411,38 @@ scene_t *startup_get_scene(void) {
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "P";
-				c->type                  = "float4x4";
-				c->link                  = "_proj_matrix";
-				sc->constants->buffer[1] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "V3";
 				c->type                  = "float3x3";
 				c->link                  = "_view_matrix3";
-				sc->constants->buffer[2] = c;
+				sc->constants->buffer[1] = c;
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "camera_proj";
 				c->type                  = "float2";
 				c->link                  = "_camera_plane_proj";
+				sc->constants->buffer[2] = c;
+			}
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "screen_size_inv";
+				c->type                  = "float2";
+				c->link                  = "_screen_size_inv";
 				sc->constants->buffer[3] = c;
+			}
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "frame_offset";
+				c->type                  = "float";
+				c->link                  = "_ssao_frame";
+				sc->constants->buffer[4] = c;
+			}
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "ssao_strength";
+				c->type                  = "float";
+				c->link                  = "_ssao_strength";
+				sc->constants->buffer[5] = c;
 			}
 			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
 			{

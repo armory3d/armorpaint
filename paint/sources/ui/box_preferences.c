@@ -648,10 +648,10 @@ void box_preferences_viewport_tab() {
 
 	if (g_config->render_mode == RENDER_MODE_DEFERRED) {
 		ui_handle_t *h_ssao = ui_handle(__ID__);
-		h_ssao->b           = g_config->rp_ssao;
-		g_config->rp_ssao   = ui_check(h_ssao, tr("SSAO"), "");
+		h_ssao->f           = g_config->rp_ssao;
+		g_config->rp_ssao   = ui_slider(h_ssao, tr("SSAO"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		if (h_ssao->changed) {
-			config_apply();
+			g_context->ddirty = 2;
 		}
 
 		ui_handle_t *h_bloom = ui_handle(__ID__);
