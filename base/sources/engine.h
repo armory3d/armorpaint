@@ -593,7 +593,6 @@ extern f32              _render_path_frame_time;
 extern i32              _render_path_frame;
 extern render_target_t *_render_path_current_target;
 extern gpu_texture_t   *_render_path_current_image;
-extern bool             _render_path_paused;
 extern i32              _render_path_last_w;
 extern i32              _render_path_last_h;
 extern string_array_t  *_render_path_bind_params;

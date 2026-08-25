@@ -2320,7 +2320,6 @@ f32              _render_path_frame_time             = 0.0;
 i32              _render_path_frame                  = 0;
 render_target_t *_render_path_current_target         = NULL;
 gpu_texture_t   *_render_path_current_image          = NULL;
-bool             _render_path_paused                 = false;
 i32              _render_path_last_w                 = 0;
 i32              _render_path_last_h                 = 0;
 string_array_t  *_render_path_bind_params            = NULL;
@@ -2333,7 +2332,7 @@ bool render_path_ready(void) {
 }
 
 void render_path_render_frame(void) {
-	if (!render_path_ready() || _render_path_paused) {
+	if (!render_path_ready()) {
 		return;
 	}
 	if (_render_path_last_w > 0 && (_render_path_last_w != sys_w() || _render_path_last_h != sys_h())) {
