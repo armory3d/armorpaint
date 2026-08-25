@@ -704,13 +704,19 @@ class VisualStudioExporter extends Exporter {
 		this.p('<ClCompile>', indent + 1);
 		this.p('<AdditionalIncludeDirectories>' + includes + '</AdditionalIncludeDirectories>', indent + 2);
 
-		this.p('<AdditionalOptions>-Wno-deprecated-declarations -Wno-c23-extensions -Wno-incompatible-pointer-types -Wno-incompatible-function-pointer-types -Wno-microsoft-enum-forward-reference /bigobj %(AdditionalOptions)</AdditionalOptions>', indent + 2);
+		let additionalOptions =
+		    '-Wno-deprecated-declarations -Wno-c23-extensions -Wno-incompatible-pointer-types -Wno-incompatible-function-pointer-types -Wno-microsoft-enum-forward-reference /bigobj';
+		if (config === 'Release') {
+			additionalOptions += ' /Gw';
+		}
+		this.p('<AdditionalOptions>' + additionalOptions + ' %(AdditionalOptions)</AdditionalOptions>', indent + 2);
 
 		this.p('<WarningLevel>Level3</WarningLevel>', indent + 2);
 		this.p('<Optimization>' + this.get_optimization(config) + '</Optimization>', indent + 2);
 		if (config === 'Release') {
 			this.p('<FunctionLevelLinking>true</FunctionLevelLinking>', indent + 2);
 			this.p('<IntrinsicFunctions>true</IntrinsicFunctions>', indent + 2);
+			this.p('<DebugInformationFormat>None</DebugInformationFormat>', indent + 2);
 		}
 		this.p('<PreprocessorDefinitions>' + (config === 'Release' ? releaseDefines : debugDefines) + ((system === 'x64') ? 'SYS_64;' : '') +
 		           'WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
@@ -734,7 +740,7 @@ class VisualStudioExporter extends Exporter {
 		else {
 			this.p('<SubSystem>Windows</SubSystem>', indent + 2);
 		}
-		this.p('<GenerateDebugInformation>true</GenerateDebugInformation>', indent + 2);
+		this.p('<GenerateDebugInformation>' + (config === 'Release' ? 'false' : 'true') + '</GenerateDebugInformation>', indent + 2);
 		if (config === 'Release') {
 			this.p('<EnableCOMDATFolding>true</EnableCOMDATFolding>', indent + 2);
 			this.p('<OptimizeReferences>true</OptimizeReferences>', indent + 2);
