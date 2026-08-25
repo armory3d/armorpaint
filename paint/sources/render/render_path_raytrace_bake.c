@@ -126,7 +126,6 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 
 	if (g_context->brush_time > 0) {
 		g_context->pdirty = 2;
-		g_context->rdirty = 2;
 	}
 
 	if (g_context->pdirty > 0) {

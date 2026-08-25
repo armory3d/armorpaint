@@ -7,7 +7,6 @@ void context_init() {
 	g_context->merged_object_is_atlas       = false; // Only objects referenced by atlas are merged
 	g_context->ddirty                       = 0;     // depth
 	g_context->pdirty                       = 0;     // paint
-	g_context->rdirty                       = 0;     // render
 	g_context->brush_blend_dirty            = true;
 	g_context->split_view                   = false;
 	g_context->view_index                   = -1;

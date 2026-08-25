@@ -309,7 +309,6 @@ static void texture_mesh_node_project(ui_node_t *node) {
 	render_path_base_draw_gbuffer();
 
 	g_context->rtdirty      = 1;
-	g_context->rdirty       = 2;
 	ui_nodes_hwnd->redraws  = 2;
 	ui_view2d_hwnd->redraws = 2;
 

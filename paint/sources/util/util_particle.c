@@ -43,7 +43,6 @@ void util_particle_update() {
 	}
 	if (any_active) {
 		g_context->ddirty = 2;
-		g_context->rdirty = 2;
 		iron_delay_idle_sleep();
 	}
 

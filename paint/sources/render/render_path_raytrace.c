@@ -108,12 +108,8 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	render_target_t *framebuffer = any_map_get(render_path_render_targets, "buf");
 	_gpu_raytrace_dispatch_rays(framebuffer->_image, render_path_raytrace_f32a);
 
-	if (g_context->ddirty == 1 || g_context->pdirty == 1) {
-		g_context->rdirty = 4;
-	}
 	g_context->ddirty--;
 	g_context->pdirty--;
-	g_context->rdirty--;
 
 	// g_context->ddirty = 1; // _RENDER
 }

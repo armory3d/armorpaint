@@ -276,7 +276,6 @@ void render_gizmo_update() {
 
 	if (g_context->translate_x || g_context->translate_y || g_context->translate_z || g_context->scale_x || g_context->scale_y || g_context->scale_z ||
 	    g_context->rotate_x || g_context->rotate_y || g_context->rotate_z) {
-		g_context->rdirty = 2;
 		if (is_object) {
 			transform_t *t = paint_object->transform;
 			gizmo_v        = (vec4_t){transform_world_x(t), transform_world_y(t), transform_world_z(t), 1.0};

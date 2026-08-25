@@ -2,8 +2,6 @@
 #include "../global.h"
 
 f32                      render_path_base_super_sample = 1.0;
-f32                      render_path_base_last_x       = -1.0;
-f32                      render_path_base_last_y       = -1.0;
 render_target_t_array_t *render_path_base_bloom_mipmaps;
 
 void render_path_base_init() {
@@ -95,46 +93,6 @@ bool render_path_base_ssaa4() {
 	return g_config->rp_supersample == 4;
 }
 
-bool render_path_base_is_cached() {
-	if (iron_window_width() == 0 || iron_window_height() == 0) {
-		return true;
-	}
-
-	f32 mx                  = render_path_base_last_x;
-	f32 my                  = render_path_base_last_y;
-	render_path_base_last_x = mouse_view_x();
-	render_path_base_last_y = mouse_view_y();
-
-	if (g_context->ddirty <= 0 && g_context->rdirty <= 0 && g_context->pdirty <= 0) {
-		if (mx != render_path_base_last_x || my != render_path_base_last_y || iron_mouse_is_locked()) {
-			g_context->ddirty = 0;
-		}
-
-		if (g_context->ddirty > -6) {
-			// Accumulate taa frames
-			g_context->ddirty--;
-			return false;
-		}
-
-		if (g_context->ddirty > -12) {
-			render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("last", "tex");
-			if (render_path_base_ssaa4()) {
-				render_path_draw_shader("Scene/supersample_resolve/supersample_resolveRGBA64");
-			}
-			else {
-				render_path_draw_shader("Scene/copy_pass/copy_pass");
-			}
-			render_path_paint_commands_cursor();
-			g_context->ddirty--;
-		}
-
-		render_path_base_end();
-		return true;
-	}
-	return false;
-}
-
 void render_path_base_draw_split(void (*draw_commands)(void)) {
 	if (g_context->split_view && !g_context->paint2d_view) {
 		g_context->ddirty    = 2;
@@ -159,7 +117,7 @@ void render_path_base_draw_split(void (*draw_commands)(void)) {
 }
 
 void render_path_base_commands(void (*draw_commands)(void)) {
-	if (render_path_base_is_cached()) {
+	if (iron_window_width() == 0 || iron_window_height() == 0) {
 		return;
 	}
 

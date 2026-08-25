@@ -798,7 +798,6 @@ void minic_register_builtins() {
 	MINIC_O(paint_object, mesh_object_t);
 	MINIC_I(ddirty);
 	MINIC_I(pdirty);
-	MINIC_I(rdirty);
 	MINIC_O(material, slot_material_t);
 	MINIC_P(layer);
 	MINIC_P(brush);

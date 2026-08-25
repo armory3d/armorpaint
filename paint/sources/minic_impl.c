@@ -283,7 +283,6 @@ void script_paint_end(void) {
 
 	g_context->pdirty              = 0;
 	g_context->rtdirty             = 1;
-	g_context->rdirty              = 2;
 	g_context->ddirty              = 2;
 	g_context->brush_time          = 0.0f;
 	g_context->brush_blend_dirty   = true;
@@ -314,7 +313,6 @@ void script_fill_layer(void) {
 	layers_update_fill_layer(true);
 	g_context->layer_preview_dirty = true;
 	g_context->rtdirty             = 1;
-	g_context->rdirty              = 2;
 	g_context->ddirty              = 2;
 }
 

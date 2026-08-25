@@ -22,8 +22,6 @@ render_target_t *_render_path_paint_texpaint_pack;
 render_target_t *_render_path_paint_texpaint_undo;
 render_target_t *_render_path_paint_texpaint_nor_undo;
 render_target_t *_render_path_paint_texpaint_pack_undo;
-f32              render_path_paint_last_x = -1.0;
-f32              render_path_paint_last_y = -1.0;
 bake_type_t      _render_path_paint_bake_type;
 
 void render_path_paint_init() {
@@ -828,19 +826,6 @@ bool render_path_paint_paint_enabled() {
 	return !fill_layer && !group_layer && !g_context->foreground_event && !self_in_material;
 }
 
-void render_path_paint_live_brush_dirty() {
-	f32 mx                   = render_path_paint_last_x;
-	f32 my                   = render_path_paint_last_y;
-	render_path_paint_last_x = mouse_view_x();
-	render_path_paint_last_y = mouse_view_y();
-	if (g_config->brush_live && g_context->pdirty <= 0) {
-		bool moved = (mx != render_path_paint_last_x || my != render_path_paint_last_y) && (context_in_3d_view() || context_in_2d_view(VIEW_2D_TYPE_LAYER));
-		if (moved || g_context->brush_locked) {
-			g_context->rdirty = 2;
-		}
-	}
-}
-
 void render_path_paint_begin() {
 	if (g_context->layer->texpaint_sculpt != NULL) {
 		render_path_sculpt_begin();
@@ -878,7 +863,6 @@ void render_path_paint_begin() {
 
 void render_path_paint_end() {
 	g_context->ddirty--;
-	g_context->rdirty--;
 
 	g_context->last_paint_vec_x = g_context->paint_vec.x;
 	g_context->last_paint_vec_y = g_context->paint_vec.y;

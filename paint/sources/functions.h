@@ -787,7 +787,6 @@ void                      render_path_paint_commands_paint(bool dilation);
 void                      render_path_paint_use_live_layer(bool use);
 void                      render_path_paint_commands_cursor();
 bool                      render_path_paint_paint_enabled();
-void                      render_path_paint_live_brush_dirty();
 void                      render_path_paint_begin();
 void                      render_path_paint_end();
 bool                      render_path_paint_is_rt_bake();

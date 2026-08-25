@@ -504,7 +504,6 @@ static void path_repaint(slot_layer_t *l) {
 
 	g_context->pdirty           = 0;
 	g_context->rtdirty          = 1;
-	g_context->rdirty           = 2;
 	g_context->tool             = _tool;
 	g_context->layer            = _layer;
 	g_context->material         = _material;

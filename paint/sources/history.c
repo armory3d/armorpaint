@@ -257,7 +257,6 @@ void history_swap_object_transform(history_step_t *step) {
 	}
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);
 	ui_header_handle->redraws = 2;
-	g_context->rdirty         = 2;
 }
 
 ui_node_canvas_t *history_get_canvas(history_step_t *step) {

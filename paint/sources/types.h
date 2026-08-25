@@ -185,7 +185,6 @@ typedef struct context {
 	bool                 merged_object_is_atlas;
 	i32                  ddirty;  // depth
 	i32                  pdirty;  // paint
-	i32                  rdirty;  // render
 	i32                  rtdirty; // raytrace
 	bool                 brush_blend_dirty;
 	bool                 split_view;

@@ -126,6 +126,5 @@ void render_path_deferred_draw_deferred() {
 }
 
 void render_path_deferred_commands() {
-	render_path_paint_live_brush_dirty();
 	render_path_base_commands(render_path_deferred_draw_deferred);
 }

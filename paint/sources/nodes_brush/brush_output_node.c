@@ -197,8 +197,11 @@ void brush_output_node_run() {
 
 	if (g_context->painted <= 1) {
 		g_context->pdirty = 1;
-		g_context->rdirty = 2;
-		sculpt_push_undo  = true;
+		slot_layer_t *l = g_context->layer;
+		if (l->texpaint_sculpt != NULL || (l->parent != NULL && l->parent->texpaint_sculpt != NULL)) {
+			g_context->ddirty = 2;
+		}
+		sculpt_push_undo = true;
 	}
 }
 

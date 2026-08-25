@@ -340,10 +340,6 @@ void base_update(void *_) {
 
 	base_handle_drop_paths();
 
-	if (g_context->ddirty < 0) {
-		g_context->ddirty = 0;
-	}
-
 	if (g_context->tool == TOOL_TYPE_CURSOR && context_in_3d_view()) {
 		if (keyboard_down("control") && keyboard_started("d")) {
 			sim_duplicate();
@@ -393,6 +389,12 @@ void base_update(void *_) {
 	}
 	else if (sim_running) {
 		sim_stop();
+	}
+
+	if (sim_running || tab_timeline_playing) {
+		if (g_context->ddirty < 0) {
+			g_context->ddirty = 0;
+		}
 	}
 
 	if (g_context->frame == 2) {

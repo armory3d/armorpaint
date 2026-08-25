@@ -296,7 +296,6 @@ void layers_update_fill_layers() {
 		g_context->tool      = _tool;
 		g_context->fill_type = _fill_type;
 		g_context->pdirty    = 0;
-		g_context->rdirty    = 2;
 		render_path_paint_restore_plane_mesh();
 		make_material_parse_paint_material(true);
 		ui_view2d_hwnd->redraws = 2;
@@ -377,7 +376,6 @@ void layers_update_fill_layers() {
 		}
 		g_context->pdirty               = 0;
 		g_context->ddirty               = 2;
-		g_context->rdirty               = 2;
 		g_context->rtdirty              = 1;
 		g_context->layers_preview_dirty = true;
 		if (in_use)
@@ -447,7 +445,6 @@ void layers_update_fill_layer(bool parse_paint) {
 		render_path_paint_dilate(true, true);
 	}
 
-	g_context->rdirty    = 2;
 	g_context->tool      = _tool;
 	g_context->fill_type = _fill_type;
 	if (parse_paint && layers_tool_paints_fill_layer(_tool)) {
