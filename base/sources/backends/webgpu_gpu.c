@@ -945,7 +945,7 @@ void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel
 void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb_full, gpu_buffer_t *_ib_full) {}
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel) {}
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
-                               gpu_texture_t *texscramble, gpu_texture_t *texrank) {}
+                               gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf) {}
 void gpu_raytrace_set_acceleration_structure(gpu_acceleration_structure_t *accel) {}
 void gpu_raytrace_set_pipeline(gpu_raytrace_pipeline_t *pipeline) {}
 void gpu_raytrace_set_target(gpu_texture_t *output) {}

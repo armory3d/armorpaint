@@ -2067,7 +2067,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *compute
 
 		VkDescriptorSetLayoutCreateInfo layout_info = {
 		    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-		    .bindingCount = 13,
+		    .bindingCount = 14,
 		    .pBindings    = &bindings[0],
 		};
 		vkCreateDescriptorSetLayout(device, &layout_info, NULL, &pipeline->impl.descriptor_set_layout);

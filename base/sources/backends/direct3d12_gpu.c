@@ -1269,7 +1269,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 	pipeline->constant_buffer = constant_buffer;
 
 	D3D12_DESCRIPTOR_HEAP_DESC descriptor_heap_desc = {
-	    .NumDescriptors = 12,
+	    .NumDescriptors = 13,
 	    .Type           = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 	    .Flags          = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE,
 	    .NodeMask       = 0,
