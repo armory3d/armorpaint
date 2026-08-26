@@ -2,11 +2,13 @@
 #define _EMISSION
 #define _SUBSURFACE
 #define _TRANSLUCENCY
-// #define _TRANSPARENCY
 #define _ROULETTE
-// #define _FRESNEL
 #endif
 // #define _RENDER
+
+#if !defined(_EMISSION) && !defined(_SUBSURFACE)
+#define _INDIRECT_SKIP_NORMAL
+#endif
 
 #include "math.hlsl"
 
@@ -44,14 +46,67 @@ static const int DEPTH = 16;
 #else
 static const int DEPTH = 3; // Opaque hits
 #endif
-static uint thread_seed = 0;
-#ifdef _TRANSPARENCY
-static const int DEPTH_TRANSPARENT = 16; // Transparent hits
+
+static const int DIM_BOUNCE = 2;
+#ifdef _ROULETTE
+static const int DIM_RR = 0;
+static const int DIM_SELECT = 1;
+#else
+static const int DIM_SELECT = 0;
 #endif
+#ifdef _TRANSLUCENCY
+static const int DIM_SELECT2 = DIM_SELECT + 1;
+static const int DIM_DIR = DIM_SELECT + 2;
+#else
+static const int DIM_DIR = DIM_SELECT + 1;
+#endif
+static const int DIM_PER_BOUNCE = DIM_DIR + 2;
+
 #ifdef _ROULETTE
 static const int rr_start = 2;
-static const float rr_probability = 0.5; // Map to albedo
+static const float rr_max = 0.5;
+static const float rr_min = 0.05;
 #endif
+
+static const int RANK_CACHE_DIMS = 16;
+
+static uint2 scramble_cache;
+static uint4 rank_cache;
+
+uint table_word(Texture2D<float4> tex, int i) {
+	int t = (i & 131071) >> 2;
+	float4 c = tex.Load(uint3(uint(t & 127), uint(t >> 7), 0));
+	return uint(c.r * 255) | (uint(c.g * 255) << 8) | (uint(c.b * 255) << 16) | (uint(c.a * 255) << 24);
+}
+
+void init_sampler(uint2 pixel_coord, int frame) {
+	int pixel_i = (int(pixel_coord.x) + frame * 9) & 127;
+	int pixel_j = (int(pixel_coord.y) + frame * 11) & 127;
+	int base = (pixel_i + pixel_j * 128) * 8;
+
+	scramble_cache = uint2(table_word(mytexture_scramble, base),
+		table_word(mytexture_scramble, base + 4));
+
+	rank_cache = uint4(table_word(mytexture_rank, base),
+		table_word(mytexture_rank, base + 4),
+		table_word(mytexture_rank, base + 8),
+		table_word(mytexture_rank, base + 12));
+}
+
+float rnd(uint2 pixel_coord, int sample_index, int dim) {
+	int k = dim & 7;
+	uint scramble_value = ((k < 4 ? scramble_cache.x : scramble_cache.y) >> ((k & 3) * 8)) & 255;
+	uint rank_value;
+	if (dim < RANK_CACHE_DIMS) {
+		int slot = dim >> 2;
+		uint packed = slot == 0 ? rank_cache.x : (slot == 1 ? rank_cache.y : (slot == 2 ? rank_cache.z : rank_cache.w));
+		rank_value = (packed >> ((dim & 3) * 8)) & 255;
+	}
+	else {
+		rank_value = rank_value_at(int(pixel_coord.x), int(pixel_coord.y), dim, int(constant_buffer.eye.w), mytexture_rank);
+	}
+	return rand_indexed(sample_index, dim, rank_value, scramble_value, mytexture_sobol);
+}
 
 [numthreads(16, 16, 1)]
 void main(uint3 id : SV_DispatchThreadID) {
@@ -59,55 +114,50 @@ void main(uint3 id : SV_DispatchThreadID) {
 	render_target.GetDimensions(dim.x, dim.y);
 	if (id.x >= dim.x || id.y >= dim.y) return;
 
+	init_sampler(id.xy, int(constant_buffer.eye.w));
+
+	uint2 sz;
+	mytexture0.GetDimensions(sz.x, sz.y);
+
 	float3 accum = 0;
 	for (int j = 0; j < SAMPLES; ++j) {
-		float2 xy = id.xy + 0.5f;
 		// AA
-		xy.x += rand(id.x, id.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-		thread_seed += 1;
-		xy.y += rand(id.x, id.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
+		float2 xy = float2(id.xy);
+		xy.x += rnd(id.xy, j, 0);
+		xy.y += rnd(id.xy, j, 1);
 
 		RayDesc ray;
 		ray.TMin = 0.0001;
 		ray.TMax = 100.0;
 		generate_camera_ray(xy / float2(dim) * 2.0 - 1.0, ray.Origin, ray.Direction, constant_buffer.eye.xyz, constant_buffer.inv_vp);
 
-		float4 payload = float4(1, 1, 1, j);
-
-		#ifdef _TRANSPARENCY
-		int transparent_hits = 0;
-		#endif
+		float3 throughput = float3(1, 1, 1);
 
 		for (int i = 0; i < DEPTH; ++i) {
+			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
+
 			#ifdef _ROULETTE
-			float rr_factor = 1.0;
 			if (i >= rr_start) {
-				if (rand(id.x, id.y, j, thread_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank) <= rr_probability) break;
-				rr_factor = 1.0 / (1.0 - rr_probability);
+				float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+				if (rnd(id.xy, j, dim_base + DIM_RR) > rr_probability) break;
+				throughput /= rr_probability;
 			}
 			#endif
 
-			// #ifdef _SUBSURFACE
-			// RayQuery<RAY_FLAG_FORCE_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES> q;
-			// #else
 			RayQuery<RAY_FLAG_FORCE_OPAQUE> q;
-			// #endif
 			q.TraceRayInline(scene, RAY_FLAG_NONE, ~0, ray);
 			q.Proceed();
-			// while (q.Proceed()) {}
 
 			if (q.CommittedStatus() != COMMITTED_TRIANGLE_HIT) {
-				#ifdef _EMISSION
-				if (payload.a == -3.0) {
-					accum += payload.rgb;
-					break;
+				float3 texenv;
+				if (i == 0 && constant_buffer.params.x < 0) {
+					texenv = 0.0275;
 				}
-				#endif
-
-				float2 uv = equirect(ray.Direction, constant_buffer.params.y);
-				float3 env = mytexture_env.SampleLevel(sampler_linear, uv, 0.0).rgb * abs(constant_buffer.params.x);
-				if (i == 0 && constant_buffer.params.x < 0) env = 0.0275;
-				accum += clamp(payload.rgb * env, 0.0, 8.0);
+				else {
+					float2 uv = equirect(ray.Direction, constant_buffer.params.y);
+					texenv = mytexture_env.SampleLevel(sampler_linear, uv, 0.0).rgb * abs(constant_buffer.params.x);
+				}
+				accum += clamp(throughput * texenv, 0.0, 8.0);
 				break;
 			}
 
@@ -120,133 +170,179 @@ void main(uint3 id : SV_DispatchThreadID) {
 			BuiltInTriangleIntersectionAttributes attr;
 			attr.barycentrics = q.CommittedTriangleBarycentrics();
 
-			float2 uv[3] = {s16_to_f32(vertices[idx[0]].tex), s16_to_f32(vertices[idx[1]].tex), s16_to_f32(vertices[idx[2]].tex)};
+			Vertex a0 = vertices[idx[0]];
+			Vertex a1 = vertices[idx[1]];
+			Vertex a2 = vertices[idx[2]];
+
+			float2 uv[3] = {s16_to_f32(a0.tex), s16_to_f32(a1.tex), s16_to_f32(a2.tex)};
 			float2 tc = hit_attribute2d(uv, attr) * constant_buffer.params.z;
 
-			uint2 sz;
-			mytexture0.GetDimensions(sz.x, sz.y);
-			float4 tex0 = mytexture0.Load(uint3((tc - uint2(tc)) * sz, 0));
+			uint3 texel = uint3((tc - uint2(tc)) * sz, 0);
+			float4 tex0 = mytexture0.Load(texel);
 
-			float3 hit = ray.Origin + ray.Direction * q.CommittedRayT();
+			float ray_t = q.CommittedRayT();
+			float3 hit = ray.Origin + ray.Direction * ray_t;
 
-			#ifdef _TRANSPARENCY
-			if (tex0.a <= 0.01) {
-				ray.Origin = hit + ray.Direction * 0.0001f;
-				if (transparent_hits < DEPTH_TRANSPARENT) {
-					payload.a = j;
-					transparent_hits++;
-					i--;
-				}
-				else {
-					payload.a = -2;
-				}
-				continue;
-			}
-			#endif
-
+			float2 zw0 = s16_to_f32(a0.poszw);
+			float2 zw1 = s16_to_f32(a1.poszw);
+			float2 zw2 = s16_to_f32(a2.poszw);
+			float3 vp[3] = {
+				float3(s16_to_f32(a0.posxy), zw0.x),
+				float3(s16_to_f32(a1.posxy), zw1.x),
+				float3(s16_to_f32(a2.posxy), zw2.x)
+			};
 			float3 vn[3] = {
-				float3(s16_to_f32(vertices[idx[0]].nor), s16_to_f32(vertices[idx[0]].poszw).y),
-				float3(s16_to_f32(vertices[idx[1]].nor), s16_to_f32(vertices[idx[1]].poszw).y),
-				float3(s16_to_f32(vertices[idx[2]].nor), s16_to_f32(vertices[idx[2]].poszw).y)
+				float3(s16_to_f32(a0.nor), zw0.y),
+				float3(s16_to_f32(a1.nor), zw1.y),
+				float3(s16_to_f32(a2.nor), zw2.y)
 			};
 			float3 n = normalize(hit_attribute(vn, attr));
 
+			float3 ng = cross(vp[1] - vp[0], vp[2] - vp[0]);
+			ng = dot(ng, ng) > 1e-20 ? normalize(ng) : n;
+			ng *= dot(ng, n) < 0.0 ? -1.0 : 1.0;
+
+			float3 n_object = n;
+
 			#ifdef _MULTI
 			float3x4 objToWorld = q.CommittedObjectToWorld3x4();
-			n = normalize(mul(float3x3(objToWorld[0].xyz, objToWorld[1].xyz, objToWorld[2].xyz), n));
+			float3x3 obj_to_world = float3x3(objToWorld[0].xyz, objToWorld[1].xyz, objToWorld[2].xyz);
+			n = normalize(mul(obj_to_world, n));
+			ng = normalize(mul(obj_to_world, ng));
 			#endif
 
-			mytexture1.GetDimensions(sz.x, sz.y);
-			float4 tex1 = mytexture1.Load(uint3((tc - uint2(tc)) * sz, 0));
-			mytexture2.GetDimensions(sz.x, sz.y);
-			float4 tex2 = mytexture2.Load(uint3((tc - uint2(tc)) * sz, 0));
+			bool back_face = dot(ng, ray.Direction) > 0.0;
+			if (back_face) {
+				ng = -ng;
+				n = -n;
+			}
 
-			float3 color = pow(tex0.rgb, 2.2);
+			#ifdef _INDIRECT_SKIP_NORMAL
+			bool normal_map = i == 0;
+			#else
+			const bool normal_map = true;
+			#endif
+
+			float4 tex1 = 0;
+			if (normal_map) {
+				tex1 = mytexture1.Load(texel);
+			}
+
+			float3 texcolor = srgb_to_linear(tex0.rgb);
 
 			#ifdef _TRANSLUCENCY
 			if (!q.CommittedTriangleFrontFace()) {
-				payload.rgb *= pow(max(color, 0.001), q.CommittedRayT() * tex0.a);
-			}
-			#endif
-
-			tex1.rgb = normalize(tex1.rgb * 2.0 - 1.0);
-			tex1.g = -tex1.g;
-			n = mul(tex1.rgb, create_basis(n));
-
-			uint bounce_seed = 0;
-
-			float f = rand(id.x, id.y, payload.a, bounce_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-			bounce_seed += 1;
-
-			#ifdef _TRANSLUCENCY
-			bool scatter = false;
-			if (f > tex0.a) {
-				float3 sdir = cos_weighted_hemisphere_direction(id, ray.Direction, payload.a, bounce_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				ray.Direction = normalize(lerp(ray.Direction, sdir, tex2.g * tex2.g * 0.5));
-				ray.Origin = hit + ray.Direction * 0.0001f;
-				scatter = true;
-			}
-			if (!scatter) {
-				f = rand(id.x, id.y, payload.a, bounce_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				bounce_seed += 1;
-			#endif
-
-				float3 diff = cos_weighted_hemisphere_direction(id, n, payload.a, bounce_seed, constant_buffer.eye.w, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				#ifdef _FRESNEL
-				float spec_chance = fresnel(n, ray.Direction);
-				#else
-				const float spec_chance = 0.5;
-				#endif
-
-				if (f < spec_chance) {
-					ray.Direction = lerp(reflect(ray.Direction, n), diff, tex2.g * tex2.g);
-					payload.xyz *= surface_specular(color, tex2.b);
-					#ifdef _FRESNEL
-					payload.xyz /= spec_chance;
-					#endif
-				}
-				else {
-					ray.Direction = diff;
-					payload.xyz *= surface_albedo(color, tex2.b);
-					#ifdef _FRESNEL
-					payload.xyz /= 1.0 - spec_chance;
-					#endif
-				}
-
-				#ifdef _FRESNEL
-				payload.xyz *= 0.5;
-				#endif
-
-				ray.Origin = hit + ray.Direction * 0.0001f;
-
-			#ifdef _TRANSLUCENCY
+				throughput *= pow(max(texcolor, 0.001), ray_t * tex0.a);
 			}
 			#endif
 
 			#ifdef _EMISSION
 			if (int(tex1.a * 255.0f) % 3 == 1) { // matid
-				payload.xyz *= 100.0f;
-				payload.a = -3.0;
-			}
-			#endif
-
-			#ifdef _SUBSURFACE
-			if (int(tex1.a * 255.0f) % 3 == 2) {
-				float d = min(1.0 / min(q.CommittedRayT() * 2.0, 1.0) / 10.0, 0.5);
-				payload.xyz += payload.xyz * d;
-				if (f < 0.5) ray.Origin += ray.Direction * f * 0.001;
-			}
-			#endif
-
-			#ifdef _EMISSION
-			if (payload.a == -3) {
-				accum += payload.rgb;
+				accum += throughput * texcolor * 100.0f;
 				break;
 			}
 			#endif
 
-			#ifdef _ROULETTE
-			payload.rgb *= rr_factor;
+			float4 tex2 = mytexture2.Load(texel);
+
+			float f = rnd(id.xy, j, dim_base + DIM_SELECT);
+
+			float3 tangent, binormal;
+
+			#ifdef _TRANSLUCENCY
+			if (f > tex0.a) {
+				float3x3 sbasis = create_basis(ray.Direction);
+				float3 sdir = cos_weighted_direction(sbasis[0], sbasis[1], ray.Direction,
+					rnd(id.xy, j, dim_base + DIM_DIR), rnd(id.xy, j, dim_base + DIM_DIR + 1));
+				ray.Direction = normalize(lerp(ray.Direction, sdir, tex2.g * tex2.g * 0.5));
+				ray.Origin = offset_ray(hit, ng, ray.Direction);
+				continue;
+			}
+
+			f = rnd(id.xy, j, dim_base + DIM_SELECT2);
+			#endif
+
+			if (normal_map) {
+				create_uv_basis(vp[0], vp[1], vp[2], uv[0], uv[1], uv[2], n_object, tangent, binormal);
+
+				#ifdef _MULTI
+				tangent = mul(obj_to_world, tangent);
+				binormal = mul(obj_to_world, binormal);
+				tangent = normalize(tangent - n * dot(n, tangent));
+				binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
+				#endif
+
+				if (back_face) {
+					binormal = -binormal;
+				}
+
+				tex1.rgb = normalize(tex1.rgb * 2.0 - 1.0);
+				tex1.g = -tex1.g;
+				n = normalize(mul(tex1.rgb, float3x3(tangent, binormal, n)));
+
+				if (dot(n, ng) < 1e-4) {
+					n = normalize(n + ng * (1e-4 - dot(n, ng)));
+				}
+			}
+
+			float3 wo = -ray.Direction;
+			float ndotv = dot(n, wo);
+			if (ndotv < 1e-3) {
+				if (i > 0) break;
+				n = normalize(n + wo * (1e-3 - ndotv));
+				float ndotg = dot(n, ng);
+				if (ndotg < 1e-3) {
+					n = normalize(n + ng * (1e-3 - ndotg));
+				}
+				ndotv = max(dot(n, wo), 1e-3);
+			}
+
+			float3x3 basis = create_basis(n);
+			tangent = basis[0];
+			binormal = basis[1];
+
+			float3 albedo = surface_albedo(texcolor, tex2.b);
+			float3 f0 = surface_specular(texcolor, tex2.b);
+			float3 fresnel = f_schlick(f0, ndotv);
+			float3 diffuse_weight = albedo * (1.0 - fresnel);
+
+			float ls = luma(fresnel);
+			float ld = luma(diffuse_weight);
+			float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
+
+			float u1 = rnd(id.xy, j, dim_base + DIM_DIR);
+			float u2 = rnd(id.xy, j, dim_base + DIM_DIR + 1);
+
+			if (f < specular_chance) {
+				float alpha = max(tex2.g * tex2.g, 1e-3);
+				float alpha2 = alpha * alpha;
+				float3 v_local = float3(dot(wo, tangent), dot(wo, binormal), ndotv);
+				float3 h_local = sample_ggx_vndf(v_local, alpha, u1, u2);
+				float3 l_local = reflect(-v_local, h_local);
+				if (l_local.z <= 0.0) break;
+				ray.Direction = tangent * l_local.x + binormal * l_local.y + n * l_local.z;
+
+				float lambda_v = smith_lambda(v_local.z, alpha2);
+				float lambda_l = smith_lambda(l_local.z, alpha2);
+				float g2_over_g1 = (1.0 + lambda_v) / (1.0 + lambda_v + lambda_l);
+				throughput *= f_schlick(f0, max(dot(v_local, h_local), 0.0)) * (g2_over_g1 / specular_chance);
+			}
+			else {
+				ray.Direction = cos_weighted_direction(tangent, binormal, n, u1, u2);
+				throughput *= diffuse_weight / (1.0 - specular_chance);
+			}
+
+			if (dot(ray.Direction, ng) <= 0.0) break;
+			if (max(max(throughput.r, throughput.g), throughput.b) <= 0.0) break;
+
+			ray.Origin = offset_ray(hit, ng, ray.Direction);
+
+			#ifdef _SUBSURFACE
+			if (int(tex1.a * 255.0f) % 3 == 2) {
+				float d = min(1.0 / min(ray_t * 2.0, 1.0) / 10.0, 0.5);
+				throughput += throughput * d;
+				if (f < 0.5) ray.Origin += ray.Direction * f * 0.001;
+			}
 			#endif
 		}
 	}

@@ -8,8 +8,6 @@
 #define _SUBSURFACE
 #define _TRANSLUCENCY
 #define _ROULETTE
-// #define _TRANSPARENCY
-// #define _FRESNEL
 #endif
 // #define _RENDER
 
@@ -19,7 +17,7 @@ layout(binding = 10, set = 0, rgba16f) uniform image2D render_target;
 layout(binding = 0, set = 0) uniform accelerationStructureEXT scene;
 layout(binding = 1, set = 0) readonly buffer IndicesBuffer { uint indices[]; };
 layout(binding = 2, set = 0) readonly buffer VerticesBuffer {
-    uint vertex_data[];
+    uvec4 vertex_data[];
 };
 
 layout(binding = 11, set = 0) uniform RayGenConstantBuffer {
@@ -47,15 +45,37 @@ const int DEPTH = 3;
 const float PI = 3.1415926535;
 const float PI2 = 6.283185307;
 
-uint thread_seed = 0;
+const int RANK_CACHE_DIMS = 16;
 
-#ifdef _TRANSPARENCY
-const int DEPTH_TRANSPARENT = 16;
+#if !defined(_EMISSION) && !defined(_SUBSURFACE)
+#define _INDIRECT_SKIP_NORMAL
 #endif
+
+const int DIM_BOUNCE = 2;
+#ifdef _ROULETTE
+const int DIM_RR = 0;
+const int DIM_SELECT = 1;
+#else
+const int DIM_SELECT = 0;
+#endif
+#ifdef _TRANSLUCENCY
+const int DIM_SELECT2 = DIM_SELECT + 1;
+const int DIM_DIR = DIM_SELECT + 2;
+#else
+const int DIM_DIR = DIM_SELECT + 1;
+#endif
+const int DIM_PER_BOUNCE = DIM_DIR + 2;
 
 #ifdef _ROULETTE
 const int rr_start = 2;
-const float rr_probability = 0.5;
+const float rr_max = 0.5;
+const float rr_min = 0.05;
+#endif
+
+const int HIT_TERMINATE = 0;
+const int HIT_CONTINUE = 1;
+#ifdef _EMISSION
+const int HIT_EMIT = 2;
 #endif
 
 struct Vertex {
@@ -66,12 +86,43 @@ struct Vertex {
 };
 
 struct RayPayload {
-    vec4 color; // rgb, frame
+    vec3 throughput;
+    #ifdef _EMISSION
+    vec3 emission;
+    #endif
     vec3 ray_origin;
     vec3 ray_dir;
 };
 
 ////
+uvec2 scramble_cache;
+uvec4 rank_cache;
+
+uint table_word(texture2D tex, int i) {
+    int t = (i & 131071) >> 2;
+    vec4 c = texelFetch(sampler2D(tex, sampler_linear), ivec2(t & 127, t >> 7), 0);
+    return uint(c.r * 255.0) | (uint(c.g * 255.0) << 8) |
+           (uint(c.b * 255.0) << 16) | (uint(c.a * 255.0) << 24);
+}
+
+uint table_byte(texture2D tex, int i) {
+    return (table_word(tex, i) >> uint((i & 3) * 8)) & 255u;
+}
+
+void init_sampler(uvec2 pixel_coord, int frame) {
+    int pixel_i = (int(pixel_coord.x) + frame * 9) & 127;
+    int pixel_j = (int(pixel_coord.y) + frame * 11) & 127;
+    int base = (pixel_i + pixel_j * 128) * 8;
+
+    scramble_cache = uvec2(table_word(mytexture_scramble, base),
+                           table_word(mytexture_scramble, base + 4));
+
+    rank_cache = uvec4(table_word(mytexture_rank, base),
+                       table_word(mytexture_rank, base + 4),
+                       table_word(mytexture_rank, base + 8),
+                       table_word(mytexture_rank, base + 12));
+}
+
 float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame) {
     pixel_i += frame * 9;
     pixel_j += frame * 11;
@@ -79,17 +130,27 @@ float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int
     pixel_j = pixel_j & 127;
     sample_index = sample_index & 255;
     sample_dimension = sample_dimension & 255;
-    int i = sample_dimension + (pixel_i + pixel_j * 128) * 8;
-    int ranked_sample_index = sample_index ^ int(texelFetch(sampler2D(mytexture_rank, sampler_linear),
-        ivec2(i % 128, i / 128), 0).r * 255.0);
-    i = sample_dimension + ranked_sample_index * 256;
+    int ranked_sample_index;
+    if (sample_dimension < RANK_CACHE_DIMS) {
+        int slot = sample_dimension >> 2;
+        uint packed = slot == 0 ? rank_cache.x : (slot == 1 ? rank_cache.y : (slot == 2 ? rank_cache.z : rank_cache.w));
+        ranked_sample_index = sample_index ^ int((packed >> uint((sample_dimension & 3) * 8)) & 255u);
+    }
+    else {
+        ranked_sample_index = sample_index ^
+            int(table_byte(mytexture_rank, sample_dimension + (pixel_i + pixel_j * 128) * 8));
+    }
     int value = int(texelFetch(sampler2D(mytexture_sobol, sampler_linear),
-        ivec2(i % 256, i / 256), 0).r * 255.0);
-    i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
-    value = value ^ int(texelFetch(sampler2D(mytexture_scramble, sampler_linear),
-        ivec2(i % 128, i / 128), 0).r * 255.0);
+        ivec2(ranked_sample_index, sample_dimension), 0).r * 255.0);
+    int k = sample_dimension & 7;
+    uint packed = k < 4 ? scramble_cache.x : scramble_cache.y;
+    value = value ^ int((packed >> uint((k & 3) * 8)) & 255u);
     float v = (0.5 + float(value)) / 256.0;
     return v;
+}
+
+float rnd(uvec2 pixel_coord, int sample_index, int dim) {
+    return rand(int(pixel_coord.x), int(pixel_coord.y), sample_index, dim, int(constant_buffer.eye.w));
 }
 
 vec2 s16_to_f32(uint val) {
@@ -98,22 +159,54 @@ vec2 s16_to_f32(uint val) {
     return vec2(float(a), float(b)) / 32767.0;
 }
 
-vec3 unpack_normal(uint nor_xy, uint posz_norz) {
-    vec2 nor_xy_unpacked = s16_to_f32(nor_xy);
-    float nor_z = s16_to_f32(posz_norz).y;
-    return vec3(nor_xy_unpacked.x, nor_xy_unpacked.y, nor_z);
+void unpack_vertex(Vertex v, out vec3 position, out vec3 normal) {
+    vec2 zw = s16_to_f32(v.poszw);
+    position = vec3(s16_to_f32(v.posxy), zw.x);
+    normal = vec3(s16_to_f32(v.nor), zw.y);
+}
+
+vec3 srgb_to_linear(vec3 c) {
+    return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878);
+}
+
+float luma(vec3 c) {
+    return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 
 void create_basis(vec3 normal, out vec3 tangent, out vec3 binormal) {
-    vec3 v = cross(normal, vec3(0.0, 0.0, 1.0));
-    if (dot(v, v) > 0.0001) {
-        tangent = normalize(v);
+    float s = normal.z >= 0.0 ? 1.0 : -1.0;
+    float a = -1.0 / (s + normal.z);
+    float b = normal.x * normal.y * a;
+    tangent = vec3(1.0 + s * normal.x * normal.x * a, s * b, -s * normal.x);
+    binormal = vec3(b, s + normal.y * normal.y * a, -normal.y);
+}
+
+void create_uv_basis(vec3 p0, vec3 p1, vec3 p2, vec2 uv0, vec2 uv1, vec2 uv2,
+                     vec3 n, out vec3 tangent, out vec3 binormal) {
+    vec3 e1 = p1 - p0;
+    vec3 e2 = p2 - p0;
+    vec2 d1 = uv1 - uv0;
+    vec2 d2 = uv2 - uv0;
+    float det = d1.x * d2.y - d2.x * d1.y;
+    if (abs(det) > 1e-12) {
+        float r = 1.0 / det;
+        vec3 tu = (e1 * d2.y - e2 * d1.y) * r;
+        vec3 tv = (e2 * d1.x - e1 * d2.x) * r;
+        vec3 t = tu - n * dot(n, tu);
+        float tl = dot(t, t);
+        if (tl > 1e-16) {
+            t *= inversesqrt(tl);
+            vec3 b = tv - n * dot(n, tv);
+            b -= t * dot(t, b);
+            float bl = dot(b, b);
+            if (bl > 1e-16) {
+                tangent = t;
+                binormal = b * inversesqrt(bl);
+                return;
+            }
+        }
     }
-    else {
-        v = cross(normal, vec3(0.0, 1.0, 0.0));
-        tangent = normalize(v);
-    }
-    binormal = cross(tangent, normal);
+    create_basis(n, tangent, binormal);
 }
 
 void generate_camera_ray(vec2 screen_pos, out vec3 ray_origin, out vec3 ray_dir, vec3 eye, mat4 inv_vp) {
@@ -125,22 +218,44 @@ void generate_camera_ray(vec2 screen_pos, out vec3 ray_origin, out vec3 ray_dir,
 }
 
 vec2 equirect(vec3 normal, float angle) {
-    float phi = acos(normal.z);
+    float phi = acos(clamp(normal.z, -1.0, 1.0));
     float theta = atan(-normal.y, normal.x) + PI + angle;
     return vec2(theta / PI2, phi / PI);
 }
 
-vec3 cos_weighted_hemisphere_direction(vec3 n, uint sample_idx, uint seed_val, int frame) {
-    float f0 = rand(int(gl_GlobalInvocationID.x), int(gl_GlobalInvocationID.y),
-                    int(sample_idx), int(seed_val), frame);
-    float f1 = rand(int(gl_GlobalInvocationID.x), int(gl_GlobalInvocationID.y),
-                    int(sample_idx), int(seed_val + 1u), frame);
-    float z = f0 * 2.0 - 1.0;
-    float a = f1 * PI2;
-    float r = sqrt(1.0 - z * z);
-    float x = r * cos(a);
-    float y = r * sin(a);
-    return normalize(n + vec3(x, y, z));
+vec3 cos_weighted_direction(vec3 tangent, vec3 binormal, vec3 n, float u1, float u2) {
+    float r = sqrt(u1);
+    float phi = PI2 * u2;
+    float x = r * cos(phi);
+    float y = r * sin(phi);
+    float z = sqrt(max(0.0, 1.0 - u1));
+    return tangent * x + binormal * y + n * z;
+}
+
+vec3 sample_ggx_vndf(vec3 ve, float alpha, float u1, float u2) {
+    vec3 vh = normalize(vec3(alpha * ve.x, alpha * ve.y, ve.z));
+    float lensq = vh.x * vh.x + vh.y * vh.y;
+    vec3 t1 = lensq > 0.0 ? vec3(-vh.y, vh.x, 0.0) * inversesqrt(lensq) : vec3(1.0, 0.0, 0.0);
+    vec3 t2 = cross(vh, t1);
+    float r = sqrt(u1);
+    float phi = PI2 * u2;
+    float p1 = r * cos(phi);
+    float p2 = r * sin(phi);
+    float s = 0.5 * (1.0 + vh.z);
+    p2 = (1.0 - s) * sqrt(max(0.0, 1.0 - p1 * p1)) + s * p2;
+    vec3 nh = p1 * t1 + p2 * t2 + sqrt(max(0.0, 1.0 - p1 * p1 - p2 * p2)) * vh;
+    return normalize(vec3(alpha * nh.x, alpha * nh.y, max(1e-6, nh.z)));
+}
+
+float smith_lambda(float cos_theta, float alpha2) {
+    float c2 = cos_theta * cos_theta;
+    return 0.5 * (sqrt(1.0 + alpha2 * (1.0 - c2) / max(c2, 1e-7)) - 1.0);
+}
+
+vec3 f_schlick(vec3 f0, float u) {
+    float m = clamp(1.0 - u, 0.0, 1.0);
+    float m2 = m * m;
+    return f0 + (1.0 - f0) * (m2 * m2 * m);
 }
 
 vec3 surface_albedo(vec3 base_color, float metalness) {
@@ -151,22 +266,24 @@ vec3 surface_specular(vec3 base_color, float metalness) {
     return mix(vec3(0.04), base_color, metalness);
 }
 
-float fresnel(vec3 normal, vec3 incident) {
-    return mix(0.5, 1.0, pow(1.0 + dot(normal, incident), 5.0));
+vec3 offset_ray(vec3 p, vec3 ng, vec3 dir) {
+    return p + ng * (dot(dir, ng) < 0.0 ? -1e-4 : 1e-4);
 }
 
 Vertex get_vertex(uint index) {
-    uint base = index * 4u;
+    uvec4 d = vertex_data[index];
     Vertex v;
-    v.posxy = vertex_data[base + 0u];
-    v.poszw = vertex_data[base + 1u];
-    v.nor = vertex_data[base + 2u];
-    v.tex = vertex_data[base + 3u];
+    v.posxy = d.x;
+    v.poszw = d.y;
+    v.nor = d.z;
+    v.tex = d.w;
     return v;
 }
 ////
 
-bool process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, int sample_index) {
+int process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, int sample_index, int bounce, vec2 tex_size) {
+    int dim = DIM_BOUNCE + bounce * DIM_PER_BOUNCE;
+
     uint triangle_index = rayQueryGetIntersectionPrimitiveIndexEXT(query, true);
 
     uint base_index = triangle_index * 3u;
@@ -197,133 +314,184 @@ bool process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord,
                       vertex_uvs[1] * barycentrics.y +
                       vertex_uvs[2] * barycentrics.z) * constant_buffer.params.z;
 
-    ivec2 size = textureSize(sampler2D(mytexture0, sampler_linear), 0);
-    ivec2 utex_coord = ivec2(fract(tex_coord) * vec2(size));
+    ivec2 utex_coord = ivec2(fract(tex_coord) * tex_size);
     vec4 texpaint0 = texelFetch(sampler2D(mytexture0, sampler_linear), utex_coord, 0);
 
-    #ifdef _TRANSPARENCY
-    if (texpaint0.a <= 0.01) {
-        payload.color.a = -2.0;
-        return false;
-    }
-    #endif
+    vec3 ray_dir = rayQueryGetWorldRayDirectionEXT(query);
+    float ray_t = rayQueryGetIntersectionTEXT(query, true);
+    vec3 hit = rayQueryGetWorldRayOriginEXT(query) + ray_dir * ray_t;
 
+    vec3 vertex_positions[3];
     vec3 vertex_normals[3];
-    vertex_normals[0] = unpack_normal(v0.nor, v0.poszw);
-    vertex_normals[1] = unpack_normal(v1.nor, v1.poszw);
-    vertex_normals[2] = unpack_normal(v2.nor, v2.poszw);
+    unpack_vertex(v0, vertex_positions[0], vertex_normals[0]);
+    unpack_vertex(v1, vertex_positions[1], vertex_normals[1]);
+    unpack_vertex(v2, vertex_positions[2], vertex_normals[2]);
 
     vec3 n = normalize(vertex_normals[0] * barycentrics.x +
                        vertex_normals[1] * barycentrics.y +
                        vertex_normals[2] * barycentrics.z);
 
+    vec3 ng = cross(vertex_positions[1] - vertex_positions[0],
+                    vertex_positions[2] - vertex_positions[0]);
+    ng = dot(ng, ng) > 1e-20 ? normalize(ng) : n;
+    ng *= dot(ng, n) < 0.0 ? -1.0 : 1.0;
+
+    vec3 n_object = n;
+
     #ifdef _MULTI
-    mat4x3 obj_to_world = rayQueryGetIntersectionObjectToWorldEXT(query, true);
-    n = normalize(mat3(obj_to_world) * n);
+    mat3 obj_to_world = mat3(rayQueryGetIntersectionObjectToWorldEXT(query, true));
+    n = normalize(obj_to_world * n);
+    ng = normalize(obj_to_world * ng);
     #endif
 
-    size = textureSize(sampler2D(mytexture1, sampler_linear), 0);
-    utex_coord = ivec2(fract(tex_coord) * vec2(size));
-    vec4 texpaint1 = texelFetch(sampler2D(mytexture1, sampler_linear), utex_coord, 0);
+    bool back_face = dot(ng, ray_dir) > 0.0;
+    if (back_face) {
+        ng = -ng;
+        n = -n;
+    }
 
-    size = textureSize(sampler2D(mytexture2, sampler_linear), 0);
-    utex_coord = ivec2(fract(tex_coord) * vec2(size));
-    vec4 texpaint2 = texelFetch(sampler2D(mytexture2, sampler_linear), utex_coord, 0);
+    #ifdef _INDIRECT_SKIP_NORMAL
+    bool normal_map = bounce == 0;
+    #else
+    const bool normal_map = true;
+    #endif
 
-    vec3 texcolor = pow(texpaint0.rgb, vec3(2.2));
+    vec4 texpaint1 = vec4(0.0);
+    if (normal_map) {
+        texpaint1 = texelFetch(sampler2D(mytexture1, sampler_linear), utex_coord, 0);
+    }
 
-    vec3 ray_dir = rayQueryGetWorldRayDirectionEXT(query);
-    float ray_t = rayQueryGetIntersectionTEXT(query, true);
+    vec3 texcolor = srgb_to_linear(texpaint0.rgb);
 
     #ifdef _TRANSLUCENCY
     bool front_face = rayQueryGetIntersectionFrontFaceEXT(query, true);
     if (!front_face) {
         vec3 absorption = pow(max(texcolor, vec3(0.001)), vec3(ray_t * texpaint0.a));
-        payload.color.rgb *= absorption;
+        payload.throughput *= absorption;
     }
     #endif
 
+    #ifdef _EMISSION
+    if (int(texpaint1.a * 255.0) % 3 == 1) {
+        payload.emission = payload.throughput * texcolor * 100.0;
+        return HIT_EMIT;
+    }
+    #endif
+
+    vec4 texpaint2 = texelFetch(sampler2D(mytexture2, sampler_linear), utex_coord, 0);
+
+    float f = rnd(pixel_coord, sample_index, dim + DIM_SELECT);
+
     vec3 tangent, binormal;
-    create_basis(n, tangent, binormal);
-
-    texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
-    texpaint1.g = -texpaint1.g;
-    n = mat3(tangent, binormal, n) * texpaint1.rgb;
-
-    uint bounce_seed = 0;
-
-    float f = rand(int(pixel_coord.x), int(pixel_coord.y), int(payload.color.a),
-                   int(bounce_seed), int(constant_buffer.eye.w));
-    bounce_seed += 1u;
 
     #ifdef _TRANSLUCENCY
     if (f > texpaint0.a) {
         float roughness = texpaint2.g;
-        vec3 scatter_dir = cos_weighted_hemisphere_direction(ray_dir, uint(payload.color.a),
-                                                            bounce_seed, int(constant_buffer.eye.w));
+        create_basis(ray_dir, tangent, binormal);
+        vec3 scatter_dir = cos_weighted_direction(tangent, binormal, ray_dir,
+                                                             rnd(pixel_coord, sample_index, dim + DIM_DIR),
+                                                             rnd(pixel_coord, sample_index, dim + DIM_DIR + 1));
         payload.ray_dir = normalize(mix(ray_dir, scatter_dir, roughness * roughness * 0.5));
-        payload.ray_origin = rayQueryGetWorldRayOriginEXT(query) + ray_dir * ray_t +
-                            payload.ray_dir * 0.0001;
-        return true;
+        payload.ray_origin = offset_ray(hit, ng, payload.ray_dir);
+        return HIT_CONTINUE;
     }
 
-    f = rand(int(pixel_coord.x), int(pixel_coord.y), int(payload.color.a),
-             int(bounce_seed), int(constant_buffer.eye.w));
-    bounce_seed += 1u;
+    f = rnd(pixel_coord, sample_index, dim + DIM_SELECT2);
     #endif
 
-    vec3 diffuse_dir = cos_weighted_hemisphere_direction(n, uint(payload.color.a),
-                                                         bounce_seed, int(constant_buffer.eye.w));
+    if (normal_map) {
+        create_uv_basis(vertex_positions[0], vertex_positions[1], vertex_positions[2],
+                        vertex_uvs[0], vertex_uvs[1], vertex_uvs[2], n_object, tangent, binormal);
 
-    #ifdef _FRESNEL
-    float specular_chance = fresnel(n, ray_dir);
-    #else
-    const float specular_chance = 0.5;
-    #endif
+        #ifdef _MULTI
+        tangent = obj_to_world * tangent;
+        binormal = obj_to_world * binormal;
+        tangent = normalize(tangent - n * dot(n, tangent));
+        binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
+        #endif
+
+        if (back_face) {
+            binormal = -binormal;
+        }
+
+        texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
+        texpaint1.g = -texpaint1.g;
+        n = normalize(mat3(tangent, binormal, n) * texpaint1.rgb);
+
+        if (dot(n, ng) < 1e-4) {
+            n = normalize(n + ng * (1e-4 - dot(n, ng)));
+        }
+    }
+
+    vec3 wo = -ray_dir;
+    float ndotv = dot(n, wo);
+    if (ndotv < 1e-3) {
+        if (bounce > 0) {
+            return HIT_TERMINATE;
+        }
+        n = normalize(n + wo * (1e-3 - ndotv));
+        float ndotg = dot(n, ng);
+        if (ndotg < 1e-3) {
+            n = normalize(n + ng * (1e-3 - ndotg));
+        }
+        ndotv = max(dot(n, wo), 1e-3);
+    }
+
+    create_basis(n, tangent, binormal);
+
+    vec3 albedo = surface_albedo(texcolor, texpaint2.b);
+    vec3 f0 = surface_specular(texcolor, texpaint2.b);
+    vec3 fresnel = f_schlick(f0, ndotv);
+    vec3 spec_weight = fresnel;
+    vec3 diffuse_weight = albedo * (1.0 - fresnel);
+
+    float ls = luma(spec_weight);
+    float ld = luma(diffuse_weight);
+    float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
+
+    float u1 = rnd(pixel_coord, sample_index, dim + DIM_DIR);
+    float u2 = rnd(pixel_coord, sample_index, dim + DIM_DIR + 1);
 
     if (f < specular_chance) {
-        vec3 specular_dir = reflect(ray_dir, n);
-        payload.ray_dir = mix(specular_dir, diffuse_dir, texpaint2.g * texpaint2.g);
-        vec3 specular = surface_specular(texcolor, texpaint2.b);
-        payload.color.xyz *= specular;
+        float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+        float alpha2 = alpha * alpha;
+        vec3 v_local = vec3(dot(wo, tangent), dot(wo, binormal), ndotv);
+        vec3 h_local = sample_ggx_vndf(v_local, alpha, u1, u2);
+        vec3 l_local = reflect(-v_local, h_local);
+        if (l_local.z <= 0.0) {
+            return HIT_TERMINATE;
+        }
+        payload.ray_dir = tangent * l_local.x + binormal * l_local.y + n * l_local.z;
 
-        #ifdef _FRESNEL
-        payload.color.xyz /= specular_chance;
-        #endif
+        float lambda_v = smith_lambda(v_local.z, alpha2);
+        float lambda_l = smith_lambda(l_local.z, alpha2);
+        float g2_over_g1 = (1.0 + lambda_v) / (1.0 + lambda_v + lambda_l);
+        payload.throughput *= f_schlick(f0, max(dot(v_local, h_local), 0.0)) *
+                              (g2_over_g1 / specular_chance);
     }
     else {
-        payload.ray_dir = diffuse_dir;
-        payload.color.xyz *= surface_albedo(texcolor, texpaint2.b);
-        #ifdef _FRESNEL
-        payload.color.xyz /= 1.0 - specular_chance;
-        #endif
+        payload.ray_dir = cos_weighted_direction(tangent, binormal, n, u1, u2);
+        payload.throughput *= diffuse_weight / (1.0 - specular_chance);
     }
 
-    #ifdef _FRESNEL
-    payload.color.xyz *= 0.5;
-    #endif
-
-    payload.ray_origin = rayQueryGetWorldRayOriginEXT(query) + ray_dir * ray_t +
-                        payload.ray_dir * 0.0001;
-
-    #ifdef _EMISSION
-    if (int(texpaint1.a * 255.0) % 3 == 1) {
-        payload.color.xyz *= 100.0;
-        payload.color.a = -3.0;
+    if (dot(payload.ray_dir, ng) <= 0.0 ||
+        max(max(payload.throughput.r, payload.throughput.g), payload.throughput.b) <= 0.0) {
+        return HIT_TERMINATE;
     }
-    #endif
+
+    payload.ray_origin = offset_ray(hit, ng, payload.ray_dir);
 
     #ifdef _SUBSURFACE
     if (int(texpaint1.a * 255.0) % 3 == 2) {
         float d = min(1.0 / min(ray_t * 2.0, 1.0) / 10.0, 0.5);
-        payload.color.xyz += payload.color.xyz * d;
+        payload.throughput += payload.throughput * d;
         if (f < 0.5) {
             payload.ray_origin += ray_dir * f * 0.001;
         }
     }
     #endif
 
-    return true;
+    return HIT_CONTINUE;
 }
 
 void main() {
@@ -335,18 +503,17 @@ void main() {
         return;
     }
 
-    thread_seed = 0;
+    init_sampler(pixel_coord, int(constant_buffer.eye.w));
+
+    vec2 tex_size = vec2(textureSize(sampler2D(mytexture0, sampler_linear), 0));
 
     vec3 accum = vec3(0.0);
 
     for (int j = 0; j < SAMPLES; ++j) {
         // AA
-        vec2 xy = vec2(pixel_coord) + 0.5;
-        xy.x += rand(int(pixel_coord.x), int(pixel_coord.y), j, int(thread_seed),
-                    int(constant_buffer.eye.w));
-        thread_seed += 1u;
-        xy.y += rand(int(pixel_coord.x), int(pixel_coord.y), j, int(thread_seed),
-                    int(constant_buffer.eye.w));
+        vec2 xy = vec2(pixel_coord);
+        xy.x += rnd(pixel_coord, j, 0);
+        xy.y += rnd(pixel_coord, j, 1);
 
         vec2 screen_pos = xy / vec2(dimensions) * 2.0 - 1.0;
 
@@ -356,22 +523,19 @@ void main() {
                           constant_buffer.eye.xyz, constant_buffer.inv_vp);
 
         RayPayload payload;
-        payload.color = vec4(1.0, 1.0, 1.0, float(j));
-
-        #ifdef _TRANSPARENCY
-        int transparent_hits = 0;
+        payload.throughput = vec3(1.0);
+        #ifdef _EMISSION
+        payload.emission = vec3(0.0);
         #endif
 
         for (int i = 0; i < DEPTH; ++i) {
             #ifdef _ROULETTE
-            float rr_factor = 1.0;
             if (i >= rr_start) {
-                float f = rand(int(pixel_coord.x), int(pixel_coord.y), j, int(thread_seed),
-                              int(constant_buffer.eye.w));
-                if (f <= rr_probability) {
+                float rr_probability = clamp(max(max(payload.throughput.r, payload.throughput.g), payload.throughput.b), rr_min, rr_max);
+                if (rnd(pixel_coord, j, DIM_BOUNCE + i * DIM_PER_BOUNCE + DIM_RR) > rr_probability) {
                     break;
                 }
-                rr_factor = 1.0 / (1.0 - rr_probability);
+                payload.throughput /= rr_probability;
             }
             #endif
 
@@ -390,54 +554,36 @@ void main() {
                 payload.ray_origin = ray_origin;
                 payload.ray_dir = ray_dir;
 
-                if (process_hit(query, payload, pixel_coord, j)) {
-                    #ifdef _EMISSION
-                    if (payload.color.a == -3.0) {
-                        accum += payload.color.rgb;
-                        break;
-                    }
-                    #endif
+                int result = process_hit(query, payload, pixel_coord, j, i, tex_size);
 
-                    #ifdef _TRANSPARENCY
-                    if (payload.color.a == -2.0 && transparent_hits < DEPTH_TRANSPARENT) {
-                        payload.color.a = float(j);
-                        transparent_hits++;
-                        i--;
-                        ray_origin = payload.ray_origin;
-                        ray_dir = payload.ray_dir;
-                        continue;
-                    }
-                    #endif
-
-                    ray_origin = payload.ray_origin;
-                    ray_dir = payload.ray_dir;
-
-                    #ifdef _ROULETTE
-                    payload.color.rgb *= rr_factor;
-                    #endif
-                }
-            }
-            else {
-                // Miss
                 #ifdef _EMISSION
-                if (payload.color.a == -3.0) {
-                    accum += payload.color.rgb;
+                if (result == HIT_EMIT) {
+                    accum += payload.emission;
                     break;
                 }
                 #endif
 
+                if (result != HIT_CONTINUE) {
+                    break;
+                }
+
+                ray_origin = payload.ray_origin;
+                ray_dir = payload.ray_dir;
+            }
+            else {
+                // Miss
+                vec3 texenv;
                 if (i == 0 && constant_buffer.params.x < 0.0) {
-                    payload.color.rgb = vec3(0.0275);
+                    texenv = vec3(0.0275);
                 }
                 else {
                     vec2 tex_coord = equirect(ray_dir, constant_buffer.params.y);
-                    vec3 texenv = texture(sampler2D(mytexture_env, sampler_linear),
-                                        tex_coord).rgb;
+                    texenv = textureLod(sampler2D(mytexture_env, sampler_linear),
+                                        tex_coord, 0.0).rgb;
                     texenv *= abs(constant_buffer.params.x);
-                    payload.color.rgb *= texenv.rgb;
                 }
 
-                accum += clamp(payload.color.rgb, 0.0, 8.0);
+                accum += clamp(payload.throughput * texenv, 0.0, 8.0);
                 break;
             }
         }

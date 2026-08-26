@@ -33,11 +33,10 @@ float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int
 	sample_index = sample_index & 255;
 	sample_dimension = sample_dimension & 255;
 
-	int i = sample_dimension + (pixel_i + pixel_j * 128) * 8;
+	int i = (sample_dimension + (pixel_i + pixel_j * 128) * 8) & 131071;
 	int ranked_sample_index = sample_index ^ int(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
 
-	i = sample_dimension + ranked_sample_index * 256;
-	int value = int(sobol.read(uint2(i % 256, uint(i / 256)), 0).r * 255);
+	int value = int(sobol.read(uint2(ranked_sample_index, sample_dimension), 0).r * 255);
 
 	i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
 	value = value ^ int(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255);

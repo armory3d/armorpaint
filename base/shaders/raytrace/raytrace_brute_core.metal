@@ -3,10 +3,12 @@
 #define _SUBSURFACE
 #define _TRANSLUCENCY
 #define _ROULETTE
-// #define _TRANSPARENCY
-// #define _FRESNEL
 #endif
 // #define _RENDER
+
+#if !defined(_EMISSION) && !defined(_SUBSURFACE)
+#define _INDIRECT_SKIP_NORMAL
+#endif
 
 using namespace metal;
 using namespace raytracing;
@@ -30,24 +32,32 @@ struct RayGenConstantBuffer {
 	float4 params; // envstr, envangle, uvscale
 };
 
-struct RayPayload {
-	float4 color; // rgb, frame
-	float3 ray_origin;
-	float3 ray_dir;
-};
-
 constant int SAMPLES = 8;
 #ifdef _TRANSLUCENCY
 constant int DEPTH = 16;
 #else
 constant int DEPTH = 3; // Opaque hits
 #endif
-#ifdef _TRANSPARENCY
-constant int DEPTH_TRANSPARENT = 16; // Transparent hits
+
+#define DIM_BOUNCE 2
+#ifdef _ROULETTE
+#define DIM_RR 0
+#define DIM_SELECT 1
+#else
+#define DIM_SELECT 0
 #endif
+#ifdef _TRANSLUCENCY
+#define DIM_SELECT2 (DIM_SELECT + 1)
+#define DIM_DIR (DIM_SELECT + 2)
+#else
+#define DIM_DIR (DIM_SELECT + 1)
+#endif
+#define DIM_PER_BOUNCE (DIM_DIR + 2)
+
 #ifdef _ROULETTE
 constant int rr_start = 2;
-constant float rr_probability = 0.5; // Map to albedo
+constant float rr_max = 0.5;
+constant float rr_min = 0.05;
 #endif
 
 void generate_camera_ray(float2 screen_pos, thread float3 & ray_origin, thread float3 & ray_dir, float3 eye, float4x4 inv_vp) {
@@ -61,12 +71,51 @@ void generate_camera_ray(float2 screen_pos, thread float3 & ray_origin, thread f
 float2 equirect(float3 normal, float angle) {
 	const float PI = 3.1415926535;
 	const float PI2 = PI * 2.0;
-	float phi = acos(normal.z);
+	float phi = acos(clamp(normal.z, -1.0, 1.0));
 	float theta = atan2(-normal.y, normal.x) + PI + angle;
 	return float2(theta / PI2, phi / PI);
 }
 
-float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame, texture2d<float, access::read> sobol, texture2d<float, access::read> scramble, texture2d<float, access::read> rank) {
+constant int RANK_CACHE_DIMS = 16;
+
+uint rank_at(int base, int k, texture2d<float, access::read> rank) {
+	int i = (base + k) & 131071;
+	return uint(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+}
+
+uint2 init_scramble(uint2 tid, int frame, texture2d<float, access::read> scramble) {
+	int pixel_i = (int(tid.x) + frame * 9) & 127;
+	int pixel_j = (int(tid.y) + frame * 11) & 127;
+	int base = (pixel_i + pixel_j * 128) * 8;
+	uint lo = 0;
+	uint hi = 0;
+	for (int k = 0; k < 4; ++k) {
+		int i = base + k;
+		lo |= uint(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255) << (k * 8);
+		i += 4;
+		hi |= uint(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255) << (k * 8);
+	}
+	return uint2(lo, hi);
+}
+
+uint4 init_rank(uint2 tid, int frame, texture2d<float, access::read> rank) {
+	int pixel_i = (int(tid.x) + frame * 9) & 127;
+	int pixel_j = (int(tid.y) + frame * 11) & 127;
+	int base = (pixel_i + pixel_j * 128) * 8;
+	uint r0 = 0;
+	uint r1 = 0;
+	uint r2 = 0;
+	uint r3 = 0;
+	for (int k = 0; k < 4; ++k) {
+		r0 |= rank_at(base, k, rank) << (k * 8);
+		r1 |= rank_at(base, k + 4, rank) << (k * 8);
+		r2 |= rank_at(base, k + 8, rank) << (k * 8);
+		r3 |= rank_at(base, k + 12, rank) << (k * 8);
+	}
+	return uint4(r0, r1, r2, r3);
+}
+
+float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame, uint2 scramble_cache, uint4 rank_cache, texture2d<float, access::read> sobol, texture2d<float, access::read> rank) {
 	pixel_i += frame * 9;
 	pixel_j += frame * 11;
 	pixel_i = pixel_i & 127;
@@ -74,36 +123,77 @@ float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int
 	sample_index = sample_index & 255;
 	sample_dimension = sample_dimension & 255;
 
-	int i = sample_dimension + (pixel_i + pixel_j * 128) * 8;
-	int ranked_sample_index = sample_index ^ int(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+	int ranked_sample_index;
+	if (sample_dimension < RANK_CACHE_DIMS) {
+		int slot = sample_dimension >> 2;
+		uint packed = slot == 0 ? rank_cache.x : (slot == 1 ? rank_cache.y : (slot == 2 ? rank_cache.z : rank_cache.w));
+		ranked_sample_index = sample_index ^ int((packed >> ((sample_dimension & 3) * 8)) & 255);
+	}
+	else {
+		int i = (sample_dimension + (pixel_i + pixel_j * 128) * 8) & 131071;
+		ranked_sample_index = sample_index ^ int(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+	}
 
-	i = sample_dimension + ranked_sample_index * 256;
-	int value = int(sobol.read(uint2(i % 256, uint(i / 256)), 0).r * 255);
+	int value = int(sobol.read(uint2(ranked_sample_index, sample_dimension), 0).r * 255);
 
-	i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
-	value = value ^ int(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+	int k = sample_dimension & 7;
+	uint packed = k < 4 ? scramble_cache.x : scramble_cache.y;
+	value = value ^ int((packed >> ((k & 3) * 8)) & 255);
 
 	float v = (0.5f + value) / 256.0f;
 	return v;
 }
 
-float3 cos_weighted_hemisphere_direction(uint2 tid, float3 n, uint sample, uint seed, int frame, texture2d<float, access::read> sobol, texture2d<float, access::read> scramble, texture2d<float, access::read> rank) {
-	const float PI = 3.1415926535;
-	const float PI2 = PI * 2.0;
-	float f0 = rand(tid.x, tid.y, sample, seed, frame, sobol, scramble, rank);
-	float f1 = rand(tid.x, tid.y, sample, seed + 1, frame, sobol, scramble, rank);
-	float z = f0 * 2.0f - 1.0f;
-	float a = f1 * PI2;
-	float r = sqrt(1.0f - z * z);
-	float x = r * cos(a);
-	float y = r * sin(a);
-	return normalize(n + float3(x, y, z));
+float3 cos_weighted_direction(float3 tangent, float3 binormal, float3 n, float u1, float u2) {
+	const float PI2 = 6.283185307;
+	float r = sqrt(u1);
+	float phi = PI2 * u2;
+	return tangent * (r * cos(phi)) + binormal * (r * sin(phi)) + n * sqrt(max(0.0, 1.0 - u1));
+}
+
+float3 sample_ggx_vndf(float3 ve, float alpha, float u1, float u2) {
+	const float PI2 = 6.283185307;
+	float3 vh = normalize(float3(alpha * ve.x, alpha * ve.y, ve.z));
+	float lensq = vh.x * vh.x + vh.y * vh.y;
+	float3 t1 = lensq > 0.0 ? float3(-vh.y, vh.x, 0.0) * rsqrt(lensq) : float3(1.0, 0.0, 0.0);
+	float3 t2 = cross(vh, t1);
+	float r = sqrt(u1);
+	float phi = PI2 * u2;
+	float p1 = r * cos(phi);
+	float p2 = r * sin(phi);
+	float s = 0.5 * (1.0 + vh.z);
+	p2 = (1.0 - s) * sqrt(max(0.0, 1.0 - p1 * p1)) + s * p2;
+	float3 nh = p1 * t1 + p2 * t2 + sqrt(max(0.0, 1.0 - p1 * p1 - p2 * p2)) * vh;
+	return normalize(float3(alpha * nh.x, alpha * nh.y, max(1e-6, nh.z)));
+}
+
+float smith_lambda(float cos_theta, float alpha2) {
+	float c2 = cos_theta * cos_theta;
+	return 0.5 * (sqrt(1.0 + alpha2 * (1.0 - c2) / max(c2, 1e-7)) - 1.0);
+}
+
+float3 f_schlick(float3 f0, float u) {
+	float m = saturate(1.0 - u);
+	float m2 = m * m;
+	return f0 + (1.0 - f0) * (m2 * m2 * m);
+}
+
+float luma(float3 c) {
+	return dot(c, float3(0.2126, 0.7152, 0.0722));
+}
+
+float3 offset_ray(float3 p, float3 ng, float3 dir) {
+	return p + ng * (dot(dir, ng) < 0.0 ? -1e-4 : 1e-4);
 }
 
 float2 s16_to_f32(uint val) {
 	int a = (int)(val << 16) >> 16;
 	int b = (int)(val & 0xffff0000) >> 16;
 	return float2(a, b) / 32767.0f;
+}
+
+float3 unpack_position(uint posxy, uint posz_norz) {
+	return float3(s16_to_f32(posxy), s16_to_f32(posz_norz).x);
 }
 
 float3 hit_world_position(ray ray, intersector_t::result_type intersection) {
@@ -123,15 +213,39 @@ float2 hit_attribute2d(float2 vertex_attribute[3], float2 barycentrics) {
 }
 
 void create_basis(float3 normal, thread float3 & tangent, thread float3 & binormal) {
-	float3 v = cross(normal, float3(0.0, 0.0, 1.0));
-	if (dot(v, v) > 0.0001) {
-		tangent = normalize(v);
+	float s = normal.z >= 0.0 ? 1.0 : -1.0;
+	float a = -1.0 / (s + normal.z);
+	float b = normal.x * normal.y * a;
+	tangent = float3(1.0 + s * normal.x * normal.x * a, s * b, -s * normal.x);
+	binormal = float3(b, s + normal.y * normal.y * a, -normal.y);
+}
+
+void create_uv_basis(float3 p0, float3 p1, float3 p2, float2 uv0, float2 uv1, float2 uv2,
+	float3 n, thread float3 & tangent, thread float3 & binormal) {
+	float3 e1 = p1 - p0;
+	float3 e2 = p2 - p0;
+	float2 d1 = uv1 - uv0;
+	float2 d2 = uv2 - uv0;
+	float det = d1.x * d2.y - d2.x * d1.y;
+	if (abs(det) > 1e-12) {
+		float r = 1.0 / det;
+		float3 tu = (e1 * d2.y - e2 * d1.y) * r;
+		float3 tv = (e2 * d1.x - e1 * d2.x) * r;
+		float3 t = tu - n * dot(n, tu);
+		float tl = dot(t, t);
+		if (tl > 1e-16) {
+			t *= rsqrt(tl);
+			float3 b = tv - n * dot(n, tv);
+			b -= t * dot(t, b);
+			float bl = dot(b, b);
+			if (bl > 1e-16) {
+				tangent = t;
+				binormal = b * rsqrt(bl);
+				return;
+			}
+		}
 	}
-	else {
-		v = cross(normal, float3(0.0, 1.0, 0.0));
-		tangent = normalize(v);
-	}
-	binormal = cross(tangent, normal);
+	create_basis(n, tangent, binormal);
 }
 
 float3 surface_albedo(const float3 base_color, const float metalness) {
@@ -142,13 +256,9 @@ float3 surface_specular(const float3 base_color, const float metalness) {
 	return mix(float3(0.04, 0.04, 0.04), base_color, metalness);
 }
 
-float fresnel(float3 normal, float3 incident) {
-	return mix(0.5, 1.0, pow(1.0 + dot(normal, incident), 5.0));
-}
-
-float4 read_texel(texture2d<float, access::read> tex, float2 tex_coord) {
+uint2 texel_coord(texture2d<float, access::read> tex, float2 tex_coord) {
 	uint2 size = uint2(tex.get_width(), tex.get_height());
-	return tex.read(uint2(fract(tex_coord) * float2(size)), 0);
+	return uint2(fract(tex_coord) * float2(size));
 }
 
 kernel void raytracingKernel(
@@ -173,17 +283,17 @@ kernel void raytracingKernel(
 	}
 
 	int frame = int(constant_buffer.eye.w);
-	uint thread_seed = 0;
+	uint2 scramble_cache = init_scramble(tid, frame, mytexture_scramble);
+	uint4 rank_cache = init_rank(tid, frame, mytexture_rank);
 	float3 accum = float3(0, 0, 0);
 
 	for (int j = 0; j < SAMPLES; ++j) {
 		int sample_index = frame * SAMPLES + j;
 
 		// AA
-		float2 xy = float2(tid) + float2(0.5f, 0.5f);
-		xy.x += rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-		thread_seed += 1;
-		xy.y += rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
+		float2 xy = float2(tid);
+		xy.x += rand(tid.x, tid.y, sample_index, 0, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
+		xy.y += rand(tid.x, tid.y, sample_index, 1, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
 
 		float2 screen_pos = xy / float2(dim) * 2.0 - 1.0;
 		ray ray;
@@ -191,23 +301,18 @@ kernel void raytracingKernel(
 		ray.max_distance = 100.0;
 		generate_camera_ray(screen_pos, ray.origin, ray.direction, constant_buffer.eye.xyz, constant_buffer.inv_vp);
 
-		RayPayload payload;
-		payload.color = float4(1, 1, 1, sample_index);
-
-		#ifdef _TRANSPARENCY
-		int transparent_hits = 0;
-		#endif
+		float3 throughput = float3(1, 1, 1);
 
 		for (int i = 0; i < DEPTH; ++i) {
+			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
 
 			#ifdef _ROULETTE
-			float rr_factor = 1.0;
 			if (i >= rr_start) {
-				float f = rand(tid.x, tid.y, sample_index, thread_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				if (f <= rr_probability) {
+				float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+				if (rand(tid.x, tid.y, sample_index, dim_base + DIM_RR, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank) > rr_probability) {
 					break;
 				}
-				rr_factor = 1.0 / (1.0 - rr_probability);
+				throughput /= rr_probability;
 			}
 			#endif
 
@@ -221,23 +326,15 @@ kernel void raytracingKernel(
 
 			// Miss
 			if (intersection.type == intersection_type::none) {
-				#ifdef _EMISSION
-				if (payload.color.a == -3.0) {
-					accum += payload.color.rgb;
-					break;
-				}
-				#endif
-
+				float3 texenv;
 				if (i == 0 && constant_buffer.params.x < 0.0) { // No envmap
-					payload.color.rgb = float3(0.0275, 0.0275, 0.0275);
+					texenv = float3(0.0275, 0.0275, 0.0275);
 				}
 				else {
 					float2 tex_coord = equirect(ray.direction, constant_buffer.params.y);
-					float3 texenv = mytexture_env.sample(linear_sampler, tex_coord, level(0)).rgb * abs(constant_buffer.params.x);
-					payload.color.rgb *= texenv;
+					texenv = mytexture_env.sample(linear_sampler, tex_coord, level(0)).rgb * abs(constant_buffer.params.x);
 				}
-
-				accum += clamp(payload.color.rgb, 0.0, 8.0);
+				accum += clamp(throughput * texenv, 0.0, 8.0);
 				break;
 			}
 
@@ -255,148 +352,185 @@ kernel void raytracingKernel(
 			);
 
 			device Vertex *verta = (device Vertex *)(vertices);
+			Vertex a0 = verta[indices_sample[0]];
+			Vertex a1 = verta[indices_sample[1]];
+			Vertex a2 = verta[indices_sample[2]];
+
 			float2 vertex_uvs[3] = {
-				s16_to_f32(verta[indices_sample[0]].tex),
-				s16_to_f32(verta[indices_sample[1]].tex),
-				s16_to_f32(verta[indices_sample[2]].tex)
+				s16_to_f32(a0.tex),
+				s16_to_f32(a1.tex),
+				s16_to_f32(a2.tex)
 			};
 			float2 barycentrics = intersection.triangle_barycentric_coord;
 			float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics) * constant_buffer.params.z;
 
 			float3 hit = hit_world_position(ray, intersection);
-			float4 texpaint0 = read_texel(mytexture0, tex_coord);
+			uint2 texel = texel_coord(mytexture0, tex_coord);
+			float4 texpaint0 = mytexture0.read(texel, 0);
 
-			#ifdef _TRANSPARENCY
-			if (texpaint0.a <= 0.01) {
-				ray.origin = hit + ray.direction * 0.0001f;
-				if (transparent_hits < DEPTH_TRANSPARENT) {
-					payload.color.a = sample_index;
-					transparent_hits++;
-					i--;
-				}
-				else {
-					payload.color.a = -2;
-				}
-				continue;
-			}
-			#endif
-
+			float3 vertex_positions[3] = {
+				unpack_position(a0.posxy, a0.poszw),
+				unpack_position(a1.posxy, a1.poszw),
+				unpack_position(a2.posxy, a2.poszw)
+			};
 			float3 vertex_normals[3] = {
-				float3(s16_to_f32(verta[indices_sample[0]].nor), s16_to_f32(verta[indices_sample[0]].poszw).y),
-				float3(s16_to_f32(verta[indices_sample[1]].nor), s16_to_f32(verta[indices_sample[1]].poszw).y),
-				float3(s16_to_f32(verta[indices_sample[2]].nor), s16_to_f32(verta[indices_sample[2]].poszw).y)
+				float3(s16_to_f32(a0.nor), s16_to_f32(a0.poszw).y),
+				float3(s16_to_f32(a1.nor), s16_to_f32(a1.poszw).y),
+				float3(s16_to_f32(a2.nor), s16_to_f32(a2.poszw).y)
 			};
 			float3 n = normalize(hit_attribute(vertex_normals, barycentrics));
 
+			float3 ng = cross(vertex_positions[1] - vertex_positions[0], vertex_positions[2] - vertex_positions[0]);
+			ng = dot(ng, ng) > 1e-20 ? normalize(ng) : n;
+			ng *= dot(ng, n) < 0.0 ? -1.0 : 1.0;
+
+			float3 n_object = n;
+
 			#ifdef _MULTI
-			float4x3 obj_to_world = intersection.object_to_world_transform;
-			n = normalize(float3x3(obj_to_world[0], obj_to_world[1], obj_to_world[2]) * n);
+			float4x3 o2w = intersection.object_to_world_transform;
+			float3x3 obj_to_world = float3x3(o2w[0], o2w[1], o2w[2]);
+			n = normalize(obj_to_world * n);
+			ng = normalize(obj_to_world * ng);
 			#endif
 
-			float4 texpaint1 = read_texel(mytexture1, tex_coord);
-			float4 texpaint2 = read_texel(mytexture2, tex_coord);
+			bool back_face = dot(ng, ray.direction) > 0.0;
+			if (back_face) {
+				ng = -ng;
+				n = -n;
+			}
+
+			#ifdef _INDIRECT_SKIP_NORMAL
+			bool normal_map = i == 0;
+			#else
+			const bool normal_map = true;
+			#endif
+
+			float4 texpaint1 = float4(0.0);
+			if (normal_map) {
+				texpaint1 = mytexture1.read(texel, 0);
+			}
 			float3 texcolor = pow(texpaint0.rgb, float3(2.2, 2.2, 2.2));
 
 			#ifdef _TRANSLUCENCY
 			if (!intersection.triangle_front_facing) {
 				float3 absorption = pow(max(texcolor, float3(0.001)), float3(intersection.distance * texpaint0.a));
-				payload.color.rgb *= absorption;
+				throughput *= absorption;
 			}
 			#endif
-
-			float3 tangent = float3(0, 0, 0);
-			float3 binormal = float3(0, 0, 0);
-			create_basis(n, tangent, binormal);
-
-			texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
-			texpaint1.g = -texpaint1.g;
-			n = float3x3(tangent, binormal, n) * texpaint1.rgb;
-
-			uint bounce_seed = 0;
-
-			float f = rand(tid.x, tid.y, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-			bounce_seed += 1;
-
-			bool scatter = false;
-
-			#ifdef _TRANSLUCENCY
-			if (f > texpaint0.a) {
-				float roughness = texpaint2.g;
-				float3 scatter_dir = cos_weighted_hemisphere_direction(tid, ray.direction, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				payload.ray_dir = normalize(mix(ray.direction, scatter_dir, roughness * roughness * 0.5));
-				payload.ray_origin = hit + payload.ray_dir * 0.0001f;
-				scatter = true;
-			}
-			#endif
-
-			if (!scatter) {
-				#ifdef _TRANSLUCENCY
-				f = rand(tid.x, tid.y, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-				bounce_seed += 1;
-				#endif
-
-				float3 diffuse_dir = cos_weighted_hemisphere_direction(tid, n, payload.color.a, bounce_seed, frame, mytexture_sobol, mytexture_scramble, mytexture_rank);
-
-				#ifdef _FRESNEL
-				float specular_chance = fresnel(n, ray.direction);
-				#else
-				const float specular_chance = 0.5;
-				#endif
-
-				if (f < specular_chance) {
-					float3 specular_dir = reflect(ray.direction, n);
-					payload.ray_dir = mix(specular_dir, diffuse_dir, texpaint2.g * texpaint2.g);
-					float3 specular = surface_specular(texcolor, texpaint2.b);
-					payload.color.xyz *= specular;
-
-					#ifdef _FRESNEL
-					payload.color.xyz /= specular_chance;
-					#endif
-				}
-				else {
-					payload.ray_dir = diffuse_dir;
-					payload.color.xyz *= surface_albedo(texcolor, texpaint2.b);
-					#ifdef _FRESNEL
-					payload.color.xyz /= 1.0 - specular_chance;
-					#endif
-				}
-
-				#ifdef _FRESNEL
-				payload.color.xyz *= 0.5;
-				#endif
-
-				payload.ray_origin = hit + payload.ray_dir * 0.0001f;
-
-				#ifdef _EMISSION
-				if (int(texpaint1.a * 255.0f) % 3 == 1) { // matid
-					payload.color.xyz *= 100.0f;
-					payload.color.a = -3.0;
-				}
-				#endif
-
-				#ifdef _SUBSURFACE
-				if (int(texpaint1.a * 255.0f) % 3 == 2) {
-					float d = min(1.0 / min(intersection.distance * 2.0, 1.0) / 10.0, 0.5);
-					payload.color.xyz += payload.color.xyz * d;
-					if (f < 0.5) {
-						payload.ray_origin += ray.direction * f * 0.001;
-					}
-				}
-				#endif
-			}
 
 			#ifdef _EMISSION
-			if (payload.color.a == -3.0) {
-				accum += payload.color.rgb;
+			if (int(texpaint1.a * 255.0f) % 3 == 1) { // matid
+				accum += throughput * texcolor * 100.0f;
 				break;
 			}
 			#endif
 
-			ray.origin = payload.ray_origin;
-			ray.direction = payload.ray_dir;
+			float4 texpaint2 = mytexture2.read(texel, 0);
 
-			#ifdef _ROULETTE
-			payload.color.rgb *= rr_factor;
+			float f = rand(tid.x, tid.y, sample_index, dim_base + DIM_SELECT, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
+
+			float3 tangent = float3(0, 0, 0);
+			float3 binormal = float3(0, 0, 0);
+
+			#ifdef _TRANSLUCENCY
+			if (f > texpaint0.a) {
+				float roughness = texpaint2.g;
+				float3 st = float3(0, 0, 0);
+				float3 sb = float3(0, 0, 0);
+				create_basis(ray.direction, st, sb);
+				float3 scatter_dir = cos_weighted_direction(st, sb, ray.direction,
+					rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank),
+					rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR + 1, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank));
+				ray.direction = normalize(mix(ray.direction, scatter_dir, roughness * roughness * 0.5));
+				ray.origin = offset_ray(hit, ng, ray.direction);
+				continue;
+			}
+
+			f = rand(tid.x, tid.y, sample_index, dim_base + DIM_SELECT2, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
+			#endif
+
+			if (normal_map) {
+				create_uv_basis(vertex_positions[0], vertex_positions[1], vertex_positions[2],
+					vertex_uvs[0], vertex_uvs[1], vertex_uvs[2], n_object, tangent, binormal);
+
+				#ifdef _MULTI
+				tangent = obj_to_world * tangent;
+				binormal = obj_to_world * binormal;
+				tangent = normalize(tangent - n * dot(n, tangent));
+				binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
+				#endif
+
+				if (back_face) {
+					binormal = -binormal;
+				}
+
+				texpaint1.rgb = normalize(texpaint1.rgb * 2.0 - 1.0);
+				texpaint1.g = -texpaint1.g;
+				n = normalize(float3x3(tangent, binormal, n) * texpaint1.rgb);
+
+				if (dot(n, ng) < 1e-4) {
+					n = normalize(n + ng * (1e-4 - dot(n, ng)));
+				}
+			}
+
+			create_basis(n, tangent, binormal);
+
+			float3 wo = -ray.direction;
+			float ndotv = dot(n, wo);
+			if (ndotv <= 0.0) {
+				break;
+			}
+
+			float3 albedo = surface_albedo(texcolor, texpaint2.b);
+			float3 f0 = surface_specular(texcolor, texpaint2.b);
+			float3 fresnel = f_schlick(f0, ndotv);
+			float3 diffuse_weight = albedo * (1.0 - fresnel);
+
+			float ls = luma(fresnel);
+			float ld = luma(diffuse_weight);
+			float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
+
+			float u1 = rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
+			float u2 = rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR + 1, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
+
+			if (f < specular_chance) {
+				float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+				float alpha2 = alpha * alpha;
+				float3 v_local = float3(dot(wo, tangent), dot(wo, binormal), ndotv);
+				float3 h_local = sample_ggx_vndf(v_local, alpha, u1, u2);
+				float3 l_local = reflect(-v_local, h_local);
+				if (l_local.z <= 0.0) {
+					break;
+				}
+				ray.direction = tangent * l_local.x + binormal * l_local.y + n * l_local.z;
+
+				float lambda_v = smith_lambda(v_local.z, alpha2);
+				float lambda_l = smith_lambda(l_local.z, alpha2);
+				float g2_over_g1 = (1.0 + lambda_v) / (1.0 + lambda_v + lambda_l);
+				throughput *= f_schlick(f0, max(dot(v_local, h_local), 0.0)) * (g2_over_g1 / specular_chance);
+			}
+			else {
+				ray.direction = cos_weighted_direction(tangent, binormal, n, u1, u2);
+				throughput *= diffuse_weight / (1.0 - specular_chance);
+			}
+
+			if (dot(ray.direction, ng) <= 0.0) {
+				break;
+			}
+			if (max(max(throughput.r, throughput.g), throughput.b) <= 0.0) {
+				break;
+			}
+
+			ray.origin = offset_ray(hit, ng, ray.direction);
+
+			#ifdef _SUBSURFACE
+			if (int(texpaint1.a * 255.0f) % 3 == 2) {
+				float d = min(1.0 / min(intersection.distance * 2.0, 1.0) / 10.0, 0.5);
+				throughput += throughput * d;
+				if (f < 0.5) {
+					ray.origin += ray.direction * f * 0.001;
+				}
+			}
 			#endif
 		}
 	}
