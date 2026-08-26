@@ -358,7 +358,8 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	}
 	g_context->merged_object_is_atlas = paint_objects->length < g_project->_->paint_objects->length;
 
-	mesh_data_t *raw = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
+	bool         merged_visible = g_context->merged_object == NULL || g_context->merged_object->base->visible;
+	mesh_data_t *raw            = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
 	util_mesh_remove_merged();
 	mesh_data_t *md                         = mesh_data_create(raw);
 	md->_->owns_arrays                      = true;
@@ -366,6 +367,7 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
 	g_context->merged_object->force_context = "paint";
+	g_context->merged_object->base->visible = merged_visible;
 	object_set_parent(g_context->merged_object->base, context_main_object()->base);
 	render_path_raytrace_ready = false;
 }
@@ -501,7 +503,6 @@ void util_mesh_swap_axis(i32 a, i32 b) {
 		mesh_data_t *g = o->data;
 		mesh_data_build_vertices(g->_->vertex_buffer, vas);
 	}
-	util_mesh_remove_merged();
 	util_mesh_merge(NULL);
 }
 
