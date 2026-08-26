@@ -704,6 +704,7 @@ static gpu_texture_t                *_texenv;
 static gpu_texture_t                *_texsobol;
 static gpu_texture_t                *_texscramble;
 static gpu_texture_t                *_texrank;
+static gpu_texture_t                *_texenv_cdf;
 static gpu_buffer_t                 *vb[GPU_RAYTRACE_MAX_OBJECTS];
 static gpu_buffer_t                 *vb_last[GPU_RAYTRACE_MAX_OBJECTS];
 static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
@@ -912,7 +913,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel) {}
 
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
-                               gpu_texture_t *texscramble, gpu_texture_t *texrank) {
+                               gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf) {
 	_texpaint0   = texpaint0;
 	_texpaint1   = texpaint1;
 	_texpaint2   = texpaint2;
@@ -920,6 +921,7 @@ void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint
 	_texsobol    = texsobol;
 	_texscramble = texscramble;
 	_texrank     = texrank;
+	_texenv_cdf  = texenv_cdf != NULL ? texenv_cdf : texenv;
 }
 
 void gpu_raytrace_set_acceleration_structure(gpu_acceleration_structure_t *_accel) {
@@ -968,6 +970,7 @@ void gpu_raytrace_dispatch_rays() {
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texsobol->impl._tex atIndex:5];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texscramble->impl._tex atIndex:6];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texrank->impl._tex atIndex:7];
+	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texenv_cdf->impl._tex atIndex:8];
 	[compute_encoder setSamplerState:linear_sampler atIndex:0];
 
 	for (id<MTLAccelerationStructure> primitive_accel in _primitive_accels) {

@@ -1995,6 +1995,7 @@ static gpu_texture_t                *texenv;
 static gpu_texture_t                *texsobol;
 static gpu_texture_t                *texscramble;
 static gpu_texture_t                *texrank;
+static gpu_texture_t                *texenv_cdf;
 static gpu_buffer_t                 *vb[GPU_RAYTRACE_MAX_OBJECTS];
 static gpu_buffer_t                 *vb_last[GPU_RAYTRACE_MAX_OBJECTS];
 static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
@@ -2061,7 +2062,8 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *compute
 		                                           {9, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {11, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
-		                                           {12, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT}};
+		                                           {12, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		                                           {13, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT}};
 
 		VkDescriptorSetLayoutCreateInfo layout_info = {
 		    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -2105,7 +2107,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *compute
 	{
 		VkDescriptorPoolSize type_counts[] = {{VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
 		                                      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2},
-		                                      {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 7},
+		                                      {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 8},
 		                                      {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1},
 		                                      {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
 		                                      {VK_DESCRIPTOR_TYPE_SAMPLER, 1}};
@@ -2648,7 +2650,8 @@ void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *a
 }
 
 void gpu_raytrace_set_textures(gpu_texture_t *_texpaint0, gpu_texture_t *_texpaint1, gpu_texture_t *_texpaint2, gpu_texture_t *_texenv,
-                               gpu_texture_t *_texsobol, gpu_texture_t *_texscramble, gpu_texture_t *_texrank) {
+                               gpu_texture_t *_texsobol, gpu_texture_t *_texscramble, gpu_texture_t *_texrank,
+                               gpu_texture_t *_texenv_cdf) {
 	texpaint0   = _texpaint0;
 	texpaint1   = _texpaint1;
 	texpaint2   = _texpaint2;
@@ -2656,6 +2659,7 @@ void gpu_raytrace_set_textures(gpu_texture_t *_texpaint0, gpu_texture_t *_texpai
 	texsobol    = _texsobol;
 	texscramble = _texscramble;
 	texrank     = _texrank;
+	texenv_cdf  = _texenv_cdf != NULL ? _texenv_cdf : _texenv;
 }
 
 void gpu_raytrace_set_acceleration_structure(gpu_acceleration_structure_t *_accel) {
@@ -2885,6 +2889,20 @@ void gpu_raytrace_dispatch_rays() {
 	    .pImageInfo      = &texrankimage_descriptor,
 	};
 
+	VkDescriptorImageInfo texenvcdfimage_descriptor = {
+	    .imageView   = texenv_cdf->impl.view,
+	    .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	};
+
+	VkWriteDescriptorSet texenv_cdf_image_write = {
+	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	    .dstSet          = pipeline->impl.descriptor_set,
+	    .dstBinding      = 13,
+	    .descriptorCount = 1,
+	    .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+	    .pImageInfo      = &texenvcdfimage_descriptor,
+	};
+
 	VkDescriptorImageInfo sampler_info = {
 	    .sampler = linear_sampler,
 	};
@@ -2897,7 +2915,7 @@ void gpu_raytrace_dispatch_rays() {
 	    .pImageInfo      = &sampler_info,
 	};
 
-	VkWriteDescriptorSet write_descriptor_sets[13] = {acceleration_structure_write,
+	VkWriteDescriptorSet write_descriptor_sets[14] = {acceleration_structure_write,
 	                                                  result_image_write,
 	                                                  uniform_buffer_write,
 	                                                  vb_write,
@@ -2909,8 +2927,9 @@ void gpu_raytrace_dispatch_rays() {
 	                                                  texsobol_image_write,
 	                                                  texscramble_image_write,
 	                                                  texrank_image_write,
+	                                                  texenv_cdf_image_write,
 	                                                  sampler_linear_write};
-	vkUpdateDescriptorSets(device, 13, write_descriptor_sets, 0, VK_NULL_HANDLE);
+	vkUpdateDescriptorSets(device, 14, write_descriptor_sets, 0, VK_NULL_HANDLE);
 
 	set_image_layout(output->impl.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL);
 

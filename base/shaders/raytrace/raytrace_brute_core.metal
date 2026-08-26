@@ -4,6 +4,9 @@
 #define _TRANSLUCENCY
 #define _ROULETTE
 #endif
+#ifndef _FULL
+#define _ENV_SAMPLING
+#endif
 // #define _RENDER
 
 #if !defined(_EMISSION) && !defined(_SUBSURFACE)
@@ -29,10 +32,23 @@ typedef intersector<triangle_data, instancing> intersector_t;
 struct RayGenConstantBuffer {
 	float4 eye; // xyz, frame
 	float4x4 inv_vp;
-	float4 params; // envstr, envangle, uvscale
+	float4 params; // envstr, envangle, uvscale, env sampling enabled
 };
 
+constant float PI = 3.1415926535;
+constant float PI2 = 6.283185307;
+#ifdef _ENV_SAMPLING
+constant float PI_SQ2 = 19.739208802;
+constant int ENV_CDF_W = 256;
+constant int ENV_CDF_H = 128;
+constant int ENV_CDF_N = ENV_CDF_W * ENV_CDF_H;
+#endif
+
+#ifdef _FULL
 constant int SAMPLES = 8;
+#else
+constant int SAMPLES = 4;
+#endif
 #ifdef _TRANSLUCENCY
 constant int DEPTH = 16;
 #else
@@ -52,7 +68,12 @@ constant int DEPTH = 3; // Opaque hits
 #else
 #define DIM_DIR (DIM_SELECT + 1)
 #endif
+#ifdef _ENV_SAMPLING
+#define DIM_LIGHT (DIM_DIR + 2)
+#define DIM_PER_BOUNCE (DIM_LIGHT + 2)
+#else
 #define DIM_PER_BOUNCE (DIM_DIR + 2)
+#endif
 
 #ifdef _ROULETTE
 constant int rr_start = 2;
@@ -69,8 +90,6 @@ void generate_camera_ray(float2 screen_pos, thread float3 & ray_origin, thread f
 }
 
 float2 equirect(float3 normal, float angle) {
-	const float PI = 3.1415926535;
-	const float PI2 = PI * 2.0;
 	float phi = acos(clamp(normal.z, -1.0, 1.0));
 	float theta = atan2(-normal.y, normal.x) + PI + angle;
 	return float2(theta / PI2, phi / PI);
@@ -246,6 +265,110 @@ float3 surface_specular(const float3 base_color, const float metalness) {
 	return mix(float3(0.04, 0.04, 0.04), base_color, metalness);
 }
 
+float3 env_radiance(float3 dir, float angle, float strength,
+                    texture2d<float, access::sample> env, sampler linear_sampler) {
+	float2 tex_coord = equirect(dir, angle);
+	return env.sample(linear_sampler, tex_coord, level(0)).rgb * abs(strength);
+}
+
+#ifdef _ENV_SAMPLING
+float3 env_dir(float2 uv, float angle) {
+	float phi = uv.y * PI;
+	float a = uv.x * PI2 - PI - angle;
+	float s = sin(phi);
+	return float3(s * cos(a), -s * sin(a), cos(phi));
+}
+
+float3 sample_env(float u1, float u2, float angle, texture2d<float, access::read> cdf, thread float &pdf) {
+	float fi = u1 * float(ENV_CDF_N);
+	int i = clamp(int(fi), 0, ENV_CDF_N - 1);
+	float ju = fi - float(i);
+	float4 a = cdf.read(uint2(uint(i % ENV_CDF_W), uint(i / ENV_CDF_W)), 0);
+
+	int cell;
+	float jv;
+	float pdf_uv;
+	if (u2 < a.x) {
+		cell = i;
+		jv = a.x > 0.0 ? u2 / a.x : 0.0;
+		pdf_uv = a.z;
+	}
+	else {
+		cell = clamp(int(a.y), 0, ENV_CDF_N - 1);
+		jv = a.x < 1.0 ? (u2 - a.x) / (1.0 - a.x) : 0.0;
+		pdf_uv = a.w;
+	}
+
+	float2 uv = float2((float(cell % ENV_CDF_W) + ju) / float(ENV_CDF_W),
+		(float(cell / ENV_CDF_W) + jv) / float(ENV_CDF_H));
+	float sin_phi = sin(uv.y * PI);
+	pdf = sin_phi > 1e-6 ? pdf_uv / (PI_SQ2 * sin_phi) : 0.0;
+	return env_dir(uv, angle);
+}
+
+float env_pdf(float3 dir, float angle, float enabled, texture2d<float, access::read> cdf) {
+	if (enabled == 0.0) {
+		return 0.0;
+	}
+	float2 uv = equirect(dir, angle);
+	int x = clamp(int(fract(uv.x) * float(ENV_CDF_W)), 0, ENV_CDF_W - 1);
+	int y = clamp(int(uv.y * float(ENV_CDF_H)), 0, ENV_CDF_H - 1);
+	float pdf_uv = cdf.read(uint2(uint(x), uint(y)), 0).z;
+	float sin_phi = sin(uv.y * PI);
+	return sin_phi > 1e-6 ? pdf_uv / (PI_SQ2 * sin_phi) : 0.0;
+}
+
+float mis_weight(float pdf_a, float pdf_b) {
+	float a = pdf_a * pdf_a;
+	float b = pdf_b * pdf_b;
+	return a / max(a + b, 1e-9);
+}
+
+void bsdf_eval(float3 wi, float3 n, float3 wo, float ndotv, float3 diffuse_weight, float3 f0,
+               float alpha, float specular_chance, thread float3 &f_cos, thread float &pdf) {
+	float ndotl = dot(n, wi);
+	if (ndotl <= 0.0) {
+		f_cos = float3(0.0);
+		pdf = 0.0;
+		return;
+	}
+
+	float3 h = normalize(wo + wi);
+	float ndoth = max(dot(n, h), 0.0);
+	float vdoth = max(dot(wo, h), 0.0);
+	float alpha2 = alpha * alpha;
+
+	float den = ndoth * ndoth * (alpha2 - 1.0) + 1.0;
+	float d = alpha2 / max(PI * den * den, 1e-9);
+	float lambda_v = smith_lambda(ndotv, alpha2);
+	float lambda_l = smith_lambda(ndotl, alpha2);
+	float3 fresnel = f_schlick(f0, vdoth);
+
+	float3 spec = fresnel * (d / ((1.0 + lambda_v + lambda_l) * max(4.0 * ndotv * ndotl, 1e-9)));
+	float3 diff = diffuse_weight / PI;
+
+	float pdf_spec = d / ((1.0 + lambda_v) * max(4.0 * ndotv, 1e-9));
+	float pdf_diff = ndotl / PI;
+
+	f_cos = (diff + spec) * ndotl;
+	pdf = specular_chance * pdf_spec + (1.0 - specular_chance) * pdf_diff;
+}
+
+bool occluded(float3 origin, float3 dir, instance_acceleration_structure scene) {
+	ray shadow_ray;
+	shadow_ray.origin = origin;
+	shadow_ray.direction = dir;
+	shadow_ray.min_distance = 0.0001;
+	shadow_ray.max_distance = 100.0;
+
+	intersector_t in;
+	in.assume_geometry_type(geometry_type::triangle);
+	in.force_opacity(forced_opacity::opaque);
+	in.accept_any_intersection(true);
+	return in.intersect(shadow_ray, scene).type != intersection_type::none;
+}
+#endif
+
 uint2 texel_coord(float2 tex_coord, float2 tex_size) {
 	return uint2(fract(tex_coord) * tex_size);
 }
@@ -261,6 +384,9 @@ kernel void raytracingKernel(
 	texture2d<float, access::read> mytexture_sobol [[texture(5)]],
 	texture2d<float, access::read> mytexture_scramble [[texture(6)]],
 	texture2d<float, access::read> mytexture_rank [[texture(7)]],
+#ifdef _ENV_SAMPLING
+	texture2d<float, access::read> mytexture_env_cdf [[texture(8)]],
+#endif
 	sampler linear_sampler [[sampler(0)]],
 	instance_acceleration_structure scene [[buffer(1)]],
 	device void *indices [[buffer(2)]],
@@ -294,6 +420,10 @@ kernel void raytracingKernel(
 
 		float3 throughput = float3(1, 1, 1);
 
+		#ifdef _ENV_SAMPLING
+		float bsdf_pdf = -1.0;
+		#endif
+
 		for (int i = 0; i < DEPTH; ++i) {
 			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
 
@@ -318,14 +448,21 @@ kernel void raytracingKernel(
 			// Miss
 			if (intersection.type == intersection_type::none) {
 				float3 texenv;
+				float weight = 1.0;
 				if (i == 0 && constant_buffer.params.x < 0.0) { // No envmap
 					texenv = float3(0.0275, 0.0275, 0.0275);
 				}
 				else {
-					float2 tex_coord = equirect(ray.direction, constant_buffer.params.y);
-					texenv = mytexture_env.sample(linear_sampler, tex_coord, level(0)).rgb * abs(constant_buffer.params.x);
+					texenv = env_radiance(ray.direction, constant_buffer.params.y, constant_buffer.params.x,
+						mytexture_env, linear_sampler);
+					#ifdef _ENV_SAMPLING
+					if (bsdf_pdf > 0.0) {
+						weight = mis_weight(bsdf_pdf, env_pdf(ray.direction, constant_buffer.params.y,
+							constant_buffer.params.w, mytexture_env_cdf));
+					}
+					#endif
 				}
-				accum += clamp(throughput * texenv, 0.0, 8.0);
+				accum += clamp(throughput * texenv * weight, 0.0, 8.0);
 				break;
 			}
 
@@ -492,11 +629,33 @@ kernel void raytracingKernel(
 			float ld = luma(diffuse_weight);
 			float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
 
+			float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+
+			#ifdef _ENV_SAMPLING
+			if (constant_buffer.params.w != 0.0) {
+				float pdf_light;
+				float3 wl = sample_env(
+					rand(tid.x, tid.y, sample_index, dim_base + DIM_LIGHT, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank),
+					rand(tid.x, tid.y, sample_index, dim_base + DIM_LIGHT + 1, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank),
+					constant_buffer.params.y, mytexture_env_cdf, pdf_light);
+				if (pdf_light > 0.0 && dot(wl, ng) > 0.0) {
+					float3 f_cos;
+					float pdf_brdf;
+					bsdf_eval(wl, n, wo, ndotv, diffuse_weight, f0, alpha, specular_chance, f_cos, pdf_brdf);
+					if (max(max(f_cos.r, f_cos.g), f_cos.b) > 0.0 &&
+						!occluded(offset_ray(hit, ng, wl), wl, scene)) {
+						accum += clamp(throughput * f_cos *
+							env_radiance(wl, constant_buffer.params.y, constant_buffer.params.x, mytexture_env, linear_sampler) *
+							(mis_weight(pdf_light, pdf_brdf) / pdf_light), 0.0, 8.0);
+					}
+				}
+			}
+			#endif
+
 			float u1 = rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
 			float u2 = rand(tid.x, tid.y, sample_index, dim_base + DIM_DIR + 1, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
 
 			if (f < specular_chance) {
-				float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
 				float alpha2 = alpha * alpha;
 				float3 v_local = float3(dot(wo, tangent), dot(wo, binormal), ndotv);
 				float3 h_local = sample_ggx_vndf(v_local, alpha, u1, u2);
@@ -524,6 +683,15 @@ kernel void raytracingKernel(
 			}
 
 			ray.origin = offset_ray(hit, ng, ray.direction);
+
+			#ifdef _ENV_SAMPLING
+			{
+				float3 f_cos;
+				float pdf_brdf;
+				bsdf_eval(ray.direction, n, wo, ndotv, diffuse_weight, f0, alpha, specular_chance, f_cos, pdf_brdf);
+				bsdf_pdf = pdf_brdf;
+			}
+			#endif
 
 			#ifdef _SUBSURFACE
 			if (int(texpaint1.a * 255.0f) % 3 == 2) {

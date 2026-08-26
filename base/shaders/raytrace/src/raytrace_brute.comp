@@ -9,6 +9,9 @@
 #define _TRANSLUCENCY
 #define _ROULETTE
 #endif
+#ifndef _FULL
+#define _ENV_SAMPLING
+#endif
 // #define _RENDER
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
@@ -23,7 +26,7 @@ layout(binding = 2, set = 0) readonly buffer VerticesBuffer {
 layout(binding = 11, set = 0) uniform RayGenConstantBuffer {
     vec4 eye; // xyz, frame
     mat4 inv_vp;
-    vec4 params; // envstr, envangle, uvscale, empty
+    vec4 params; // envstr, envangle, uvscale, env sampling enabled
 } constant_buffer;
 
 layout(binding = 3, set = 0) uniform texture2D mytexture0;
@@ -34,8 +37,15 @@ layout(binding = 7, set = 0) uniform texture2D mytexture_sobol;
 layout(binding = 8, set = 0) uniform texture2D mytexture_scramble;
 layout(binding = 9, set = 0) uniform texture2D mytexture_rank;
 layout(binding = 12, set = 0) uniform sampler sampler_linear;
+#ifdef _ENV_SAMPLING
+layout(binding = 13, set = 0) uniform texture2D mytexture_env_cdf;
+#endif
 
+#ifdef _FULL
 const int SAMPLES = 64;
+#else
+const int SAMPLES = 32;
+#endif
 #ifdef _TRANSLUCENCY
 const int DEPTH = 16;
 #else
@@ -44,6 +54,12 @@ const int DEPTH = 3;
 
 const float PI = 3.1415926535;
 const float PI2 = 6.283185307;
+#ifdef _ENV_SAMPLING
+const float PI_SQ2 = 19.739208802;
+const int ENV_CDF_W = 256;
+const int ENV_CDF_H = 128;
+const int ENV_CDF_N = ENV_CDF_W * ENV_CDF_H;
+#endif
 
 const int RANK_CACHE_DIMS = 16;
 
@@ -64,7 +80,12 @@ const int DIM_DIR = DIM_SELECT + 2;
 #else
 const int DIM_DIR = DIM_SELECT + 1;
 #endif
+#ifdef _ENV_SAMPLING
+const int DIM_LIGHT = DIM_DIR + 2;
+const int DIM_PER_BOUNCE = DIM_LIGHT + 2;
+#else
 const int DIM_PER_BOUNCE = DIM_DIR + 2;
+#endif
 
 #ifdef _ROULETTE
 const int rr_start = 2;
@@ -87,11 +108,15 @@ struct Vertex {
 
 struct RayPayload {
     vec3 throughput;
+    vec3 radiance;
     #ifdef _EMISSION
     vec3 emission;
     #endif
     vec3 ray_origin;
     vec3 ray_dir;
+    #ifdef _ENV_SAMPLING
+    float bsdf_pdf;
+    #endif
 };
 
 ////
@@ -269,6 +294,107 @@ vec3 surface_specular(vec3 base_color, float metalness) {
 vec3 offset_ray(vec3 p, vec3 ng, vec3 dir) {
     return p + ng * (dot(dir, ng) < 0.0 ? -1e-4 : 1e-4);
 }
+
+
+vec3 env_radiance(vec3 dir) {
+    vec2 tex_coord = equirect(dir, constant_buffer.params.y);
+    return textureLod(sampler2D(mytexture_env, sampler_linear), tex_coord, 0.0).rgb *
+           abs(constant_buffer.params.x);
+}
+
+#ifdef _ENV_SAMPLING
+vec3 env_dir(vec2 uv) {
+    float phi = uv.y * PI;
+    float a = uv.x * PI2 - PI - constant_buffer.params.y;
+    float s = sin(phi);
+    return vec3(s * cos(a), -s * sin(a), cos(phi));
+}
+
+vec3 sample_env(float u1, float u2, out float pdf) {
+    float fi = u1 * float(ENV_CDF_N);
+    int i = clamp(int(fi), 0, ENV_CDF_N - 1);
+    float ju = fi - float(i);
+    vec4 a = texelFetch(sampler2D(mytexture_env_cdf, sampler_linear),
+        ivec2(i % ENV_CDF_W, i / ENV_CDF_W), 0);
+
+    int cell;
+    float jv;
+    float pdf_uv;
+    if (u2 < a.x) {
+        cell = i;
+        jv = a.x > 0.0 ? u2 / a.x : 0.0;
+        pdf_uv = a.z;
+    }
+    else {
+        cell = clamp(int(a.y), 0, ENV_CDF_N - 1);
+        jv = a.x < 1.0 ? (u2 - a.x) / (1.0 - a.x) : 0.0;
+        pdf_uv = a.w;
+    }
+
+    vec2 uv = vec2((float(cell % ENV_CDF_W) + ju) / float(ENV_CDF_W),
+                   (float(cell / ENV_CDF_W) + jv) / float(ENV_CDF_H));
+    float sin_phi = sin(uv.y * PI);
+    pdf = sin_phi > 1e-6 ? pdf_uv / (PI_SQ2 * sin_phi) : 0.0;
+    return env_dir(uv);
+}
+
+float env_pdf(vec3 dir) {
+    if (constant_buffer.params.w == 0.0) {
+        return 0.0;
+    }
+    vec2 uv = equirect(dir, constant_buffer.params.y);
+    int x = clamp(int(fract(uv.x) * float(ENV_CDF_W)), 0, ENV_CDF_W - 1);
+    int y = clamp(int(uv.y * float(ENV_CDF_H)), 0, ENV_CDF_H - 1);
+    float pdf_uv = texelFetch(sampler2D(mytexture_env_cdf, sampler_linear), ivec2(x, y), 0).z;
+    float sin_phi = sin(uv.y * PI);
+    return sin_phi > 1e-6 ? pdf_uv / (PI_SQ2 * sin_phi) : 0.0;
+}
+
+float mis_weight(float pdf_a, float pdf_b) {
+    float a = pdf_a * pdf_a;
+    float b = pdf_b * pdf_b;
+    return a / max(a + b, 1e-9);
+}
+
+void bsdf_eval(vec3 wi, vec3 n, vec3 wo, float ndotv, vec3 diffuse_weight, vec3 f0,
+               float alpha, float specular_chance, out vec3 f_cos, out float pdf) {
+    float ndotl = dot(n, wi);
+    if (ndotl <= 0.0) {
+        f_cos = vec3(0.0);
+        pdf = 0.0;
+        return;
+    }
+
+    vec3 h = normalize(wo + wi);
+    float ndoth = max(dot(n, h), 0.0);
+    float vdoth = max(dot(wo, h), 0.0);
+    float alpha2 = alpha * alpha;
+
+    float den = ndoth * ndoth * (alpha2 - 1.0) + 1.0;
+    float d = alpha2 / max(PI * den * den, 1e-9);
+    float lambda_v = smith_lambda(ndotv, alpha2);
+    float lambda_l = smith_lambda(ndotl, alpha2);
+    vec3 fresnel = f_schlick(f0, vdoth);
+
+    vec3 spec = fresnel * (d / ((1.0 + lambda_v + lambda_l) * max(4.0 * ndotv * ndotl, 1e-9)));
+    vec3 diff = diffuse_weight / PI;
+
+    float pdf_spec = d / ((1.0 + lambda_v) * max(4.0 * ndotv, 1e-9));
+    float pdf_diff = ndotl / PI;
+
+    f_cos = (diff + spec) * ndotl;
+    pdf = specular_chance * pdf_spec + (1.0 - specular_chance) * pdf_diff;
+}
+
+bool occluded(vec3 origin, vec3 dir) {
+    rayQueryEXT query;
+    rayQueryInitializeEXT(query, scene,
+        gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT,
+        0xFF, origin, 0.0001, dir, 100.0);
+    while (rayQueryProceedEXT(query)) {}
+    return rayQueryGetIntersectionTypeEXT(query, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+}
+#endif
 
 Vertex get_vertex(uint index) {
     uvec4 d = vertex_data[index];
@@ -449,11 +575,30 @@ int process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, 
     float ld = luma(diffuse_weight);
     float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
 
+    float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+
+    #ifdef _ENV_SAMPLING
+    if (constant_buffer.params.w != 0.0) {
+        float pdf_light;
+        vec3 wl = sample_env(rnd(pixel_coord, sample_index, dim + DIM_LIGHT),
+                             rnd(pixel_coord, sample_index, dim + DIM_LIGHT + 1), pdf_light);
+        if (pdf_light > 0.0 && dot(wl, ng) > 0.0) {
+            vec3 f_cos;
+            float pdf_brdf;
+            bsdf_eval(wl, n, wo, ndotv, diffuse_weight, f0, alpha, specular_chance, f_cos, pdf_brdf);
+            if (max(max(f_cos.r, f_cos.g), f_cos.b) > 0.0 &&
+                !occluded(offset_ray(hit, ng, wl), wl)) {
+                payload.radiance += clamp(payload.throughput * f_cos * env_radiance(wl) *
+                    (mis_weight(pdf_light, pdf_brdf) / pdf_light), 0.0, 8.0);
+            }
+        }
+    }
+    #endif
+
     float u1 = rnd(pixel_coord, sample_index, dim + DIM_DIR);
     float u2 = rnd(pixel_coord, sample_index, dim + DIM_DIR + 1);
 
     if (f < specular_chance) {
-        float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
         float alpha2 = alpha * alpha;
         vec3 v_local = vec3(dot(wo, tangent), dot(wo, binormal), ndotv);
         vec3 h_local = sample_ggx_vndf(v_local, alpha, u1, u2);
@@ -480,6 +625,15 @@ int process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, 
     }
 
     payload.ray_origin = offset_ray(hit, ng, payload.ray_dir);
+
+    #ifdef _ENV_SAMPLING
+    {
+        vec3 f_cos;
+        float pdf_brdf;
+        bsdf_eval(payload.ray_dir, n, wo, ndotv, diffuse_weight, f0, alpha, specular_chance, f_cos, pdf_brdf);
+        payload.bsdf_pdf = pdf_brdf;
+    }
+    #endif
 
     #ifdef _SUBSURFACE
     if (int(texpaint1.a * 255.0) % 3 == 2) {
@@ -524,6 +678,10 @@ void main() {
 
         RayPayload payload;
         payload.throughput = vec3(1.0);
+        payload.radiance = vec3(0.0);
+        #ifdef _ENV_SAMPLING
+        payload.bsdf_pdf = -1.0;
+        #endif
         #ifdef _EMISSION
         payload.emission = vec3(0.0);
         #endif
@@ -558,7 +716,7 @@ void main() {
 
                 #ifdef _EMISSION
                 if (result == HIT_EMIT) {
-                    accum += payload.emission;
+                    payload.radiance += payload.emission;
                     break;
                 }
                 #endif
@@ -573,20 +731,25 @@ void main() {
             else {
                 // Miss
                 vec3 texenv;
+                float weight = 1.0;
                 if (i == 0 && constant_buffer.params.x < 0.0) {
                     texenv = vec3(0.0275);
                 }
                 else {
-                    vec2 tex_coord = equirect(ray_dir, constant_buffer.params.y);
-                    texenv = textureLod(sampler2D(mytexture_env, sampler_linear),
-                                        tex_coord, 0.0).rgb;
-                    texenv *= abs(constant_buffer.params.x);
+                    texenv = env_radiance(ray_dir);
+                    #ifdef _ENV_SAMPLING
+                    if (payload.bsdf_pdf > 0.0) {
+                        weight = mis_weight(payload.bsdf_pdf, env_pdf(ray_dir));
+                    }
+                    #endif
                 }
 
-                accum += clamp(payload.throughput * texenv, 0.0, 8.0);
+                payload.radiance += clamp(payload.throughput * texenv * weight, 0.0, 8.0);
                 break;
             }
         }
+
+        accum += payload.radiance;
     }
 
     vec3 color = imageLoad(render_target, ivec2(pixel_coord)).xyz;
