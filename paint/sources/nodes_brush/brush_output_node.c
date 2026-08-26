@@ -127,14 +127,16 @@ void brush_output_node_run() {
 		return;
 	}
 
+	bool picking_object = g_context->tool == TOOL_TYPE_CURSOR;
+
 	// Do not paint over fill layer
-	if (g_context->layer->fill_material != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_MATERIAL &&
+	if (!picking_object && g_context->layer->fill_material != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_MATERIAL &&
 	    g_context->tool != TOOL_TYPE_COLORID) {
 		return;
 	}
 
 	// Do not paint over groups
-	if (slot_layer_is_group(g_context->layer)) {
+	if (!picking_object && slot_layer_is_group(g_context->layer)) {
 		return;
 	}
 
@@ -142,7 +144,7 @@ void brush_output_node_run() {
 		return;
 	}
 
-	if (!slot_layer_is_visible(g_context->layer) && !g_context->paint2d) {
+	if (!picking_object && !slot_layer_is_visible(g_context->layer) && !g_context->paint2d) {
 		return;
 	}
 
@@ -160,12 +162,12 @@ void brush_output_node_run() {
 	}
 
 	// Path layer - add path points only
-	if (slot_layer_is_path(g_context->layer) && !started) {
+	if (!picking_object && slot_layer_is_path(g_context->layer) && !started) {
 		return;
 	}
 
 	// Path layer - dragging existing path point
-	if (slot_layer_is_path(g_context->layer) && util_layer_is_path_point_dragging()) {
+	if (!picking_object && slot_layer_is_path(g_context->layer) && util_layer_is_path_point_dragging()) {
 		return;
 	}
 
@@ -190,7 +192,7 @@ void brush_output_node_run() {
 	}
 
 	// Path layer - add point and repaint
-	if (slot_layer_is_path(g_context->layer)) {
+	if (!picking_object && slot_layer_is_path(g_context->layer)) {
 		util_layer_add_path_point(g_context->layer, g_context->paint_vec.x, g_context->paint_vec.y);
 		return;
 	}
