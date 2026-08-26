@@ -118,7 +118,10 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		}
 		else {
 			render_target_t *texpaint_undo = any_map_get(render_path_render_targets, string("texpaint_undo%d", history_undo_i));
-			tex2                           = texpaint_undo->_image;
+			if (texpaint_undo == NULL) {
+				texpaint_undo = any_map_get(render_path_render_targets, "empty_black");
+			}
+			tex2 = texpaint_undo->_image;
 		}
 
 		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank, NULL);

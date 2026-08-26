@@ -372,7 +372,7 @@ void box_preferences_usage_tab() {
 		if (history_undo_layers != NULL) {
 			while (history_undo_layers->length < g_config->undo_steps) {
 				i32           len = history_undo_layers->length;
-				slot_layer_t *l   = slot_layer_create(string("_undo%s", i32_to_string(len)), LAYER_SLOT_TYPE_LAYER, NULL);
+				slot_layer_t *l   = slot_layer_create_undo(string("_undo%s", i32_to_string(len)));
 				any_array_push(history_undo_layers, l);
 			}
 			while (history_undo_layers->length > g_config->undo_steps) {

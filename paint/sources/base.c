@@ -192,9 +192,10 @@ void base_init_undo_layers() {
 		for (i32 i = 0; i < g_config->undo_steps; ++i) {
 			i32           len = history_undo_layers->length;
 			char         *ext = string("_undo%s", i32_to_string(len));
-			slot_layer_t *l   = slot_layer_create(ext, LAYER_SLOT_TYPE_LAYER, NULL);
+			slot_layer_t *l   = slot_layer_create_undo(ext);
 			any_array_push(history_undo_layers, l);
 		}
+		slot_layer_alloc_textures(history_undo_layers->buffer[history_undo_i]);
 	}
 }
 

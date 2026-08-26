@@ -1,6 +1,49 @@
 
 #include "global.h"
 
+bool slot_layer_defer_alloc = false;
+
+void slot_layer_alloc_textures(slot_layer_t *raw) {
+	if (raw->texpaint != NULL) {
+		return;
+	}
+
+	char *ext    = raw->ext;
+	char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint      = render_path_create_render_target(t)->_image;
+	}
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint_nor%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint_nor  = render_path_create_render_target(t)->_image;
+	}
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint_pack%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint_pack = render_path_create_render_target(t)->_image;
+	}
+}
+
+slot_layer_t *slot_layer_create_undo(char *ext) {
+	slot_layer_defer_alloc = true;
+	slot_layer_t *l        = slot_layer_create(ext, LAYER_SLOT_TYPE_LAYER, NULL);
+	slot_layer_defer_alloc = false;
+	return l;
+}
+
 slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t *parent) {
 	slot_layer_t *raw       = ALLOC_INIT(slot_layer_t, {0});
 	raw->id                 = 0;
@@ -44,34 +87,11 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 		raw->name = string("Group %d", id);
 	}
 	else if (type == LAYER_SLOT_TYPE_LAYER) {
-		i32 id       = (raw->id + 1);
-		raw->name    = string("Layer %d", id);
-		char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		i32 id    = (raw->id + 1);
+		raw->name = string("Layer %d", id);
 
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint      = render_path_create_render_target(t)->_image;
-		}
-
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint_nor%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint_nor  = render_path_create_render_target(t)->_image;
-		}
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint_pack%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint_pack = render_path_create_render_target(t)->_image;
+		if (!slot_layer_defer_alloc) {
+			slot_layer_alloc_textures(raw);
 		}
 
 		raw->texpaint_preview = gpu_create_render_target(util_render_layer_preview_size, util_render_layer_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
@@ -144,6 +164,10 @@ void slot_layer_delete(slot_layer_t *raw) {
 
 void slot_layer_unload(slot_layer_t *raw) {
 	if (slot_layer_is_group(raw)) {
+		if (raw->texpaint_preview != NULL) {
+			gpu_delete_texture(raw->texpaint_preview);
+			raw->texpaint_preview = NULL;
+		}
 		return;
 	}
 
