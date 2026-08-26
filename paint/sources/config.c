@@ -188,7 +188,7 @@ void config_init() {
 		g_config->rp_gamma         = 1.0;
 		g_config->lut_path         = "";
 		g_config->texture_filter   = true;
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
+#if defined(IRON_ANDROID)
 		g_config->rp_ssao = 0.0;
 #else
 		g_config->rp_ssao = 1.0;
@@ -264,7 +264,7 @@ void config_init() {
 		g_config->experimental        = false;
 		g_config->neural_res          = 512;
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
+#if defined(IRON_ANDROID)
 		g_config->render_mode = RENDER_MODE_FORWARD;
 #else
 		g_config->render_mode = RENDER_MODE_DEFERRED;
