@@ -393,6 +393,8 @@ void                      import_arm_run_material(char *path);
 void                      import_arm_run_mesh_append(char *path);
 project_t                *import_arm_decode_project(buffer_t *b);
 void                      import_arm_append(project_t *project, char *path, i32_array_t *mesh_selected, i32_array_t *material_selected);
+bool                      import_arm_object_name_exists(char *name);
+i32                       import_arm_material_name_index(char *name);
 void                      import_arm_run_brush(char *path);
 void                      import_arm_run_brush_from_project(project_t *project, char *path);
 void                      import_arm_run_swatches(char *path, bool replace_existing);

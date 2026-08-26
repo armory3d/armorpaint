@@ -32,6 +32,22 @@ static bool box_append_has_selection() {
 	return false;
 }
 
+static bool box_append_mesh_exists(i32 i) {
+	mesh_data_t *raw = box_append_project->mesh_datas->buffer[i];
+	if (raw == NULL || raw->name == NULL || string_equals(raw->name, "")) {
+		return false;
+	}
+	i32   source_index;
+	char *object_name;
+	char *name = (i > 0 && util_mesh_link_parse(raw->name, &source_index, &object_name)) ? object_name : raw->name;
+	return import_arm_object_name_exists(name);
+}
+
+static bool box_append_material_exists(i32 i) {
+	ui_node_canvas_t *c = box_append_project->material_nodes->buffer[i];
+	return c != NULL && import_arm_material_name_index(c->name) >= 0;
+}
+
 static i32 box_append_mesh_material_index(i32 mesh_i) {
 	if (box_append_project == NULL || box_append_project->mesh_materials == NULL) {
 		return -1;
@@ -45,6 +61,9 @@ static i32 box_append_mesh_material_index(i32 mesh_i) {
 static void box_append_select_mesh_material(i32 mesh_i) {
 	i32 mat_i = box_append_mesh_material_index(mesh_i);
 	if (mat_i < 0 || box_append_material_selected == NULL || mat_i >= box_append_material_selected->length) {
+		return;
+	}
+	if (box_append_material_exists(mat_i)) {
 		return;
 	}
 	box_append_material_selected->buffer[mat_i] = 1;
@@ -88,10 +107,16 @@ void box_append_draw() {
 		ui_text(tr("Meshes"), UI_ALIGN_LEFT, 0);
 		ui_handle_t *hmeshes = ui_handle(__ID__);
 		for (i32 i = 0; i < box_append_mesh_selected->length; ++i) {
+			bool exists = box_append_mesh_exists(i);
+			if (exists) {
+				box_append_mesh_selected->buffer[i] = 0;
+			}
 			ui_handle_t *h = ui_nest(hmeshes, i);
 			h->b           = box_append_mesh_selected->buffer[i] != 0;
+			g_ui->enabled  = !exists;
 			ui_check(h, box_append_mesh_name(box_append_project->mesh_datas->buffer[i], i), "");
-			if (h->changed) {
+			g_ui->enabled = true;
+			if (!exists && h->changed) {
 				box_append_mesh_selected->buffer[i] = h->b ? 1 : 0;
 				if (h->b) {
 					box_append_select_mesh_material(i);
@@ -104,10 +129,16 @@ void box_append_draw() {
 		ui_text(tr("Materials"), UI_ALIGN_LEFT, 0);
 		ui_handle_t *hmats = ui_handle(__ID__);
 		for (i32 i = 0; i < box_append_material_selected->length; ++i) {
+			bool exists = box_append_material_exists(i);
+			if (exists) {
+				box_append_material_selected->buffer[i] = 0;
+			}
 			ui_handle_t *h = ui_nest(hmats, i);
 			h->b           = box_append_material_selected->buffer[i] != 0;
+			g_ui->enabled  = !exists;
 			ui_check(h, box_append_material_name(box_append_project->material_nodes->buffer[i], i), "");
-			if (h->changed) {
+			g_ui->enabled = true;
+			if (!exists && h->changed) {
 				box_append_material_selected->buffer[i] = h->b ? 1 : 0;
 			}
 		}
@@ -127,7 +158,21 @@ void box_append_draw() {
 	g_ui->enabled = true;
 }
 
+static void box_append_show_on_cache_cloud_done(char *abs) {
+	box_append_show(string_copy(abs));
+}
+
 void box_append_show(char *path) {
+	if (starts_with(path, "cloud")) {
+#ifdef IRON_ANDROID
+		console_toast(tr("Downloading"));
+#else
+		console_info(tr("Downloading"));
+#endif
+		file_cache_cloud(path, &box_append_show_on_cache_cloud_done, g_config->server);
+		return;
+	}
+
 	box_append_path    = string_copy(path);
 	buffer_t *b        = data_get_blob(path);
 	box_append_project = import_arm_decode_project(b);
