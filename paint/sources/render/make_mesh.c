@@ -529,7 +529,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				node_shader_add_function(kong, str_env_brdf_approx);
 				node_shader_write_frag(kong, "indirect = indirect * occlusion;");
 				node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * 0.5;");
-				node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w * 0.5;");
+				node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
 				node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
 				node_shader_write_frag(kong, "output[1] = float4(indirect, 1.0);");
 			}

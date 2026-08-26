@@ -2774,7 +2774,7 @@ scene_t *startup_get_scene(void) {
 		world_data_t *wd              = (world_data_t *)calloc(1, sizeof(world_data_t));
 		wd->name                      = "World";
 		wd->color                     = -15987700;
-		wd->strength                  = 2.0f;
+		wd->strength                  = 1.0f;
 		wd->irradiance                = "World_irradiance";
 		wd->radiance                  = "World_radiance.k";
 		wd->radiance_mipmaps          = 5;

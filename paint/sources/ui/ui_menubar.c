@@ -420,7 +420,7 @@ void ui_menubar_draw_category_items() {
 		ui_handle_t  *env_handle = ui_handle(__ID__);
 		env_handle->f            = p->strength;
 		ui_menu_align();
-		p->strength = ui_slider(env_handle, tr("Environment"), 0.0, 6.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		p->strength = ui_slider(env_handle, tr("Environment"), 0.0, 4.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		if (env_handle->changed) {
 			g_context->ddirty = 2;
 		}

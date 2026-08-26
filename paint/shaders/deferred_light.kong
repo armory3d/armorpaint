@@ -287,7 +287,7 @@ fun deferred_light_frag(input: vert_out): float4 {
 
 	envl.rgb = envl.rgb * albedo * ao;
 	envl.rgb = envl.rgb + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * specular_occlusion(dotnv, ao, roughness);
-	envl.rgb = envl.rgb * constants.envmap_data.w * 0.5;
+	envl.rgb = envl.rgb * constants.envmap_data.w;
 
 	var color: float4;
 	color.rgb = envl.rgb + emission;

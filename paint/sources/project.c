@@ -277,7 +277,7 @@ void project_set_default_envmap() {
 	scene_world->_->radiance         = g_context->default_radiance;
 	scene_world->_->radiance_mipmaps = g_context->default_radiance_mipmaps;
 	scene_world->_->irradiance       = g_context->default_irradiance;
-	scene_world->strength            = 2.0;
+	scene_world->strength            = 1.0;
 	g_context->envmap_angle          = 0.0;
 	g_context->show_envmap_blur      = false;
 	g_project->envmap                = NULL;
