@@ -80,41 +80,31 @@ float2 equirect(float3 normal, float angle) {
 
 constant int RANK_CACHE_DIMS = 16;
 
-uint rank_at(int base, int k, texture2d<float, access::read> rank) {
-	int i = (base + k) & 131071;
-	return uint(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+uint table_word(texture2d<float, access::read> tex, int i) {
+	int t = (i & 131071) >> 2;
+	float4 c = tex.read(uint2(uint(t & 127), uint(t >> 7)), 0);
+	return uint(c.r * 255) | (uint(c.g * 255) << 8) | (uint(c.b * 255) << 16) | (uint(c.a * 255) << 24);
+}
+
+uint table_byte(texture2d<float, access::read> tex, int i) {
+	return (table_word(tex, i) >> ((i & 3) * 8)) & 255;
 }
 
 uint2 init_scramble(uint2 tid, int frame, texture2d<float, access::read> scramble) {
 	int pixel_i = (int(tid.x) + frame * 9) & 127;
 	int pixel_j = (int(tid.y) + frame * 11) & 127;
 	int base = (pixel_i + pixel_j * 128) * 8;
-	uint lo = 0;
-	uint hi = 0;
-	for (int k = 0; k < 4; ++k) {
-		int i = base + k;
-		lo |= uint(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255) << (k * 8);
-		i += 4;
-		hi |= uint(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255) << (k * 8);
-	}
-	return uint2(lo, hi);
+	return uint2(table_word(scramble, base), table_word(scramble, base + 4));
 }
 
 uint4 init_rank(uint2 tid, int frame, texture2d<float, access::read> rank) {
 	int pixel_i = (int(tid.x) + frame * 9) & 127;
 	int pixel_j = (int(tid.y) + frame * 11) & 127;
 	int base = (pixel_i + pixel_j * 128) * 8;
-	uint r0 = 0;
-	uint r1 = 0;
-	uint r2 = 0;
-	uint r3 = 0;
-	for (int k = 0; k < 4; ++k) {
-		r0 |= rank_at(base, k, rank) << (k * 8);
-		r1 |= rank_at(base, k + 4, rank) << (k * 8);
-		r2 |= rank_at(base, k + 8, rank) << (k * 8);
-		r3 |= rank_at(base, k + 12, rank) << (k * 8);
-	}
-	return uint4(r0, r1, r2, r3);
+	return uint4(table_word(rank, base),
+		table_word(rank, base + 4),
+		table_word(rank, base + 8),
+		table_word(rank, base + 12));
 }
 
 float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame, uint2 scramble_cache, uint4 rank_cache, texture2d<float, access::read> sobol, texture2d<float, access::read> rank) {
@@ -132,8 +122,8 @@ float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int
 		ranked_sample_index = sample_index ^ int((packed >> ((sample_dimension & 3) * 8)) & 255);
 	}
 	else {
-		int i = (sample_dimension + (pixel_i + pixel_j * 128) * 8) & 131071;
-		ranked_sample_index = sample_index ^ int(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+		ranked_sample_index = sample_index ^
+			int(table_byte(rank, sample_dimension + (pixel_i + pixel_j * 128) * 8));
 	}
 
 	int value = int(sobol.read(uint2(ranked_sample_index, sample_dimension), 0).r * 255);
@@ -194,8 +184,8 @@ float2 s16_to_f32(uint val) {
 	return float2(a, b) / 32767.0f;
 }
 
-float3 unpack_position(uint posxy, uint posz_norz) {
-	return float3(s16_to_f32(posxy), s16_to_f32(posz_norz).x);
+float3 srgb_to_linear(float3 c) {
+	return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878);
 }
 
 float3 hit_world_position(ray ray, intersector_t::result_type intersection) {
@@ -258,9 +248,8 @@ float3 surface_specular(const float3 base_color, const float metalness) {
 	return mix(float3(0.04, 0.04, 0.04), base_color, metalness);
 }
 
-uint2 texel_coord(texture2d<float, access::read> tex, float2 tex_coord) {
-	uint2 size = uint2(tex.get_width(), tex.get_height());
-	return uint2(fract(tex_coord) * float2(size));
+uint2 texel_coord(float2 tex_coord, float2 tex_size) {
+	return uint2(fract(tex_coord) * tex_size);
 }
 
 kernel void raytracingKernel(
@@ -287,6 +276,8 @@ kernel void raytracingKernel(
 	int frame = int(constant_buffer.eye.w);
 	uint2 scramble_cache = init_scramble(tid, frame, mytexture_scramble);
 	uint4 rank_cache = init_rank(tid, frame, mytexture_rank);
+
+	float2 tex_size = float2(mytexture0.get_width(), mytexture0.get_height());
 	float3 accum = float3(0, 0, 0);
 
 	for (int j = 0; j < SAMPLES; ++j) {
@@ -367,18 +358,21 @@ kernel void raytracingKernel(
 			float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics) * constant_buffer.params.z;
 
 			float3 hit = hit_world_position(ray, intersection);
-			uint2 texel = texel_coord(mytexture0, tex_coord);
+			uint2 texel = texel_coord(tex_coord, tex_size);
 			float4 texpaint0 = mytexture0.read(texel, 0);
 
+			float2 zw0 = s16_to_f32(a0.poszw);
+			float2 zw1 = s16_to_f32(a1.poszw);
+			float2 zw2 = s16_to_f32(a2.poszw);
 			float3 vertex_positions[3] = {
-				unpack_position(a0.posxy, a0.poszw),
-				unpack_position(a1.posxy, a1.poszw),
-				unpack_position(a2.posxy, a2.poszw)
+				float3(s16_to_f32(a0.posxy), zw0.x),
+				float3(s16_to_f32(a1.posxy), zw1.x),
+				float3(s16_to_f32(a2.posxy), zw2.x)
 			};
 			float3 vertex_normals[3] = {
-				float3(s16_to_f32(a0.nor), s16_to_f32(a0.poszw).y),
-				float3(s16_to_f32(a1.nor), s16_to_f32(a1.poszw).y),
-				float3(s16_to_f32(a2.nor), s16_to_f32(a2.poszw).y)
+				float3(s16_to_f32(a0.nor), zw0.y),
+				float3(s16_to_f32(a1.nor), zw1.y),
+				float3(s16_to_f32(a2.nor), zw2.y)
 			};
 			float3 n = normalize(hit_attribute(vertex_normals, barycentrics));
 
@@ -411,7 +405,7 @@ kernel void raytracingKernel(
 			if (normal_map) {
 				texpaint1 = mytexture1.read(texel, 0);
 			}
-			float3 texcolor = pow(texpaint0.rgb, float3(2.2, 2.2, 2.2));
+			float3 texcolor = srgb_to_linear(texpaint0.rgb);
 
 			#ifdef _TRANSLUCENCY
 			if (!intersection.triangle_front_facing) {
@@ -475,13 +469,21 @@ kernel void raytracingKernel(
 				}
 			}
 
-			create_basis(n, tangent, binormal);
-
 			float3 wo = -ray.direction;
 			float ndotv = dot(n, wo);
-			if (ndotv <= 0.0) {
-				break;
+			if (ndotv < 1e-3) {
+				if (i > 0) {
+					break;
+				}
+				n = normalize(n + wo * (1e-3 - ndotv));
+				float ndotg = dot(n, ng);
+				if (ndotg < 1e-3) {
+					n = normalize(n + ng * (1e-3 - ndotg));
+				}
+				ndotv = max(dot(n, wo), 1e-3);
 			}
+
+			create_basis(n, tangent, binormal);
 
 			float3 albedo = surface_albedo(texcolor, texpaint2.b);
 			float3 f0 = surface_specular(texcolor, texpaint2.b);

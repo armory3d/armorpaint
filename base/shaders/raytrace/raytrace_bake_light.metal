@@ -33,6 +33,13 @@ float2 equirect(float3 normal, float angle) {
 	return float2(theta / PI2, phi / PI);
 }
 
+uint table_byte(texture2d<float, access::read> tex, int i) {
+	int t = (i & 131071) >> 2;
+	float4 c = tex.read(uint2(uint(t & 127), uint(t >> 7)), 0);
+	int ch = i & 3;
+	return uint((ch == 0 ? c.r : (ch == 1 ? c.g : (ch == 2 ? c.b : c.a))) * 255);
+}
+
 float rand(int pixel_i, int pixel_j, int sample_ndex, int sample_dimension, int frame, texture2d<float, access::read> sobol, texture2d<float, access::read> scramble, texture2d<float, access::read> rank) {
 	pixel_i += frame * 9;
 	pixel_j += frame * 11;
@@ -42,12 +49,12 @@ float rand(int pixel_i, int pixel_j, int sample_ndex, int sample_dimension, int 
 	sample_dimension = sample_dimension & 255;
 
 	int i = (sample_dimension + (pixel_i + pixel_j * 128) * 8) & 131071;
-	int ranked_sample_index = sample_ndex ^ int(rank.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+	int ranked_sample_index = sample_ndex ^ int(table_byte(rank, i));
 
 	int value = int(sobol.read(uint2(ranked_sample_index, sample_dimension), 0).r * 255);
 
 	i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
-	value = value ^ int(scramble.read(uint2(i % 128, uint(i / 128)), 0).r * 255);
+	value = value ^ int(table_byte(scramble, i));
 
 	float v = (0.5f + value) / 256.0f;
 	return v;
