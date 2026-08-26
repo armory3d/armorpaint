@@ -2792,7 +2792,7 @@ char *get_name(name_id id) {
 }
 
 ////
-static statement statements_buffer[8192];
+static statement statements_buffer[4096];
 int              statement_index = 0;
 ////
 
@@ -3721,8 +3721,14 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 	size_t   count = 0;
 
 	while (current(state).kind != TOKEN_RIGHT_CURLY) {
-		debug_context context = {0};
-		check(count < MAX_MEMBERS, context, "Out of members");
+		if (count >= MAX_MEMBERS) {
+			debug_context context = {0};
+			error(context, "Out of members");
+			while (current(state).kind != TOKEN_RIGHT_CURLY && current(state).kind != TOKEN_NONE) {
+				advance_state(state);
+			}
+			break;
+		}
 
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		member_names[count] = current(state);
@@ -4249,17 +4255,33 @@ token token_create(int kind, tokenizer_state *state) {
 	return token;
 }
 
+static token *tokens_cache      = NULL;
+static size_t tokens_cache_size = 0;
+
 static void tokens_init(tokens *tokens) {
-	tokens->max_size     = 1024 * 1024;
-	tokens->t            = malloc(tokens->max_size * sizeof(token));
+	if (tokens_cache == NULL) {
+		tokens_cache_size     = 4096;
+		tokens_cache          = malloc(tokens_cache_size * sizeof(*tokens_cache));
+		debug_context context = {0};
+		check(tokens_cache != NULL, context, "Could not allocate tokens");
+	}
+	tokens->t            = tokens_cache;
+	tokens->max_size     = tokens_cache_size;
 	tokens->current_size = 0;
 }
 
 static void tokens_add(tokens *tokens, token token) {
+	if (tokens->current_size >= tokens->max_size) {
+		tokens_cache_size *= 2;
+		struct token *t       = realloc(tokens_cache, tokens_cache_size * sizeof(*tokens_cache));
+		debug_context context = {0};
+		check(t != NULL, context, "Out of tokens");
+		tokens_cache     = t;
+		tokens->t        = t;
+		tokens->max_size = tokens_cache_size;
+	}
 	tokens->t[tokens->current_size] = token;
 	tokens->current_size += 1;
-	debug_context context = {0};
-	check(tokens->current_size <= tokens->max_size, context, "Out of tokens");
 }
 
 static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokenizer_buffer *buffer) {
@@ -6158,7 +6180,6 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 
 	if (kong_error) {
 		console_info("Warning: Shader compilation failed");
-		free(tokens.t);
 #if defined(__APPLE__)
 		*vs = "";
 		*fs = "";
@@ -6196,6 +6217,4 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	spirv_export2(vs, fs, vs_size, fs_size, false);
 
 #endif
-
-	free(tokens.t);
 }

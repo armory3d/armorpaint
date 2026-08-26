@@ -19,7 +19,7 @@
 #define TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE (1 << 0)
 #define TRANSFORM_FLAG_BINARY_UNIFY_LENGTH   (1 << 1)
 #define NO_TYPE                              0xFFFFFFFF
-#define MAX_MEMBERS                          1024
+#define MAX_MEMBERS                          128
 #define HASH_MAP_SIZE                        256
 
 #define static_array(type, name, max_size) \
@@ -213,12 +213,12 @@ typedef struct members {
 
 typedef struct attribute {
 	name_id name;
-	double  parameters[16];
+	double  parameters[4];
 	uint8_t paramters_count;
 } attribute;
 
 typedef struct attributes {
-	attribute attributes[64];
+	attribute attributes[4];
 	uint8_t   attributes_count;
 } attribute_list;
 
