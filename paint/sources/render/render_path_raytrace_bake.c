@@ -121,7 +121,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 			tex2                           = texpaint_undo->_image;
 		}
 
-		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank);
+		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank, NULL);
 	}
 
 	if (g_context->brush_time > 0) {
