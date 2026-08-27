@@ -75,8 +75,22 @@ fun env_brdf_approx(specular: float3, roughness: float, dotnv: float): float3 { 
 } \
 ";
 
+char *make_mesh_context_id(i32 layer_pass) {
+	static char *ids[256] = {0};
+	if (layer_pass <= 0) {
+		return "mesh";
+	}
+	if (layer_pass >= 256) {
+		return string("mesh%d", layer_pass);
+	}
+	if (ids[layer_pass] == NULL) {
+		ids[layer_pass] = string("mesh%d", layer_pass);
+	}
+	return ids[layer_pass];
+}
+
 node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
-	char                  *context_id = layer_pass == 0 ? "mesh" : string_tmp("mesh%s", i32_to_string(layer_pass));
+	char                  *context_id = make_mesh_context_id(layer_pass);
 	shader_context_t      *props      = ALLOC_INIT(shader_context_t, {.name            = context_id,
 	                                                                  .depth_write     = layer_pass == 0 ? true : false,
 	                                                                  .compare_mode    = layer_pass == 0 ? "less" : "equal",

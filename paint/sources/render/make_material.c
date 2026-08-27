@@ -90,33 +90,30 @@ void make_material_delete_context(shader_context_t *c) {
 	sys_notify_on_next_frame(&make_material_delete_context_on_next_frame, c);
 }
 
+static bool make_material_is_mesh_context(char *name) {
+	if (!starts_with(name, "mesh")) {
+		return false;
+	}
+	for (char *c = name + 4; *c != '\0'; ++c) {
+		if (*c < '0' || *c > '9') {
+			return false;
+		}
+	}
+	return true;
+}
+
 void make_material_parse_mesh_material() {
 	shader_data_t *m = g_project->_->materials->buffer[0]->data;
 
-	for (i32 i = 0; i < m->contexts->length; ++i) {
+	i32 i = 0;
+	while (i < m->contexts->length) {
 		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "mesh")) {
+		if (make_material_is_mesh_context(c->name)) {
 			array_remove(m->contexts, c);
 			make_material_delete_context(c);
-			break;
+			continue;
 		}
-	}
-
-	if (make_mesh_layer_pass_count > 1) {
-		i32 i = 0;
-		while (i < m->contexts->length) {
-			shader_context_t *c = m->contexts->buffer[i];
-			for (i32 j = 1; j < make_mesh_layer_pass_count; ++j) {
-				char *name = string_tmp("mesh%s", i32_to_string(j));
-				if (string_equals(c->name, name)) {
-					array_remove(m->contexts, c);
-					make_material_delete_context(c);
-					i--;
-					break;
-				}
-			}
-			i++;
-		}
+		++i;
 	}
 
 	material_t *mm = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});

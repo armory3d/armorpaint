@@ -764,6 +764,7 @@ ui_node_t                *nodes_material_get_node_t(char *node_type);
 ui_node_t                *nodes_material_create_node(char *node_type, node_group_t *group);
 raw_mesh_t               *geom_make_plane(f32 size_x, f32 size_y, i32 verts_x, i32 verts_y, f32 uv_scale);
 raw_mesh_t               *geom_make_uv_sphere(f32 radius, i32 width_segments, i32 height_segments, bool stretch_uv, f32 uv_scale);
+char                     *make_mesh_context_id(i32 layer_pass);
 node_shader_context_t    *make_mesh_run(material_t *data, i32 layer_pass);
 node_shader_context_t    *make_depth_run(material_t *data);
 void                      ui_sidebar_render_ui();

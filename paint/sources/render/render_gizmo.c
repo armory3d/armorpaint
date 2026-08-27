@@ -99,10 +99,10 @@ void render_gizmo_update() {
 
 			transform_build_matrix(paint_object->transform);
 			ui_header_handle->redraws = 2;
+			g_context->ddirty         = 2;
 
 			if (config_is_raytrace_multi()) {
 				render_path_raytrace_ready = false;
-				g_context->ddirty          = 2;
 			}
 
 			physics_body_t *pb = paint_object->_->body;
