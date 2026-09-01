@@ -17,42 +17,44 @@ void import_obj_parse(buffer_t *b, bool replace_existing) {
 		char        *name      = part->name;
 		u32_array_t *inda_full = part->inda;
 		bool         first     = true;
-		for (i32 i = 0; i < part->udims->length; ++i) {
-			u32_array_t *a = part->udims->buffer[i];
-			if (a->length == 0) {
-				array_free(a);
-				free(a);
-				continue;
-			}
-			i32 u      = i % part->udims_u;
-			i32 v      = math_floor(i / (float)part->udims_u);
-			i32 id     = (1000 + v * 10 + u + 1);
-			part->name = string("%s.%s", name, i32_to_string(id));
-			part->inda = a;
-			if (first) {
-				first = false;
-				if (replace_existing) {
-					import_mesh_make_mesh(part);
+		if (part->udims != NULL) {
+			for (i32 i = 0; i < part->udims->length; ++i) {
+				u32_array_t *a = part->udims->buffer[i];
+				if (a->length == 0) {
+					array_free(a);
+					free(a);
+					continue;
+				}
+				i32 u      = i % part->udims_u;
+				i32 v      = math_floor(i / (float)part->udims_u);
+				i32 id     = (1000 + v * 10 + u + 1);
+				part->name = string("%s.%s", name, i32_to_string(id));
+				part->inda = a;
+				if (first) {
+					first = false;
+					if (replace_existing) {
+						import_mesh_make_mesh(part);
+					}
+					else {
+						import_mesh_add_mesh(part);
+					}
 				}
 				else {
+					part->posa = i16_array_create_from_array(part->posa);
+					part->nora = i16_array_create_from_array(part->nora);
+					if (part->texa != NULL) {
+						part->texa = i16_array_create_from_array(part->texa);
+					}
 					import_mesh_add_mesh(part);
 				}
 			}
-			else {
-				part->posa = i16_array_create_from_array(part->posa);
-				part->nora = i16_array_create_from_array(part->nora);
-				if (part->texa != NULL) {
-					part->texa = i16_array_create_from_array(part->texa);
-				}
-				import_mesh_add_mesh(part);
-			}
+			array_free(inda_full);
+			free(inda_full);
+			array_free(part->udims);
+			free(part->udims);
+			free(name);
+			free(part);
 		}
-		array_free(inda_full);
-		free(inda_full);
-		array_free(part->udims);
-		free(part->udims);
-		free(name);
-		free(part);
 	}
 	else {
 		raw_mesh_t_array_t *parts     = any_array_create_from_raw((void *[]){}, 0);
