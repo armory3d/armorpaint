@@ -947,6 +947,7 @@ void ui_draw_combo() {
 			current->combo_to_submit     = current->combo_initial_value;
 		}
 		current->combo_selected_handle = NULL;
+		current->is_hovered            = false;
 		ui_combo_first                 = true;
 	}
 	else {
