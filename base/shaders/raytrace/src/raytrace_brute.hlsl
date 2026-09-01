@@ -7,7 +7,6 @@
 #ifndef _FULL
 #define _ENV_SAMPLING
 #endif
-// #define _RENDER
 
 #if !defined(_EMISSION) && !defined(_SUBSURFACE)
 #define _INDIRECT_SKIP_NORMAL
@@ -239,17 +238,20 @@ void main(uint3 id : SV_DispatchThreadID) {
 	render_target.GetDimensions(dim.x, dim.y);
 	if (id.x >= dim.x || id.y >= dim.y) return;
 
-	init_sampler(id.xy, int(constant_buffer.eye.w));
+	int frame = int(constant_buffer.eye.w);
+	init_sampler(id.xy, frame);
 
 	uint2 sz;
 	mytexture0.GetDimensions(sz.x, sz.y);
 
 	float3 accum = 0;
 	for (int j = 0; j < SAMPLES; ++j) {
+		int sample_index = frame * SAMPLES + j;
+
 		// AA
 		float2 xy = float2(id.xy);
-		xy.x += rnd(id.xy, j, 0);
-		xy.y += rnd(id.xy, j, 1);
+		xy.x += rnd(id.xy, sample_index, 0);
+		xy.y += rnd(id.xy, sample_index, 1);
 
 		RayDesc ray;
 		ray.TMin = 0.0001;
@@ -267,7 +269,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 			#ifdef _ROULETTE
 			if (i >= rr_start) {
 				float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
-				if (rnd(id.xy, j, dim_base + DIM_RR) > rr_probability) break;
+				if (rnd(id.xy, sample_index, dim_base + DIM_RR) > rr_probability) break;
 				throughput /= rr_probability;
 			}
 			#endif
@@ -378,7 +380,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 
 			float4 tex2 = mytexture2.Load(texel);
 
-			float f = rnd(id.xy, j, dim_base + DIM_SELECT);
+			float f = rnd(id.xy, sample_index, dim_base + DIM_SELECT);
 
 			float3 tangent, binormal;
 
@@ -386,13 +388,13 @@ void main(uint3 id : SV_DispatchThreadID) {
 			if (f > tex0.a) {
 				float3x3 sbasis = create_basis(ray.Direction);
 				float3 sdir = cos_weighted_direction(sbasis[0], sbasis[1], ray.Direction,
-					rnd(id.xy, j, dim_base + DIM_DIR), rnd(id.xy, j, dim_base + DIM_DIR + 1));
+					rnd(id.xy, sample_index, dim_base + DIM_DIR), rnd(id.xy, sample_index, dim_base + DIM_DIR + 1));
 				ray.Direction = normalize(lerp(ray.Direction, sdir, tex2.g * tex2.g * 0.5));
 				ray.Origin = offset_ray(hit, ng, ray.Direction);
 				continue;
 			}
 
-			f = rnd(id.xy, j, dim_base + DIM_SELECT2);
+			f = rnd(id.xy, sample_index, dim_base + DIM_SELECT2);
 			#endif
 
 			if (normal_map) {
@@ -448,8 +450,8 @@ void main(uint3 id : SV_DispatchThreadID) {
 			#ifdef _ENV_SAMPLING
 			if (constant_buffer.params.w != 0.0) {
 				float pdf_light;
-				float3 wl = sample_env(rnd(id.xy, j, dim_base + DIM_LIGHT),
-					rnd(id.xy, j, dim_base + DIM_LIGHT + 1), pdf_light);
+				float3 wl = sample_env(rnd(id.xy, sample_index, dim_base + DIM_LIGHT),
+					rnd(id.xy, sample_index, dim_base + DIM_LIGHT + 1), pdf_light);
 				if (pdf_light > 0.0 && dot(wl, ng) > 0.0) {
 					float3 f_cos;
 					float pdf_brdf;
@@ -463,8 +465,8 @@ void main(uint3 id : SV_DispatchThreadID) {
 			}
 			#endif
 
-			float u1 = rnd(id.xy, j, dim_base + DIM_DIR);
-			float u2 = rnd(id.xy, j, dim_base + DIM_DIR + 1);
+			float u1 = rnd(id.xy, sample_index, dim_base + DIM_DIR);
+			float u2 = rnd(id.xy, sample_index, dim_base + DIM_DIR + 1);
 
 			if (f < specular_chance) {
 				float alpha2 = alpha * alpha;
@@ -511,13 +513,8 @@ void main(uint3 id : SV_DispatchThreadID) {
 	float3 color = render_target[id.xy].xyz;
 	accum /= SAMPLES;
 
-	#ifdef _RENDER
 	float a = 1.0 / (constant_buffer.eye.w + 1);
-	color = color * (1.0 - a) + accum * a;
-	#else
-	if (constant_buffer.eye.w == 0) color = accum;
-	else color = lerp(color, accum, 0.25);
-	#endif
+	color = lerp(color, accum, a);
 
 	render_target[id.xy] = half4(color, 1.0f);
 }

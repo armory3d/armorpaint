@@ -12,7 +12,6 @@
 #ifndef _FULL
 #define _ENV_SAMPLING
 #endif
-// #define _RENDER
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -657,17 +656,20 @@ void main() {
         return;
     }
 
-    init_sampler(pixel_coord, int(constant_buffer.eye.w));
+    int frame = int(constant_buffer.eye.w);
+    init_sampler(pixel_coord, frame);
 
     vec2 tex_size = vec2(textureSize(sampler2D(mytexture0, sampler_linear), 0));
 
     vec3 accum = vec3(0.0);
 
     for (int j = 0; j < SAMPLES; ++j) {
+        int sample_index = frame * SAMPLES + j;
+
         // AA
         vec2 xy = vec2(pixel_coord);
-        xy.x += rnd(pixel_coord, j, 0);
-        xy.y += rnd(pixel_coord, j, 1);
+        xy.x += rnd(pixel_coord, sample_index, 0);
+        xy.y += rnd(pixel_coord, sample_index, 1);
 
         vec2 screen_pos = xy / vec2(dimensions) * 2.0 - 1.0;
 
@@ -690,7 +692,7 @@ void main() {
             #ifdef _ROULETTE
             if (i >= rr_start) {
                 float rr_probability = clamp(max(max(payload.throughput.r, payload.throughput.g), payload.throughput.b), rr_min, rr_max);
-                if (rnd(pixel_coord, j, DIM_BOUNCE + i * DIM_PER_BOUNCE + DIM_RR) > rr_probability) {
+                if (rnd(pixel_coord, sample_index, DIM_BOUNCE + i * DIM_PER_BOUNCE + DIM_RR) > rr_probability) {
                     break;
                 }
                 payload.throughput /= rr_probability;
@@ -712,7 +714,7 @@ void main() {
                 payload.ray_origin = ray_origin;
                 payload.ray_dir = ray_dir;
 
-                int result = process_hit(query, payload, pixel_coord, j, i, tex_size);
+                int result = process_hit(query, payload, pixel_coord, sample_index, i, tex_size);
 
                 #ifdef _EMISSION
                 if (result == HIT_EMIT) {
@@ -755,15 +757,7 @@ void main() {
     vec3 color = imageLoad(render_target, ivec2(pixel_coord)).xyz;
     accum = accum / float(SAMPLES);
 
-    #ifdef _RENDER
     float a = 1.0 / (constant_buffer.eye.w + 1.0);
-    float b = 1.0 - a;
-    color = color * b + accum * a;
+    color = mix(color, accum, a);
     imageStore(render_target, ivec2(pixel_coord), vec4(color, 1.0));
-    #else
-    if (constant_buffer.eye.w == 0.0) {
-        color = accum;
-    }
-    imageStore(render_target, ivec2(pixel_coord), vec4(mix(color, accum, 1.0 / 4.0), 1.0));
-    #endif
 }

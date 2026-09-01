@@ -9,7 +9,6 @@
 #ifndef _FULL
 #define _ENV_SAMPLING
 #endif
-// #define _RENDER
 
 #if !defined(_EMISSION) && !defined(_SUBSURFACE)
 #define _INDIRECT_SKIP_NORMAL
@@ -710,15 +709,7 @@ kernel void raytracingKernel(
 	float3 color = render_target.read(tid).xyz;
 	accum = accum / SAMPLES;
 
-	#ifdef _RENDER
 	float a = 1.0 / (constant_buffer.eye.w + 1);
-	float b = 1.0 - a;
-	color = color * b + accum * a;
+	color = mix(color, accum, a);
 	render_target.write(float4(color, 1.0f), tid);
-	#else
-	if (constant_buffer.eye.w == 0) {
-		color = accum;
-	}
-	render_target.write(float4(mix(color, accum, 1.0 / 4.0), 1.0f), tid);
-	#endif
 }
