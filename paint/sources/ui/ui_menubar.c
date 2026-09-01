@@ -508,6 +508,7 @@ void ui_menubar_draw_category_items() {
 
 		if (ui_menu_button(tr("Reset Envmap"), "", ICON_NONE)) {
 			project_set_default_envmap();
+			g_context->ddirty = 2;
 		}
 
 		if (ui_menu_button(tr("Capture Screenshot"), "", ICON_PHOTO)) {
