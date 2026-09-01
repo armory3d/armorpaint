@@ -10,6 +10,19 @@ static string_array_t *render_path_paint_additional(char *nor, char *pack) {
 	return &ar;
 }
 
+static bool render_path_paint_uses_gbuffer0() {
+	if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
+		return true;
+	}
+	if (g_context->brush_mask_image != NULL && (g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER)) {
+		return true;
+	}
+	if (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_ANGLE) {
+		return true;
+	}
+	return false;
+}
+
 bool             render_path_paint_dilated               = true;
 mesh_object_t   *render_path_paint_painto                = NULL;
 mesh_object_t   *render_path_paint_planeo                = NULL;
@@ -151,7 +164,7 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 		render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
 		                       GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("main", "gbufferD");
-		if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
+		if (render_path_paint_uses_gbuffer0()) {
 			render_path_bind_target("gbuffer0", "gbuffer0");
 		}
 		render_path_bind_target("texpaint_blend1", "paintmask");
@@ -484,7 +497,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				                       GPU_CLEAR_NONE, 0, 0.0);
 			}
 			render_path_bind_target("main", "gbufferD");
-			if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
+			if (render_path_paint_uses_gbuffer0()) {
 				render_path_bind_target("gbuffer0", "gbuffer0");
 			}
 			render_path_bind_target("texpaint_blend1", "paintmask");
