@@ -300,7 +300,7 @@ void import_arm_make_pink(char *abs) {
 
 static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format) {
 	buffer_t      *pixels  = lz4_decode(b, size);
-	gpu_texture_t *texture = gpu_create_texture_from_bytes(pixels, res, res, format);
+	gpu_texture_t *texture = gpu_create_texture_from_bytes_raw(pixels, res, res, format);
 	array_free(pixels);
 	free(pixels);
 	return texture;

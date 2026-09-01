@@ -781,7 +781,14 @@ gpu_texture_t *gpu_create_render_target(i32 width, i32 height, i32 format) {
 gpu_texture_t *gpu_create_texture_from_bytes(buffer_t *data, i32 width, i32 height, i32 format) {
 	gpu_texture_t *texture = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
 	texture->buffer        = NULL;
-	gpu_texture_init_from_bytes(texture, data->buffer, width, height, (gpu_texture_format_t)format);
+	gpu_texture_init_from_bytes(texture, data->buffer, width, height, (gpu_texture_format_t)format, true);
+	return texture;
+}
+
+gpu_texture_t *gpu_create_texture_from_bytes_raw(buffer_t *data, i32 width, i32 height, i32 format) {
+	gpu_texture_t *texture = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
+	texture->buffer        = NULL;
+	gpu_texture_init_from_bytes(texture, data->buffer, width, height, (gpu_texture_format_t)format, false);
 	return texture;
 }
 
@@ -837,7 +844,7 @@ gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *forma
 	}
 
 	// double t = iron_time(); ////
-	gpu_texture_init_from_bytes(texture, texture_data, width, height, texture_format);
+	gpu_texture_init_from_bytes(texture, texture_data, width, height, texture_format, true);
 	// iron_log("gpu_texture_init_from_bytes in %fs\n", iron_time() - t); ////
 	free(texture_data);
 

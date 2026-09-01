@@ -184,7 +184,7 @@ void gpu_set_mat3(int location, mat3_t value);
 void gpu_set_mat4(int location, mat4_t value);
 
 void  gpu_vertex_structure_add(gpu_vertex_structure_t *structure, const char *name, gpu_vertex_data_t data);
-void  gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format);
+void  gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress);
 void  gpu_texture_destroy(gpu_texture_t *texture);
 void  gpu_texture_destroy_internal(gpu_texture_t *texture);
 void  gpu_render_target_init(gpu_texture_t *target, uint32_t width, uint32_t height, gpu_texture_format_t format);

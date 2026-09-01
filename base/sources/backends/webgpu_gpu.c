@@ -746,7 +746,7 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 	shader->impl.source = NULL;
 }
 
-void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format) {
+void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress) {
 	texture->width  = width;
 	texture->height = height;
 	texture->format = format;
@@ -757,7 +757,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	void             *original_data = data;
 
 #ifdef WITH_BC7
-	if (gpu_bc7_supported(width, height, format)) {
+	if (compress && gpu_bc7_supported(width, height, format)) {
 		texture->format = GPU_TEXTURE_FORMAT_RGBA32_BC7;
 		wgpu_format     = WGPUTextureFormat_BC7RGBAUnorm;
 		data            = gpu_bc7_compress(data, width, height);

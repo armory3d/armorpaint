@@ -93,7 +93,7 @@ void import_lut_run(const char *path) {
 	free(cube);
 	import_lut_free();
 	lut_image = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
-	gpu_texture_init_from_bytes(lut_image, pixels, strip_w, strip_h, GPU_TEXTURE_FORMAT_RGBA32);
+	gpu_texture_init_from_bytes(lut_image, pixels, strip_w, strip_h, GPU_TEXTURE_FORMAT_RGBA32, false);
 	free(pixels);
 	lut_size = n;
 }

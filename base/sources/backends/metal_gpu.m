@@ -534,7 +534,7 @@ void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_
 	shader->impl.length = length;
 }
 
-void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format) {
+void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress) {
 	texture->width  = width;
 	texture->height = height;
 	texture->format = format;
@@ -551,7 +551,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	int   bytes_per_image = bytes_per_row * height;
 
 #ifdef WITH_BC7
-	if (gpu_bc7_supported(width, height, format)) {
+	if (compress && gpu_bc7_supported(width, height, format)) {
 		texture->format = GPU_TEXTURE_FORMAT_RGBA32_BC7;
 		mtlformat       = MTLPixelFormatBC7_RGBAUnorm;
 		data            = gpu_bc7_compress(data, width, height);
@@ -579,7 +579,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 			free(data);
 		}
 #endif
-		gpu_texture_init_from_bytes(texture, original_data, width, height, format);
+		gpu_texture_init_from_bytes(texture, original_data, width, height, format, compress);
 		return;
 	}
 	texture->impl._tex = (__bridge_retained void *)tex;

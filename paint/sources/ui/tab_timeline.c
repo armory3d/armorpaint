@@ -781,7 +781,7 @@ static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) 
 	i32                  h                 = config_get_texture_res_y();
 	i32                  bytes_per_channel = base_bits_handle->i == TEXTURE_BITS_BITS8 ? 1 : base_bits_handle->i == TEXTURE_BITS_BITS16 ? 2 : 4;
 	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
-	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes(pixels, w, h, fmt);
+	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes_raw(pixels, w, h, fmt);
 	array_free(pixels);
 	free(pixels);
 	gpu_texture_t *rt = gpu_create_render_target(w, h, fmt);

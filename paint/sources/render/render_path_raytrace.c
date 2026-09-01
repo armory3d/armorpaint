@@ -193,7 +193,7 @@ static void render_path_raytrace_build_env_cdf(char *file) {
 		else {
 			gpu_texture_destroy(render_path_raytrace_env_cdf);
 		}
-		gpu_texture_init_from_bytes(render_path_raytrace_env_cdf, data, ENV_CDF_W, ENV_CDF_H, GPU_TEXTURE_FORMAT_RGBA128);
+		gpu_texture_init_from_bytes(render_path_raytrace_env_cdf, data, ENV_CDF_W, ENV_CDF_H, GPU_TEXTURE_FORMAT_RGBA128, false);
 		free(data);
 
 		free(render_path_raytrace_env_cdf_file);
