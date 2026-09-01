@@ -415,11 +415,13 @@ project_t *import_arm_from_version_6(any_map_t *old) {
 
 project_t *import_arm_from_version_5(any_map_t *old) {
 	any_array_t *mds = any_map_get(old, "mesh_datas");
-	any_array_t *mts = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < mds->length; ++i) {
-		any_array_push(mts, mat4_to_f32_array(mat4_identity()));
+	if (mds != NULL) {
+		any_array_t *mts = any_array_create_from_raw((void *[]){}, 0);
+		for (i32 i = 0; i < mds->length; ++i) {
+			any_array_push(mts, mat4_to_f32_array(mat4_identity()));
+		}
+		any_map_set(old, "mesh_transforms", mts);
 	}
-	any_map_set(old, "mesh_transforms", mts);
 	return import_arm_from_version_6(old);
 }
 
