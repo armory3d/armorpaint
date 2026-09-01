@@ -63,7 +63,7 @@ fun pack_f32_i16(f: float, i: uint): float {
 	// const t1: float = ((prec / maxi) - 1.0) / prec_minus_one;
 	// const t2: float = (prec / maxi) / prec_minus_one;
 	// return t1 * f + t2 * float(i);
-	return 0.062504762 * min(f, 0.9999) + 0.062519999 * float(i);
+	return 0.062485207147583624 * min(f, 0.9990234375) + 0.062500476102698687 * float(i);
 }
 
 fun mesh_posnortex_frag(input: vert_out): float4[3] {

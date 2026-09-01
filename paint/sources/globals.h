@@ -432,7 +432,7 @@ fun octahedron_wrap(v: float2): float2 { \
 
 char *str_pack_float_int16 = "\
 fun pack_f32_i16(f: float, i: uint): float { \
-	return 0.062504762 * min(f, 0.9999) + 0.062519999 * float(i); \
+	return 0.062485207147583624 * min(f, 0.9990234375) + 0.062500476102698687 * float(i); \
 } \
 ";
 
