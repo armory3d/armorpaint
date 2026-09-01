@@ -615,6 +615,20 @@ void box_preferences_viewport_tab() {
 		util_mesh_merge(NULL);
 	}
 
+	ui_handle_t *h_pathtrace_frames = ui_handle(__ID__);
+	h_pathtrace_frames->f           = g_config->pathtrace_frames;
+	g_config->pathtrace_frames      = ui_slider(h_pathtrace_frames, tr("Path Trace Frames"), 1, 128, false, 1, true, UI_ALIGN_RIGHT, true);
+	if (g_config->pathtrace_frames < 1) {
+		g_config->pathtrace_frames = h_pathtrace_frames->f = 1;
+	}
+	if (g_config->pathtrace_frames > 128) {
+		// Samples repeat after 128 frames
+		g_config->pathtrace_frames = h_pathtrace_frames->f = 128;
+	}
+	if (h_pathtrace_frames->changed) {
+		g_context->ddirty = 2;
+	}
+
 	ui_handle_t *h_render_mode        = ui_handle(__ID__);
 	h_render_mode->i                  = g_config->render_mode;
 	string_array_t *render_mode_combo = any_array_create_from_raw_tmp(

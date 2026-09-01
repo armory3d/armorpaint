@@ -13,9 +13,6 @@ gpu_buffer_t *render_path_raytrace_ib;
 gpu_texture_t *render_path_raytrace_env_cdf      = NULL;
 static char   *render_path_raytrace_env_cdf_file = NULL;
 
-#define RENDER_PATH_RAYTRACE_MAX_FRAMES 8
-static i32 render_path_raytrace_frames_drawn = 0;
-
 static float render_path_raytrace_half_to_float(uint16_t h) {
 	uint32_t sign = (uint32_t)(h >> 15) << 31;
 	uint32_t exp  = (h >> 10) & 0x1f;
@@ -285,8 +282,6 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	render_path_raytrace_f32a->buffer[1] = transform_world_y(ct);
 	render_path_raytrace_f32a->buffer[2] = transform_world_z(ct);
 	render_path_raytrace_f32a->buffer[3] = render_path_raytrace_frame;
-	render_path_raytrace_frame           = (render_path_raytrace_frame % 4) + 1; // _PAINT
-	// render_path_raytrace_frame = render_path_raytrace_frame + 1; // _RENDER
 	render_path_raytrace_f32a->buffer[4]  = render_path_raytrace_help_mat.m00;
 	render_path_raytrace_f32a->buffer[5]  = render_path_raytrace_help_mat.m01;
 	render_path_raytrace_f32a->buffer[6]  = render_path_raytrace_help_mat.m02;
@@ -315,16 +310,14 @@ void render_path_raytrace_commands(bool use_live_layer) {
 		render_path_base_swap_buf("buf");
 	}
 
-	if (render_path_raytrace_frames_drawn < RENDER_PATH_RAYTRACE_MAX_FRAMES) {
-		render_path_raytrace_frames_drawn++;
+	if (render_path_raytrace_frame < g_config->pathtrace_frames) {
 		render_target_t *framebuffer = any_map_get(render_path_render_targets, "buf");
 		_gpu_raytrace_dispatch_rays(framebuffer->_image, render_path_raytrace_f32a);
+		render_path_raytrace_frame++;
 	}
 
 	g_context->ddirty--;
 	g_context->pdirty--;
-
-	// g_context->ddirty = 1; // _RENDER
 }
 
 void render_path_raytrace_build_data() {
@@ -390,8 +383,7 @@ void render_path_raytrace_draw(bool use_live_layer) {
 	bool is_live   = g_config->brush_live && render_path_paint_live_layer_drawn > 0;
 	bool is_player = g_config->workspace == WORKSPACE_PLAYER;
 	if (g_context->ddirty > 1 || g_context->pdirty > 0 || is_live || is_player) {
-		render_path_raytrace_frame        = 0;
-		render_path_raytrace_frames_drawn = 0;
+		render_path_raytrace_frame = 0;
 	}
 
 	render_path_raytrace_commands(use_live_layer);

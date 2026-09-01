@@ -126,6 +126,7 @@ typedef struct config {
 	char                *server;
 	i32                  viewport_mode;
 	i32                  pathtrace_mode;
+	i32                  pathtrace_frames;
 	bool                 pressure_radius; // Pen pressure controls
 	f32                  pressure_sensitivity;
 	i32                  layer_res;

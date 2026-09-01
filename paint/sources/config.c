@@ -113,6 +113,7 @@ void config_save() {
 	json_encode_string("server", g_config->server);
 	json_encode_i32("viewport_mode", g_config->viewport_mode);
 	json_encode_i32("pathtrace_mode", g_config->pathtrace_mode);
+	json_encode_i32("pathtrace_frames", g_config->pathtrace_frames);
 	json_encode_bool("pressure_radius", g_config->pressure_radius);
 	json_encode_f32("pressure_sensitivity", g_config->pressure_sensitivity);
 	json_encode_i32("layer_res", g_config->layer_res);
@@ -253,6 +254,7 @@ void config_init() {
 		g_config->dilate_radius       = 2;
 		g_config->blender             = "";
 		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;
+		g_config->pathtrace_frames    = 8;
 		g_config->grid_snap           = false;
 		g_config->view2d_grid_show    = false;
 		g_config->view2d_grid_cell    = 64;
