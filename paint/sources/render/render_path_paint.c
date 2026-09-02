@@ -228,7 +228,7 @@ void render_path_paint_commands_paint(bool dilation) {
 
 	bool picking_tool = g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL ||
 	                    g_context->tool == TOOL_TYPE_CURSOR;
-	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool) {
+	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool && !g_context->material_preview) {
 		render_path_sculpt_commands();
 		return;
 	}

@@ -105,7 +105,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	bool picking_tool = g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL ||
 	                    g_context->tool == TOOL_TYPE_CURSOR;
 	bool is_atlas = string_equals(context_id, "atlas");
-	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool) {
+	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool && !g_context->material_preview) {
 		return sculpt_make_sculpt_run(data);
 	}
 

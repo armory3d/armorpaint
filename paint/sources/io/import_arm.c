@@ -482,6 +482,14 @@ void import_arm_run_swatches_from_project(project_t *project, char *path, bool r
 	data_delete_blob(path);
 }
 
+static void import_arm_sculpt_init(void *_) {
+	if (history_undo_layers == NULL) {
+		return;
+	}
+	sculpt_init();
+	sys_remove_update(import_arm_sculpt_init);
+}
+
 void import_arm_run_project(char *path) {
 	buffer_t  *b = data_get_blob(path);
 	project_t *project;
@@ -888,6 +896,14 @@ void import_arm_run_project(char *path) {
 		if (!is_group) {
 			l->fill_material = ld->fill_material > -1 ? g_project->_->materials->buffer[ld->fill_material] : NULL;
 			l->path_material = ld->path_material > -1 ? g_project->_->materials->buffer[ld->path_material] : NULL;
+		}
+	}
+
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		if (g_project->_->layers->buffer[i]->texpaint_sculpt != NULL) {
+			sys_remove_update(import_arm_sculpt_init);
+			sys_notify_on_update(import_arm_sculpt_init, NULL);
+			break;
 		}
 	}
 
