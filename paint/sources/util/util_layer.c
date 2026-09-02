@@ -593,10 +593,7 @@ slot_layer_t *layers_new_layer(bool clear, i32 position, slot_layer_t *parent) {
 		sys_notify_on_next_frame(&layers_new_layer_clear, l);
 	}
 
-	stage_t *stage = tab_stages_get_stage();
-	if (stage != NULL && string_array_index_of(stage->layers, l->name) < 0) {
-		string_array_push(stage->layers, l->name);
-	}
+	tab_stages_add_layer(l->name);
 
 	g_context->layer_preview_dirty = true;
 	return l;
@@ -620,6 +617,7 @@ slot_layer_t *layers_new_mask(bool clear, slot_layer_t *parent, i32 position) {
 	if (clear) {
 		sys_notify_on_next_frame(&layers_new_mask_clear, l);
 	}
+	tab_stages_add_layer(l->name);
 	g_context->layer_preview_dirty = true;
 	return l;
 }
@@ -632,6 +630,7 @@ slot_layer_t *layers_new_group() {
 	slot_layer_t *l = slot_layer_create("", LAYER_SLOT_TYPE_GROUP, NULL);
 	any_array_push(g_project->_->layers, l);
 	context_set_layer(l);
+	tab_stages_add_layer(l->name);
 	return l;
 }
 
@@ -654,7 +653,9 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	l->path_tool          = -1;
 	l->path_curved        = curved;
 	l->path_material      = g_context->material;
-	l->name               = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	char *name            = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	tab_stages_rename_layer(l->name, name);
+	l->name = name;
 
 	if (g_config->workflow == WORKFLOW_SCULPT) {
 		_layers_path_sculpt_layer = l;
@@ -671,7 +672,9 @@ slot_layer_t *layers_new_text_layer() {
 	}
 	l->path_text = true;
 	l->path_tool = TOOL_TYPE_TEXT;
-	l->name      = string("Text %d", l->id + 1);
+	char *name   = string("Text %d", l->id + 1);
+	tab_stages_rename_layer(l->name, name);
+	l->name = name;
 	return l;
 }
 

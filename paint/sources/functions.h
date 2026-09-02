@@ -454,6 +454,7 @@ void                      tab_stages_apply_visible(mesh_object_t *o);
 bool                      tab_stages_is_hidden(stage_t *stage, char *name);
 void                      tab_stages_set_hidden(stage_t *stage, char *name, bool hidden);
 void                      tab_stages_add_object(char *name);
+void                      tab_stages_add_layer(char *name);
 void                      tab_stages_rename_object(char *old_name, char *new_name);
 void                      tab_stages_rename_layer(char *old_name, char *new_name);
 void                      script_set_stage(char *name);

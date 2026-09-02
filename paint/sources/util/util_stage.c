@@ -67,6 +67,13 @@ void tab_stages_add_object(char *name) {
 	}
 }
 
+void tab_stages_add_layer(char *name) {
+	stage_t *stage = tab_stages_get_stage();
+	if (stage != NULL && string_array_index_of(stage->layers, name) < 0) {
+		string_array_push(stage->layers, name);
+	}
+}
+
 void tab_stages_rename_object(char *old_name, char *new_name) {
 	if (g_project->stages == NULL || string_equals(old_name, new_name)) {
 		return;

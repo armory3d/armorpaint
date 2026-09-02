@@ -1184,6 +1184,27 @@ void tab_timeline_stage_edit_box_draw() {
 	}
 	ui_end_element();
 
+	ui_text(tr("Layers"), UI_ALIGN_LEFT, 0x00000000);
+
+	ui_handle_t *hlayers = ui_handle(__ID__);
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l      = g_project->_->layers->buffer[i];
+		i32           idx    = string_array_index_of(s->layers, l->name);
+		ui_handle_t  *hlayer = ui_nest(hlayers, i);
+		hlayer->b            = idx >= 0;
+		ui_check(hlayer, l->name, "");
+		if (hlayer->changed) {
+			if (hlayer->b) {
+				string_array_push(s->layers, l->name);
+			}
+			else {
+				array_splice(s->layers, idx, 1);
+			}
+			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		}
+	}
+	ui_end_element();
+
 	ui_row2();
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
 		ui_box_hide();
