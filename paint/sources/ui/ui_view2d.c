@@ -226,7 +226,10 @@ void ui_view2d_update(void *_) {
 			ui_view2d_layer_touched = false;
 		}
 
-		if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover &&
+
+		bool sculpt_layer = g_context->layer->texpaint_sculpt != NULL;
+
+		if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover && !sculpt_layer &&
 		    (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
 		     keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
 		     decal_mask || set_clone_source || g_config->brush_live)) {
