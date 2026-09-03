@@ -1240,7 +1240,8 @@ static ID3D12RootSignature          *dxr_root_signature  = NULL;
 static ID3D12DescriptorHeap         *dxr_descriptor_heap = NULL;
 static gpu_acceleration_structure_t *dxr_accel;
 static gpu_raytrace_pipeline_t      *dxr_pipeline;
-static gpu_texture_t                *dxr_output = NULL;
+static gpu_texture_t                *dxr_output           = NULL;
+static ID3D12Resource               *dxr_output_uav_image = NULL;
 static D3D12_CPU_DESCRIPTOR_HANDLE   dxr_output_cpu_descriptor;
 static D3D12_GPU_DESCRIPTOR_HANDLE   dxr_output_descriptor_handle;
 static D3D12_GPU_DESCRIPTOR_HANDLE   dxr_vbgpu_descriptor_handle;
@@ -1265,6 +1266,7 @@ static int                           dxr_instances_count = 0;
 
 void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader, int shader_size, gpu_buffer_t *constant_buffer) {
 	dxr_output                = NULL;
+	dxr_output_uav_image      = NULL;
 	dxr_descriptors_allocated = 0;
 	pipeline->constant_buffer = constant_buffer;
 
@@ -1823,12 +1825,16 @@ void gpu_raytrace_set_target(gpu_texture_t *output) {
 		    .Texture2D.ResourceMinLODClamp = 0.0f,
 		};
 		device->lpVtbl->CreateShaderResourceView(device, output->impl.image, &srv_desc, srv_handle(output->impl.srv_index));
+	}
 
+	if (dxr_output_uav_image != output->impl.image) {
+		dxr_output_uav_image                      = output->impl.image;
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {
 		    .ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D,
 		};
 		device->lpVtbl->CreateUnorderedAccessView(device, output->impl.image, NULL, &uav_desc, dxr_output_cpu_descriptor);
 	}
+
 	dxr_output = output;
 }
 
