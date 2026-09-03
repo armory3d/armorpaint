@@ -313,7 +313,7 @@ void ui_menubar_draw_category_items() {
 		}
 		ui_menu_separator();
 		if (ui_menu_sub_button(ui_handle(__ID__), tr("Export"))) {
-			ui_menu_sub_begin(g_config->experimental ? 4 : 3);
+			ui_menu_sub_begin(4);
 			if (ui_menu_button(tr("Textures..."), any_map_get(g_keymap, "file_export_textures_as"), ICON_IMAGE)) {
 				g_context->layers_export = EXPORT_MODE_VISIBLE;
 				box_export_show_textures();
@@ -325,7 +325,7 @@ void ui_menubar_draw_category_items() {
 				g_context->export_mesh_index = 0; // All
 				box_export_show_mesh();
 			}
-			if (g_config->experimental && ui_menu_button(tr("Player..."), "", ICON_PLAY)) {
+			if (ui_menu_button(tr("Player..."), "", ICON_PLAY)) {
 				box_export_show_player();
 			}
 			ui_menu_sub_end();

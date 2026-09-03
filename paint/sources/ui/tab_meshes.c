@@ -640,43 +640,41 @@ void tab_meshes_draw_context_menu() {
 	}
 
 	// Physics
-	if (g_config->experimental) {
-		physics_body_t *pb         = o->base->_->body;
-		string_array_t *phys_combo = string_array_create(0);
-		string_array_push(phys_combo, ""); // Empty = no physics
-		string_array_push(phys_combo, tr("Box"));
-		string_array_push(phys_combo, tr("Sphere"));
-		string_array_push(phys_combo, tr("Terrain"));
-		string_array_push(phys_combo, tr("Mesh"));
+	physics_body_t *pb         = o->base->_->body;
+	string_array_t *phys_combo = string_array_create(0);
+	string_array_push(phys_combo, ""); // Empty = no physics
+	string_array_push(phys_combo, tr("Box"));
+	string_array_push(phys_combo, tr("Sphere"));
+	string_array_push(phys_combo, tr("Terrain"));
+	string_array_push(phys_combo, tr("Mesh"));
 
-		ui_handle_t *hphys = ui_handle(__ID__);
-		hphys->i           = pb == NULL ? 0 : pb->shape + 1;
-		ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
-		array_free(phys_combo);
-		free(phys_combo);
-		if (hphys->changed) {
-			if (pb != NULL) {
-				physics_body_remove(pb);
-				pb = NULL;
-			}
-			if (hphys->i > 0) {
-				physics_shape_t shape   = (physics_shape_t)(hphys->i - 1);
-				bool            dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
-				sim_add_body(o->base, shape, dynamic ? 1.0 : 0.0);
-				pb = o->base->_->body;
-			}
-			g_project->mesh_physics_shapes = i32_array_create(0);
-		}
-
+	ui_handle_t *hphys = ui_handle(__ID__);
+	hphys->i           = pb == NULL ? 0 : pb->shape + 1;
+	ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
+	array_free(phys_combo);
+	free(phys_combo);
+	if (hphys->changed) {
 		if (pb != NULL) {
-			ui_handle_t *hmass = ui_handle(__ID__);
-			hmass->f           = pb->mass;
-			ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
-			if (hmass->changed) {
-				physics_body_set_mass(pb, hmass->f); // Zero mass = static
-				g_project->mesh_physics_shapes = i32_array_create(0);
-				ui_menu_keep_open              = true;
-			}
+			physics_body_remove(pb);
+			pb = NULL;
+		}
+		if (hphys->i > 0) {
+			physics_shape_t shape   = (physics_shape_t)(hphys->i - 1);
+			bool            dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+			sim_add_body(o->base, shape, dynamic ? 1.0 : 0.0);
+			pb = o->base->_->body;
+		}
+		g_project->mesh_physics_shapes = i32_array_create(0);
+	}
+
+	if (pb != NULL) {
+		ui_handle_t *hmass = ui_handle(__ID__);
+		hmass->f           = pb->mass;
+		ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
+		if (hmass->changed) {
+			physics_body_set_mass(pb, hmass->f); // Zero mass = static
+			g_project->mesh_physics_shapes = i32_array_create(0);
+			ui_menu_keep_open              = true;
 		}
 	}
 
