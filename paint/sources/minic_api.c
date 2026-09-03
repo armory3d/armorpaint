@@ -488,8 +488,8 @@ void minic_register_builtins() {
 	minic_register_native("string", minic_string_native);
 
 	// iron_array
-	minic_register_array_struct("i8_array_t", (int)sizeof(i8_array_t), MINIC_T_INT);
-	minic_register_array_struct("u8_array_t", (int)sizeof(u8_array_t), MINIC_T_INT);
+	minic_register_array_struct("i8_array_t", (int)sizeof(i8_array_t), MINIC_T_CHAR);
+	minic_register_array_struct("u8_array_t", (int)sizeof(u8_array_t), MINIC_T_CHAR);
 	minic_register_array_struct("i16_array_t", (int)sizeof(i16_array_t), MINIC_T_INT);
 	minic_register_array_struct("u16_array_t", (int)sizeof(u16_array_t), MINIC_T_INT);
 	minic_register_array_struct("i32_array_t", (int)sizeof(i32_array_t), MINIC_T_INT);
@@ -497,7 +497,7 @@ void minic_register_builtins() {
 	minic_register_array_struct("f32_array_t", (int)sizeof(f32_array_t), MINIC_T_FLOAT);
 	minic_register_array_struct("any_array_t", (int)sizeof(any_array_t), MINIC_T_PTR);
 	minic_register_array_struct("string_array_t", (int)sizeof(string_array_t), MINIC_T_PTR);
-	minic_register_array_struct("buffer_t", (int)sizeof(buffer_t), MINIC_T_INT);
+	minic_register_array_struct("buffer_t", (int)sizeof(buffer_t), MINIC_T_CHAR);
 
 	// iron_math
 	MINIC_STRUCT(vec2_t);

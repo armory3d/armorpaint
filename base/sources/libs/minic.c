@@ -17,28 +17,28 @@
 //    ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║
 //    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
 
-#define MINIC_TOK_LIST                                                                                                                                         \
-	X(TOK_INT, "'int'")                                                                                                                                        \
-	X(TOK_FLOAT, "'float'")                                                                                                                                    \
-	X(TOK_CHAR, "'char'")                                                                                                                                      \
-	X(TOK_DOUBLE, "'double'")                                                                                                                                  \
-	X(TOK_BOOL, "'bool'")                                                                                                                                      \
-	X(TOK_RETURN, "'return'")                                                                                                                                  \
-	X(TOK_IF, "'if'")                                                                                                                                          \
-	X(TOK_ELSE, "'else'")                                                                                                                                      \
-	X(TOK_WHILE, "'while'")                                                                                                                                    \
-	X(TOK_FOR, "'for'")                                                                                                                                        \
-	X(TOK_BREAK, "'break'")                                                                                                                                    \
-	X(TOK_CONTINUE, "'continue'") X(TOK_STRUCT, "'struct'") X(TOK_TYPEDEF, "'typedef'") X(TOK_ENUM, "'enum'") X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") \
-	    X(TOK_NUMBER, "number") X(TOK_CHAR_LIT, "char literal") X(TOK_STR_LIT, "string literal") X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'")                     \
-	        X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','")                \
-	            X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='")                \
-	                X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='")         \
-	                    X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='")   \
-	                        X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") \
-	                            X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'")          \
-	                                X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'")                          \
-	                                    X(TOK_EOF, "end of file")
+#define MINIC_TOK_LIST                                                                                                                                       \
+	X(TOK_INT, "'int'")                                                                                                                                      \
+	X(TOK_FLOAT, "'float'")                                                                                                                                  \
+	X(TOK_CHAR, "'char'")                                                                                                                                    \
+	X(TOK_DOUBLE, "'double'")                                                                                                                                \
+	X(TOK_BOOL, "'bool'")                                                                                                                                    \
+	X(TOK_RETURN, "'return'")                                                                                                                                \
+	X(TOK_IF, "'if'")                                                                                                                                        \
+	X(TOK_ELSE, "'else'")                                                                                                                                    \
+	X(TOK_WHILE, "'while'")                                                                                                                                  \
+	X(TOK_FOR, "'for'")                                                                                                                                      \
+	X(TOK_BREAK, "'break'")                                                                                                                                  \
+	X(TOK_CONTINUE, "'continue'")                                                                                                                            \
+	X(TOK_STRUCT, "'struct'") X(TOK_TYPEDEF, "'typedef'") X(TOK_ENUM, "'enum'") X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") X(TOK_NUMBER, "number")     \
+	    X(TOK_CHAR_LIT, "char literal") X(TOK_STR_LIT, "string literal") X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") \
+	        X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='")        \
+	            X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='")         \
+	                X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='")                \
+	                    X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'")        \
+	                        X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'")                 \
+	                            X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'")       \
+	                                X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_EOF, "end of file")
 
 typedef enum {
 #define X(t, s) t,
@@ -217,7 +217,7 @@ static void minic_lex_next(minic_lexer_t *l) {
 				l->pos++; // Consume closing '"'
 			}
 			l->cur.type = TOK_STR_LIT;
-			l->cur.val  = minic_val_ptr((void *)&minic_active_mem[start]);
+			l->cur.val  = minic_val_typed_ptr((void *)&minic_active_mem[start], MINIC_T_CHAR);
 			return;
 		}
 
@@ -308,6 +308,7 @@ typedef struct {
 	char         params[MINIC_MAX_PARAMS][MINIC_MAX_NAME];
 	char         param_structs[MINIC_MAX_PARAMS][MINIC_MAX_NAME]; // struct type name per param, or ""
 	minic_type_t param_types[MINIC_MAX_PARAMS];
+	minic_type_t param_deref_types[MINIC_MAX_PARAMS]; // element type of pointer params
 	int          param_count;
 	int          body_pos; // lexer position of '{' that starts the body
 	minic_type_t ret_type;
@@ -414,6 +415,11 @@ static minic_type_t minic_tok_to_type(minic_tok_type_t t) {
 	default:
 		return MINIC_T_PTR; // void * -> PTR
 	}
+}
+
+// Element type stamped on a pointer declared with this base type
+static minic_type_t minic_tok_to_deref_type(minic_tok_type_t t) {
+	return t == TOK_CHAR ? MINIC_T_CHAR : minic_tok_to_type(t);
 }
 
 // Compute the result of an (op)= compound assignment; TOK_ASSIGN returns b
@@ -565,6 +571,8 @@ static minic_val_t minic_ptr_index_get(minic_val_t pv, int idx) {
 		return minic_val_float(((float *)pv.p)[idx]);
 	case MINIC_T_INT:
 		return minic_val_int(((int32_t *)pv.p)[idx]);
+	case MINIC_T_CHAR:
+		return minic_val_int(((minic_u8 *)pv.p)[idx]);
 	default:
 		return minic_val_ptr(((void **)pv.p)[idx]);
 	}
@@ -580,6 +588,9 @@ static void minic_ptr_index_set(minic_val_t pv, int idx, minic_val_t val) {
 		break;
 	case MINIC_T_INT:
 		((int32_t *)pv.p)[idx] = (int32_t)minic_val_to_d(val);
+		break;
+	case MINIC_T_CHAR:
+		((minic_u8 *)pv.p)[idx] = (minic_u8)minic_val_to_d(val);
 		break;
 	default:
 		((void **)pv.p)[idx] = minic_val_to_ptr(val);
@@ -630,6 +641,8 @@ static minic_val_t minic_deref(minic_val_t pv) {
 		memcpy(&v, ptr, sizeof(float));
 		return minic_val_float(v);
 	}
+	case MINIC_T_CHAR:
+		return minic_val_int(*(minic_u8 *)ptr);
 	default: {
 		minic_val_t v;
 		memcpy(&v, ptr, sizeof(minic_val_t));
@@ -657,6 +670,11 @@ static void minic_store_op(minic_val_t pv, minic_tok_type_t op, minic_val_t v) {
 		memcpy(&ov, ptr, sizeof(float));
 		float nv = (float)minic_apply_op(op, (double)ov, minic_val_to_d(v));
 		memcpy(ptr, &nv, sizeof(float));
+		break;
+	}
+	case MINIC_T_CHAR: {
+		minic_u8 ov      = *(minic_u8 *)ptr;
+		*(minic_u8 *)ptr = (minic_u8)minic_apply_op(op, (double)ov, minic_val_to_d(v));
 		break;
 	}
 	default: {
@@ -824,7 +842,12 @@ static minic_val_t minic_call(minic_env_t *e, minic_func_t *fn, minic_val_t *arg
 	child.vartypes      = minic_alloc(child.vartype_cap * (int)sizeof(minic_vartype_t));
 	// Bind parameters
 	for (int i = 0; i < argc && i < fn->param_count; ++i) {
-		minic_var_decl(&child, fn->params[i], fn->param_types[i], minic_val_cast(args[i], fn->param_types[i]));
+		minic_val_t av = minic_val_cast(args[i], fn->param_types[i]);
+		// Stamp the declared element type on untyped native pointers
+		if (fn->param_types[i] == MINIC_T_PTR && av.deref_type == MINIC_T_PTR && !minic_in_arena(av.p)) {
+			av.deref_type = fn->param_deref_types[i];
+		}
+		minic_var_decl(&child, fn->params[i], fn->param_types[i], av);
 		if (fn->param_structs[i][0] != '\0') {
 			minic_vartype_set(&child, fn->params[i], fn->param_structs[i]);
 		}
@@ -1375,7 +1398,8 @@ static void minic_parse_stmt(minic_env_t *e) {
 	}
 
 	if (minic_tok_is_type(e->lex.cur.type)) {
-		minic_type_t base_type = minic_tok_to_type(e->lex.cur.type); // Type before '*'
+		minic_type_t base_type = minic_tok_to_type(e->lex.cur.type);       // Type before '*'
+		minic_type_t elem_type = minic_tok_to_deref_type(e->lex.cur.type); // Element type when it is a pointer
 		minic_type_t dtype     = base_type;
 		minic_lex_next(&e->lex); // Consume type keyword
 
@@ -1400,7 +1424,7 @@ static void minic_parse_stmt(minic_env_t *e) {
 		// Optional initializer: default to 0 / NULL when omitted
 		minic_val_t v = is_ptr ? minic_val_ptr(NULL) : minic_val_coerce(0.0, dtype);
 		if (is_ptr) {
-			v.deref_type = base_type;
+			v.deref_type = elem_type;
 		}
 		if (e->lex.cur.type == TOK_ASSIGN) {
 			minic_lex_next(&e->lex);
@@ -1414,7 +1438,7 @@ static void minic_parse_stmt(minic_env_t *e) {
 				// Pointers into the active arena (e.g. from &var) use the MINIC_T_PTR sentinel
 				// to signal that dereferencing reads a full minic_val_t.
 				if (!minic_in_arena(v.p)) {
-					v.deref_type = base_type;
+					v.deref_type = elem_type;
 				}
 			}
 		}
@@ -1924,6 +1948,7 @@ static void minic_register_funcs(minic_env_t *e) {
 	while (e->lex.cur.type != TOK_EOF) {
 		// Remember the return-type token before consuming it
 		minic_type_t ret_type                    = minic_tok_to_type(e->lex.cur.type);
+		minic_type_t elem_type                   = minic_tok_to_deref_type(e->lex.cur.type);
 		char         decl_struct[MINIC_MAX_NAME] = "";
 		if (e->lex.cur.type == TOK_IDENT && minic_struct_get(e, e->lex.cur.text) != NULL) {
 			strncpy(decl_struct, e->lex.cur.text, MINIC_MAX_NAME - 1);
@@ -1933,7 +1958,8 @@ static void minic_register_funcs(minic_env_t *e) {
 				// Unknown typedef type
 				strncpy(decl_struct, e->lex.cur.text, MINIC_MAX_NAME - 1);
 				minic_lex_next(&e->lex);
-				ret_type = MINIC_T_PTR;
+				ret_type  = MINIC_T_PTR;
+				elem_type = MINIC_T_PTR;
 			}
 			else {
 				minic_lex_next(&e->lex);
@@ -1957,9 +1983,16 @@ static void minic_register_funcs(minic_env_t *e) {
 				minic_vartype_set(e, fname, decl_struct);
 			}
 			minic_val_t init = minic_val_coerce(0.0, ret_type);
+			if (ret_type == MINIC_T_PTR) {
+				init.deref_type = elem_type;
+			}
 			if (e->lex.cur.type == TOK_ASSIGN) {
 				minic_lex_next(&e->lex); // Consume '='
 				init = minic_parse_cond(e);
+				// Stamp the declared element type on native C pointers, as in the local decl path
+				if (ret_type == MINIC_T_PTR && init.type == MINIC_T_PTR && !minic_in_arena(init.p)) {
+					init.deref_type = elem_type;
+				}
 			}
 			minic_var_decl(e, fname, ret_type, init);
 			while (e->lex.cur.type != TOK_SEMICOLON && e->lex.cur.type != TOK_EOF) {
@@ -1979,6 +2012,7 @@ static void minic_register_funcs(minic_env_t *e) {
 		while (e->lex.cur.type != TOK_RPAREN && e->lex.cur.type != TOK_EOF) {
 			char         pstruct[MINIC_MAX_NAME] = "";
 			minic_type_t ptype                   = MINIC_T_INT;
+			minic_type_t pelem                   = MINIC_T_PTR;
 			if (e->lex.cur.type == TOK_STRUCT) {
 				minic_lex_next(&e->lex);
 				strncpy(pstruct, e->lex.cur.text, MINIC_MAX_NAME - 1);
@@ -1991,6 +2025,7 @@ static void minic_register_funcs(minic_env_t *e) {
 					strncpy(pstruct, e->lex.cur.text, MINIC_MAX_NAME - 1);
 				}
 				ptype = minic_tok_to_type(e->lex.cur.type);
+				pelem = minic_tok_to_deref_type(e->lex.cur.type);
 				minic_lex_type(e); // Consume type
 			}
 			if (e->lex.cur.type == TOK_STAR) {
@@ -2001,7 +2036,8 @@ static void minic_register_funcs(minic_env_t *e) {
 				int pi = fn.param_count++;
 				strncpy(fn.params[pi], e->lex.cur.text, MINIC_MAX_NAME - 1);
 				strncpy(fn.param_structs[pi], pstruct, MINIC_MAX_NAME - 1);
-				fn.param_types[pi] = ptype;
+				fn.param_types[pi]       = ptype;
+				fn.param_deref_types[pi] = pelem;
 				minic_lex_next(&e->lex);
 			}
 			if (e->lex.cur.type == TOK_COMMA) {
