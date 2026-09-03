@@ -513,6 +513,90 @@ static iris_gpu_tensor_t rrdb_gpu(iris_upscale_t *m, int idx, iris_gpu_tensor_t 
 	return out;
 }
 
+/* Largest resident tensor the upsample tail is allowed to allocate.*/
+#define RG_TAIL_MAX_BYTES ((size_t)1 << 30)
+
+/* Rows of `feat` a strip must overlap its neighbours by. The tail is
+ * upsample -> conv_up1 -> upsample -> conv_up2 -> conv_hr -> conv_last, so
+ * zero-padding at a strip edge corrupts the outermost 5 output rows; 2 rows of
+ * `feat` cover 8 output rows, which is more than enough. */
+#define RG_TAIL_PAD 2
+
+/* Upsample stages + head for one horizontal strip.
+ *
+ * Rows [s0, s1) of the full [64, H, W] `feat` are copied out and pushed through
+ * the tail on their own. Output rows [4*(y0-s0), 4*(y1-s0)) of that strip sit at
+ * least RG_TAIL_PAD feat-rows inside it, so they match the untiled result
+ * exactly; they are written into `outbuf` (planar [3, 4H, 4W]) at row 4*y0. */
+static int rg_tail_strip(iris_upscale_t *m, iris_gpu_tensor_t feat, int H, int W, int s0, int s1, int y0, int y1, float *outbuf) {
+	const int    sh     = s1 - s0;
+	const size_t plane  = (size_t)H * W;
+	const size_t splane = (size_t)sh * W;
+
+	iris_gpu_tensor_t strip = iris_gpu_tensor_alloc((size_t)RG_NUM_FEAT * splane);
+	if (!strip)
+		return -1;
+	/* One contiguous run per channel, batched into a single submit. */
+	iris_gpu_batch_begin();
+	for (int c = 0; c < RG_NUM_FEAT; c++)
+		iris_gpu_copy_region_f32(strip, (size_t)c * splane, feat, (size_t)c * plane + (size_t)s0 * W, splane);
+	iris_gpu_batch_end();
+
+	/* Upsample stage 1: nearest 2x -> lrelu(conv_up1) */
+	int               H2 = sh * 2, W2 = W * 2;
+	iris_gpu_tensor_t up1 = iris_gpu_upsample_nearest_2x_f32(strip, RG_NUM_FEAT, sh, W);
+	iris_gpu_tensor_free(strip);
+	if (!up1)
+		return -1;
+	iris_gpu_tensor_t f2 = rg_conv_gpu(m, "conv_up1", up1, RG_NUM_FEAT, H2, W2, RG_NUM_FEAT);
+	iris_gpu_tensor_free(up1);
+	if (!f2)
+		return -1;
+	iris_gpu_leaky_relu_f32(f2, f2, (int)((size_t)RG_NUM_FEAT * H2 * W2), RG_LRELU_SLOPE);
+
+	/* Upsample stage 2: nearest 2x -> lrelu(conv_up2) */
+	int               H4 = sh * 4, W4 = W * 4;
+	const size_t      splane4 = (size_t)H4 * W4;
+	iris_gpu_tensor_t up2     = iris_gpu_upsample_nearest_2x_f32(f2, RG_NUM_FEAT, H2, W2);
+	iris_gpu_tensor_free(f2);
+	if (!up2)
+		return -1;
+	iris_gpu_tensor_t f3 = rg_conv_gpu(m, "conv_up2", up2, RG_NUM_FEAT, H4, W4, RG_NUM_FEAT);
+	iris_gpu_tensor_free(up2);
+	if (!f3)
+		return -1;
+	iris_gpu_leaky_relu_f32(f3, f3, (int)((size_t)RG_NUM_FEAT * splane4), RG_LRELU_SLOPE);
+
+	/* conv_hr -> lrelu -> conv_last (64 -> 64 -> 3) */
+	iris_gpu_tensor_t hr = rg_conv_gpu(m, "conv_hr", f3, RG_NUM_FEAT, H4, W4, RG_NUM_FEAT);
+	iris_gpu_tensor_free(f3);
+	if (!hr)
+		return -1;
+	iris_gpu_leaky_relu_f32(hr, hr, (int)((size_t)RG_NUM_FEAT * splane4), RG_LRELU_SLOPE);
+
+	iris_gpu_tensor_t out = rg_conv_gpu(m, "conv_last", hr, RG_NUM_FEAT, H4, W4, 3);
+	iris_gpu_tensor_free(hr);
+	if (!out)
+		return -1;
+
+	float *tmp = malloc((size_t)3 * splane4 * sizeof(float));
+	if (!tmp) {
+		iris_gpu_tensor_free(out);
+		return -1;
+	}
+	iris_gpu_tensor_read(out, tmp);
+	iris_gpu_tensor_free(out);
+
+	/* Keep the rows that no strip-edge padding reached. */
+	const size_t plane4 = (size_t)(H * 4) * W4;
+	const size_t row0   = (size_t)(y0 - s0) * 4 * W4; /* first kept row, strip-local */
+	const size_t nvals  = (size_t)(y1 - y0) * 4 * W4;
+	for (int c = 0; c < 3; c++)
+		memcpy(outbuf + (size_t)c * plane4 + (size_t)y0 * 4 * W4, tmp + (size_t)c * splane4 + row0, nvals * sizeof(float));
+	free(tmp);
+	return 0;
+}
+
 static iris_image *upscale_gpu(iris_upscale_t *m, const iris_image *input) {
 	int          H = input->height, W = input->width;
 	const size_t plane = (size_t)H * W;
@@ -555,50 +639,42 @@ static iris_image *upscale_gpu(iris_upscale_t *m, const iris_image *input) {
 	iris_gpu_add_f32(feat, feat, body_feat, (int)(RG_NUM_FEAT * plane));
 	iris_gpu_tensor_free(body_feat);
 
-	/* Upsample stage 1: nearest 2x -> lrelu(conv_up1) */
-	int               H2 = H * 2, W2 = W * 2;
-	iris_gpu_tensor_t up1 = iris_gpu_upsample_nearest_2x_f32(feat, RG_NUM_FEAT, H, W);
-	iris_gpu_tensor_free(feat);
-	if (!up1)
-		return NULL;
-	iris_gpu_tensor_t f2 = rg_conv_gpu(m, "conv_up1", up1, RG_NUM_FEAT, H2, W2, RG_NUM_FEAT);
-	iris_gpu_tensor_free(up1);
-	if (!f2)
-		return NULL;
-	iris_gpu_leaky_relu_f32(f2, f2, (int)(RG_NUM_FEAT * (size_t)H2 * W2), RG_LRELU_SLOPE);
-
-	/* Upsample stage 2: nearest 2x -> lrelu(conv_up2) */
-	int               H4 = H * 4, W4 = W * 4;
-	iris_gpu_tensor_t up2 = iris_gpu_upsample_nearest_2x_f32(f2, RG_NUM_FEAT, H2, W2);
-	iris_gpu_tensor_free(f2);
-	if (!up2)
-		return NULL;
-	iris_gpu_tensor_t f3 = rg_conv_gpu(m, "conv_up2", up2, RG_NUM_FEAT, H4, W4, RG_NUM_FEAT);
-	iris_gpu_tensor_free(up2);
-	if (!f3)
-		return NULL;
+	/* Upsample stages + head, in horizontal strips so no tail tensor crosses
+	 * RG_TAIL_MAX_BYTES. Strips overlap by RG_TAIL_PAD
+	 * rows, which makes the stitched result identical to running the tail over
+	 * the whole image at once. */
+	int          H4 = H * 4, W4 = W * 4;
 	const size_t plane4 = (size_t)H4 * W4;
-	iris_gpu_leaky_relu_f32(f3, f3, (int)(RG_NUM_FEAT * plane4), RG_LRELU_SLOPE);
-
-	/* conv_hr -> lrelu -> conv_last (64 -> 64 -> 3) */
-	iris_gpu_tensor_t hr = rg_conv_gpu(m, "conv_hr", f3, RG_NUM_FEAT, H4, W4, RG_NUM_FEAT);
-	iris_gpu_tensor_free(f3);
-	if (!hr)
-		return NULL;
-	iris_gpu_leaky_relu_f32(hr, hr, (int)(RG_NUM_FEAT * plane4), RG_LRELU_SLOPE);
-
-	iris_gpu_tensor_t out = rg_conv_gpu(m, "conv_last", hr, RG_NUM_FEAT, H4, W4, 3);
-	iris_gpu_tensor_free(hr);
-	if (!out)
-		return NULL;
 
 	float *outbuf = malloc((size_t)3 * plane4 * sizeof(float));
 	if (!outbuf) {
-		iris_gpu_tensor_free(out);
+		iris_gpu_tensor_free(feat);
 		return NULL;
 	}
-	iris_gpu_tensor_read(out, outbuf);
-	iris_gpu_tensor_free(out);
+
+	/* The largest tail tensor of a strip is [64, 4*(rows + 2*pad), 4W]. */
+	size_t rows_cap   = RG_TAIL_MAX_BYTES / ((size_t)RG_NUM_FEAT * 4 * (size_t)W4 * sizeof(float));
+	int    strip_rows = H;
+	if ((size_t)H > rows_cap)
+		strip_rows = rows_cap > 2 * RG_TAIL_PAD ? (int)(rows_cap - 2 * RG_TAIL_PAD) : 1;
+
+	int ok = 1;
+	for (int y0 = 0; y0 < H; y0 += strip_rows) {
+		int y1 = y0 + strip_rows;
+		if (y1 > H)
+			y1 = H;
+		int s0 = y0 - RG_TAIL_PAD < 0 ? 0 : y0 - RG_TAIL_PAD;
+		int s1 = y1 + RG_TAIL_PAD > H ? H : y1 + RG_TAIL_PAD;
+		if (rg_tail_strip(m, feat, H, W, s0, s1, y0, y1, outbuf) != 0) {
+			ok = 0;
+			break;
+		}
+	}
+	iris_gpu_tensor_free(feat);
+	if (!ok) {
+		free(outbuf);
+		return NULL;
+	}
 
 	if (m->tileable)
 		rg_make_tileable(outbuf, H4, W4);
