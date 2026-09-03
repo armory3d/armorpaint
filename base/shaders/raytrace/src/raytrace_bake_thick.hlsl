@@ -1,5 +1,3 @@
-#include "math.hlsl"
-
 struct Vertex {
 	uint posxy;
 	uint poszw;
@@ -31,6 +29,48 @@ Texture2D<float4> mytexture_rank : register(t9);
 
 static const int SAMPLES = 64;
 static uint seed = 0;
+
+uint table_byte(Texture2D<float4> tex, int i) {
+	int t = (i & 131071) >> 2;
+	float4 c = tex.Load(uint3(uint(t & 127), uint(t >> 7), 0));
+	int ch = i & 3;
+	return uint((ch == 0 ? c.r : (ch == 1 ? c.g : (ch == 2 ? c.b : c.a))) * 255);
+}
+
+uint rank_value_at(int pixel_i, int pixel_j, int sample_dimension, int frame, Texture2D<float4> rank) {
+	int i = (sample_dimension & 255) + (((pixel_i + frame * 9) & 127) + ((pixel_j + frame * 11) & 127) * 128) * 8;
+	return table_byte(rank, i);
+}
+
+float rand_indexed(int sample_index, int sample_dimension, uint rank_value, uint scramble_value, Texture2D<float4> sobol) {
+	sample_index = sample_index & 255;
+	sample_dimension = sample_dimension & 255;
+	int ranked_sample_index = sample_index ^ int(rank_value);
+	int value = int(sobol.Load(uint3(ranked_sample_index, sample_dimension, 0)).r * 255);
+	value = value ^ int(scramble_value);
+	float v = (0.5f + value) / 256.0f;
+	return v;
+}
+
+float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame, Texture2D<float4> sobol, Texture2D<float4> scramble, Texture2D<float4> rank) {
+	int i = ((sample_dimension & 255) % 8) + (((pixel_i + frame * 9) & 127) + ((pixel_j + frame * 11) & 127) * 128) * 8;
+	uint scramble_value = table_byte(scramble, i);
+	uint rank_value = rank_value_at(pixel_i, pixel_j, sample_dimension, frame, rank);
+	return rand_indexed(sample_index, sample_dimension, rank_value, scramble_value, sobol);
+}
+
+float3 cos_weighted_hemisphere_direction(uint3 id, float3 n, uint sample, uint seed, int frame, Texture2D<float4> sobol, Texture2D<float4> scramble, Texture2D<float4> rank) {
+	const float PI = 3.1415926535;
+	const float PI2 = PI * 2.0;
+	float f0 = rand(id.x, id.y, sample, seed, frame, sobol, scramble, rank);
+	float f1 = rand(id.x, id.y, sample, seed + 1, frame, sobol, scramble, rank);
+	float z = f0 * 2.0f - 1.0f;
+	float a = f1 * PI2;
+	float r = sqrt(1.0f - z * z);
+	float x = r * cos(a);
+	float y = r * sin(a);
+	return normalize(n + float3(x, y, z));
+}
 
 [numthreads(16, 16, 1)]
 void main(uint3 id : SV_DispatchThreadID) {

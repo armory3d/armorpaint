@@ -271,6 +271,15 @@ vec3 sample_ggx_vndf(vec3 ve, float alpha, float u1, float u2) {
     return normalize(vec3(alpha * nh.x, alpha * nh.y, max(1e-6, nh.z)));
 }
 
+vec3 spec_directional_albedo(vec3 f0, float ndotv, float roughness) {
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * ndotv)) * r.x + r.y;
+    vec2 ab = vec2(-1.04, 1.04) * a004 + r.zw;
+    return clamp(f0 * ab.x + ab.y, 0.0, 1.0);
+}
+
 float smith_lambda(float cos_theta, float alpha2) {
     float c2 = cos_theta * cos_theta;
     return 0.5 * (sqrt(1.0 + alpha2 * (1.0 - c2) / max(c2, 1e-7)) - 1.0);
@@ -566,15 +575,15 @@ int process_hit(rayQueryEXT query, inout RayPayload payload, uvec2 pixel_coord, 
 
     vec3 albedo = surface_albedo(texcolor, texpaint2.b);
     vec3 f0 = surface_specular(texcolor, texpaint2.b);
-    vec3 fresnel = f_schlick(f0, ndotv);
-    vec3 spec_weight = fresnel;
-    vec3 diffuse_weight = albedo * (1.0 - fresnel);
+    float roughness = texpaint2.g;
+    vec3 spec_weight = spec_directional_albedo(f0, ndotv, roughness);
+    vec3 diffuse_weight = albedo * (1.0 - spec_weight);
 
     float ls = luma(spec_weight);
     float ld = luma(diffuse_weight);
     float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
 
-    float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+    float alpha = max(roughness * roughness, 1e-3);
 
     #ifdef _ENV_SAMPLING
     if (constant_buffer.params.w != 0.0) {
