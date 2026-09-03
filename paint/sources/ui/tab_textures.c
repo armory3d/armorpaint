@@ -370,12 +370,14 @@ void tab_textures_draw(ui_handle_t *htab) {
 			i32 i = array_index_of(g_project->_->assets, g_context->texture);
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_UP) {
 				if (i > 0) {
-					g_context->texture = g_project->_->assets->buffer[i - 1];
+					g_context->texture      = g_project->_->assets->buffer[i - 1];
+					ui_view2d_hwnd->redraws = 2;
 				}
 			}
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_DOWN) {
 				if (i < g_project->_->assets->length - 1) {
-					g_context->texture = g_project->_->assets->buffer[i + 1];
+					g_context->texture      = g_project->_->assets->buffer[i + 1];
+					ui_view2d_hwnd->redraws = 2;
 				}
 			}
 		}
