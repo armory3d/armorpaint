@@ -176,6 +176,15 @@ float3 sample_ggx_vndf(float3 ve, float alpha, float u1, float u2) {
 	return normalize(float3(alpha * nh.x, alpha * nh.y, max(1e-6, nh.z)));
 }
 
+float3 spec_directional_albedo(float3 f0, float ndotv, float roughness) {
+	const float4 c0 = float4(-1.0, -0.0275, -0.572, 0.022);
+	const float4 c1 = float4(1.0, 0.0425, 1.04, -0.04);
+	float4 r = roughness * c0 + c1;
+	float a004 = min(r.x * r.x, exp2(-9.28 * ndotv)) * r.x + r.y;
+	float2 ab = float2(-1.04, 1.04) * a004 + r.zw;
+	return saturate(f0 * ab.x + ab.y);
+}
+
 float smith_lambda(float cos_theta, float alpha2) {
 	float c2 = cos_theta * cos_theta;
 	return 0.5 * (sqrt(1.0 + alpha2 * (1.0 - c2) / max(c2, 1e-7)) - 1.0);
@@ -622,14 +631,15 @@ kernel void raytracingKernel(
 
 			float3 albedo = surface_albedo(texcolor, texpaint2.b);
 			float3 f0 = surface_specular(texcolor, texpaint2.b);
-			float3 fresnel = f_schlick(f0, ndotv);
-			float3 diffuse_weight = albedo * (1.0 - fresnel);
+			float roughness = texpaint2.g;
+			float3 spec_weight = spec_directional_albedo(f0, ndotv, roughness);
+			float3 diffuse_weight = albedo * (1.0 - spec_weight);
 
-			float ls = luma(fresnel);
+			float ls = luma(spec_weight);
 			float ld = luma(diffuse_weight);
 			float specular_chance = clamp(ls / max(ls + ld, 1e-5), 0.05, 0.995);
 
-			float alpha = max(texpaint2.g * texpaint2.g, 1e-3);
+			float alpha = max(roughness * roughness, 1e-3);
 
 			#ifdef _ENV_SAMPLING
 			if (constant_buffer.params.w != 0.0) {
