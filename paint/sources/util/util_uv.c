@@ -64,7 +64,8 @@ void util_uv_cache_triangle_map() {
 	}
 
 	util_uv_trianglemap_cached = true;
-	mesh_data_t *merged        = g_context->merged_object != NULL ? g_context->merged_object->data : g_context->paint_object->data;
+	bool selected_paint_object = context_layer_filter_used() || context_object_mask_used();
+	mesh_data_t *merged = !selected_paint_object && g_context->merged_object != NULL ? g_context->merged_object->data : g_context->paint_object->data;
 	mesh_data_t *mesh          = merged;
 	i16_array_t *texa          = mesh->vertex_arrays->buffer[2]->values;
 	u32_array_t *inda          = mesh->index_array;
