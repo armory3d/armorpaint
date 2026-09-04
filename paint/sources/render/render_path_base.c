@@ -17,7 +17,7 @@ void render_path_base_apply_config() {
 		string_array_t *keys          = map_keys(render_path_render_targets);
 		for (i32 i = 0; i < keys->length; ++i) {
 			render_target_t *rt = any_map_get(render_path_render_targets, keys->buffer[i]);
-			if (rt->width == 0) {
+			if (rt != NULL && rt->width == 0) {
 				rt->scale = rt->scale / last * render_path_base_super_sample;
 			}
 		}
