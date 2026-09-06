@@ -772,9 +772,25 @@ void iron_internal_call_resize_callback(int width, int height) {
 }
 
 - (void)windowDidResignMain:(NSNotification *)notification {
+	// Key-up and mouse-up events go to whichever app took focus, never to
+	// us - so anything held when the user switches away stays "down"
+	// forever and the input is partly frozen on return. Windows already
+	// handles this in WM_ACTIVATE; macOS was an empty stub. Release
+	// everything that can stick.
+	iron_internal_mouse_window_deactivated();
+	iron_internal_mouse_trigger_release(0, 0, 0);
+	iron_internal_mouse_trigger_release(1, 0, 0);
+	iron_internal_mouse_trigger_release(2, 0, 0);
+	iron_internal_keyboard_trigger_key_up(KEY_CODE_SHIFT);
+	iron_internal_keyboard_trigger_key_up(KEY_CODE_CONTROL);
+	iron_internal_keyboard_trigger_key_up(KEY_CODE_ALT);
+	iron_internal_keyboard_trigger_key_up(KEY_CODE_META);
+	iron_internal_background_callback();
 }
 
 - (void)windowDidBecomeMain:(NSNotification *)notification {
+	iron_internal_mouse_window_activated();
+	iron_internal_foreground_callback();
 }
 
 @end
