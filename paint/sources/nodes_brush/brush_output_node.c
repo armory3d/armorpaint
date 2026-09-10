@@ -56,7 +56,7 @@ void brush_output_node_parse_inputs() {
 		}
 	}
 	else {
-		g_context->brush_nodes_opacity = opac->_f32;
+		g_context->brush_nodes_opacity = math_max(0.0, math_min(1.0, opac->_f32));
 		g_context->brush_mask_image    = NULL;
 	}
 

@@ -260,6 +260,22 @@ static void minic_lex_next(minic_lexer_t *l) {
 			return;
 		}
 
+		if (c == '.' && isdigit((unsigned char)l->src[l->pos + 1])) {
+			l->pos++; // skip dot
+			double n    = 0;
+			double frac = 0.1;
+			while (isdigit((unsigned char)l->src[l->pos])) {
+				n += (l->src[l->pos++] - '0') * frac;
+				frac *= 0.1;
+			}
+			if (l->src[l->pos] == 'f' || l->src[l->pos] == 'F') {
+				l->pos++;
+			}
+			l->cur.val  = minic_val_float((float)n);
+			l->cur.type = TOK_NUMBER;
+			return;
+		}
+
 		for (size_t k = 0; k < sizeof(minic_ops3) / sizeof(minic_ops3[0]); ++k) {
 			if (c == minic_ops3[k].a && l->src[l->pos + 1] == minic_ops3[k].b && l->src[l->pos + 2] == minic_ops3[k].c) {
 				l->pos += 3;
