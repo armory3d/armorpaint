@@ -2757,7 +2757,7 @@ function export_iron_project(project, options) {
 			let embed_header = "#pragma once\n";
 			for (let file of embed_files) {
 				embed_header += "const unsigned char " + path_basename(file).replaceAll(".", "_") + "[] = {\n"
-				if (platform === "windows") {
+				if (os_platform() === "win32") {
 					file = file.replaceAll("\\", "/");
 				}
 				embed_header += "#embed \"" + file + "\"\n";
