@@ -83,6 +83,7 @@ static i32 _export_texture_channel_bgra_swap(i32 c) {
 static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, bool linear) {
 #ifdef IRON_BGRA
 	from_channel = _export_texture_channel_bgra_swap(from_channel);
+    to_channel = _export_texture_channel_bgra_swap(to_channel);
 #endif
 	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
 		buffer_set_u8(to, i * 4 + to_channel, buffer_get_u8(from, i * 4 + from_channel));
@@ -95,6 +96,7 @@ static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer
 static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, bool linear) {
 #ifdef IRON_BGRA
 	from_channel = _export_texture_channel_bgra_swap(from_channel);
+    to_channel = _export_texture_channel_bgra_swap(to_channel);
 #endif
 	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
 		buffer_set_u8(to, i * 4 + to_channel, 255 - buffer_get_u8(from, i * 4 + from_channel));
@@ -107,6 +109,7 @@ static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, bu
 static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 step, i32 mask, bool linear) {
 #ifdef IRON_BGRA
 	from_channel = _export_texture_channel_bgra_swap(from_channel);
+    to_channel = _export_texture_channel_bgra_swap(to_channel);
 #endif
 	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
 		buffer_set_u8(to, i * 4 + to_channel, buffer_get_u8(from, i * 4 + from_channel) % step == mask ? 255 : 0);
@@ -143,6 +146,9 @@ static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buff
 }
 
 static void export_texture_set_channel(i32 value, buffer_t *to, i32 to_channel, bool linear) {
+#ifdef IRON_BGRA
+    to_channel = _export_texture_channel_bgra_swap(to_channel);
+#endif
 	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
 		buffer_set_u8(to, i * 4 + to_channel, value);
 	}
