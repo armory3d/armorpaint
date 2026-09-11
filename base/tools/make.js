@@ -191,6 +191,32 @@ function os_exit(c) {
 	std.exit(c);
 }
 
+function command_exists(name) {
+	if (name.indexOf(path_sep) >= 0 || name.indexOf("/") >= 0) {
+		return fs_exists(name);
+	}
+	return os_exec("sh", [ "-c", "command -v '" + name + "' >/dev/null 2>&1" ]).status === 0;
+}
+
+function ensure_linux_compiler() {
+	if (goptions.target !== "linux" || goptions.ccompiler === "tcc") {
+		return;
+	}
+	let missing = [];
+	if (!command_exists(goptions.ccompiler)) {
+		missing.push(goptions.ccompiler);
+	}
+	if (!command_exists(goptions.cppcompiler)) {
+		missing.push(goptions.cppcompiler);
+	}
+	if (missing.length === 0) {
+		return;
+	}
+	console.log("Error: " + missing.join(" and ") + " not found.");
+	console.log("See base/docs/linux_deps.md");
+	os_exit(127);
+}
+
 function crypto_random_uuid() {
 	let u    = Date.now().toString(16) + Math.random().toString(16) + "0".repeat(16);
 	let guid = [ u.substring(0, 8), u.substring(8, 12), "4000-8" + u.substring(13, 16), u.substring(16, 28) ].join("-");
@@ -3197,6 +3223,9 @@ function compile_project(make, project) {
 
 function main() {
 	console.log('Using Iron from ' + irondir);
+	if (goptions.compile) {
+		ensure_linux_compiler();
+	}
 	goptions.build_path = goptions.debug ? 'Debug' : 'Release';
 	let project         = export_amake_project();
 
@@ -3289,6 +3318,10 @@ if (goptions.ashader) {
 	let to   = args[5];
 	amake.ashader(type, from, to);
 	std.exit();
+}
+
+if (goptions.ccompiler === "gcc" && goptions.cppcompiler === "clang++") {
+	goptions.cppcompiler = "g++";
 }
 
 if (goptions.run) {
