@@ -172,129 +172,7 @@ void ui_view2d_update(void *_) {
 
 	g_context->paint2d = false;
 
-	if (!base_ui_enabled || !ui_view2d_show || mouse_x < ui_view2d_wx || mouse_x > ui_view2d_wx + ui_view2d_ww || mouse_y < ui_view2d_wy + headerh ||
-	    mouse_y > ui_view2d_wy + ui_view2d_wh) {
-		if (ui_view2d_controls_down) {
-			ui_canvas_control_t *control = ui_nodes_get_canvas_control(ui_view2d_controls_down, false);
-			ui_view2d_controls_down      = control->controls_down;
-		}
-	}
-	else {
-
-		ui_canvas_control_t *control = ui_nodes_get_canvas_control(ui_view2d_controls_down, false);
-		ui_view2d_pan_x += control->pan_x;
-		ui_view2d_pan_y += control->pan_y;
-		ui_view2d_controls_down = control->controls_down;
-		if (control->zoom != 0.0) {
-			f32 _pan_x = ui_view2d_pan_x / (float)ui_view2d_pan_scale;
-			f32 _pan_y = ui_view2d_pan_y / (float)ui_view2d_pan_scale;
-			ui_view2d_pan_scale += control->zoom;
-			if (ui_view2d_pan_scale < 0.1) {
-				ui_view2d_pan_scale = 0.1;
-			}
-			if (ui_view2d_pan_scale > 6.0) {
-				ui_view2d_pan_scale = 6.0;
-			}
-			ui_view2d_pan_x = _pan_x * ui_view2d_pan_scale;
-			ui_view2d_pan_y = _pan_y * ui_view2d_pan_scale;
-
-			if (ui_touch_control) {
-				// Zoom to finger location
-				ui_view2d_pan_x -= (g_ui->input_x - g_ui->_window_x - g_ui->_window_w / 2.0) * control->zoom;
-				ui_view2d_pan_y -= (g_ui->input_y - g_ui->_window_y - g_ui->_window_h / 2.0) * control->zoom;
-			}
-			ui_view2d_grid_redraw = true;
-		}
-
-		bool decal_mask = context_is_decal_mask_paint();
-		bool set_clone_source =
-		    g_context->tool == TOOL_TYPE_CLONE &&
-		    keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
-
-		if (!g_ui->input_down) {
-			ui_view2d_layer_touched = false;
-		}
-
-		bool sculpt_layer = g_context->layer->texpaint_sculpt != NULL;
-
-		if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover && !sculpt_layer &&
-		    (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
-		     keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
-		     decal_mask || set_clone_source || g_config->brush_live)) {
-
-			if (g_config->touch_ui) {
-				// Paint only when clicking on the layer rect
-				slot_layer_t  *layer   = g_context->layer;
-				gpu_texture_t *tex     = layer->texpaint;
-				f32            ratio   = tex->height / (float)tex->width;
-				f32            wm      = fmin(ui_view2d_ww, ui_view2d_wh);
-				f32            tw      = wm * 0.9 * ui_view2d_pan_scale;
-				f32            th      = tw * ratio;
-				f32            tx      = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
-				i32            headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
-				i32            apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
-				f32            ty      = apph / 2.0 - th / 2.0 + ui_view2d_pan_y;
-				f32            mx      = mouse_x - ui_view2d_wx;
-				f32            my      = mouse_y - ui_view2d_wy;
-				if (mx > tx && mx < tx + tw && my > ty && my < ty + th) {
-					ui_view2d_layer_touched = true;
-				}
-				if (ui_view2d_layer_touched) {
-					g_context->paint2d = true;
-				}
-			}
-			else {
-				g_context->paint2d = true;
-			}
-		}
-
-		if (!g_ui->is_typing) {
-			if (keyboard_started("left")) {
-				ui_view2d_pan_x -= 5;
-			}
-			else if (keyboard_started("right")) {
-				ui_view2d_pan_x += 5;
-			}
-			if (keyboard_started("up")) {
-				ui_view2d_pan_y -= 5;
-			}
-			else if (keyboard_started("down")) {
-				ui_view2d_pan_y += 5;
-			}
-
-			if (!g_context->paint2d && g_config->touch_ui && g_ui->input_down && ui_view2d_type != VIEW_2D_TYPE_UVMAP) {
-				ui_view2d_pan_x += g_ui->input_dx;
-				ui_view2d_pan_y += g_ui->input_dy;
-			}
-
-			// Limit panning to keep texture in viewport
-			i32 border = 32;
-			f32 wm     = fmin(ui_view2d_ww, ui_view2d_wh);
-			f32 tw     = ui_view2d_ww * 0.9 * ui_view2d_pan_scale;
-			f32 tx     = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
-			f32 hh     = sys_h();
-			f32 ty     = hh / 2.0 - tw / 2.0 + ui_view2d_pan_y;
-
-			if (tx + border > ui_view2d_ww) {
-				ui_view2d_pan_x = ui_view2d_ww / 2.0 + tw / 2.0 - border;
-			}
-			else if (tx - border < -tw) {
-				ui_view2d_pan_x = -tw / 2.0 - ui_view2d_ww / 2.0 + border;
-			}
-			if (ty + border > hh) {
-				ui_view2d_pan_y = hh / 2.0 + tw / 2.0 - border;
-			}
-			else if (ty - border < -tw) {
-				ui_view2d_pan_y = -tw / 2.0 - hh / 2.0 + border;
-			}
-
-			if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
-				ui_view2d_pan_x     = 0.0;
-				ui_view2d_pan_y     = 0.0;
-				ui_view2d_pan_scale = 1.0;
-			}
-		}
-	}
+	
 
 	// Render
 	ui_view2d_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
@@ -361,6 +239,134 @@ void ui_view2d_update(void *_) {
 	}
 
 	if (ui_window(ui_view2d_hwnd, ui_view2d_wx, ui_view2d_wy, ui_view2d_ww, ui_view2d_wh, false)) {
+
+
+		if (!base_ui_enabled || !ui_view2d_show || mouse_x < ui_view2d_wx || mouse_x > ui_view2d_wx + ui_view2d_ww || mouse_y < ui_view2d_wy + headerh ||
+			mouse_y > ui_view2d_wy + ui_view2d_wh) {
+			if (ui_view2d_controls_down) {
+				ui_canvas_control_t *control = ui_nodes_get_canvas_control(ui_view2d_controls_down, false);
+				ui_view2d_controls_down      = control->controls_down;
+			}
+		}
+		else {
+
+			ui_canvas_control_t *control = ui_nodes_get_canvas_control(ui_view2d_controls_down, false);
+			ui_view2d_pan_x += control->pan_x;
+			ui_view2d_pan_y += control->pan_y;
+			ui_view2d_controls_down = control->controls_down;
+			if (control->zoom != 0.0) {
+				f32 _pan_x = ui_view2d_pan_x / (float)ui_view2d_pan_scale;
+				f32 _pan_y = ui_view2d_pan_y / (float)ui_view2d_pan_scale;
+				ui_view2d_pan_scale += control->zoom;
+				if (ui_view2d_pan_scale < 0.1) {
+					ui_view2d_pan_scale = 0.1;
+				}
+				if (ui_view2d_pan_scale > 6.0) {
+					ui_view2d_pan_scale = 6.0;
+				}
+				ui_view2d_pan_x = _pan_x * ui_view2d_pan_scale;
+				ui_view2d_pan_y = _pan_y * ui_view2d_pan_scale;
+
+				if (ui_touch_control) {
+					// Zoom to finger location
+					ui_view2d_pan_x -= (g_ui->input_x - g_ui->_window_x - g_ui->_window_w / 2.0) * control->zoom;
+					ui_view2d_pan_y -= (g_ui->input_y - g_ui->_window_y - g_ui->_window_h / 2.0) * control->zoom;
+				}
+				ui_view2d_grid_redraw = true;
+			}
+
+			bool decal_mask = context_is_decal_mask_paint();
+			bool set_clone_source =
+				g_context->tool == TOOL_TYPE_CLONE &&
+				keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+
+			if (!g_ui->input_down) {
+				ui_view2d_layer_touched = false;
+			}
+
+
+			bool sculpt_layer = g_context->layer->texpaint_sculpt != NULL;
+
+			if (ui_view2d_type == VIEW_2D_TYPE_LAYER && !ui_view2d_text_input_hover && !sculpt_layer &&
+				(keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
+					keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
+					decal_mask || set_clone_source || g_config->brush_live)) {
+
+				if (g_config->touch_ui) {
+					// Paint only when clicking on the layer rect
+					slot_layer_t  *layer   = g_context->layer;
+					gpu_texture_t *tex     = layer->texpaint;
+					f32            ratio   = tex->height / (float)tex->width;
+					f32            wm      = fmin(ui_view2d_ww, ui_view2d_wh);
+					f32            tw      = wm * 0.9 * ui_view2d_pan_scale;
+					f32            th      = tw * ratio;
+					f32            tx      = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
+					i32            headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
+					i32            apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
+					f32            ty      = apph / 2.0 - th / 2.0 + ui_view2d_pan_y;
+					f32            mx      = mouse_x - ui_view2d_wx;
+					f32            my      = mouse_y - ui_view2d_wy;
+					if (mx > tx && mx < tx + tw && my > ty && my < ty + th) {
+						ui_view2d_layer_touched = true;
+					}
+					if (ui_view2d_layer_touched) {
+						g_context->paint2d = true;
+					}
+				}
+				else {
+					g_context->paint2d = true;
+				}
+			}
+
+			if (!g_ui->is_typing) {
+				if (keyboard_started("left")) {
+					ui_view2d_pan_x -= 5;
+				}
+				else if (keyboard_started("right")) {
+					ui_view2d_pan_x += 5;
+				}
+				if (keyboard_started("up")) {
+					ui_view2d_pan_y -= 5;
+				}
+				else if (keyboard_started("down")) {
+					ui_view2d_pan_y += 5;
+				}
+
+				if (!g_context->paint2d && g_config->touch_ui && g_ui->input_down && ui_view2d_type != VIEW_2D_TYPE_UVMAP) {
+					ui_view2d_pan_x += g_ui->input_dx;
+					ui_view2d_pan_y += g_ui->input_dy;
+				}
+
+				// Limit panning to keep texture in viewport
+				i32 border = 32;
+				f32 wm     = fmin(ui_view2d_ww, ui_view2d_wh);
+				f32 tw     = ui_view2d_ww * 0.9 * ui_view2d_pan_scale;
+				f32 tx     = ui_view2d_ww / 2.0 - tw / 2.0 + ui_view2d_pan_x;
+				f32 hh     = sys_h();
+				f32 ty     = hh / 2.0 - tw / 2.0 + ui_view2d_pan_y;
+
+				if (tx + border > ui_view2d_ww) {
+					ui_view2d_pan_x = ui_view2d_ww / 2.0 + tw / 2.0 - border;
+				}
+				else if (tx - border < -tw) {
+					ui_view2d_pan_x = -tw / 2.0 - ui_view2d_ww / 2.0 + border;
+				}
+				if (ty + border > hh) {
+					ui_view2d_pan_y = hh / 2.0 + tw / 2.0 - border;
+				}
+				else if (ty - border < -tw) {
+					ui_view2d_pan_y = -tw / 2.0 - hh / 2.0 + border;
+				}
+
+				if (keymap_shortcut(any_map_get(g_keymap, "view_reset"), SHORTCUT_TYPE_STARTED)) {
+					ui_view2d_pan_x     = 0.0;
+					ui_view2d_pan_y     = 0.0;
+					ui_view2d_pan_scale = 1.0;
+				}
+			}
+		}
+
+
 
 		if (!g_config->touch_ui) {
 			bool expand = !base_view3d_show && !ui_nodes_show && g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] == 0;
