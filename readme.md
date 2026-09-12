@@ -1,18 +1,44 @@
+[![Linux (Vulkan)](https://img.shields.io/badge/Linux-Vulkan-333?logo=linux&logoColor=white&style=flat-square)](https://github.com/dionarley/armorpaint/actions/workflows/linux_vulkan.yml)
+[![macOS (Metal)](https://img.shields.io/badge/macOS-Metal-333?logo=apple&logoColor=white&style=flat-square)](https://github.com/dionarley/armorpaint/actions/workflows/macos_metal.yml)
+[![Windows (Direct3D12)](https://img.shields.io/badge/Windows-Direct3D12-333?logo=windows&logoColor=white&style=flat-square)](https://github.com/dionarley/armorpaint/actions/workflows/windows_direct3d12.yml)
+[![License - zlib](https://img.shields.io/badge/license-zlib-blue?style=flat-square)](license.md)
+
 ![](https://armorpaint.org/img/git.jpg)
 
-armorpaint
-==============
+# ArmorPaint
 
-[ArmorPaint](https://armorpaint.org) is a software for 3D PBR texture painting - check out the [manual](https://armorpaint.org/manual).
+ArmorPaint is a **3D PBR texture painting** tool — paint directly on your 3D models with a fast, layer-based workflow.
 
-*Note 1: This repository is aimed at developers and may not be stable. Distributed binaries are [paid](https://armorpaint.org/download) to help with the project funding. All of the development is happening here in order to make it accessible to everyone. Thank you for support!*
+This repository contains the full source and is aimed at **developers** (builds may be unstable). Prebuilt binaries are [paid](https://armorpaint.org/download) and help fund the project — all development happens here, open source. Thank you for your support!
 
-*Note 2: If you are compiling git version of ArmorPaint, then you need to have a compiler ([Visual Studio with clang tools](https://visualstudio.microsoft.com/downloads/) - Windows, [clang + dependencies](https://github.com/armory3d/armorpaint/blob/main/base/docs/linux_deps.md) - Linux, [Xcode](https://developer.apple.com/xcode/resources/) - macOS / iOS, [Android Studio](https://developer.android.com/studio) - Android) and [git](https://git-scm.com/downloads) installed.*
+> **Community fork** — mirror of [armory3d/armorpaint](https://github.com/armory3d/armorpaint) with build tooling and repository polish.
+> For program usage see the [ArmorPaint manual](https://armorpaint.org/manual).
+
+## Features
+
+- Layer-based texture painting with non-destructive blending
+- PBR material support (base color, roughness, metalness, normal, height, opacity, emissive, ...)
+- Procedural materials, node-based brush logic, and scripting ([minic](base/sources/iron_alloc.c) / kong shaders)
+- Real-time ray-traced baking (AO, bent AO, light, thickness) — `--with-raytrace`
+- Import/export: glTF/GLB, FBX, OBJ, STL, PLY, arm; images via PNG, JPG, HDR, EXR, TIFF, PSD, SVG
+- Built-in mesh primitives, mesh editing tools, and UV tools
+- Runs on Vulkan (Linux/Android), Direct3D12 (Windows), Metal (macOS/iOS), WebGPU (WASM)
+- Plugin system (`--with-plugins`) and built-in AI tools
+- Localization: 12+ languages including `pt`, `es`, `ru`, `ko`, `fr`, `de`, `ja`, `zh_cn`
+
+## Getting started
+
+### Requirements
+
+- A compiler: [Visual Studio with clang tools](https://visualstudio.microsoft.com/downloads/) (Windows), [clang + dependencies](base/docs/linux_deps.md) (Linux), [Xcode](https://developer.apple.com/xcode/resources/) (macOS/iOS), [Android Studio](https://developer.android.com/studio) (Android)
+- [git](https://git-scm.com/downloads)
 
 ```bash
-git clone https://github.com/armory3d/armorpaint
+git clone https://github.com/<your-username>/armorpaint
 cd armorpaint/paint
 ```
+
+### Build
 
 **Windows (x64)**
 ```bash
@@ -47,24 +73,12 @@ cd armorpaint/paint
 # Build for device
 ```
 
-**WASM**
+**WASM (WebGPU)**
 ```bash
 ../base/make --target wasm --compile --embed
 ```
 
-**Generating a locale file**
-```bash
-./base/make --js base/tools/extract_locales.js <locale code>
-# Generates a `paint/assets/locale/<locale code>.json` file
-```
-
-**Embedding data files**
-```bash
-# Requires compiler with c23 #embed support (clang 19 or newer)
-../base/make --embed
-```
-
-## Linux build & run guide
+### Linux build & run guide
 
 **Prerequisites** — dependencies and verified versions are documented in [`base/docs/linux_deps.md`](base/docs/linux_deps.md):
 
@@ -75,16 +89,42 @@ sudo apt install make clang libvulkan-dev libgtk-3-dev libssl-dev libxi-dev libx
 **Build** (from `paint/`):
 
 ```bash
-../base/make         # exports assets + project files (no C compilation)
+../base/make             # exports assets + project files (no C compilation)
 ../base/make --compile   # compiles C sources and links `build/Release/ArmorPaint`
 ```
 
 **Run**:
 
 ```bash
-../base/make --run   # compiles (if needed) and launches `build/out/ArmorPaint`
+../base/make --run       # compiles (if needed) and launches `build/out/ArmorPaint`
 # or directly:
 ./build/out/ArmorPaint
 ```
 
 Build logs and the generated report are kept in `paint/build/temp/` (gitignored).
+
+### Developer tools
+
+**Generating a locale file**
+```bash
+./base/make --js base/tools/extract_locales.js <locale code>
+# Generates a `paint/assets/locale/<locale code>.json` file
+```
+
+**Embedding data files** (requires clang 19+ with C23 `#embed`)
+```bash
+../base/make --embed
+```
+
+## Contributing
+
+Bugs, features, questions? Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the code style, workflow, and testing conventions.
+
+- Report bugs via the [issue tracker](https://github.com/armory3d/armorpaint/issues)
+- Development forum: https://forums.armorpaint.org/c/support
+
+## License
+
+Distributed under the **zlib/libpng License**. See [`license.md`](license.md) (or [`LICENSE`](LICENSE)) for details.
+
+Copyright (c) 2016-2026 ArmorPaint developers.
