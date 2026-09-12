@@ -63,3 +63,31 @@ cd armorpaint/paint
 # Requires compiler with c23 #embed support (clang 19 or newer)
 ../base/make --embed
 ```
+
+## Branches
+
+This repository is a fork of [armory3d/armorpaint](https://github.com/armory3d/armorpaint). Below is an overview of the branches tracked by this repository.
+
+### Upstream branches (`armory3d/armorpaint`)
+
+| Branch    | Status            | Purpose                                                                 |
+| --------- | ----------------- | ----------------------------------------------------------------------- |
+| `main`    | active            | Line of development (Vulkan, Direct3D12, Metal, WebGPU)                  |
+| `10`      | maintenance       | Version 1.0 line; revert of the `1.1alpha` version bump (`paint/sources/globals.h`) |
+| `forge`   | experimental      | Development of the standalone "ArmorForge" variant                       |
+| `g4`      | merged / periodic | GPU improvements and import fixes (glTF with binary data, file drop path on Windows) |
+| `gc`      | merged            | Old development tip, fully absorbed into `main`                          |
+| `haxe`    | historical        | Pre-C codebase written in Haxe                                           |
+| `lab`     | experimental      | Research branch (e.g. `iron_load_url` fixes on iOS)                      |
+| `sculpt`  | experimental      | Mesh sculpting work, related to the "ArmorForge" app                     |
+| `slug`    | experimental      | "SLUG" renderer experiment (`base/shaders/draw_slug.kong`)               |
+| `ts`      | experimental      | Viewport rewrite experiment in TypeScript (`paint/sources/viewport.ts`)  |
+| `v8`      | historical        | Old branch of the project (V8/Javascript engine integration era)         |
+
+### Fork branches (`dionarley/armorpaint`)
+
+| Branch      | Status | Purpose                                                                 |
+| ----------- | ------ | ----------------------------------------------------------------------- |
+| `main`      | active | Default branch, kept in sync with upstream `main`                       |
+| `build`     | active | Linux build tooling and dependency documentation                        |
+| `opensource`| active | Repository polish: contributing, license, changelog, code of conduct    |
