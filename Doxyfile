@@ -1,0 +1,63 @@
+# Doxyfile 1.15 - configuration for ArmorPaint project documentation.
+# Generate locally with:  doxygen Doxyfile
+# Output is written to docs/doxygen/html.
+
+PROJECT_NAME           = "ArmorPaint"
+PROJECT_NUMBER         = "2026.09"
+PROJECT_BRIEF          = "Software for 3D PBR texture painting with a layer-based, real-time workflow"
+PROJECT_LOGO           = paint/icon.png
+
+OUTPUT_DIRECTORY       = docs/doxygen
+CREATE_SUBDIRS         = NO
+
+# --- Input -------------------------------------------------------------------
+INPUT                  = docs/mainpage.md \
+                         docs/groups.dox \
+                         base/sources \
+                         paint/sources
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+FILE_PATTERNS          = *.c *.h *.md
+RECURSIVE              = YES
+EXCLUDE                = base/sources/backends/data
+EXCLUDE_SYMBOLS        = test_* minic_*_test*
+
+# --- Extraction ---------------------------------------------------------------
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = NO
+EXTRACT_PRIVATE        = NO
+SORT_MEMBER_DOCS       = YES
+SORT_BRIEF_DOCS        = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+ALIASES                = "startuml=" \
+                         "enduml="
+
+# --- Build ---------------------------------------------------------------------
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_AS_ERROR          = NO
+
+# --- HTML output ---------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+FULL_SIDEBAR           = NO
+DISABLE_INDEX          = NO
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+
+# --- Diagrams (requires graphviz) ----------------------------------------------
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 0
+DIRECTORY_GRAPH        = YES
+GRAPHICAL_HIERARCHY    = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+DOT_GRAPH_MAX_NODES    = 50
+UML_LOOK               = NO

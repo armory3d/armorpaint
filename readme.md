@@ -116,6 +116,13 @@ Build logs and the generated report are kept in `paint/build/temp/` (gitignored)
 ../base/make --embed
 ```
 
+## Documentation
+
+Developer documentation (Doxygen) is published to GitHub Pages:
+
+- Live site: **https://dionarley.github.io/armorpaint/**
+- Sources and how to generate locally: [`docs/`](docs/) + [`Doxyfile`](Doxyfile)
+
 ## Contributing
 
 Bugs, features, questions? Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the code style, workflow, and testing conventions.
