@@ -1,0 +1,29 @@
+digraph data_flow {
+	rankdir = TB;
+	node [shape = box, style = "rounded,filled", fillcolor = "#eef4ff", fontname = "Helvetica", fontsize = 10];
+	edge [fontname = "Helvetica", fontsize = 9];
+
+	subgraph cluster_assets {
+		label = "build time  (amake export)";
+		style = rounded; fillcolor = "#f0f2f5";
+		arm     [label = "paint/assets/meshes/*.arm\n(scene: mesh + camera + lights)", fillcolor = white];
+		locales [label = "assets/locale/*.json", fillcolor = white];
+		img     [label = "assets icons / textures / fonts\n(embed --embed)", fillcolor = white];
+	}
+	subgraph cluster_runtime {
+		label = "runtime";
+		style = rounded; fillcolor = "#fdf3f0";
+		loader  [label = "import_arm / import_asset", fillcolor = white];
+		armpack [label = "iron_armpack parser\n(mesh data, nodes, materials)", fillcolor = white];
+		gpuited [label = "iron_gpu upload\n(vertex/index buffers, textures)", fillcolor = white];
+		resource [label = "resource_bundled map\nscene / meshes / materials", fillcolor = white];
+		game    [label = "app state\nlayers, materials, brushes", fillcolor = white];
+	}
+
+	arm -> loader -> armpack;
+	locales -> loader [label = "translator_translations"];
+	img -> gpuited [label = "texture upload"];
+	armpack -> gpuited;
+	armpack -> resource -> game;
+	gpuited -> resource;
+}

@@ -27,6 +27,11 @@ cd paint
 ../base/make --compile    # compile only
 ```
 
+## How it works
+
+Diagrams of the build pipeline, runtime architecture, main loop, painting
+pipeline and data flow are on the [diagrams page](diagrams.md).
+
 ## Source layout
 
 | Directory          | Contents                                                   |

@@ -123,6 +123,15 @@ Developer documentation (Doxygen) is published to GitHub Pages:
 - Live site: **https://dionarley.github.io/armorpaint/**
 - Sources and how to generate locally: [`docs/`](docs/) + [`Doxyfile`](Doxyfile)
 
+### How it works
+
+Architecture diagrams explain the build pipeline, runtime layers, main loop,
+painting pipeline and asset data flow. Graphviz sources + guides live in
+[`docs/diagrams.md`](docs/diagrams.md).
+
+![Build pipeline](docs/diagrams/img/build_pipeline.png)
+![Runtime architecture](docs/diagrams/img/runtime_architecture.png)
+
 ## Contributing
 
 Bugs, features, questions? Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first — it covers the code style, workflow, and testing conventions.

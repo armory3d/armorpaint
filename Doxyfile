@@ -12,6 +12,7 @@ CREATE_SUBDIRS         = NO
 
 # --- Input -------------------------------------------------------------------
 INPUT                  = docs/mainpage.md \
+                         docs/diagrams.md \
                          docs/groups.dox \
                          base/sources \
                          paint/sources
@@ -41,6 +42,7 @@ WARN_IF_UNDOCUMENTED   = NO
 WARN_AS_ERROR          = NO
 
 # --- HTML output ---------------------------------------------------------------
+IMAGE_PATH             = docs/diagrams/img
 GENERATE_HTML          = YES
 HTML_OUTPUT            = html
 GENERATE_TREEVIEW      = YES
