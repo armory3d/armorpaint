@@ -63,3 +63,28 @@ cd armorpaint/paint
 # Requires compiler with c23 #embed support (clang 19 or newer)
 ../base/make --embed
 ```
+
+## Linux build & run guide
+
+**Prerequisites** — dependencies and verified versions are documented in [`base/docs/linux_deps.md`](base/docs/linux_deps.md):
+
+```bash
+sudo apt install make clang libvulkan-dev libgtk-3-dev libssl-dev libxi-dev libxrandr-dev libxcursor-dev libasound2-dev
+```
+
+**Build** (from `paint/`):
+
+```bash
+../base/make         # exports assets + project files (no C compilation)
+../base/make --compile   # compiles C sources and links `build/Release/ArmorPaint`
+```
+
+**Run**:
+
+```bash
+../base/make --run   # compiles (if needed) and launches `build/out/ArmorPaint`
+# or directly:
+./build/out/ArmorPaint
+```
+
+Build logs and the generated report are kept in `paint/build/temp/` (gitignored).
