@@ -520,37 +520,20 @@ void box_preferences_lut_picked(char *path) {
 //  ╚████╔╝ ██║███████╗╚███╔███╔╝██║     ╚██████╔╝██║  ██║   ██║
 //   ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
+static void box_preferences_section(char *title) {
+	ui_separator(8, false);
+	ui_text(title, UI_ALIGN_LEFT, 0x00000000);
+	ui_separator(2, true);
+	ui_separator(4, false);
+}
+
 void box_preferences_viewport_tab() {
+	box_preferences_section(tr("Display"));
+
+	ui_row2();
+
 	string_array_t *mode_combo = base_get_viewport_modes();
 	ui_combo(&g_config->viewport_mode, mode_combo, tr("Default Mode"), true, UI_ALIGN_LEFT, true);
-
-	string_array_t *pathtrace_mode_combo = any_array_create_from_raw_tmp(
-	    (void *[]){
-	        tr("Fast"),
-	        tr("Quality"),
-	        tr("Multi Fast"),
-	        tr("Multi Quality"),
-	    },
-	    4);
-	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Path Tracer"), true, UI_ALIGN_LEFT, true);
-	if (ui_item_changed()) {
-		render_path_raytrace_ready       = false;
-		render_path_raytrace_init_shader = true;
-		g_context->ddirty                = 2;
-		util_mesh_merge(NULL);
-	}
-
-	ui_slider_int(&g_config->pathtrace_frames, tr("Path Trace Frames"), 1, 128, false, true, UI_ALIGN_RIGHT, true);
-	if (g_config->pathtrace_frames < 1) {
-		g_config->pathtrace_frames = 1;
-	}
-	if (g_config->pathtrace_frames > 128) {
-		// Samples repeat after 128 frames
-		g_config->pathtrace_frames = 128;
-	}
-	if (ui_item_changed()) {
-		g_context->ddirty = 2;
-	}
 
 	string_array_t *render_mode_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
@@ -562,6 +545,8 @@ void box_preferences_viewport_tab() {
 	if (ui_item_changed()) {
 		context_set_render_path();
 	}
+
+	ui_row2();
 
 	i32             supersample       = config_get_super_sample_quality(g_config->rp_supersample);
 	string_array_t *supersample_combo = any_array_create_from_raw_tmp(
@@ -581,57 +566,79 @@ void box_preferences_viewport_tab() {
 		config_apply();
 	}
 
+	ui_check(&g_config->texture_filter, tr("Filter Textures"), "");
+	if (ui_item_changed()) {
+		gpu_use_linear_sampling(g_config->texture_filter);
+	}
+
+	box_preferences_section(tr("Path Tracer"));
+
+	ui_row2();
+
+	string_array_t *pathtrace_mode_combo = any_array_create_from_raw_tmp(
+	    (void *[]){
+	        tr("Fast"),
+	        tr("Quality"),
+	        tr("Multi Fast"),
+	        tr("Multi Quality"),
+	    },
+	    4);
+	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Quality"), true, UI_ALIGN_LEFT, true);
+	if (ui_item_changed()) {
+		render_path_raytrace_ready       = false;
+		render_path_raytrace_init_shader = true;
+		g_context->ddirty                = 2;
+		util_mesh_merge(NULL);
+	}
+
+	ui_slider_int(&g_config->pathtrace_frames, tr("Frames"), 1, 128, false, true, UI_ALIGN_RIGHT, true);
+	if (g_config->pathtrace_frames < 1) {
+		g_config->pathtrace_frames = 1;
+	}
+	if (g_config->pathtrace_frames > 128) {
+		// Samples repeat after 128 frames
+		g_config->pathtrace_frames = 128;
+	}
+	if (ui_item_changed()) {
+		g_context->ddirty = 2;
+	}
+
+	box_preferences_section(tr("Post Process"));
+
+	bool post_changed = false;
+
 	if (g_config->render_mode == RENDER_MODE_DEFERRED) {
+		ui_row2();
 		ui_slider(&g_config->rp_ssao, tr("SSAO"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		if (ui_item_changed()) {
-			g_context->ddirty = 2;
-		}
-
+		post_changed |= ui_item_changed();
 		ui_slider(&g_config->rp_bloom, tr("Bloom"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		if (ui_item_changed()) {
-			g_context->ddirty = 2;
-		}
+		post_changed |= ui_item_changed();
 	}
 
+	ui_row2();
 	ui_slider(&g_config->rp_contrast, tr("Contrast"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	if (ui_item_changed()) {
-		g_context->ddirty = 2;
-	}
-
+	post_changed |= ui_item_changed();
 	ui_slider(&g_config->rp_gamma, tr("Gamma"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	if (ui_item_changed()) {
-		g_context->ddirty = 2;
-	}
+	post_changed |= ui_item_changed();
 
+	ui_row2();
 	ui_slider(&g_config->rp_vignette, tr("Vignette"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	if (ui_item_changed()) {
-		g_context->ddirty = 2;
-	}
-
+	post_changed |= ui_item_changed();
 	ui_slider(&g_config->rp_grain, tr("Noise Grain"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	if (ui_item_changed()) {
+	post_changed |= ui_item_changed();
+
+	if (post_changed) {
 		g_context->ddirty = 2;
 	}
 
-	camera_object_t *cam     = scene_camera;
-	camera_data_t   *cam_raw = cam->data;
-	ui_slider(&cam_raw->near_plane, tr("Clip Start"), 0.001, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	bool clip_changed = ui_item_changed();
-	ui_slider(&cam_raw->far_plane, tr("Clip End"), 50.0, 100.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	clip_changed |= ui_item_changed();
-	if (clip_changed) {
-		camera_object_build_proj(cam, -1.0);
-	}
-
-	ui_text(tr(".cube LUT"), UI_ALIGN_LEFT, 0x00000000);
-	f32_array_t *lut_ar = f32_array_create_from_raw(
+	f32_array_t *lut_ar = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        7 / 8.0,
 	        1 / 8.0,
 	    },
 	    2);
 	ui_row(lut_ar);
-	ui_text_input(&g_config->lut_path, "", UI_ALIGN_LEFT, true, false);
+	ui_text_input(&g_config->lut_path, tr(".cube LUT"), UI_ALIGN_RIGHT, true, false);
 	if (ui_item_changed()) {
 		if (string_equals(g_config->lut_path, "")) {
 			import_lut_free();
@@ -646,9 +653,18 @@ void box_preferences_viewport_tab() {
 		ui_files_show("cube", false, false, &box_preferences_lut_picked);
 	}
 
-	ui_check(&g_config->texture_filter, string_tmp(" %s", tr("Filter Textures")), "");
-	if (ui_item_changed()) {
-		gpu_use_linear_sampling(g_config->texture_filter);
+	box_preferences_section(tr("Clipping"));
+
+	camera_object_t *cam     = scene_camera;
+	camera_data_t   *cam_raw = cam->data;
+
+	ui_row2();
+	ui_slider(&cam_raw->near_plane, tr("Clip Start"), 0.001, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	bool clip_changed = ui_item_changed();
+	ui_slider(&cam_raw->far_plane, tr("Clip End"), 50.0, 100.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	clip_changed |= ui_item_changed();
+	if (clip_changed) {
+		camera_object_build_proj(cam, -1.0);
 	}
 }
 
