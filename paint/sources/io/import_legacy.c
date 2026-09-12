@@ -315,13 +315,14 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 }
 
 project_t *import_arm_from_version_15(any_map_t *old) {
-	any_array_t *tms = any_map_get(old, "timeline_meshes");
+	any_array_t *stages = any_map_get(old, "stages");
+	any_array_t *tms    = any_map_get(old, "timeline_meshes");
 	if (tms != NULL) {
 		for (i32 i = 0; i < tms->length; ++i) {
-			armpack_map_set_i32(tms->buffer[i], "stage_index", 0);
+			bool camera = armpack_map_get_i32(tms->buffer[i], "mesh_index") == -1 && stages != NULL && stages->length > 0;
+			armpack_map_set_i32(tms->buffer[i], "stage_index", camera ? 1 : 0);
 		}
 	}
-	any_array_t *stages = any_map_get(old, "stages");
 	if (stages != NULL) {
 		for (i32 i = 0; i < stages->length; ++i) {
 			any_map_set(stages->buffer[i], "nested_mesh", NULL);
