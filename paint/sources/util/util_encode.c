@@ -542,7 +542,9 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->timeline_meshes != NULL) {
 		armpack_encode_array(raw->timeline_meshes->length);
 		for (i32 i = 0; i < raw->timeline_meshes->length; ++i) {
-			armpack_encode_map(4);
+			armpack_encode_map(5);
+			armpack_encode_string("stage_index");
+			armpack_encode_i32(raw->timeline_meshes->buffer[i]->stage_index);
 			armpack_encode_string("frame");
 			armpack_encode_i32(raw->timeline_meshes->buffer[i]->frame);
 			armpack_encode_string("mesh_index");
@@ -561,7 +563,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->stages != NULL) {
 		armpack_encode_array(raw->stages->length);
 		for (i32 i = 0; i < raw->stages->length; ++i) {
-			armpack_encode_map(4);
+			armpack_encode_map(5);
 			armpack_encode_string("name");
 			armpack_encode_string(raw->stages->buffer[i]->name);
 			armpack_encode_string("objects");
@@ -570,6 +572,8 @@ buffer_t *util_encode_project(project_t *raw) {
 			armpack_encode_array_string(raw->stages->buffer[i]->layers);
 			armpack_encode_string("hidden");
 			armpack_encode_array_string(raw->stages->buffer[i]->hidden);
+			armpack_encode_string("nested_mesh");
+			armpack_encode_string(raw->stages->buffer[i]->nested_mesh);
 		}
 	}
 	else {

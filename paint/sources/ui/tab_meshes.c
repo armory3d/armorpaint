@@ -534,6 +534,10 @@ void tab_meshes_draw_context_menu() {
 		tab_timeline_edit_script(g_project->_->layers->length + i, 0);
 		return;
 	}
+	if (ui_menu_button(tr("Edit Timeline"), "", ICON_NONE)) {
+		tab_timeline_edit_mesh(o);
+		return;
+	}
 
 #ifdef WITH_PLUGINS
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {

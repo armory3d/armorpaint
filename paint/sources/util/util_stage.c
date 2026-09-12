@@ -40,6 +40,7 @@ stage_t *tab_stages_get_stage() {
 }
 
 void tab_stages_apply(stage_t *stage) {
+	tab_timeline_set_stage(stage);
 	mesh_object_t_array_t *visibles = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
