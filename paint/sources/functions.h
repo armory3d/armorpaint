@@ -660,6 +660,7 @@ bool                      util_mesh_link_parse(char *name, i32 *source_index, ch
 void                      util_mesh_delete_data_uncache(void *data);
 mesh_data_t              *util_mesh_data_duplicate(mesh_data_t *source);
 void                      util_mesh_merge(mesh_object_t_array_t *paint_objects);
+bool                      util_mesh_merge_reskin();
 void                      util_mesh_remove_merged();
 void                      util_mesh_visibility_changed();
 void                      util_mesh_merge_geometry();
