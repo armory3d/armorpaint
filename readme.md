@@ -1,3 +1,8 @@
+> **Community fork** — This repository is a fork of [armory3d/armorpaint](https://github.com/armory3d/armorpaint).
+> It is **not the original project** and does not claim authorship of ArmorPaint. It contains modified
+> source code derived from the original software, which is the work of the ArmorPaint developers.
+> See [NOTICE](NOTICE) and [LICENSE](LICENSE).
+
 ![](https://armorpaint.org/img/git.jpg)
 
 armorpaint
@@ -63,6 +68,19 @@ cd armorpaint/paint
 # Requires compiler with c23 #embed support (clang 19 or newer)
 ../base/make --embed
 ```
+
+## License & attribution
+
+ArmorPaint is distributed under the [**zlib/libpng license**](license.md) (see also [`LICENSE`](LICENSE)). This fork keeps the original license notice intact and must not remove or alter it in any distributed form.
+
+Attribution and fork status:
+
+- **Original project:** [armory3d/armorpaint](https://github.com/armory3d/armorpaint) — all copyright of the original and derived source belongs to the ArmorPaint developers.
+- **Author of the original software:** Lubos Lenco (armory3d).
+- **Fork:** [dionarley/armorpaint](https://github.com/dionarley/armorpaint) — modified version, not the original software.
+- **Third-party components** bundled in the distributable are listed under [`paint/assets/licenses/`](paint/assets/licenses/) and [`base/assets/licenses/`](base/assets/licenses/) (Kore, NFD, fonts, icons, IRISc, kongruent, lz4-wasm, llama.cpp, UFBX, cgltf, nanosvg, ...).
+
+Per the zlib license terms: the origin of this software must not be misrepresented, altered versions must be plainly marked as such, and this notice may not be removed or altered from any source distribution.
 
 ## Branches
 
