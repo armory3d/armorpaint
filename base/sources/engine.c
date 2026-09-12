@@ -8,7 +8,7 @@ i32 sys_w(void);
 i32 sys_h(void);
 i32 sys_x(void);
 i32 sys_y(void);
-f32 sys_time(void);
+f64 sys_time(void);
 
 gpu_pipeline_t *_mesh_object_last_pipeline   = NULL;
 vec4_t          _camera_object_sphere_center = {0};
@@ -2316,14 +2316,14 @@ void (*render_path_commands)(void)                   = NULL;
 any_map_t       *render_path_render_targets          = NULL;
 i32              render_path_current_w               = 0;
 i32              render_path_current_h               = 0;
-f32              _render_path_frame_time             = 0.0;
+f64              _render_path_frame_time             = 0.0;
 i32              _render_path_frame                  = 0;
 render_target_t *_render_path_current_target         = NULL;
 gpu_texture_t   *_render_path_current_image          = NULL;
 i32              _render_path_last_w                 = 0;
 i32              _render_path_last_h                 = 0;
 string_array_t  *_render_path_bind_params            = NULL;
-f32              _render_path_last_frame_time        = 0.0;
+f64              _render_path_last_frame_time        = 0.0;
 i32              _render_path_loading                = 0;
 any_map_t       *_render_path_cached_shader_contexts = NULL;
 
