@@ -1,6 +1,8 @@
 
 #include "../global.h"
 
+#define TAB_TIMELINE_CAMERA -1
+
 typedef struct {
 	i32            frame;
 	i32            layer_index;
@@ -75,18 +77,41 @@ static void tab_timeline_copy_tex(gpu_texture_t *dst, gpu_texture_t *src) {
 	draw_end();
 }
 
+static void tab_timeline_free_path_array(void *a) {
+	if (a != NULL) {
+		array_free(a);
+		free(a);
+	}
+}
+
 static void tab_timeline_copy_path_points_from_layer(slot_layer_t *l, f32_array_t **pp, f32_array_t **ppw, f32_array_t **ppc, i32_array_t **ppp) {
-	*pp  = l->path_points != NULL ? f32_array_create_from_array(l->path_points) : NULL;
-	*ppw = l->path_points_world != NULL ? f32_array_create_from_array(l->path_points_world) : NULL;
-	*ppc = l->path_points_camera != NULL ? f32_array_create_from_array(l->path_points_camera) : NULL;
-	*ppp = l->path_points_parent != NULL ? i32_array_create_from_array(l->path_points_parent) : NULL;
+	f32_array_t *old_pp  = *pp;
+	f32_array_t *old_ppw = *ppw;
+	f32_array_t *old_ppc = *ppc;
+	i32_array_t *old_ppp = *ppp;
+	*pp                  = l->path_points != NULL ? f32_array_create_from_array(l->path_points) : NULL;
+	*ppw                 = l->path_points_world != NULL ? f32_array_create_from_array(l->path_points_world) : NULL;
+	*ppc                 = l->path_points_camera != NULL ? f32_array_create_from_array(l->path_points_camera) : NULL;
+	*ppp                 = l->path_points_parent != NULL ? i32_array_create_from_array(l->path_points_parent) : NULL;
+	tab_timeline_free_path_array(old_pp);
+	tab_timeline_free_path_array(old_ppw);
+	tab_timeline_free_path_array(old_ppc);
+	tab_timeline_free_path_array(old_ppp);
 }
 
 static void tab_timeline_copy_path_points_to_layer(slot_layer_t *l, f32_array_t *pp, f32_array_t *ppw, f32_array_t *ppc, i32_array_t *ppp) {
+	f32_array_t *old_pp   = l->path_points;
+	f32_array_t *old_ppw  = l->path_points_world;
+	f32_array_t *old_ppc  = l->path_points_camera;
+	i32_array_t *old_ppp  = l->path_points_parent;
 	l->path_points        = pp != NULL ? f32_array_create_from_array(pp) : NULL;
 	l->path_points_world  = ppw != NULL ? f32_array_create_from_array(ppw) : NULL;
 	l->path_points_camera = ppc != NULL ? f32_array_create_from_array(ppc) : NULL;
 	l->path_points_parent = ppp != NULL ? i32_array_create_from_array(ppp) : NULL;
+	tab_timeline_free_path_array(old_pp);
+	tab_timeline_free_path_array(old_ppw);
+	tab_timeline_free_path_array(old_ppc);
+	tab_timeline_free_path_array(old_ppp);
 }
 
 static gpu_texture_format_t tab_timeline_tex_format() {
@@ -238,6 +263,9 @@ static void tab_timeline_save_to_keyframes(i32 frame) {
 }
 
 static void tab_timeline_load_from_keyframes(i32 frame) {
+	if (tab_timeline_keyframes == NULL || tab_timeline_keyframes->length == 0) {
+		return;
+	}
 	bool any = false;
 	for (i32 li = 0; li < g_project->_->layers->length; li++) {
 		slot_layer_t *l = g_project->_->layers->buffer[li];
@@ -371,26 +399,41 @@ static i32 tab_timeline_find_next_mesh_keyframe(i32 frame, i32 mesh_index) {
 	return best;
 }
 
+static bool tab_timeline_camera_animated() {
+	for (i32 i = 0; i < tab_timeline_mesh_keyframes->length; i++) {
+		if (((tab_timeline_mesh_keyframe_t *)tab_timeline_mesh_keyframes->buffer[i])->mesh_index == TAB_TIMELINE_CAMERA) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static transform_t *tab_timeline_mesh_transform(i32 mi) {
+	return mi == TAB_TIMELINE_CAMERA ? scene_camera->base->transform : g_project->_->paint_objects->buffer[mi]->base->transform;
+}
+
 static void tab_timeline_save_mesh_origins() {
-	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
-		mesh_object_t              *o  = g_project->_->paint_objects->buffer[mi];
+	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
 		i32                         oi = tab_timeline_find_mesh_origin(mi);
 		tab_timeline_mesh_origin_t *orig;
 		if (oi < 0) {
 			orig             = ALLOC_INIT(tab_timeline_mesh_origin_t, {0});
 			orig->mesh_index = mi;
-			orig->mesh       = o;
+			orig->mesh       = mi == TAB_TIMELINE_CAMERA ? NULL : g_project->_->paint_objects->buffer[mi];
 			any_array_push(tab_timeline_mesh_origins, orig);
 		}
 		else {
 			orig = tab_timeline_mesh_origins->buffer[oi];
 		}
-		orig->transform = o->base->transform->local;
+		orig->transform = tab_timeline_mesh_transform(mi)->local;
 	}
 }
 
-static void tab_timeline_sync_mesh_body(mesh_object_t *o) {
-	physics_body_t *body = o->base->_->body;
+static void tab_timeline_sync_mesh_body(i32 mi) {
+	if (mi == TAB_TIMELINE_CAMERA) {
+		return;
+	}
+	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
 	if (body == NULL) {
 		return;
 	}
@@ -398,15 +441,27 @@ static void tab_timeline_sync_mesh_body(mesh_object_t *o) {
 	physics_body_sync_transform(body);
 }
 
-static bool tab_timeline_dynamic_body(mesh_object_t *o) {
-	physics_body_t *body = o->base->_->body;
+static bool tab_timeline_skip_mesh(i32 mi) {
+	if (mi == TAB_TIMELINE_CAMERA) {
+		return !tab_timeline_camera_animated();
+	}
+	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
 	return body != NULL && body->mass > 0.0;
 }
 
-static bool tab_timeline_set_mesh_transform(mesh_object_t *o, mat4_t mat) {
-	mat4_t before = o->base->transform->world_unpack;
-	transform_set_matrix(o->base->transform, mat);
-	return memcmp(&before, &o->base->transform->world_unpack, sizeof(mat4_t)) != 0;
+static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
+	if (mi == TAB_TIMELINE_CAMERA) {
+		transform_set_matrix(scene_camera->base->transform, mat);
+		camera_object_build_mat(scene_camera);
+		if (g_context->camera_type == CAMERA_TYPE_ORTHOGRAPHIC) {
+			viewport_update_camera_type(g_context->camera_type);
+		}
+		return false; // Do not rebuild raytrace geometry
+	}
+	transform_t *t      = tab_timeline_mesh_transform(mi);
+	mat4_t       before = t->world_unpack;
+	transform_set_matrix(t, mat);
+	return memcmp(&before, &t->world_unpack, sizeof(mat4_t)) != 0;
 }
 
 static void tab_timeline_mesh_moved() {
@@ -417,20 +472,16 @@ static void tab_timeline_mesh_moved() {
 
 static void tab_timeline_load_mesh_origins() {
 	bool moved = false;
-	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
+	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
 		i32 oi = tab_timeline_find_mesh_origin(mi);
-		if (oi < 0) {
+		if (oi < 0 || tab_timeline_skip_mesh(mi)) {
 			continue;
 		}
 		tab_timeline_mesh_origin_t *orig = tab_timeline_mesh_origins->buffer[oi];
-		mesh_object_t              *o    = g_project->_->paint_objects->buffer[mi];
-		if (tab_timeline_dynamic_body(o)) {
-			continue;
-		}
-		if (tab_timeline_set_mesh_transform(o, orig->transform)) {
+		if (tab_timeline_set_mesh_transform(mi, orig->transform)) {
 			moved = true;
 		}
-		tab_timeline_sync_mesh_body(o);
+		tab_timeline_sync_mesh_body(mi);
 	}
 	g_context->ddirty = 2;
 	if (moved) {
@@ -439,14 +490,13 @@ static void tab_timeline_load_mesh_origins() {
 }
 
 static void tab_timeline_save_mesh_to_keyframes(i32 frame) {
-	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
+	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
 		i32 kfi = tab_timeline_find_mesh_keyframe(frame, mi);
 		if (kfi < 0) {
 			continue;
 		}
 		tab_timeline_mesh_keyframe_t *kf = tab_timeline_mesh_keyframes->buffer[kfi];
-		mesh_object_t                *o  = g_project->_->paint_objects->buffer[mi];
-		kf->transform                    = o->base->transform->local;
+		kf->transform                    = tab_timeline_mesh_transform(mi)->local;
 	}
 }
 
@@ -454,9 +504,8 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 	bool any     = false;
 	bool moved   = false;
 	i32  frame_i = (i32)frame_f;
-	for (i32 mi = 0; mi < g_project->_->paint_objects->length; mi++) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[mi];
-		if (tab_timeline_dynamic_body(o)) {
+	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
+		if (tab_timeline_skip_mesh(mi)) {
 			continue;
 		}
 		i32 act_kfi = tab_timeline_find_active_mesh_keyframe(frame_i, mi);
@@ -485,10 +534,10 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 				if (has_from) {
 					float  t      = (frame_f - (float)from_frame) / (float)(nxt->frame - from_frame);
 					mat4_t result = mat4_tween(from_mat, nxt->transform, t);
-					if (tab_timeline_set_mesh_transform(o, result)) {
+					if (tab_timeline_set_mesh_transform(mi, result)) {
 						moved = true;
 					}
-					tab_timeline_sync_mesh_body(o);
+					tab_timeline_sync_mesh_body(mi);
 					any = true;
 					continue;
 				}
@@ -496,20 +545,20 @@ static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
 		}
 
 		if (act_kfi >= 0) {
-			if (tab_timeline_set_mesh_transform(o, ((tab_timeline_mesh_keyframe_t *)tab_timeline_mesh_keyframes->buffer[act_kfi])->transform)) {
+			if (tab_timeline_set_mesh_transform(mi, ((tab_timeline_mesh_keyframe_t *)tab_timeline_mesh_keyframes->buffer[act_kfi])->transform)) {
 				moved = true;
 			}
-			tab_timeline_sync_mesh_body(o);
+			tab_timeline_sync_mesh_body(mi);
 			any = true;
 		}
 		else {
 			i32 oi = tab_timeline_find_mesh_origin(mi);
 			if (oi >= 0) {
-				if (tab_timeline_set_mesh_transform(o, ((tab_timeline_mesh_origin_t *)tab_timeline_mesh_origins->buffer[oi])->transform)) {
+				if (tab_timeline_set_mesh_transform(mi, ((tab_timeline_mesh_origin_t *)tab_timeline_mesh_origins->buffer[oi])->transform)) {
 					moved = true;
 				}
 				if (nxt_kfi >= 0) {
-					tab_timeline_sync_mesh_body(o);
+					tab_timeline_sync_mesh_body(mi);
 				}
 				any = true;
 			}
@@ -612,23 +661,22 @@ static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
 	tab_timeline_pending_mesh_add_frame = -1;
 	tab_timeline_pending_mesh_add_index = -1;
 
-	if (fr <= 0 || mi < 0 || mi >= g_project->_->paint_objects->length) {
+	if (fr <= 0 || mi < TAB_TIMELINE_CAMERA || mi >= g_project->_->paint_objects->length) {
 		return;
 	}
-	mesh_object_t                *o   = g_project->_->paint_objects->buffer[mi];
 	i32                           kfi = tab_timeline_find_mesh_keyframe(fr, mi);
 	tab_timeline_mesh_keyframe_t *kf;
 	if (kfi < 0) {
 		kf             = ALLOC_INIT(tab_timeline_mesh_keyframe_t, {0});
 		kf->frame      = fr;
 		kf->mesh_index = mi;
-		kf->mesh       = o;
+		kf->mesh       = mi == TAB_TIMELINE_CAMERA ? NULL : g_project->_->paint_objects->buffer[mi];
 		any_array_push(tab_timeline_mesh_keyframes, kf);
 	}
 	else {
 		kf = tab_timeline_mesh_keyframes->buffer[kfi];
 	}
-	kf->transform = o->base->transform->local;
+	kf->transform = tab_timeline_mesh_transform(mi)->local;
 }
 
 static void tab_timeline_remove_mesh_keyframe_on_next_frame(void *_) {
@@ -833,24 +881,33 @@ void tab_timeline_import(project_t *raw) {
 	}
 }
 
+static i32 tab_timeline_row_count() {
+	// Layers, meshes, camera
+	return g_project->_->layers->length + g_project->_->paint_objects->length + 1;
+}
+
+static i32 tab_timeline_row_to_mesh(i32 row) {
+	i32 mi = row - g_project->_->layers->length;
+	return mi == g_project->_->paint_objects->length ? TAB_TIMELINE_CAMERA : mi;
+}
+
 static char *tab_timeline_row_name(i32 row) {
 	i32 layer_count = g_project->_->layers->length;
 	if (row >= layer_count) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[row - layer_count];
-		return o->base->name;
+		i32 mi = tab_timeline_row_to_mesh(row);
+		return mi == TAB_TIMELINE_CAMERA ? scene_camera->base->name : g_project->_->paint_objects->buffer[mi]->base->name;
 	}
 	slot_layer_t *l = g_project->_->layers->buffer[row];
 	return l->name;
 }
 
 static char *tab_timeline_script_name(i32 row, i32 frame) {
-	char *row_name = string_replace_all(tab_timeline_row_name(row), " ", "");
-	char *name     = string("%s_%s.frame", row_name, i32_to_string(frame));
-	return name;
+	char *row_name = string_replace_all_tmp(tab_timeline_row_name(row), " ", "");
+	return string_tmp("%s_%s.frame", row_name, i32_to_string(frame));
 }
 
 static bool tab_timeline_has_script(i32 row, i32 frame) {
-	if (g_project->script_names == NULL) {
+	if (g_project->script_names == NULL || g_project->script_names->length == 0) {
 		return false;
 	}
 	return string_array_index_of(g_project->script_names, tab_timeline_script_name(row, frame)) >= 0;
@@ -897,7 +954,7 @@ static void tab_timeline_delete_row_scripts(char *row_name) {
 	}
 	char *prefix = string("%s_", string_replace_all(row_name, " ", ""));
 
-	i32 row_count = g_project->_->layers->length + g_project->_->paint_objects->length;
+	i32 row_count = tab_timeline_row_count();
 	for (i32 ri = 0; ri < row_count; ++ri) {
 		if (string_equals(string("%s_", string_replace_all(tab_timeline_row_name(ri), " ", "")), prefix)) {
 			return;
@@ -936,6 +993,9 @@ static void tab_timeline_sync_mesh_rows(any_array_t *ar) {
 	}
 	for (i32 i = ar->length - 1; i >= 0; --i) {
 		tab_timeline_mesh_keyframe_t *kf = ar->buffer[i];
+		if (kf->mesh_index == TAB_TIMELINE_CAMERA) {
+			continue;
+		}
 		if (kf->mesh == NULL && kf->mesh_index >= 0 && kf->mesh_index < g_project->_->paint_objects->length) {
 			kf->mesh = g_project->_->paint_objects->buffer[kf->mesh_index];
 		}
@@ -957,7 +1017,7 @@ void tab_timeline_sync() {
 	tab_timeline_sync_mesh_rows(tab_timeline_mesh_keyframes);
 	tab_timeline_sync_mesh_rows(tab_timeline_mesh_origins);
 
-	i32 row_count = g_project->_->layers->length + g_project->_->paint_objects->length;
+	i32 row_count = tab_timeline_row_count();
 	if (tab_timeline_selected_row >= row_count) {
 		tab_timeline_selected_row = row_count > 0 ? row_count - 1 : 0;
 	}
@@ -979,7 +1039,7 @@ static bool tab_timeline_can_delete() {
 		         tab_timeline_find_keyframe(tab_timeline_selected_frame, tab_timeline_selected_row) >= 0;
 	}
 	else {
-		i32 mi = tab_timeline_selected_row - layer_count;
+		i32 mi = tab_timeline_row_to_mesh(tab_timeline_selected_row);
 		has_kf =
 		    tab_timeline_mesh_keyframes != NULL && tab_timeline_selected_frame > 0 && tab_timeline_find_mesh_keyframe(tab_timeline_selected_frame, mi) >= 0;
 	}
@@ -997,7 +1057,7 @@ static void tab_timeline_delete_selected() {
 	}
 	else {
 		tab_timeline_pending_mesh_rm_frame = tab_timeline_selected_frame;
-		tab_timeline_pending_mesh_rm_index = tab_timeline_selected_row - layer_count;
+		tab_timeline_pending_mesh_rm_index = tab_timeline_row_to_mesh(tab_timeline_selected_row);
 		sys_notify_on_next_frame(&tab_timeline_remove_mesh_keyframe_on_next_frame, NULL);
 	}
 
@@ -1005,10 +1065,10 @@ static void tab_timeline_delete_selected() {
 }
 
 static void tab_timeline_run_frame_scripts(i32 frame) {
-	if (g_project->script_names == NULL) {
+	if (g_project->script_names == NULL || g_project->script_names->length == 0) {
 		return;
 	}
-	i32 row_count = g_project->_->layers->length + g_project->_->paint_objects->length;
+	i32 row_count = tab_timeline_row_count();
 	for (i32 ri = 0; ri < row_count; ri++) {
 		i32 i = string_array_index_of(g_project->script_names, tab_timeline_script_name(ri, frame));
 		if (i >= 0) {
@@ -1045,16 +1105,15 @@ void tab_timeline_update() {
 
 	tab_timeline_selected_frame = frame_i;
 
-	if (g_config->workspace != WORKSPACE_PLAYER) {
-		ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
-	}
-
 	if (tab_timeline_mesh_keyframes != NULL) {
 		tab_timeline_load_mesh_from_keyframes(frame_f);
 	}
 
 	if (frame_i != tab_timeline_last_frame) {
 		tab_timeline_last_frame = frame_i;
+		if (g_config->workspace != WORKSPACE_PLAYER) {
+			ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 1;
+		}
 		tab_timeline_load_from_keyframes(frame_i);
 		tab_timeline_run_frame_scripts(frame_i);
 		project_reskin_mesh(frame_i);
@@ -1083,7 +1142,7 @@ void tab_timeline_draw_frame_context_menu() {
 		has_kf    = layer_kfi >= 0;
 	}
 	else {
-		i32 mi = tab_timeline_selected_row - layer_count;
+		i32 mi = tab_timeline_row_to_mesh(tab_timeline_selected_row);
 		mesh_kfi =
 		    tab_timeline_mesh_keyframes != NULL && tab_timeline_selected_frame > 0 ? tab_timeline_find_mesh_keyframe(tab_timeline_selected_frame, mi) : -1;
 		has_kf = mesh_kfi >= 0;
@@ -1312,13 +1371,10 @@ void tab_timeline_draw(i32 *htab) {
 				tab_timeline_pending_kf_layer = li;
 				sys_notify_on_next_frame(&tab_timeline_add_keyframe_on_next_frame, NULL);
 			}
-			else if (tab_timeline_selected_frame > 0 && li >= g_project->_->layers->length) {
-				i32 mi = li - g_project->_->layers->length;
-				if (mi < g_project->_->paint_objects->length) {
-					tab_timeline_pending_mesh_add_frame = tab_timeline_selected_frame;
-					tab_timeline_pending_mesh_add_index = mi;
-					sys_notify_on_next_frame(&tab_timeline_add_mesh_keyframe_on_next_frame, NULL);
-				}
+			else if (tab_timeline_selected_frame > 0 && li >= g_project->_->layers->length && li < tab_timeline_row_count()) {
+				tab_timeline_pending_mesh_add_frame = tab_timeline_selected_frame;
+				tab_timeline_pending_mesh_add_index = tab_timeline_row_to_mesh(li);
+				sys_notify_on_next_frame(&tab_timeline_add_mesh_keyframe_on_next_frame, NULL);
 			}
 		}
 		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
@@ -1465,31 +1521,36 @@ void tab_timeline_draw(i32 *htab) {
 		}
 
 		i32 mesh_count = g_project->_->paint_objects->length;
-		for (i32 mi = 0; mi < mesh_count; mi++) {
-			mesh_object_t *mesh = g_project->_->paint_objects->buffer[mi];
-			i32            ri   = row_count + mi;
-			if (stage != NULL && string_array_index_of(stage->objects, mesh->base->name) < 0) {
+		for (i32 mi = 0; mi <= mesh_count; mi++) { // Camera row last
+			bool           is_camera = mi == mesh_count;
+			mesh_object_t *mesh      = is_camera ? NULL : g_project->_->paint_objects->buffer[mi];
+			object_t      *obj       = is_camera ? scene_camera->base : mesh->base;
+			i32            kmi       = is_camera ? TAB_TIMELINE_CAMERA : mi;
+			i32            ri        = row_count + mi;
+			if (!is_camera && stage != NULL && string_array_index_of(stage->objects, obj->name) < 0) {
 				continue;
 			}
 			f32 row_y  = start_y + font_h + 2 + vis_row * strip_h;
 			f32 icon_y = row_y + (strip_h - icon_size) / 2.0f;
 
 			// Eye icon
-			rect_t *eye   = resource_tile18(icons, mesh->base->visible ? ICON18_EYE_ON : ICON18_EYE_OFF);
-			f32     eye_y = row_y + (strip_h - eye_size) / 2.0f;
-			draw_set_color(g_theme->HOVER_COL + 0x00282828);
-			draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
-			bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
-			if (eye_hover && g_ui->input_released) {
-				mesh->base->visible = !mesh->base->visible;
-				tab_stages_apply_visible(mesh);
+			if (!is_camera) {
+				rect_t *eye   = resource_tile18(icons, obj->visible ? ICON18_EYE_ON : ICON18_EYE_OFF);
+				f32     eye_y = row_y + (strip_h - eye_size) / 2.0f;
+				draw_set_color(g_theme->HOVER_COL + 0x00282828);
+				draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
+				bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
+				if (eye_hover && g_ui->input_released) {
+					obj->visible = !obj->visible;
+					tab_stages_apply_visible(mesh);
+				}
 			}
 
-			rect_t *rect = resource_tile50(icons, ICON_CUBE);
+			rect_t *rect = resource_tile50(icons, is_camera ? ICON_CAMERA : ICON_CUBE);
 			draw_set_color(g_theme->LABEL_COL);
 			draw_scaled_sub_image(icons, rect->x, rect->y, rect->w, rect->h, g_ui->_x + eye_size + 4, icon_y, icon_size, icon_size);
 			draw_set_color(g_theme->LABEL_COL);
-			draw_string(mesh->base->name, g_ui->_x + eye_size + icon_size + 6, row_y + (strip_h - font_h) / 2.0f);
+			draw_string(obj->name, g_ui->_x + eye_size + icon_size + 6, row_y + (strip_h - font_h) / 2.0f);
 
 			for (i32 i = tab_timeline_scroll; i < tab_timeline_scroll + visible + 1 && i < tab_timeline_max_frames; i++) {
 				f32 x = start_x + (i - tab_timeline_scroll) * frame_w;
@@ -1507,7 +1568,7 @@ void tab_timeline_draw(i32 *htab) {
 					draw_rect(x, row_y, frame_w - 1, strip_h - 1, 1 * UI_SCALE());
 				}
 
-				if (i == 0 || (tab_timeline_mesh_keyframes != NULL && tab_timeline_find_mesh_keyframe(i, mi) >= 0)) {
+				if (i == 0 || (tab_timeline_mesh_keyframes != NULL && tab_timeline_find_mesh_keyframe(i, kmi) >= 0)) {
 					draw_set_color(g_theme->LABEL_COL);
 					draw_filled_circle(x + frame_w / 2.0f, row_y + strip_h / 2.0f, 3.0f * UI_SCALE(), 12);
 				}
