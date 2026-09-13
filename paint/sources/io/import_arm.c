@@ -584,6 +584,7 @@ void import_arm_run_project(char *path) {
 #else
 		g_project->envmap = string_copy(string_replace_all(g_project->envmap, "\\", "/"));
 #endif
+		g_project->envmap = path_normalize(g_project->envmap);
 	}
 
 	if (g_project->camera_world != NULL) {
@@ -611,7 +612,7 @@ void import_arm_run_project(char *path) {
 		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
 			import_arm_make_pink(abs);
 		}
-		bool hdr_as_envmap = ends_with(abs, ".hdr") && string_equals(g_project->envmap, abs);
+		bool hdr_as_envmap = ends_with(abs, ".hdr") && g_project->envmap != NULL && string_equals(g_project->envmap, path_normalize(abs));
 		import_texture_run(abs, hdr_as_envmap);
 	}
 
