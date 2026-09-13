@@ -63,6 +63,7 @@ static i32 tab_timeline_pending_mesh_rm_index  = -1;
 static f64 tab_timeline_last_click_time  = 0.0;
 static i32 tab_timeline_last_click_frame = -1;
 static i32 tab_timeline_last_click_row   = -1;
+static i32 tab_timeline_pressed_id       = -1;
 
 static gpu_pipeline_t *tab_timeline_tween_pipe   = NULL;
 static i32             tab_timeline_tween_tex0   = 0;
@@ -1676,6 +1677,13 @@ static bool tab_timeline_input_in_rect(f32 x, f32 y, f32 w, f32 h) {
 	       g_ui->input_y < g_ui->_window_y + y + h;
 }
 
+static bool tab_timeline_button(i32 id, bool hover) {
+	if (hover && g_ui->input_started) {
+		tab_timeline_pressed_id = id;
+	}
+	return hover && g_ui->input_released && tab_timeline_pressed_id == id;
+}
+
 void tab_timeline_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Timeline"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
@@ -1802,7 +1810,7 @@ void tab_timeline_draw(i32 *htab) {
 			draw_set_color(g_theme->HOVER_COL + 0x00282828);
 			draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
 			bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
-			if (eye_hover && g_ui->input_released) {
+			if (tab_timeline_button(ri * 2, eye_hover)) {
 				layer->visible = !layer->visible;
 				make_material_parse_mesh_material();
 				g_context->ddirty = 2;
@@ -1883,7 +1891,7 @@ void tab_timeline_draw(i32 *htab) {
 				draw_set_color(g_theme->HOVER_COL + 0x00282828);
 				draw_scaled_sub_image(icons, eye->x, eye->y, eye->w, eye->h, g_ui->_x, eye_y, eye_size, eye_size);
 				bool eye_hover = !tab_timeline_scrolling && tab_timeline_input_in_rect(g_ui->_x, row_y, eye_size, strip_h);
-				if (eye_hover && g_ui->input_released) {
+				if (tab_timeline_button(ri * 2, eye_hover)) {
 					if (is_camera) {
 						*tab_timeline_camera_enabled_handle() = !visible;
 						if (!visible) {
@@ -1903,9 +1911,11 @@ void tab_timeline_draw(i32 *htab) {
 			draw_set_color(g_theme->LABEL_COL);
 			draw_string(obj->name, g_ui->_x + eye_size + icon_size + 6, row_y + (strip_h - font_h) / 2.0f);
 			f32 name_x = g_ui->_x + eye_size + icon_size + 6;
-			if (!is_camera && tab_timeline_edit_stage == NULL && !tab_timeline_scrolling &&
-			    tab_timeline_input_in_rect(name_x, row_y, start_x - name_x, strip_h) && g_ui->input_released) {
-				tab_timeline_edit_mesh(mesh);
+			if (!is_camera && tab_timeline_edit_stage == NULL && !tab_timeline_scrolling) {
+				bool label_hover = tab_timeline_input_in_rect(name_x, row_y, start_x - name_x, strip_h);
+				if (tab_timeline_button(ri * 2 + 1, label_hover)) {
+					tab_timeline_edit_mesh(mesh);
+				}
 			}
 
 			for (i32 i = tab_timeline_scroll; i < tab_timeline_scroll + visible + 1 && i < tab_timeline_max_frames; i++) {
@@ -1972,7 +1982,8 @@ void tab_timeline_draw(i32 *htab) {
 			tab_timeline_scroll_drag_v = tab_timeline_scroll;
 		}
 		if (g_ui->input_released) {
-			tab_timeline_scrolling = false;
+			tab_timeline_scrolling  = false;
+			tab_timeline_pressed_id = -1;
 		}
 		if (tab_timeline_scrolling && g_ui->input_down && max_scroll > 0) {
 			f32 delta           = g_ui->input_x - tab_timeline_scroll_drag_x;
