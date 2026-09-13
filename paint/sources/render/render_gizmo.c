@@ -253,6 +253,7 @@ void render_gizmo_update() {
 		}
 	}
 	else if (mouse_released("left")) {
+		g_context->pick_object_id = false;
 		g_context->translate_x = g_context->translate_y = g_context->translate_z = false;
 		g_context->scale_x = g_context->scale_y = g_context->scale_z = false;
 		g_context->rotate_x = g_context->rotate_y = g_context->rotate_z = false;
@@ -264,6 +265,10 @@ void render_gizmo_update() {
 				history_object_transform(g_context->paint_object, gizmo_undo_loc, gizmo_undo_rot, gizmo_undo_scale);
 			}
 		}
+	}
+
+	if (g_context->gizmo_started) {
+		g_context->pick_object_id = false;
 	}
 
 	if (is_object && g_context->gizmo_started) {
