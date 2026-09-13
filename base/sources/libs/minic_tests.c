@@ -503,6 +503,19 @@ void minic_tests() {
 	                  "  return 0;"
 	                  "}",
 	                  0.0f);
+	MINIC_TEST_EXPECT(28,
+	                  "float main() {"
+	                  "  int n = 0; int c = 5;"
+	                  "  float x = (c & 1) ? 1.5 : 2.5; if (x != 1.5) { return 1; }"
+	                  "  if ((c & 2 ? 1 : 0) != 0) { return 2; }"
+	                  "  int y = c > 3 ? c > 4 ? 10 : 20 : 30; if (y != 10) { return 3; }"
+	                  "  y = c < 3 ? 10 : c < 5 ? 20 : 30; if (y != 30) { return 4; }"
+	                  "  c ? n++ : n--; 0 ? (n += 100) : n; if (n != 1) { return 5; }"
+	                  "  int a[] = {7, c ? 8 : 9}; if (a[1] != 8 || a[c > 9 ? 0 : 1] != 8) { return 6; }"
+	                  "  y = 1 + (c ? 2 : 3) * 2; if (y != 5) { return 7; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
 	MINIC_TEST_EXPECT(17, "float main() { int a[2]; return a[2]; }", -1.0f);
 	MINIC_TEST_EXPECT(18, "float main() { test_get_context()->buffer[2] = 99; return 0; }", -1.0f);
 	MINIC_TEST_EXPECT(19, "float main() { minic_test_context_t *p = NULL; return p->ddirty; }", -1.0f);
