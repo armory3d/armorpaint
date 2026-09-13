@@ -13,9 +13,13 @@ extern int plugins_split_by;
 void project_import_mesh_box_menu() {
 	if (ui_menu_button(tr("Append"), "", ICON_CHECK)) {
 		ui_box_hide();
+		i32 first = g_project->_->paint_objects->length;
 		import_mesh_run(_project_import_mesh_box_path, _project_import_mesh_box_clear_layers, false, _project_import_mesh_box_keep_camera);
 		if (_project_import_mesh_box_done != NULL) {
 			_project_import_mesh_box_done();
+		}
+		else if (g_project->_->paint_objects->length > first) {
+			context_select_paint_object(g_project->_->paint_objects->buffer[first]);
 		}
 	}
 	if (ui_menu_button(tr("Help"), "", ICON_HELP)) {

@@ -19,6 +19,13 @@ if (fs_exists(locale_path)) {
 	old = JSON.parse(fs_readfile(locale_path).toString());
 }
 
+function unescape_char(c) {
+	if (c == "n") { return "\n"; }
+	if (c == "t") { return "\t"; }
+	if (c == "r") { return "\r"; }
+	return c; // covers \" \\ and anything else
+}
+
 let source_paths = [ "paint/sources", "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/io", "paint/sources/render", "paint/sources/traits", "paint/sources/ui", "paint/sources/util" ];
 
 for (let path of source_paths) {
@@ -39,27 +46,36 @@ for (let path of source_paths) {
 			if (start == -1) {
 				break;
 			}
-			start += 4; // tr("
+			start += 3; // tr
 
-			let end_a = data.indexOf('")', start);
-			let end_b = data.indexOf('",', start);
-			if (end_a == -1) {
-				end_a = end_b;
+			let val = "";
+			while (start < data.length && data.charAt(start) == '"') {
+				++start; // opening quote
+				while (start < data.length) {
+					let c = data.charAt(start);
+					if (c == '\\') {
+						val += unescape_char(data.charAt(start + 1));
+						start += 2;
+						continue;
+					}
+					if (c == '"') {
+						++start; // closing quote
+						break;
+					}
+					val += c;
+					++start;
+				}
+				while (start < data.length && " \t\r\n".indexOf(data.charAt(start)) != -1) {
+					++start;
+				}
 			}
-			if (end_b == -1) {
-				end_b = end_a;
-			}
-			let end = end_a < end_b ? end_a : end_b;
 
-			let val = data.substring(start, end);
-			val     = val.replaceAll("\\n", "\n");
 			if (old.hasOwnProperty(val)) {
 				out[val] = old[val];
 			}
 			else {
 				out[val] = "";
 			}
-			start = end;
 		}
 	}
 }

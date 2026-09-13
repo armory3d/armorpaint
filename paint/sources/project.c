@@ -414,7 +414,9 @@ bool project_reskin_mesh(int frame) {
 	}
 
 	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
-		util_mesh_merge(NULL);
+		if (!util_mesh_merge_reskin()) {
+			util_mesh_merge(NULL);
+		}
 	}
 	g_context->ddirty          = 4;
 	render_path_raytrace_ready = false;

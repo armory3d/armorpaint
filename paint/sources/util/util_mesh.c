@@ -372,6 +372,75 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	render_path_raytrace_ready = false;
 }
 
+bool util_mesh_merge_reskin() {
+	// Skinning only moves vertices that already exist
+	if (g_context->merged_object == NULL) {
+		return false;
+	}
+	bool                   owns_list     = config_is_raytrace_multi();
+	mesh_object_t_array_t *paint_objects = owns_list ? util_mesh_get_unique() : g_project->_->paint_objects;
+	bool                   ok            = paint_objects->length > 0;
+
+	mesh_data_t *md = g_context->merged_object->data;
+	ok              = ok && md->vertex_arrays->length >= 2;
+	if (!ok) {
+		if (owns_list) {
+			array_free(paint_objects);
+			free(paint_objects);
+		}
+		return false;
+	}
+	i16_array_t *va0 = md->vertex_arrays->buffer[0]->values;
+	i16_array_t *va1 = md->vertex_arrays->buffer[1]->values;
+
+	i32 vlen      = 0;
+	f32 max_scale = 0.0;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		vlen += paint_objects->buffer[i]->data->vertex_arrays->buffer[0]->values->length;
+		if (paint_objects->buffer[i]->data->scale_pos > max_scale) {
+			max_scale = paint_objects->buffer[i]->data->scale_pos;
+		}
+	}
+	vlen = math_floor(vlen / 4.0);
+	if (vlen * 4 != va0->length || vlen * 2 != va1->length) {
+		if (owns_list) { // Vertex count changed
+			array_free(paint_objects);
+			free(paint_objects);
+		}
+		return false;
+	}
+
+	i32 voff = 0;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		vertex_array_t_array_t *vas   = paint_objects->buffer[i]->data->vertex_arrays;
+		f32                     scale = paint_objects->buffer[i]->data->scale_pos;
+		i16_array_t            *pos   = vas->buffer[0]->values;
+		i16_array_t            *nor   = vas->buffer[1]->values;
+		i32                     count = math_floor(pos->length / 4.0);
+
+		for (i32 j = 0; j < count; ++j) {
+			va0->buffer[(voff + j) * 4]     = math_floor((pos->buffer[j * 4] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 1] = math_floor((pos->buffer[j * 4 + 1] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 2] = math_floor((pos->buffer[j * 4 + 2] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 3] = pos->buffer[j * 4 + 3];
+		}
+		for (i32 j = 0; j < nor->length; ++j) {
+			va1->buffer[j + voff * 2] = nor->buffer[j];
+		}
+
+		voff += count;
+	}
+
+	md->scale_pos = max_scale;
+	mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+
+	if (owns_list) {
+		array_free(paint_objects);
+		free(paint_objects);
+	}
+	return true;
+}
+
 void util_mesh_visibility_changed() {
 	util_mesh_merge(config_is_raytrace_multi() ? NULL : util_mesh_get_visible());
 	util_uv_uvmap_cached       = false;

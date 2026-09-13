@@ -589,14 +589,14 @@ extern void (*render_path_commands)(void);
 extern any_map_t       *render_path_render_targets;
 extern i32              render_path_current_w;
 extern i32              render_path_current_h;
-extern f32              _render_path_frame_time;
+extern f64              _render_path_frame_time;
 extern i32              _render_path_frame;
 extern render_target_t *_render_path_current_target;
 extern gpu_texture_t   *_render_path_current_image;
 extern i32              _render_path_last_w;
 extern i32              _render_path_last_h;
 extern string_array_t  *_render_path_bind_params;
-extern f32              _render_path_last_frame_time;
+extern f64              _render_path_last_frame_time;
 extern i32              _render_path_loading;
 extern any_map_t       *_render_path_cached_shader_contexts;
 

@@ -168,8 +168,9 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 	string_array_t      *mesh_names = string_array_create(0);
 	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(project, mesh_names);
 
-	i32  appended = 0;
-	bool assigned = false;
+	i32            appended = 0;
+	bool           assigned = false;
+	mesh_object_t *first    = NULL;
 	for (i32 i = 0; i < mesh_datas->length; ++i) {
 		if (!import_arm_is_selected(selected, i)) {
 			continue;
@@ -195,6 +196,9 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 		any_array_push(g_project->_->paint_objects, object);
 		tab_stages_add_object(object->base->name);
 		appended++;
+		if (first == NULL) {
+			first = object;
+		}
 
 		if (src_to_dest_mat != NULL) {
 			i32 src_mat = import_arm_mesh_material_index(project, i);
@@ -221,6 +225,7 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 		context_main_object()->skip_context     = "paint";
 		g_context->merged_object->base->visible = true;
 	}
+	context_select_paint_object(first);
 
 	make_material_parse_paint_material(true);
 	make_material_parse_mesh_material();

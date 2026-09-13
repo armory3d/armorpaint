@@ -83,6 +83,33 @@ void tab_scripts_create(char *name) {
 	}
 }
 
+static void tab_scripts_duplicate() {
+	tab_scripts_prepare();
+	char *base = g_project->script_names->buffer[tab_scripts_selected];
+	if (ends_with(base, ".c")) {
+		base = substring(base, 0, string_length(base) - 2);
+	}
+	i32 len = string_length(base);
+	if (len > 3 && base[len - 1] >= '0' && base[len - 1] <= '9' && base[len - 2] >= '0' && base[len - 2] <= '9' && base[len - 3] >= '0' &&
+	    base[len - 3] <= '9') {
+		base = substring(base, 0, len - 3);
+	}
+	char *name = NULL;
+	for (i32 i = 1; i < 1000; ++i) {
+		char *n = string("%s%03d.c", base, i);
+		if (string_array_index_of(g_project->script_names, n) < 0) {
+			name = n;
+			break;
+		}
+	}
+	if (name != NULL) {
+		string_array_push(g_project->script_names, name);
+		string_array_push(g_project->script_datas, string_copy(g_project->script_datas->buffer[tab_scripts_selected]));
+		tab_scripts_selected      = g_project->script_datas->length - 1;
+		tab_scripts_minimap_dirty = true;
+	}
+}
+
 void tab_scripts_draw_export(char *path) {
 	char *str = tab_scripts_get();
 	char *f   = ui_files_filename;
@@ -137,6 +164,9 @@ void tab_scripts_draw_edit() {
 	}
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		ui_files_show("c", true, false, &tab_scripts_draw_export);
+	}
+	if (ui_menu_button(tr("Duplicate"), "", ICON_DUPLICATE)) {
+		tab_scripts_duplicate();
 	}
 	if (ui_menu_sub_button(tr("Templates"))) {
 		ui_menu_sub_begin(3);
@@ -482,13 +512,13 @@ void tab_scripts_draw(i32 *htab) {
 
 		tab_scripts_text = g_project->script_datas->buffer[tab_scripts_selected];
 
-		bool ac_selected = g_ui->text_selected_id == ui_widget_id(&tab_scripts_text, UI_ID_TEXT);
-		if (!ac_selected) {
+		bool is_text_selected = g_ui->text_selected_id == ui_widget_id(&tab_scripts_text, UI_ID_TEXT);
+		if (!is_text_selected) {
 			tab_scripts_ac_show = false;
 		}
 
 		// Open the autocomplete popup on ctrl+space
-		if (ac_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SPACE) {
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SPACE) {
 			tab_scripts_ac_show   = true;
 			tab_scripts_ac_offset = 0;
 			g_ui->is_key_pressed  = false; // Consume so the editor ignores ctrl+space
@@ -500,19 +530,50 @@ void tab_scripts_draw(i32 *htab) {
 		    ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h)) {
 			tab_scripts_search_show  = true;
 			tab_scripts_search_focus = true;
-			g_ui->is_key_pressed     = false;
-			g_ui->key_code           = 0;
+			// Pre-fill the search with selected text
+			if (is_text_selected && g_ui->cursor_x != g_ui->highlight_anchor) {
+				i32 a   = g_ui->cursor_x < g_ui->highlight_anchor ? g_ui->cursor_x : g_ui->highlight_anchor;
+				i32 b   = g_ui->cursor_x < g_ui->highlight_anchor ? g_ui->highlight_anchor : g_ui->cursor_x;
+				i32 len = string_length(g_ui->text_selected);
+				if (a < 0) {
+					a = 0;
+				}
+				if (b > len) {
+					b = len;
+				}
+				if (a < b) {
+					tab_scripts_search = substring(g_ui->text_selected, a, b);
+				}
+			}
+			g_ui->is_key_pressed = false;
+			g_ui->key_code       = 0;
+		}
+
+		// ctrl+d to select word
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
+			char *line = g_ui->text_selected;
+			i32   col  = g_ui->cursor_x;
+			i32   pre  = tab_scripts_prefix_len(line, col);
+			i32   suf  = tab_scripts_suffix_len(line, col);
+			if (pre + suf > 0) {
+				ui_text_area_clear_selection();
+				g_ui->highlight_anchor = col - pre;
+				g_ui->cursor_x         = col + suf;
+				g_ui->cursor_sticky_x  = g_ui->cursor_x;
+			}
+			g_ui->is_key_pressed = false;
+			g_ui->key_code       = 0;
 		}
 
 		// Toggle line comment on ctrl+/
-		if (ac_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SLASH) {
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SLASH) {
 			tab_scripts_toggle_comment();
 			g_ui->is_key_pressed = false; // Consume so the editor ignores ctrl+/
 			g_ui->key_code       = 0;
 		}
 
 		bool ac_accept = false;
-		if (tab_scripts_ac_show && ac_selected && g_ui->is_key_pressed) {
+		if (tab_scripts_ac_show && is_text_selected && g_ui->is_key_pressed) {
 			if (g_ui->key_code == KEY_CODE_DOWN) {
 				tab_scripts_ac_offset++;
 				g_ui->is_key_pressed = false;
@@ -535,7 +596,7 @@ void tab_scripts_draw(i32 *htab) {
 			}
 		}
 
-		if (ac_selected && g_ui->is_key_pressed) {
+		if (is_text_selected && g_ui->is_key_pressed) {
 			tab_scripts_minimap_dirty = true;
 		}
 
@@ -574,7 +635,7 @@ void tab_scripts_draw(i32 *htab) {
 		}
 
 		// Autocomplete popup
-		if (tab_scripts_ac_show && ac_selected) {
+		if (tab_scripts_ac_show && is_text_selected) {
 			char *text   = tab_scripts_text;
 			i32   line   = tab_scripts_line;
 			i32   col    = g_ui->cursor_x;
@@ -649,7 +710,9 @@ void tab_scripts_draw(i32 *htab) {
 				g_ui->cursor_x         = string_length(tab_scripts_search);
 				g_ui->highlight_anchor = 0;
 			}
-			if (search_selected && g_ui->is_escape_down) { // Esc to close
+			// Esc to close
+			bool in_window = ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h);
+			if ((search_selected || is_text_selected || in_window) && g_ui->is_escape_down) {
 				tab_scripts_search_show = false;
 			}
 			g_ui->_x = _x;

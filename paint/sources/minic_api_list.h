@@ -224,9 +224,9 @@ X2(ui_get_node, "p:ui_node_t(p:ui_node_array_t nodes,i id)", p, p, i)
 X1(ui_next_node_id, "i(p:ui_node_array_t nodes)", i, p)
 
 // sys
-X0(sys_time, "f()", f)
-X0(sys_delta, "f()", f)
-X0(sys_real_delta, "f()", f)
+X0(sys_time, "d()", d)
+X0(sys_delta, "d()", d)
+X0(sys_real_delta, "d()", d)
 X0(sys_w, "i()", i)
 X0(sys_h, "i()", i)
 X0(sys_x, "i()", i)

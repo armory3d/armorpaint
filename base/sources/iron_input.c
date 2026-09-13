@@ -6,7 +6,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-f32 sys_time(void);
+f64 sys_time(void);
 i32 sys_x(void);
 i32 sys_y(void);
 
@@ -61,7 +61,7 @@ i32_map_t      *keyboard_keys_started  = NULL;
 i32_map_t      *keyboard_keys_released = NULL;
 string_array_t *keyboard_keys_frame    = NULL;
 bool            keyboard_repeat_key    = false;
-f32             keyboard_repeat_time   = 0.0f;
+f64             keyboard_repeat_time   = 0.0;
 
 #ifdef WITH_GAMEPAD
 

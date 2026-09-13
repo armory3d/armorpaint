@@ -13,6 +13,8 @@ static int          _BUTTON_COL                   = 0;
 static bool         _SHADOWS                      = false;
 static int          text_area_selection_start     = -1;
 static int          text_area_selection_start_col = 0;
+static double       text_area_last_click_time     = 0.0;
+static int          text_area_last_click_line     = -1;
 bool                ui_text_area_line_numbers     = false;
 bool                ui_text_area_scroll_past_end  = false;
 ui_text_coloring_t *ui_text_area_coloring         = NULL;
@@ -443,6 +445,34 @@ static char *right_align_number(char *s, int number, int length) {
 	return s;
 }
 
+static bool ui_text_area_is_word_char(char c) {
+	return c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+static void ui_text_area_select_word(ui_t *current) {
+	char *text = current->text_selected;
+	int   len  = (int)strlen(text);
+	int   pos  = current->cursor_x > len ? len : current->cursor_x;
+	if (!(pos < len && ui_text_area_is_word_char(text[pos])) && !(pos > 0 && ui_text_area_is_word_char(text[pos - 1]))) {
+		return;
+	}
+	int start = pos;
+	while (start > 0 && ui_text_area_is_word_char(text[start - 1])) {
+		start--;
+	}
+	int end = pos;
+	while (end < len && ui_text_area_is_word_char(text[end])) {
+		end++;
+	}
+	current->highlight_anchor = start;
+	current->cursor_x         = end;
+	current->cursor_sticky_x  = end;
+}
+
+void ui_text_area_clear_selection() {
+	text_area_selection_start = -1;
+}
+
 static void handle_line_select(ui_t *current, int *line_index) {
 	if (current->is_shift_down) {
 		if (text_area_selection_start == -1) {
@@ -709,7 +739,8 @@ char *ui_text_area(char **value, int *line_index, int align, bool editable, char
 		ui_text_area_draw_search(line);
 		// Text input
 		if ((!selected && ui_get_hover(UI_ELEMENT_H())) || (selected && i == (*line_index))) {
-			(*line_index) = i; // Set active line
+			(*line_index)      = i; // Set active line
+			bool line_released = ui_get_released(UI_ELEMENT_H());
 			strcpy((*value), line);
 			current->submit_text_id = 0;
 			// Suppress cut / paste / select-all in ui_update_text_edit for multi-line handling
@@ -756,6 +787,18 @@ char *ui_text_area(char **value, int *line_index, int align, bool editable, char
 			}
 			current->is_a_down = _is_a_down;
 			current->key_char  = _key_char;
+			if (line_released) { // Double click word select
+				double now = iron_time();
+				if (now - text_area_last_click_time < 0.3 && text_area_last_click_line == i) {
+					text_area_selection_start = -1;
+					ui_text_area_select_word(current);
+					text_area_last_click_time = 0.0;
+				}
+				else {
+					text_area_last_click_time = now;
+				}
+				text_area_last_click_line = i;
+			}
 			if (selected && current->key_code != KEY_CODE_RETURN && current->key_code != KEY_CODE_ESCAPE &&
 			    strcmp(line, current->text_selected) != 0) { // Edit text - defer to after loop
 				edit_line_pos     = ui_line_pos(lines, i);

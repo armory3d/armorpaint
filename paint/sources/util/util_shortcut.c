@@ -1,8 +1,8 @@
 
 #include "../global.h"
 
-static f32 util_shortcut_undo_tap_time = 0.0;
-static f32 util_shortcut_redo_tap_time = 0.0;
+static f64 util_shortcut_undo_tap_time = 0.0;
+static f64 util_shortcut_redo_tap_time = 0.0;
 
 void util_shortcut_undo_redo() {
 	bool undo_pressed = keymap_shortcut(any_map_get(g_keymap, "edit_undo"), SHORTCUT_TYPE_STARTED);

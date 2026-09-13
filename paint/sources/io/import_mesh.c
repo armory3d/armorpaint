@@ -8,6 +8,8 @@ bool import_mesh_no_scale      = false;
 bool import_mesh_keep_timeline = false;
 bool import_mesh_append        = false;
 
+static mesh_object_t *import_mesh_appended = NULL;
+
 void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool keep_camera) {
 	if (!path_is_mesh(path)) {
 		if (!context_enable_import_plugin(path)) {
@@ -19,6 +21,7 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 	import_mesh_clear_layers = _clear_layers;
 	import_mesh_no_reset     = keep_camera;
 	import_mesh_append       = !replace_existing;
+	import_mesh_appended     = NULL;
 	g_context->layer_filter  = 0;
 
 	char *p        = to_lower_case(path);
@@ -123,6 +126,11 @@ void import_mesh_finish_import(void *_) {
 		g_context->paint_object->skip_context   = "paint";
 		g_context->merged_object->base->visible = true;
 	}
+
+	if (import_mesh_append && import_mesh_appended != NULL && array_index_of(g_project->_->paint_objects, import_mesh_appended) >= 0) {
+		context_select_paint_object(import_mesh_appended);
+	}
+	import_mesh_appended = NULL;
 
 	if (!import_mesh_no_scale) {
 		viewport_scale_to_bounds(2.0);
@@ -308,6 +316,9 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 
 	any_array_push(g_project->_->paint_objects, object);
 	tab_stages_add_object(object->base->name);
+	if (import_mesh_append && import_mesh_appended == NULL) {
+		import_mesh_appended = object;
+	}
 	md->_->handle = string_copy(raw->name);
 	any_map_set(data_cached_meshes, md->_->handle, md);
 
