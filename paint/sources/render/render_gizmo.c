@@ -16,6 +16,28 @@ static quat_t gizmo_q        = (quat_t){0.0, 0.0, 0.0, 1.0};
 static quat_t gizmo_q0       = (quat_t){0.0, 0.0, 0.0, 1.0};
 static f32    gizmo_drag_raw = 0.0;
 
+static vec4_t gizmo_world_axis_to_parent(object_t *o, vec4_t axis) {
+	if (o->parent == NULL) {
+		return axis;
+	}
+	axis.w = 0.0;
+	axis   = vec4_apply_mat4(axis, mat4_inv(o->parent->transform->world));
+	return vec4_norm(axis);
+}
+
+static void gizmo_rotate_world(object_t *o, vec4_t axis, f32 angle) {
+	quat_t q          = quat_from_axis_angle(gizmo_world_axis_to_parent(o, axis), angle);
+	o->transform->rot = quat_norm(quat_mult(q, o->transform->rot));
+}
+
+static void gizmo_scale_world(object_t *o, vec4_t axis, f32 delta) {
+	vec4_t a = gizmo_world_axis_to_parent(o, axis);
+	a        = vec4_apply_quat(a, quat_inv(o->transform->rot));
+	o->transform->scale.x += delta * a.x * a.x;
+	o->transform->scale.y += delta * a.y * a.y;
+	o->transform->scale.z += delta * a.z * a.z;
+}
+
 void render_gizmo_update() {
 	bool is_object = g_context->tool == TOOL_TYPE_CURSOR;
 	bool is_decal  = base_is_decal_layer();
@@ -75,25 +97,22 @@ void render_gizmo_update() {
 				paint_object->transform->loc = (vec4_t){v.x, v.y, v.z, 1.0};
 			}
 			else if (g_context->scale_x) {
-				paint_object->transform->scale.x += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_x_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->scale_y) {
-				paint_object->transform->scale.y += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_y_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->scale_z) {
-				paint_object->transform->scale.z += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->rotate_x) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_x_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_x_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
 			}
 			else if (g_context->rotate_y) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_y_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_y_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
 			}
 			else if (g_context->rotate_z) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			g_context->gizmo_drag_last = g_context->gizmo_drag;
 
