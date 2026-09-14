@@ -138,8 +138,8 @@ void map_delete(any_map_t *m, char *k) {
 		while (m->keys->buffer[next] != NULL && next != i) {
 			int j = index_set(m, m->keys->buffer[next]);
 			if (j != next) {
-				m->keys->buffer[j]      = m->keys->buffer[next];
-				m->values->buffer[j]    = m->values->buffer[next];
+				m->keys->buffer[j]   = m->keys->buffer[next];
+				m->values->buffer[j] = m->values->buffer[next];
 				m->keys->length--; // undo index_set
 				m->keys->buffer[next]   = NULL;
 				m->values->buffer[next] = NULL;

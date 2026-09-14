@@ -2650,8 +2650,7 @@ void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *a
 }
 
 void gpu_raytrace_set_textures(gpu_texture_t *_texpaint0, gpu_texture_t *_texpaint1, gpu_texture_t *_texpaint2, gpu_texture_t *_texenv,
-                               gpu_texture_t *_texsobol, gpu_texture_t *_texscramble, gpu_texture_t *_texrank,
-                               gpu_texture_t *_texenv_cdf) {
+                               gpu_texture_t *_texsobol, gpu_texture_t *_texscramble, gpu_texture_t *_texrank, gpu_texture_t *_texenv_cdf) {
 	texpaint0   = _texpaint0;
 	texpaint1   = _texpaint1;
 	texpaint2   = _texpaint2;

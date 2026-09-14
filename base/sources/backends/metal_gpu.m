@@ -877,8 +877,7 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 	int instance_count = gpu_raytrace_multi ? instances_count : 1;
 
 	id<MTLBuffer> instance_buffer = [device newBufferWithLength:sizeof(MTLAccelerationStructureUserIDInstanceDescriptor) * instance_count options:options];
-	MTLAccelerationStructureUserIDInstanceDescriptor *instance_descriptors =
-	    (MTLAccelerationStructureUserIDInstanceDescriptor *)instance_buffer.contents;
+	MTLAccelerationStructureUserIDInstanceDescriptor *instance_descriptors = (MTLAccelerationStructureUserIDInstanceDescriptor *)instance_buffer.contents;
 
 	for (int i = 0; i < instance_count; ++i) {
 		float *m = instances[i].m.m;

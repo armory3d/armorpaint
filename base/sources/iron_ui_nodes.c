@@ -523,11 +523,11 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 
 			int value = ((float *)but->default_value->buffer)[0];
 
-			bool  combo_select      = current->combo_selected_id == 0 && ui_get_released(UI_ELEMENT_H());
-			char *label             = combo_select ? temp_label : enum_label;
-			char (*texts_data)[64]  = combo_select ? temp_texts_data : enum_texts_data;
-			char          **texts   = combo_select ? temp_texts : enum_texts;
-			string_array_t *ar      = combo_select ? &temp_ar : &enum_ar;
+			bool  combo_select     = current->combo_selected_id == 0 && ui_get_released(UI_ELEMENT_H());
+			char *label            = combo_select ? temp_label : enum_label;
+			char (*texts_data)[64] = combo_select ? temp_texts_data : enum_texts_data;
+			char          **texts  = combo_select ? temp_texts : enum_texts;
+			string_array_t *ar     = combo_select ? &temp_ar : &enum_ar;
 
 			int  texts_count  = 0;
 			bool has_but_data = but->data != NULL && but->data->length > 1;

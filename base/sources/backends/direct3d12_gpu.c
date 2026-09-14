@@ -1742,15 +1742,14 @@ void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *a
 
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
                                gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf) {
-	D3D12_CPU_DESCRIPTOR_HANDLE  handle;
-	D3D12_CPU_DESCRIPTOR_HANDLE  cpu_descriptor;
-	D3D12_CPU_DESCRIPTOR_HANDLE  sourceCpu;
-	D3D12_GPU_DESCRIPTOR_HANDLE  ghandle;
-	gpu_texture_t               *textures[]    = {texpaint0,   texpaint1,   texpaint2, texenv, texsobol, texscramble, texrank,
-	                                              texenv_cdf != NULL ? texenv_cdf : texenv};
-	D3D12_GPU_DESCRIPTOR_HANDLE *gpu_handles[] = {&dxr_tex0gpu_descriptor_handle,   &dxr_tex1gpu_descriptor_handle,     &dxr_tex2gpu_descriptor_handle,
-	                                              &dxr_texenvgpu_descriptor_handle, &dxr_texsobolgpu_descriptor_handle, &dxr_texscramblegpu_descriptor_handle,
-	                                              &dxr_texrankgpu_descriptor_handle,  &dxr_texenvcdfgpu_descriptor_handle};
+	D3D12_CPU_DESCRIPTOR_HANDLE handle;
+	D3D12_CPU_DESCRIPTOR_HANDLE cpu_descriptor;
+	D3D12_CPU_DESCRIPTOR_HANDLE sourceCpu;
+	D3D12_GPU_DESCRIPTOR_HANDLE ghandle;
+	gpu_texture_t *textures[] = {texpaint0, texpaint1, texpaint2, texenv, texsobol, texscramble, texrank, texenv_cdf != NULL ? texenv_cdf : texenv};
+	D3D12_GPU_DESCRIPTOR_HANDLE *gpu_handles[] = {&dxr_tex0gpu_descriptor_handle,    &dxr_tex1gpu_descriptor_handle,     &dxr_tex2gpu_descriptor_handle,
+	                                              &dxr_texenvgpu_descriptor_handle,  &dxr_texsobolgpu_descriptor_handle, &dxr_texscramblegpu_descriptor_handle,
+	                                              &dxr_texrankgpu_descriptor_handle, &dxr_texenvcdfgpu_descriptor_handle};
 
 	dxr_descriptor_heap->lpVtbl->GetCPUDescriptorHandleForHeapStart(dxr_descriptor_heap, &handle);
 	for (int i = 0; i < 8; i++) {
