@@ -956,7 +956,7 @@ void ui_draw_combo() {
 			}
 			break;
 		}
-		if (current->combo_selected_images != NULL && current->combo_selected_images->length > i) {
+		if (current->combo_selected_images != NULL && current->combo_selected_images->length > i && current->combo_selected_images->buffer[i] != NULL) {
 			draw_scaled_image(current->combo_selected_images->buffer[i], current->_x - UI_ELEMENT_H(), current->_y - UI_ELEMENT_H() + 1, UI_ELEMENT_H(),
 			                  UI_ELEMENT_H());
 		}
