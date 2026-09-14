@@ -48,7 +48,8 @@ typedef struct iron_a1_stream_channel iron_a1_stream_channel_t;
 
 void                    iron_a1_init(void);
 iron_a1_channel_t      *audio_play(iron_a1_sound_t *sound, bool loop);
-void                    iron_a1_stop_sound(iron_a1_sound_t *sound);
+void                    audio_stop(iron_a1_sound_t *sound);
+bool                    audio_is_playing(iron_a1_sound_t *sound);
 void                    iron_a1_play_sound_stream(iron_a1_sound_stream_t *stream);
 void                    iron_a1_stop_sound_stream(iron_a1_sound_stream_t *stream);
 float                   iron_a1_channel_get_volume(iron_a1_channel_t *channel);

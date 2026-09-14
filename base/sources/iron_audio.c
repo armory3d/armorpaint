@@ -178,16 +178,28 @@ iron_a1_channel_t *audio_play(iron_a1_sound_t *sound, bool loop) {
 	return channel;
 }
 
-void iron_a1_stop_sound(iron_a1_sound_t *sound) {
+void audio_stop(iron_a1_sound_t *sound) {
 	iron_mutex_lock(&mutex);
 	for (int i = 0; i < CHANNEL_COUNT; ++i) {
 		if (channels[i].sound == sound) {
 			channels[i].sound    = NULL;
 			channels[i].position = 0;
+		}
+	}
+	iron_mutex_unlock(&mutex);
+}
+
+bool audio_is_playing(iron_a1_sound_t *sound) {
+	bool playing = false;
+	iron_mutex_lock(&mutex);
+	for (int i = 0; i < CHANNEL_COUNT; ++i) {
+		if (channels[i].sound == sound) {
+			playing = true;
 			break;
 		}
 	}
 	iron_mutex_unlock(&mutex);
+	return playing;
 }
 
 void iron_a1_play_sound_stream(iron_a1_sound_stream_t *stream) {
@@ -223,30 +235,6 @@ void iron_a1_stop_sound_stream(iron_a1_sound_stream_t *stream) {
 	}
 	iron_mutex_unlock(&mutex);
 }
-
-// void iron_internal_play_video_sound_stream(struct iron_internal_video_sound_stream *stream) {
-// 	iron_mutex_lock(&mutex);
-// 	for (int i = 0; i < CHANNEL_COUNT; ++i) {
-// 		if (videos[i].stream == NULL) {
-// 			videos[i].stream   = stream;
-// 			videos[i].position = 0;
-// 			break;
-// 		}
-// 	}
-// 	iron_mutex_unlock(&mutex);
-// }
-
-// void iron_internal_stop_video_sound_stream(struct iron_internal_video_sound_stream *stream) {
-// 	iron_mutex_lock(&mutex);
-// 	for (int i = 0; i < CHANNEL_COUNT; ++i) {
-// 		if (videos[i].stream == stream) {
-// 			videos[i].stream   = NULL;
-// 			videos[i].position = 0;
-// 			break;
-// 		}
-// 	}
-// 	iron_mutex_unlock(&mutex);
-// }
 
 float iron_a1_channel_get_volume(iron_a1_channel_t *channel) {
 	return channel->volume;
@@ -453,6 +441,7 @@ iron_a1_sound_t *iron_a1_sound_create(const char *filename) {
 }
 
 void iron_a1_sound_destroy(iron_a1_sound_t *sound) {
+	audio_stop(sound);
 	free(sound->left);
 	free(sound->right);
 	sound->left   = NULL;
