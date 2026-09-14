@@ -225,6 +225,8 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->owns_arrays = true;
+	md->_->skin_blob   = source->_->skin_blob;
+	md->_->skin_frames = source->_->skin_frames;
 	return md;
 }
 
