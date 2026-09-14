@@ -255,36 +255,54 @@ void import_arm_run_material_from_project_on_next_frame(slot_material_t_array_t 
 	}
 }
 
-bool import_arm_group_exists(ui_node_canvas_t *c) {
+bool import_arm_group_exists(char *name) {
 	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
-		node_group_t *g     = g_project->_->material_groups->buffer[i];
-		char         *cname = g->canvas->name;
-		if (string_equals(cname, c->name)) {
+		node_group_t *g = g_project->_->material_groups->buffer[i];
+		if (string_equals(g->canvas->name, name)) {
 			return true;
 		}
 	}
 	return false;
 }
 
-void import_arm_rename_group(char *name, slot_material_t_array_t *materials, ui_node_canvas_t_array_t *groups) {
+static bool import_arm_is_unique_group_name(char *name, ui_node_canvas_t_array_t *groups) {
+	if (import_arm_group_exists(name)) {
+		return false;
+	}
+	for (i32 i = 0; i < groups->length; ++i) {
+		if (string_equals(groups->buffer[i]->name, name)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static char *import_arm_unique_group_name(char *name, ui_node_canvas_t_array_t *groups) {
+	char *base;
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
+	while (!import_arm_is_unique_group_name(res, groups)) {
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
+	}
+	return res;
+}
+
+void import_arm_rename_group(char *name, char *new_name, slot_material_t_array_t *materials, ui_node_canvas_t_array_t *groups) {
 	for (i32 i = 0; i < materials->length; ++i) {
 		slot_material_t *m = materials->buffer[i];
 		for (i32 i = 0; i < m->canvas->nodes->length; ++i) {
 			ui_node_t *n = m->canvas->nodes->buffer[i];
 			if (string_equals(n->type, "GROUP") && string_equals(n->name, name)) {
-				n->name = string("%s.1", n->name);
+				n->name = string_copy(new_name);
 			}
 		}
 	}
 	for (i32 i = 0; i < groups->length; ++i) {
 		ui_node_canvas_t *c = groups->buffer[i];
-		if (string_equals(c->name, name)) {
-			c->name = string("%s.1", c->name);
-		}
 		for (i32 i = 0; i < c->nodes->length; ++i) {
 			ui_node_t *n = c->nodes->buffer[i];
 			if (string_equals(n->type, "GROUP") && string_equals(n->name, name)) {
-				n->name = string("%s.1", n->name);
+				n->name = string_copy(new_name);
 			}
 		}
 	}
@@ -410,8 +428,10 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 		}
 		for (i32 i = 0; i < project->material_groups->length; ++i) {
 			ui_node_canvas_t *c = project->material_groups->buffer[i];
-			while (import_arm_group_exists(c)) {
-				import_arm_rename_group(c->name, imported, project->material_groups); // Ensure unique group name
+			if (import_arm_group_exists(c->name)) { // Ensure unique group name
+				char *old_name = c->name;
+				c->name        = string_copy(import_arm_unique_group_name(old_name, project->material_groups));
+				import_arm_rename_group(old_name, c->name, imported, project->material_groups);
 			}
 			import_arm_init_nodes(c->nodes);
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});

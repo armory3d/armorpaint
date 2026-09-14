@@ -171,40 +171,13 @@ bool _import_mesh_is_unique_name(char *s) {
 	return true;
 }
 
-char *_import_mesh_number_ext(i32 i) {
-	if (i < 10) {
-		return string_tmp(".00%s", i32_to_string(i));
-	}
-	if (i < 100) {
-		return string_tmp(".0%s", i32_to_string(i));
-	}
-	return string_tmp(".%s", i32_to_string(i));
-}
-
-static i32 _import_mesh_split_number_ext(char *name, char **base) {
-	*base   = name;
-	i32 dot = string_last_index_of(name, ".");
-	i32 len = string_length(name);
-	if (dot <= 0 || len - dot - 1 < 3) {
-		return 0;
-	}
-	for (i32 i = dot + 1; i < len; ++i) {
-		i32 c = char_code_at(name, i);
-		if (c < '0' || c > '9') {
-			return 0;
-		}
-	}
-	*base = string_tmp("%.*s", dot, name);
-	return parse_int(name + dot + 1);
-}
-
 char *_import_mesh_unique_name(char *name) {
 	// Returns the name or the next free .00X variant
 	char *base;
-	i32   i   = _import_mesh_split_number_ext(name, &base);
-	char *res = i == 0 ? base : string_tmp("%s%s", base, _import_mesh_number_ext(i));
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = i == 0 ? base : string_tmp("%s%s", base, strings_number_ext(i));
 	while (!_import_mesh_is_unique_name(res)) {
-		res = string_tmp("%s%s", base, _import_mesh_number_ext(++i));
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
 	}
 	return res;
 }
