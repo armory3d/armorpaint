@@ -90,14 +90,10 @@ static i32 tab_meshes_remapped_mask(mesh_object_t **old_order, i32 length, i32 m
 	return index >= 0 ? index + 1 : mask;
 }
 
-void tab_meshes_sort_hierarchy() {
+static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
-	if (objects == NULL || objects->length < 2) {
-		return;
-	}
-
-	i32             length = objects->length;
-	mesh_object_t **sorted = calloc(length, sizeof(mesh_object_t *));
+	i32                    length  = objects->length;
+	mesh_object_t        **sorted  = calloc(length, sizeof(mesh_object_t *));
 	i32             count  = 0;
 	tab_meshes_collect_children(objects, sorted, &count, NULL);
 
@@ -115,21 +111,19 @@ void tab_meshes_sort_hierarchy() {
 		}
 	}
 
+	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
+	free(sorted);
+
 	bool changed = false;
 	for (i32 i = 0; i < length; ++i) {
-		if (sorted[i] != objects->buffer[i]) {
+		if (old_order[i] != objects->buffer[i]) {
 			changed = true;
 			break;
 		}
 	}
 	if (!changed) {
-		free(sorted);
 		return;
 	}
-
-	mesh_object_t **old_order = malloc(length * sizeof(mesh_object_t *));
-	memcpy(old_order, objects->buffer, length * sizeof(mesh_object_t *));
-	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
 
 	if (g_project->_->layers != NULL) {
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
@@ -138,9 +132,38 @@ void tab_meshes_sort_hierarchy() {
 		}
 	}
 	g_context->layer_filter = tab_meshes_remapped_mask(old_order, length, g_context->layer_filter);
+}
 
+void tab_meshes_sort_hierarchy() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects == NULL || objects->length < 2) {
+		return;
+	}
+	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	tab_meshes_sort_hierarchy_from(old_order);
 	free(old_order);
-	free(sorted);
+}
+
+static int tab_meshes_sort_by_name_compare(const void *pa, const void *pb) {
+	mesh_object_t *a = *(mesh_object_t **)pa;
+	mesh_object_t *b = *(mesh_object_t **)pb;
+	return strcmp(a->base->name, b->base->name);
+}
+
+void tab_meshes_sort_by_name() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects == NULL || objects->length < 2) {
+		return;
+	}
+	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	// Siblings keep the sorted order when regrouped under parents
+	array_sort((any_array_t *)objects, &tab_meshes_sort_by_name_compare);
+	tab_meshes_sort_hierarchy_from(old_order);
+	free(old_order);
+	tab_timeline_sync();
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
 
 void tab_meshes_set_drag_mesh(mesh_object_t *o, f32 off_x, f32 off_y) {
@@ -159,10 +182,14 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	if (dest == pos || dest == pos + 1) {
 		return;
 	}
-	array_remove(g_project->_->paint_objects, mesh);
+	mesh_object_t_array_t *objects   = g_project->_->paint_objects;
+	mesh_object_t        **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	array_remove(objects, mesh);
 	i32 new_pos = dest > pos ? dest - 1 : dest;
-	array_insert(g_project->_->paint_objects, new_pos, mesh);
-	tab_meshes_sort_hierarchy();
+	array_insert(objects, new_pos, mesh);
+	tab_meshes_sort_hierarchy_from(old_order);
+	free(old_order);
 	tab_timeline_sync();
 }
 
@@ -670,6 +697,10 @@ void tab_meshes_draw_edit() {
 
 	if (ui_menu_button(tr("Edit UV Map"), "", ICON_NONE)) {
 		ui_base_show_2d_view(VIEW_2D_TYPE_UVMAP);
+	}
+
+	if (ui_menu_button(tr("Sort"), "", ICON_NONE)) {
+		tab_meshes_sort_by_name();
 	}
 
 	ui_menu_separator();
