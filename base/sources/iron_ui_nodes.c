@@ -553,7 +553,8 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 					wi++;
 				}
 				for (int i = 0; i < texts_count; ++i) {
-					strcpy(texts_data[i], ui_tr(texts_data[i]));
+                    char *translated = ui_tr(texts_data[i]);
+                    if (translated != texts_data[i]) strcpy(texts_data[i], translated);
 					texts[i] = texts_data[i];
 				}
 
