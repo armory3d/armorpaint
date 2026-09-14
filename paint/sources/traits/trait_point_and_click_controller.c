@@ -3,7 +3,7 @@
 
 #define PAC_SPEED     0.4
 #define PAC_ARRIVE    0.1
-#define PAC_CLEARANCE 0.15
+#define PAC_CLEARANCE 0.03
 #define PAC_TERRAIN   "Terrain"
 #define PAC_MAX_RECTS 32
 #define PAC_MAX_NODES (PAC_MAX_RECTS * 4 + 2)
@@ -52,7 +52,7 @@ static bool pac_inside(pac_rect_t *r, vec4_t p) {
 
 static void pac_gather_rects(physics_body_t *self) {
 	pac_rect_count = 0;
-	f32 grow       = math_sqrt(self->dimx * self->dimx + self->dimy * self->dimy) / 2.0 + PAC_CLEARANCE;
+	f32 grow       = math_max(self->dimx, self->dimy) / 2.0 + PAC_CLEARANCE;
 
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	for (i32 i = 0; i < objects->length && pac_rect_count < PAC_MAX_RECTS; ++i) {
