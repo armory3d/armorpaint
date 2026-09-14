@@ -309,7 +309,7 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	_export_exr_out                   = out;
 	_export_exr_src_view              = src;
 	_export_exr_write_line            = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
-	void (*write_data)(i32, i32, i32) = type == 1 ? export_exr_write_bgr : export_exr_write_single;
+	void (*write_data)(i32, i32, i32) = type == 1 || type == 3 ? export_exr_write_bgr : export_exr_write_single; // RGB1, RGBA
 
 	for (i32 y = 0; y < height; ++y) {
 		// coordinate
