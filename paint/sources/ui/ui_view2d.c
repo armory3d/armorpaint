@@ -172,6 +172,35 @@ void ui_view2d_update(void *_) {
 
 	g_context->paint2d = false;
 
+	ui_view2d_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
+	ui_view2d_wx = math_floor(sys_w()) + ui_toolbar_w(true);
+	ui_view2d_wy = 0;
+
+	if (!ui_base_show) {
+		ui_view2d_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
+		ui_view2d_wx -= ui_toolbar_w(true);
+	}
+	if (!base_view3d_show) {
+		ui_view2d_ww += base_view3d_w();
+	}
+
+	ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
+
+	if (ui_nodes_show) {
+		ui_view2d_wh -= g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
+		if (g_config->touch_ui) {
+			ui_view2d_wh += ui_header_h;
+		}
+	}
+
+	if (!base_view3d_show && ui_nodes_show) {
+		ui_view2d_wx = 0;
+		ui_view2d_ww = base_view3d_w();
+		ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
+	}
+
+	ui_nodes_wrap_mouse(ui_view2d_controls_down, ui_view2d_wx, ui_view2d_wy, ui_view2d_ww, ui_view2d_wh);
+
 	if (!base_ui_enabled || !ui_view2d_show || mouse_x < ui_view2d_wx || mouse_x > ui_view2d_wx + ui_view2d_ww || mouse_y < ui_view2d_wy + headerh ||
 	    mouse_y > ui_view2d_wy + ui_view2d_wh) {
 		if (ui_view2d_controls_down) {
@@ -200,8 +229,8 @@ void ui_view2d_update(void *_) {
 
 			if (ui_touch_control) {
 				// Zoom to finger location
-				ui_view2d_pan_x -= (g_ui->input_x - g_ui->_window_x - g_ui->_window_w / 2.0) * control->zoom;
-				ui_view2d_pan_y -= (g_ui->input_y - g_ui->_window_y - g_ui->_window_h / 2.0) * control->zoom;
+				ui_view2d_pan_x -= (g_ui->input_x - ui_view2d_wx - ui_view2d_ww / 2.0) * control->zoom;
+				ui_view2d_pan_y -= (g_ui->input_y - ui_view2d_wy - ui_view2d_wh / 2.0) * control->zoom;
 			}
 			ui_view2d_grid_redraw = true;
 		}
@@ -297,18 +326,6 @@ void ui_view2d_update(void *_) {
 	}
 
 	// Render
-	ui_view2d_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-	ui_view2d_wx = math_floor(sys_w()) + ui_toolbar_w(true);
-	ui_view2d_wy = 0;
-
-	if (!ui_base_show) {
-		ui_view2d_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
-		ui_view2d_wx -= ui_toolbar_w(true);
-	}
-	if (!base_view3d_show) {
-		ui_view2d_ww += base_view3d_w();
-	}
-
 	if (!ui_view2d_show) {
 		return;
 	}
@@ -344,20 +361,6 @@ void ui_view2d_update(void *_) {
 	i32 apph = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
 	if (!base_view3d_show) {
 		apph = base_h();
-	}
-	ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
-
-	if (ui_nodes_show) {
-		ui_view2d_wh -= g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
-		if (g_config->touch_ui) {
-			ui_view2d_wh += ui_header_h;
-		}
-	}
-
-	if (!base_view3d_show && ui_nodes_show) {
-		ui_view2d_wx = 0;
-		ui_view2d_ww = base_view3d_w();
-		ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
 	}
 
 	if (ui_window(ui_view2d_hwnd, ui_view2d_wx, ui_view2d_wy, ui_view2d_ww, ui_view2d_wh, false)) {

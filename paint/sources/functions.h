@@ -725,6 +725,7 @@ i32                       ui_nodes_get_node_y();
 void                      ui_nodes_recompile();
 ui_node_t                *ui_nodes_make_group_node(ui_node_canvas_t *group_canvas, ui_nodes_t *nodes, ui_node_canvas_t *canvas);
 void                      ui_nodes_make_node_preview(ui_node_t *node);
+void                      ui_nodes_wrap_mouse(bool controls_down, f32 x, f32 y, f32 w, f32 h);
 ui_canvas_control_t      *ui_nodes_get_canvas_control(bool controls_down, bool is_node_view);
 ui_node_canvas_t         *ui_nodes_get_canvas(bool groups);
 ui_nodes_t               *ui_nodes_get_nodes();

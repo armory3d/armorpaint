@@ -434,25 +434,29 @@ f32 ui_nodes_get_zoom_delta() {
 	                                                                        : -(g_ui->input_dy - g_ui->input_dx);
 }
 
-ui_canvas_control_t *ui_nodes_get_canvas_control(bool controls_down, bool is_node_view) {
-	if (g_config->wrap_mouse && controls_down) {
-		if (g_ui->input_x < g_ui->_window_x) {
-			g_ui->input_x = g_ui->_window_x + g_ui->_window_w;
-			iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
-		}
-		else if (g_ui->input_x > g_ui->_window_x + g_ui->_window_w) {
-			g_ui->input_x = g_ui->_window_x;
-			iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
-		}
-		else if (g_ui->input_y < g_ui->_window_y) {
-			g_ui->input_y = g_ui->_window_y + g_ui->_window_h;
-			iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
-		}
-		else if (g_ui->input_y > g_ui->_window_y + g_ui->_window_h) {
-			g_ui->input_y = g_ui->_window_y;
-			iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
-		}
+void ui_nodes_wrap_mouse(bool controls_down, f32 x, f32 y, f32 w, f32 h) {
+	if (!g_config->wrap_mouse || !controls_down) {
+		return;
 	}
+	if (g_ui->input_x < x) {
+		g_ui->input_x = x + w;
+		iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
+	}
+	else if (g_ui->input_x > x + w) {
+		g_ui->input_x = x;
+		iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
+	}
+	else if (g_ui->input_y < y) {
+		g_ui->input_y = y + h;
+		iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
+	}
+	else if (g_ui->input_y > y + h) {
+		g_ui->input_y = y;
+		iron_mouse_set_position(math_floor(g_ui->input_x), math_floor(g_ui->input_y));
+	}
+}
+
+ui_canvas_control_t *ui_nodes_get_canvas_control(bool controls_down, bool is_node_view) {
 	if (keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
 	    keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) || g_ui->input_started_r || g_ui->input_wheel_delta != 0.0) {
 		controls_down = true;
@@ -919,6 +923,12 @@ void ui_nodes_update(void *_) {
 
 	if (!base_view3d_show) {
 		ui_nodes_wh -= ui_header_h * 4;
+	}
+
+	ui_nodes_wrap_mouse(ui_nodes_controls_down, ui_nodes_wx, ui_nodes_wy, ui_nodes_ww, ui_nodes_wh);
+
+	if (ui_nodes_controls_down) {
+		ui_nodes_hwnd->redraws = 2;
 	}
 
 	if (ui_window(ui_nodes_hwnd, ui_nodes_wx, ui_nodes_wy, ui_nodes_ww, ui_nodes_wh, false)) {
