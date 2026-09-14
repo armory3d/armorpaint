@@ -964,7 +964,7 @@ bool mesh_object_cull_material(mesh_object_t *raw, char *context) {
 bool mesh_object_cull_mesh(mesh_object_t *raw, char *context, camera_object_t *camera) {
 	if (camera->data->frustum_culling && raw->frustum_culling) {
 		f32 radius_scale = 1.0;
-		if (!camera_object_sphere_in_frustum(&camera->frustum_planes, raw->base->transform, radius_scale, 0.0, 0.0, 0.0)) {
+		if (!camera_object_sphere_in_frustum(camera->frustum_planes, raw->base->transform, radius_scale, 0.0, 0.0, 0.0)) {
 			raw->base->culled = true;
 			return true;
 		}
