@@ -157,7 +157,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->material_datas = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < mds->length; ++i) {
 			any_map_t        *old = mds->buffer[i];
-			material_data2_t *md  = ALLOC_INIT(layer_data_t, {0});
+			material_data2_t *md  = ALLOC_INIT(material_data2_t, {0});
 			md->paint_base        = armpack_map_get_i32(old, "paint_base") > 0;
 			md->paint_opac        = armpack_map_get_i32(old, "paint_opac") > 0;
 			md->paint_occ         = armpack_map_get_i32(old, "paint_occ") > 0;

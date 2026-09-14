@@ -1257,23 +1257,17 @@ void tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *point
 	}
 }
 
-i32_map_t *tab_layers_init_layer_map() {
-	i32_map_t *res = any_map_create();
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		i32_map_set(res, g_project->_->layers->buffer[i], i);
-	}
-	return res;
+slot_layer_t_array_t *tab_layers_init_layer_map() {
+	return array_slice(g_project->_->layers, 0, g_project->_->layers->length);
 }
 
-i32_imap_t *tab_layers_fill_layer_map(i32_map_t *map) {
-	i32_imap_t     *res  = any_map_create();
-	string_array_t *keys = map_keys(map);
-	for (i32 i = 0; i < keys->length; ++i) {
-		char *l = keys->buffer[i];
-		i32_imap_set(res, i32_map_get(map, l), array_index_of(g_project->_->layers, l) > -1 ? array_index_of(g_project->_->layers, l) : 9999);
+i32_imap_t *tab_layers_fill_layer_map(slot_layer_t_array_t *old_layers) {
+	// Old index -> new index, 9999 for removed layers
+	i32_imap_t *res = any_imap_create();
+	for (i32 i = 0; i < old_layers->length; ++i) {
+		i32 new_index = array_index_of(g_project->_->layers, old_layers->buffer[i]);
+		i32_imap_set(res, i, new_index > -1 ? new_index : 9999);
 	}
-	array_free(keys);
-	free(keys);
 	return res;
 }
 

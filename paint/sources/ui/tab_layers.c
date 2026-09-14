@@ -167,7 +167,7 @@ void tab_layers_draw_layer_slot_mini(slot_layer_t *l, i32 i) {
 }
 
 void tab_layers_delete_layer(slot_layer_t *l) {
-	i32_map_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
 
 	if (slot_layer_is_layer(l) && slot_layer_has_masks(l, false)) {
 		slot_layer_t_array_t *masks = slot_layer_get_masks(l, false);
@@ -1079,8 +1079,8 @@ void tab_layers_button_new_menu() {
 		}
 		l = g_context->layer;
 
-		i32_map_t    *pointers = tab_layers_init_layer_map();
-		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+		slot_layer_t         *m        = layers_new_mask(false, l, -1);
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1096,8 +1096,8 @@ void tab_layers_button_new_menu() {
 		}
 		l = g_context->layer;
 
-		i32_map_t    *pointers = tab_layers_init_layer_map();
-		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+		slot_layer_t         *m        = layers_new_mask(false, l, -1);
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1113,8 +1113,8 @@ void tab_layers_button_new_menu() {
 		}
 		l = g_context->layer;
 
-		i32_map_t    *pointers = tab_layers_init_layer_map();
-		slot_layer_t *m        = layers_new_mask(false, l, -1);
+		slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+		slot_layer_t         *m        = layers_new_mask(false, l, -1);
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			slot_material_t *mat = g_project->_->materials->buffer[i];
 			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
@@ -1140,8 +1140,8 @@ void tab_layers_button_new_menu() {
 			l = l->parent;
 		}
 
-		i32_map_t    *pointers = tab_layers_init_layer_map();
-		slot_layer_t *group    = layers_new_group();
+		slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+		slot_layer_t         *group    = layers_new_group();
 		context_set_layer(l);
 		array_remove(g_project->_->layers, group);
 		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
