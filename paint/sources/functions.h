@@ -576,6 +576,8 @@ char                     *keymap_to_json(any_map_t *keymap);
 any_map_t                *keymap_get_default();
 void                      ui_view2d_init();
 void                      ui_view2d_update(void *_);
+void                      ui_view2d_play_sound();
+void                      ui_view2d_stop_sound();
 void                      make_picking_run(node_shader_t *kong);
 void                      sim_init();
 void                      sim_update();

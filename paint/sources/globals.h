@@ -197,6 +197,7 @@ f32                       ui_view2d_pan_scale   = 1.0;
 bool                      ui_view2d_tiled_show  = false;
 bool                      ui_view2d_grid_redraw = true;
 i32                       ui_view2d_tab;
+sound_t                  *ui_view2d_sound_playing    = NULL;
 bool                      sim_running                = false;
 bool                      viewport_recording         = false;
 bool                      node_shader_dump_to_script = false;

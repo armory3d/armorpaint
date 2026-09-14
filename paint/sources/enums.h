@@ -198,6 +198,7 @@ typedef enum {
 	VIEW_2D_TYPE_FONT  = 2,
 	VIEW_2D_TYPE_LAYER = 3,
 	VIEW_2D_TYPE_UVMAP = 4,
+	VIEW_2D_TYPE_SOUND = 5,
 } view_2d_type_t;
 
 typedef enum {

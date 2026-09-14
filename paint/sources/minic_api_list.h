@@ -271,6 +271,7 @@ X4(draw_cubic_bezier, "v(p:f32_array_t x,p:f32_array_t y,i segments,f strength)"
 // iron_audio
 #ifdef IRON_AUDIO
 X2(audio_play, "v(p:iron_a1_sound_t sound,i loop)", v, p, i)
+X1(audio_stop, "v(p:iron_a1_sound_t sound)", v, p)
 #endif
 
 // iron_string
