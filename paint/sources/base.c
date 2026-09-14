@@ -343,10 +343,10 @@ void base_update(void *_) {
 
 	if (g_context->tool == TOOL_TYPE_CURSOR && context_in_3d_view()) {
 		if (keyboard_down("control") && keyboard_started("d")) {
-			sim_duplicate();
+			util_mesh_duplicate();
 		}
 		if (keyboard_started("delete")) {
-			sim_delete();
+			util_mesh_delete();
 		}
 	}
 
@@ -382,17 +382,18 @@ void base_update(void *_) {
 	camera_update(NULL);
 
 	if (g_config->workspace == WORKSPACE_PLAYER) {
-		sim_init();
-		if (!sim_running) {
-			sim_play();
-		}
-		sim_update();
+		player_running             = true;
+		render_path_raytrace_ready = false;
+		trait_update();
+		physics_world_update();
+		iron_delay_idle_sleep();
 	}
-	else if (sim_running) {
-		sim_stop();
+	else if (player_running) {
+		player_running = false;
+		trait_stop();
 	}
 
-	if (sim_running || tab_timeline_playing) {
+	if (player_running || tab_timeline_playing) {
 		if (g_context->ddirty < 0) {
 			g_context->ddirty = 0;
 		}

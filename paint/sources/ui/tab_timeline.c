@@ -1606,7 +1606,7 @@ void tab_timeline_stage_edit_box_draw() {
 			o->base->visible = in_stage;
 			tab_stages_set_hidden(s, o->base->name, false);
 			util_mesh_visibility_changed();
-			sim_physics_apply_stage(s);
+			util_physics_apply_stage(s);
 			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 		}
 	}

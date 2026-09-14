@@ -430,7 +430,7 @@ void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
 		o->base->visible        = false;
 		g_context->paint_object = tab_meshes_select_after_delete();
 		util_mesh_visibility_changed();
-		sim_physics_apply_stage(stage);
+		util_physics_apply_stage(stage);
 		ui_header_handle->redraws                         = 2;
 		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 		return;
@@ -456,7 +456,7 @@ static char *f32_to_string2(float f) {
 }
 
 void tab_meshes_duplicate_next_frame(void *_) {
-	sim_duplicate();
+	util_mesh_duplicate();
 }
 
 void tab_meshes_merge_geometry_next_frame(void *_) {
@@ -570,7 +570,7 @@ void tab_meshes_draw_context_menu() {
 		return;
 	}
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
-		sim_duplicate();
+		util_mesh_duplicate();
 		return;
 	}
 	if (tab_meshes_slot_below(o) != NULL && ui_menu_button(tr("Merge Down"), "", ICON_NONE)) {
@@ -677,7 +677,7 @@ void tab_meshes_draw_context_menu() {
 	}
 
 	// Physics
-	i32             shape      = sim_physics_get_shape(o->base);
+	i32             shape      = util_physics_get_shape(o->base);
 	string_array_t *phys_combo = string_array_create(0);
 	string_array_push(phys_combo, ""); // Empty = no physics
 	string_array_push(phys_combo, tr("Box"));
@@ -694,16 +694,16 @@ void tab_meshes_draw_context_menu() {
 	if (phys_changed) {
 		shape        = phys - 1;
 		bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
-		sim_physics_set(o->base, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
+		util_physics_set(o->base, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 		g_project->mesh_physics_shapes = i32_array_create(0);
 	}
 
 	if (shape >= 0) {
-		f32 mass = sim_physics_get_mass(o->base);
+		f32 mass = util_physics_get_mass(o->base);
 		ui_set_next_id(4);
 		ui_slider(&mass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
 		if (ui_item_changed()) {
-			sim_physics_set_mass(o->base, mass);
+			util_physics_set_mass(o->base, mass);
 			g_project->mesh_physics_shapes = i32_array_create(0);
 			ui_menu_keep_open              = true;
 		}

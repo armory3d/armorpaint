@@ -106,7 +106,7 @@ void project_cleanup() {
 		data_delete_texture(a->file);
 	}
 
-	sim_physics_clear();
+	util_physics_clear();
 }
 
 void project_new_on_next_frame(void *_) {

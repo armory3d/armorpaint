@@ -738,7 +738,7 @@ object_t *script_object_duplicate(object_t *o) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
-	mesh_object_t *dup = sim_duplicate_object(o->ext);
+	mesh_object_t *dup = util_mesh_duplicate_object(o->ext);
 	script_gpu_end(current, in_use);
 
 	g_context->ddirty                                 = 2;
@@ -781,7 +781,7 @@ void script_physics_set_shape(object_t *o, i32 shape) {
 	}
 
 	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
-	sim_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
+	util_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 	g_project->mesh_physics_shapes = i32_array_create(0);
 }
 
@@ -789,7 +789,7 @@ void script_physics_set_mass(object_t *o, f32 mass) {
 	if (o == NULL) {
 		return;
 	}
-	sim_physics_set_mass(o, mass);
+	util_physics_set_mass(o, mass);
 	g_project->mesh_physics_shapes = i32_array_create(0);
 }
 

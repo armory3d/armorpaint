@@ -1554,3 +1554,74 @@ void util_mesh_subdivide() {
 	plugin_uv_unwrap_button();
 #endif
 }
+
+static void _util_mesh_shift_object_masks(i32 from) {
+	if (g_project->_->layers != NULL) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (l->object_mask >= from) {
+				++l->object_mask;
+			}
+		}
+	}
+	if (g_context->layer_filter >= from) {
+		++g_context->layer_filter;
+	}
+}
+
+mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
+	// Mesh
+	if (so == NULL) {
+		return NULL;
+	}
+
+	mesh_data_t   *data = so->data;
+	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
+	transform_set_matrix(dup->base->transform, so->base->transform->local);
+
+	// Insert below the original
+	i32 index = array_index_of(g_project->_->paint_objects, so);
+	i32 at    = index < 0 ? g_project->_->paint_objects->length : index + 1;
+	array_insert((any_array_t *)g_project->_->paint_objects, at, dup);
+	_util_mesh_shift_object_masks(at + 1);
+
+	// Ensure unique name
+	dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
+	tab_stages_add_object(dup->base->name);
+
+	// Material override
+	i32 mat_index = tab_meshes_get_override(so);
+	if (mat_index >= 0) {
+		tab_meshes_set_override_data(dup, mat_index, so->material);
+		g_project->mesh_materials = i32_array_create(0);
+	}
+
+	// Physics
+	i32 shape = util_physics_get_shape(so->base);
+	if (shape >= 0) {
+		util_physics_set(dup->base, shape, util_physics_get_mass(so->base));
+	}
+
+	tab_meshes_sort_hierarchy();
+	tab_timeline_sync();
+
+	return dup;
+}
+
+void util_mesh_duplicate() {
+	mesh_object_t *dup = util_mesh_duplicate_object(g_context->paint_object);
+	if (dup != NULL) {
+		g_context->paint_object                           = dup;
+		ui_header_handle->redraws                         = 2;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+	util_mesh_merge(NULL);
+	g_context->ddirty = 2;
+}
+
+void util_mesh_delete() {
+	if (g_project->_->paint_objects->length < 2) {
+		return;
+	}
+	tab_meshes_draw_context_menu_delete(g_context->paint_object);
+}

@@ -958,7 +958,7 @@ void import_arm_run_project(char *path) {
 				continue; // No physics
 			}
 			f32 mass = g_project->mesh_physics_masses != NULL && i < g_project->mesh_physics_masses->length ? g_project->mesh_physics_masses->buffer[i] : 0.0;
-			sim_physics_store(g_project->_->paint_objects->buffer[i]->base, shape, mass);
+			util_physics_store(g_project->_->paint_objects->buffer[i]->base, shape, mass);
 		}
 	}
 
@@ -972,7 +972,7 @@ void import_arm_run_project(char *path) {
 		tab_stages_apply(g_project->stages->buffer[0]);
 	}
 	else {
-		sim_physics_apply_stage(NULL);
+		util_physics_apply_stage(NULL);
 	}
 
 	sys_notify_on_next_frame(&import_arm_run_project_on_next_frame, NULL);

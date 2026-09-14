@@ -351,8 +351,8 @@ void export_arm_run_project() {
 		g_project->mesh_physics_masses = f32_array_create(g_project->_->paint_objects->length);
 		for (i32 i = 0; i < g_project->mesh_physics_shapes->length; ++i) {
 			object_t *o                               = g_project->_->paint_objects->buffer[i]->base;
-			g_project->mesh_physics_shapes->buffer[i] = sim_physics_get_shape(o); // -1 = no physics
-			g_project->mesh_physics_masses->buffer[i] = sim_physics_get_mass(o);
+			g_project->mesh_physics_shapes->buffer[i] = util_physics_get_shape(o); // -1 = no physics
+			g_project->mesh_physics_masses->buffer[i] = util_physics_get_mass(o);
 		}
 	}
 
