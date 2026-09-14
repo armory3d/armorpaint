@@ -381,12 +381,11 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	}
 
 	for (i32 i = 0; i < preset->textures->length; ++i) {
-		export_preset_texture_t *t              = preset->textures->buffer[i];
-		string_array_t          *c              = t->channels;
-		char                    *tex_name       = !string_equals(t->name, "") ? string("_%s", t->name) : "";
-		bool                     single_channel = string_equals(c->buffer[0], c->buffer[1]) && string_equals(c->buffer[1], c->buffer[2]) &&
-		                                          string_equals(c->buffer[3], "1.0");
-		char                    *out_path       = string("%s%s%s%s%s", path, PATH_SEP, f, tex_name, ext);
+		export_preset_texture_t *t        = preset->textures->buffer[i];
+		string_array_t          *c        = t->channels;
+		char                    *tex_name = !string_equals(t->name, "") ? string("_%s", t->name) : "";
+		bool  single_channel = string_equals(c->buffer[0], c->buffer[1]) && string_equals(c->buffer[1], c->buffer[2]) && string_equals(c->buffer[3], "1.0");
+		char *out_path       = string("%s%s%s%s%s", path, PATH_SEP, f, tex_name, ext);
 		if (string_equals(c->buffer[0], "base_r") && string_equals(c->buffer[1], "base_g") && string_equals(c->buffer[2], "base_b") &&
 		    string_equals(c->buffer[3], "1.0") && string_equals(t->color_space, "linear")) {
 			export_texture_write_texture(out_path, pixpaint, 1, 0);

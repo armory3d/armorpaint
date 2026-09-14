@@ -273,15 +273,15 @@ void render_path_raytrace_commands(bool use_live_layer) {
 		g_context->rtdirty = 0;
 	}
 
-	camera_object_t *cam                 = scene_camera;
-	transform_t     *ct                  = cam->base->transform;
-	render_path_raytrace_help_mat        = cam->v;
-	render_path_raytrace_help_mat        = mat4_mult_mat(render_path_raytrace_help_mat, cam->p);
-	render_path_raytrace_help_mat        = mat4_inv(render_path_raytrace_help_mat);
-	render_path_raytrace_f32a->buffer[0] = transform_world_x(ct);
-	render_path_raytrace_f32a->buffer[1] = transform_world_y(ct);
-	render_path_raytrace_f32a->buffer[2] = transform_world_z(ct);
-	render_path_raytrace_f32a->buffer[3] = render_path_raytrace_frame;
+	camera_object_t *cam                  = scene_camera;
+	transform_t     *ct                   = cam->base->transform;
+	render_path_raytrace_help_mat         = cam->v;
+	render_path_raytrace_help_mat         = mat4_mult_mat(render_path_raytrace_help_mat, cam->p);
+	render_path_raytrace_help_mat         = mat4_inv(render_path_raytrace_help_mat);
+	render_path_raytrace_f32a->buffer[0]  = transform_world_x(ct);
+	render_path_raytrace_f32a->buffer[1]  = transform_world_y(ct);
+	render_path_raytrace_f32a->buffer[2]  = transform_world_z(ct);
+	render_path_raytrace_f32a->buffer[3]  = render_path_raytrace_frame;
 	render_path_raytrace_f32a->buffer[4]  = render_path_raytrace_help_mat.m00;
 	render_path_raytrace_f32a->buffer[5]  = render_path_raytrace_help_mat.m01;
 	render_path_raytrace_f32a->buffer[6]  = render_path_raytrace_help_mat.m02;
