@@ -27,11 +27,17 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 
 	if (g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
 #ifdef IRON_BGRA
-		if (format == 2) { // RGB1
+		bool bgra_swap = format == 0 || format == 2; // RGBA, RGB1
+		if (bgra_swap) {
 			buffer_bgra_swap(pixels);
 		}
 #endif
 		gpu_texture_t *image = gpu_create_texture_from_bytes(pixels, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
+#ifdef IRON_BGRA
+		if (bgra_swap) {
+			buffer_bgra_swap(pixels);
+		}
+#endif
 		any_map_set(data_cached_textures, file, image);
 		string_array_t *ar   = string_split(file, PATH_SEP);
 		char           *name = ar->buffer[ar->length - 1];
@@ -70,67 +76,104 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 	}
 }
 
-static void export_texture_to_srgb(buffer_t *to, i32 to_channel) {
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		buffer_set_u8(to, i * 4 + to_channel, math_floor(math_pow(buffer_get_u8(to, i * 4 + to_channel) / 255.0, export_texture_gamma) * 255));
+static i32 _export_texture_channel(i32 c, i32 bits) {
+#ifdef IRON_BGRA
+	if (bits == 8) {
+		return c == 0 ? 2 : c == 2 ? 0 : c;
+	}
+#endif
+	return c;
+}
+
+static i32 _export_texture_pixel_count(buffer_t *b, i32 bits) {
+	return b->length / (4 * (bits / 8));
+}
+
+static f32 _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bits) {
+	i32 pos = pixel * 4 + channel;
+	if (bits == 8) {
+		return buffer_get_u8(b, pos) / 255.0;
+	}
+	if (bits == 16) {
+		return buffer_get_f16(b, pos * 2);
+	}
+	return buffer_get_f32(b, pos * 4);
+}
+
+static void _export_texture_set_value(buffer_t *b, i32 pixel, i32 channel, i32 bits, f32 value) {
+	i32 pos = pixel * 4 + channel;
+	if (bits == 8) {
+		value = value < 0.0 ? 0.0 : value > 1.0 ? 1.0 : value;
+		buffer_set_u8(b, pos, (u8)math_floor(value * 255.0 + 0.5));
+	}
+	else if (bits == 16) {
+		buffer_set_u16(b, pos * 2, float_to_half_fast(value));
+	}
+	else {
+		buffer_set_f32(b, pos * 4, value);
 	}
 }
 
-static i32 _export_texture_channel_bgra_swap(i32 c) {
-	return c == 0 ? 2 : c == 2 ? 0 : c;
+static void export_texture_to_srgb(buffer_t *to, i32 to_channel, i32 bits) {
+	i32 count = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		f32 value = _export_texture_get_value(to, i, to_channel, bits);
+		value     = value > 0.0 ? math_pow(value, export_texture_gamma) : 0.0;
+		if (bits == 8) {
+			buffer_set_u8(to, i * 4 + to_channel, math_floor(value * 255));
+		}
+		else {
+			_export_texture_set_value(to, i, to_channel, bits, value);
+		}
+	}
 }
 
-static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, bool linear) {
-#ifdef IRON_BGRA
-	from_channel = _export_texture_channel_bgra_swap(from_channel);
-    to_channel = _export_texture_channel_bgra_swap(to_channel);
-#endif
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		buffer_set_u8(to, i * 4 + to_channel, buffer_get_u8(from, i * 4 + from_channel));
+static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
+	from_channel = _export_texture_channel(from_channel, bits);
+	to_channel   = _export_texture_channel(to_channel, bits);
+	i32 count    = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		_export_texture_set_value(to, i, to_channel, bits, _export_texture_get_value(from, i, from_channel, bits));
 	}
 	if (!linear) {
-		export_texture_to_srgb(to, to_channel);
+		export_texture_to_srgb(to, to_channel, bits);
 	}
 }
 
-static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, bool linear) {
-#ifdef IRON_BGRA
-	from_channel = _export_texture_channel_bgra_swap(from_channel);
-    to_channel = _export_texture_channel_bgra_swap(to_channel);
-#endif
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		buffer_set_u8(to, i * 4 + to_channel, 255 - buffer_get_u8(from, i * 4 + from_channel));
+static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
+	from_channel = _export_texture_channel(from_channel, bits);
+	to_channel   = _export_texture_channel(to_channel, bits);
+	i32 count    = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		_export_texture_set_value(to, i, to_channel, bits, 1.0 - _export_texture_get_value(from, i, from_channel, bits));
 	}
 	if (!linear) {
-		export_texture_to_srgb(to, to_channel);
+		export_texture_to_srgb(to, to_channel, bits);
 	}
 }
 
-static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 step, i32 mask, bool linear) {
-#ifdef IRON_BGRA
-	from_channel = _export_texture_channel_bgra_swap(from_channel);
-    to_channel = _export_texture_channel_bgra_swap(to_channel);
-#endif
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		buffer_set_u8(to, i * 4 + to_channel, buffer_get_u8(from, i * 4 + from_channel) % step == mask ? 255 : 0);
+static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 step, i32 mask, i32 bits, bool linear) {
+	from_channel = _export_texture_channel(from_channel, bits);
+	to_channel   = _export_texture_channel(to_channel, bits);
+	i32 count    = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		i32 id = math_floor(_export_texture_get_value(from, i, from_channel, bits) * 255.0 + 0.5);
+		_export_texture_set_value(to, i, to_channel, bits, id % step == mask ? 1.0 : 0.0);
 	}
 	if (!linear) {
-		export_texture_to_srgb(to, to_channel);
+		export_texture_to_srgb(to, to_channel, bits);
 	}
 }
 
-static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buffer_t *from_pack, i32 albedo_channel, buffer_t *to, i32 to_channel, bool linear,
-                                                     bool is_specular) {
-#ifdef IRON_BGRA
-	albedo_channel    = _export_texture_channel_bgra_swap(albedo_channel);
-	to_channel        = _export_texture_channel_bgra_swap(to_channel);
-	i32 metal_channel = _export_texture_channel_bgra_swap(2);
-#else
-	i32 metal_channel = 2;
-#endif
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		f32 albedo = buffer_get_u8(from_albedo, i * 4 + albedo_channel) / 255.0;
-		f32 metal  = buffer_get_u8(from_pack, i * 4 + metal_channel) / 255.0;
+static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buffer_t *from_pack, i32 albedo_channel, buffer_t *to, i32 to_channel, i32 bits,
+                                                     bool linear, bool is_specular) {
+	albedo_channel    = _export_texture_channel(albedo_channel, bits);
+	to_channel        = _export_texture_channel(to_channel, bits);
+	i32 metal_channel = _export_texture_channel(2, bits);
+	i32 count         = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		f32 albedo = _export_texture_get_value(from_albedo, i, albedo_channel, bits);
+		f32 metal  = _export_texture_get_value(from_pack, i, metal_channel, bits);
 		f32 value;
 		if (is_specular) {
 			value = 0.04 * (1.0 - metal) + albedo * metal;
@@ -138,22 +181,21 @@ static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buff
 		else {
 			value = albedo * (1.0 - metal);
 		}
-		buffer_set_u8(to, i * 4 + to_channel, (u8)math_floor(value * 255.0 + 0.5));
+		_export_texture_set_value(to, i, to_channel, bits, value);
 	}
 	if (!linear) {
-		export_texture_to_srgb(to, to_channel);
+		export_texture_to_srgb(to, to_channel, bits);
 	}
 }
 
-static void export_texture_set_channel(i32 value, buffer_t *to, i32 to_channel, bool linear) {
-#ifdef IRON_BGRA
-    to_channel = _export_texture_channel_bgra_swap(to_channel);
-#endif
-	for (i32 i = 0; i < math_floor((to->length) / 4.0); ++i) {
-		buffer_set_u8(to, i * 4 + to_channel, value);
+static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
+	to_channel = _export_texture_channel(to_channel, bits);
+	i32 count  = _export_texture_pixel_count(to, bits);
+	for (i32 i = 0; i < count; ++i) {
+		_export_texture_set_value(to, i, to_channel, bits, value);
 	}
 	if (!linear) {
-		export_texture_to_srgb(to, to_channel);
+		export_texture_to_srgb(to, to_channel, bits);
 	}
 }
 
@@ -169,8 +211,8 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string_copy(tr("untitled"));
 	}
 	texture_ldr_format_t format_type = g_context->format_type;
-	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
-	char                *ext         = bits == 16 ? ".exr" : format_type == TEXTURE_LDR_FORMAT_PNG ? ".png" : ".jpg";
+	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : base_bits == TEXTURE_BITS_BITS16 ? 16 : 32;
+	char                *ext         = bits > 8 ? ".exr" : format_type == TEXTURE_LDR_FORMAT_PNG ? ".png" : ".jpg";
 	if (ends_with(f, ext)) {
 		f = string_copy(substring(f, 0, string_length(f) - 4));
 	}
@@ -342,7 +384,8 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		export_preset_texture_t *t              = preset->textures->buffer[i];
 		string_array_t          *c              = t->channels;
 		char                    *tex_name       = !string_equals(t->name, "") ? string("_%s", t->name) : "";
-		bool                     single_channel = c->buffer[0] == c->buffer[1] && c->buffer[1] == c->buffer[2] && string_equals(c->buffer[3], "1.0");
+		bool                     single_channel = string_equals(c->buffer[0], c->buffer[1]) && string_equals(c->buffer[1], c->buffer[2]) &&
+		                                          string_equals(c->buffer[3], "1.0");
 		char                    *out_path       = string("%s%s%s%s%s", path, PATH_SEP, f, tex_name, ext);
 		if (string_equals(c->buffer[0], "base_r") && string_equals(c->buffer[1], "base_g") && string_equals(c->buffer[2], "base_b") &&
 		    string_equals(c->buffer[3], "1.0") && string_equals(t->color_space, "linear")) {
@@ -378,73 +421,73 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			for (i32 i = 0; i < 4; ++i) {
 				char *c = t->channels->buffer[i];
 				if (string_equals(c, "base_r")) {
-					export_texture_copy_channel(pixpaint, 0, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint, 0, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "base_g")) {
-					export_texture_copy_channel(pixpaint, 1, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint, 1, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "base_b")) {
-					export_texture_copy_channel(pixpaint, 2, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint, 2, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "height")) {
-					export_texture_copy_channel(pixpaint_pack, 3, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_pack, 3, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "metal")) {
-					export_texture_copy_channel(pixpaint_pack, 2, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_pack, 2, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "nor_r")) {
-					export_texture_copy_channel(pixpaint_nor, 0, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_nor, 0, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "nor_g")) {
-					export_texture_copy_channel(pixpaint_nor, 1, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_nor, 1, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "nor_g_directx")) {
-					export_texture_copy_channel_inv(pixpaint_nor, 1, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel_inv(pixpaint_nor, 1, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "nor_b")) {
-					export_texture_copy_channel(pixpaint_nor, 2, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_nor, 2, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "occ")) {
-					export_texture_copy_channel(pixpaint_pack, 0, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_pack, 0, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "opac")) {
-					export_texture_copy_channel(pixpaint, 3, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint, 3, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "rough")) {
-					export_texture_copy_channel(pixpaint_pack, 1, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel(pixpaint_pack, 1, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "smooth")) {
-					export_texture_copy_channel_inv(pixpaint_pack, 1, pix, i, string_equals(t->color_space, "linear"));
+					export_texture_copy_channel_inv(pixpaint_pack, 1, pix, i, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "emis")) {
-					export_texture_extract_channel(pixpaint_nor, 3, pix, i, 3, 1, string_equals(t->color_space, "linear"));
+					export_texture_extract_channel(pixpaint_nor, 3, pix, i, 3, 1, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "subs")) {
-					export_texture_extract_channel(pixpaint_nor, 3, pix, i, 3, 2, string_equals(t->color_space, "linear"));
+					export_texture_extract_channel(pixpaint_nor, 3, pix, i, 3, 2, bits, string_equals(t->color_space, "linear"));
 				}
 				else if (string_equals(c, "diff_r")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 0, pix, i, string_equals(t->color_space, "linear"), false);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 0, pix, i, bits, string_equals(t->color_space, "linear"), false);
 				}
 				else if (string_equals(c, "diff_g")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 1, pix, i, string_equals(t->color_space, "linear"), false);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 1, pix, i, bits, string_equals(t->color_space, "linear"), false);
 				}
 				else if (string_equals(c, "diff_b")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 2, pix, i, string_equals(t->color_space, "linear"), false);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 2, pix, i, bits, string_equals(t->color_space, "linear"), false);
 				}
 				else if (string_equals(c, "spec_r")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 0, pix, i, string_equals(t->color_space, "linear"), true);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 0, pix, i, bits, string_equals(t->color_space, "linear"), true);
 				}
 				else if (string_equals(c, "spec_g")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 1, pix, i, string_equals(t->color_space, "linear"), true);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 1, pix, i, bits, string_equals(t->color_space, "linear"), true);
 				}
 				else if (string_equals(c, "spec_b")) {
-					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 2, pix, i, string_equals(t->color_space, "linear"), true);
+					export_texture_compute_diff_spec_channel(pixpaint, pixpaint_pack, 2, pix, i, bits, string_equals(t->color_space, "linear"), true);
 				}
 				else if (string_equals(c, "0.0")) {
-					export_texture_set_channel(0, pix, i, true);
+					export_texture_set_channel(0.0, pix, i, bits, true);
 				}
 				else if (string_equals(c, "1.0")) {
-					export_texture_set_channel(255, pix, i, true);
+					export_texture_set_channel(1.0, pix, i, bits, true);
 				}
 			}
 			export_texture_write_texture(out_path, pix, 3, 0);
