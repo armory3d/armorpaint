@@ -463,6 +463,31 @@ void tab_meshes_merge_geometry_next_frame(void *_) {
 	util_mesh_merge_geometry();
 }
 
+static mesh_object_t *tab_meshes_slot_below(mesh_object_t *o) {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	for (i32 i = array_index_of(objects, o) + 1; i > 0 && i < objects->length; ++i) {
+		if (!tab_meshes_slot_hidden(objects->buffer[i])) {
+			return objects->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+void tab_meshes_merge_down_next_frame(mesh_object_t *o) {
+	mesh_object_t *below = tab_meshes_slot_below(o);
+	if (below == NULL) {
+		return;
+	}
+	util_mesh_merge_geometry_down(o, below);
+
+	char          *uid_key = i32_to_string(o->base->uid);
+	gpu_texture_t *preview = tab_meshes_preview_map != NULL ? any_map_get(tab_meshes_preview_map, uid_key) : NULL;
+	if (preview != NULL) {
+		gpu_delete_texture(preview);
+		map_delete(tab_meshes_preview_map, uid_key);
+	}
+}
+
 static bool tab_meshes_float_input(f32 *value, void *id, char *label) {
 	char *text = f32_to_string2(*value);
 	ui_set_next_id((ui_id_t)id);
@@ -548,7 +573,11 @@ void tab_meshes_draw_context_menu() {
 		sim_duplicate();
 		return;
 	}
-	if (util_mesh_data_is_shared(o->data) && ui_menu_button(tr("Make Unique"), "", ICON_DUPLICATE)) {
+	if (tab_meshes_slot_below(o) != NULL && ui_menu_button(tr("Merge Down"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(tab_meshes_merge_down_next_frame, o);
+		return;
+	}
+	if (util_mesh_data_is_shared(o->data) && ui_menu_button(tr("Make Unique"), "", ICON_NONE)) {
 		util_mesh_unshare_data(o);
 		util_mesh_merge(NULL);
 		util_uv_uvmap_cached       = false;
