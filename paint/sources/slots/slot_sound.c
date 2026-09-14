@@ -1,5 +1,5 @@
 
-#include "global.h"
+#include "../global.h"
 
 slot_sound_t *slot_sound_create(char *name, sound_t *sound, char *file) {
 	slot_sound_t *raw = ALLOC_INIT(slot_sound_t, {0});

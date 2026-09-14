@@ -1,5 +1,5 @@
 
-#include "global.h"
+#include "../global.h"
 
 bool slot_layer_defer_alloc = false;
 
