@@ -552,6 +552,7 @@ X1(context_select_tool, "v(i i)", v, i)
 X3(gpu_create_render_target, "p:gpu_texture_t(i width,i height,i format)", p, i, i, i)
 X5(viewport_capture_screenshot_to, "v(p:gpu_texture_t target,f x,f y,f w,f h)", v, p, f, f, f, f)
 X1(viewport_save_texture, "v(p:gpu_texture_t screenshot)", v, p)
+X2(viewport_save_texture_to_file, "v(p:gpu_texture_t screenshot,p:char path)", v, p, p)
 X1(project_reskin_mesh, "b(i frame)", b, i)
 X0(iron_delay_idle_sleep, "v()", v)
 

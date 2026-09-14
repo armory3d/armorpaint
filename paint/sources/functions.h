@@ -411,6 +411,7 @@ void                      viewport_update_camera_type(i32 camera_type);
 void                      viewport_capture_screenshot();
 void                      viewport_capture_screenshot_to(gpu_texture_t *target, float x, float y, float w, float h);
 void                      viewport_save_texture(gpu_texture_t *screenshot);
+void                      viewport_save_texture_to_file(gpu_texture_t *screenshot, char *path);
 void                      viewport_capture_video_begin();
 void                      viewport_capture_video_end();
 void                      tab_fonts_draw(i32 *htab);
