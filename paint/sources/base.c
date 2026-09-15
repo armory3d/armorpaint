@@ -973,8 +973,7 @@ void base_run_in_player() {
 	}
 	export_arm_run_project();
 	char *bin = iron_get_arg(0);
-	iron_sys_command(string("%s %s --player", bin, g_project->_->filepath));
-	// iron_exec_async()
+	iron_sys_command(string("\"%s\" \"%s\" --player", bin, g_project->_->filepath));
 }
 
 uint32_t base_darker(uint32_t x, uint32_t y) {
