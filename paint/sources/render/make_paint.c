@@ -203,8 +203,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	char *tex_nor_link  = accum ? "_texpaint_nor_ref" : "_texpaint_nor_undo";
 	char *tex_pack_link = accum ? "_texpaint_pack_ref" : "_texpaint_pack_undo";
 
-	char *tuv = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
-	if (is_atlas) {
+	char *tuv  = g_context->layer->uv_map == 1 ? "input.tex1" : "input.tex";
+	bool  udim = !is_atlas && util_mesh_udim_layer(g_context->layer);
+	if (is_atlas || udim) {
 		node_shader_add_constant(kong, "atlas_transform: float3", "_atlas_transform");
 		node_shader_write_vert(kong, string_tmp("var atlas_uv: float2 = %s * constants.atlas_transform.z + constants.atlas_transform.xy;", tuv));
 		tuv = "atlas_uv";
@@ -303,7 +304,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 
 	if (g_context->colorid_picked || face_fill || uv_island_fill) {
 		node_shader_add_out(kong, "tex_coord_pick: float2");
-		node_shader_write_vert(kong, "output.tex_coord_pick = input.tex;");
+		node_shader_write_vert(kong, udim ? "output.tex_coord_pick = atlas_uv;" : "output.tex_coord_pick = input.tex;");
 		if (g_context->colorid_picked) {
 			make_discard_color_id(kong, "tex_coord_pick");
 		}

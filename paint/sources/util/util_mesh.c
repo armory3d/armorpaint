@@ -145,6 +145,78 @@ static i32          util_mesh_atlas_stride_merged = 1;
 static mesh_data_t *util_mesh_atlas_slot_data[ATLAS_MAX_SLOTS];
 static i32          util_mesh_atlas_slot_count  = 0;
 static bool         util_mesh_atlas_slots_spent = false;
+static i32          util_mesh_udim_tiles[ATLAS_MAX_SLOTS]; // Sorted tile ids, one atlas slot per tile
+static i32          util_mesh_udim_tile_count  = 0;
+static bool         util_mesh_udim_tiles_spent = false;
+
+// Tile id from the ".1001" name suffix given by udim import, -1 if none
+i32 util_mesh_udim_tile(char *name) {
+	if (name == NULL) {
+		return -1;
+	}
+	i32 len = string_length(name);
+	if (len < 5 || name[len - 5] != '.' || name[len - 4] != '1') {
+		return -1;
+	}
+	i32 id = 0;
+	for (i32 i = len - 4; i < len; ++i) {
+		if (name[i] < '0' || name[i] > '9') {
+			return -1;
+		}
+		id = id * 10 + (name[i] - '0');
+	}
+	return id > 1000 ? id : -1;
+}
+
+static void _util_mesh_udim_build_tiles() {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	util_mesh_udim_tile_count            = 0;
+	util_mesh_udim_tiles_spent           = false;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		i32 id = util_mesh_udim_tile(paint_objects->buffer[i]->base->name);
+		if (id < 0) {
+			continue;
+		}
+		i32 pos = 0;
+		while (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] < id) {
+			pos++;
+		}
+		if (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] == id) {
+			continue;
+		}
+		if (util_mesh_udim_tile_count == ATLAS_MAX_SLOTS) {
+			util_mesh_udim_tiles_spent = true;
+			continue;
+		}
+		for (i32 j = util_mesh_udim_tile_count; j > pos; --j) {
+			util_mesh_udim_tiles[j] = util_mesh_udim_tiles[j - 1];
+		}
+		util_mesh_udim_tiles[pos] = id;
+		util_mesh_udim_tile_count++;
+	}
+}
+
+// Shared layers of a mesh split by udim tile keep every tile in its own atlas slot
+bool util_mesh_udim_active() {
+	return util_mesh_udim_tile_count > 1;
+}
+
+i32 util_mesh_udim_slot(i32 tile) {
+	for (i32 i = 0; i < util_mesh_udim_tile_count; ++i) {
+		if (util_mesh_udim_tiles[i] == tile) {
+			return i;
+		}
+	}
+	return util_mesh_udim_tiles_spent ? ATLAS_MAX_SLOTS - 1 : 0;
+}
+
+bool util_mesh_udim_layer(slot_layer_t *l) {
+	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
+		return false;
+	}
+	i32 mask = slot_layer_get_object_mask(l);
+	return mask == 0 || mask > g_project->_->paint_objects->length;
+}
 
 static i32 _util_mesh_atlas_slot_for_data(mesh_data_t *data) {
 	for (i32 i = 0; i < util_mesh_atlas_slot_count; ++i) {
@@ -155,10 +227,28 @@ static i32 _util_mesh_atlas_slot_for_data(mesh_data_t *data) {
 	return util_mesh_atlas_slots_spent ? ATLAS_MAX_SLOTS - 1 : 0;
 }
 
+static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
+	if (util_mesh_udim_active()) {
+		return util_mesh_udim_slot(util_mesh_udim_tile(o->base->name));
+	}
+	return _util_mesh_atlas_slot_for_data(o->data);
+}
+
 static void _util_mesh_atlas_build_slots() {
 	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
 	i32                    unique        = 0;
 	util_mesh_atlas_slot_count           = 0;
+	util_mesh_atlas_slots_spent          = false;
+
+	_util_mesh_udim_build_tiles();
+	if (util_mesh_udim_active()) {
+		util_mesh_atlas_stride_merged = _util_mesh_atlas_stride_for(util_mesh_udim_tile_count);
+		return;
+	}
+	if (!config_is_raytrace_multi()) {
+		util_mesh_atlas_stride_merged = 1;
+		return;
+	}
 
 	for (i32 i = 0; i < paint_objects->length; ++i) {
 		mesh_data_t *data = paint_objects->buffer[i]->data;
@@ -185,14 +275,12 @@ i32 util_mesh_atlas_stride() {
 
 i32 util_mesh_atlas_slot(object_t *object) {
 	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
-	mesh_data_t           *data          = NULL;
 	for (i32 i = 0; i < paint_objects->length; ++i) {
 		if (paint_objects->buffer[i]->base == object) {
-			data = paint_objects->buffer[i]->data;
-			break;
+			return _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
 		}
 	}
-	return _util_mesh_atlas_slot_for_data(data);
+	return -1; // Merged object or 2d plane, uvs already in atlas space
 }
 
 void util_mesh_delete_data_uncache(void *data) {
@@ -251,16 +339,8 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	i32          coli   = vatex1 != NULL ? 4 : 3;
 	u32_array_t *ia     = u32_array_create(ilen);
 
-	i32 atlas_stride = 1;
-	if (config_is_raytrace_multi()) {
-		_util_mesh_atlas_build_slots();
-		atlas_stride = util_mesh_atlas_stride_merged;
-	}
-	else {
-		util_mesh_atlas_stride_merged = 1;
-		util_mesh_atlas_slot_count    = 0;
-		util_mesh_atlas_slots_spent   = false;
-	}
+	_util_mesh_atlas_build_slots();
+	i32 atlas_stride = util_mesh_atlas_stride_merged;
 
 	i32 voff = 0;
 	i32 ioff = 0;
@@ -293,7 +373,7 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 			va1->buffer[j + voff * 2] = vas->buffer[1]->values->buffer[j];
 		}
 		// Tex
-		i32 slot      = _util_mesh_atlas_slot_for_data(paint_objects->buffer[i]->data);
+		i32 slot      = _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
 		f32 tile_step = 32767.0f / atlas_stride;
 		f32 tile_x    = atlas_stride > 1 ? (slot % atlas_stride) * tile_step : 0.0f;
 		f32 tile_y    = atlas_stride > 1 ? (slot / atlas_stride) * tile_step : 0.0f;
