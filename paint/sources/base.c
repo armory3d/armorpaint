@@ -150,6 +150,11 @@ gpu_texture_t *base_get_drag_image() {
 	if (base_drag_font != NULL) {
 		return base_drag_font->image;
 	}
+	if (base_drag_sound != NULL) {
+		gpu_texture_t *icons = resource_get("icons.k");
+		base_drag_rect       = resource_tile50(icons, ICON_MUSIC);
+		return icons;
+	}
 	if (base_drag_layer != NULL && slot_layer_is_group(base_drag_layer)) {
 		gpu_texture_t *icons         = resource_get("icons.k");
 		rect_t        *folder_closed = resource_tile50(icons, ICON_FOLDER_FULL);
@@ -205,7 +210,7 @@ void base_update(void *_) {
 	}
 
 	bool has_drag = base_drag_asset != NULL || base_drag_material != NULL || base_drag_layer != NULL || base_drag_file != NULL || base_drag_swatch != NULL ||
-	                base_drag_brush != NULL || base_drag_font != NULL || base_drag_mesh != NULL;
+	                base_drag_brush != NULL || base_drag_font != NULL || base_drag_sound != NULL || base_drag_mesh != NULL;
 
 	if (g_config->touch_ui) {
 		// Touch and hold to activate dragging
@@ -233,6 +238,7 @@ void base_update(void *_) {
 			base_drag_mesh      = NULL;
 			base_drag_brush     = NULL;
 			base_drag_font      = NULL;
+			base_drag_sound     = NULL;
 		}
 		// Disable touch scrolling while dragging is active
 		ui_touch_control = !base_is_dragging;
@@ -329,6 +335,12 @@ void base_update(void *_) {
 				tab_fonts_accept_font_drop(base_drag_font);
 			}
 			base_drag_font = NULL;
+		}
+		else if (base_drag_sound != NULL) {
+			if (context_in_sounds()) {
+				tab_sounds_accept_sound_drop(base_drag_sound);
+			}
+			base_drag_sound = NULL;
 		}
 
 		iron_mouse_set_cursor(IRON_CURSOR_ARROW);

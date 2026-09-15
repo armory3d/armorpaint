@@ -393,6 +393,11 @@ bool context_in_fonts() {
 	return string_equals(tab, tr("Fonts"));
 }
 
+bool context_in_sounds() {
+	char *tab = ui_hovered_tab_name();
+	return string_equals(tab, tr("Sounds"));
+}
+
 bool context_in_textures() {
 	char *tab = ui_hovered_tab_name();
 	return string_equals(tab, tr("Textures"));
