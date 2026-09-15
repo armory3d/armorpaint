@@ -1242,6 +1242,21 @@ static void tab_meshes_scroll_to_slot(i32 index) {
 	}
 }
 
+static mesh_object_t *tab_meshes_reveal_pending = NULL;
+
+void tab_meshes_reveal_slot(mesh_object_t *o) {
+	object_t *p = o->base->parent;
+	for (i32 i = 0; p != NULL && p != _scene_root && i < 4; ++i) {
+		mesh_object_t *po = p->ext_type != NULL && string_equals(p->ext_type, "mesh_object_t") ? p->ext : NULL;
+		if (po != NULL) {
+			tab_meshes_set_collapsed(po, false);
+		}
+		p = p->parent;
+	}
+	tab_meshes_reveal_pending                         = o;
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+}
+
 void tab_meshes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Meshes"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
@@ -1307,6 +1322,15 @@ void tab_meshes_draw(i32 *htab) {
 				continue;
 			}
 			tab_meshes_draw_mesh_slot(o, i);
+		}
+
+		if (tab_meshes_reveal_pending != NULL) {
+			i32 i = array_index_of(g_project->_->paint_objects, tab_meshes_reveal_pending);
+			if (i >= 0 && !tab_meshes_slot_hidden(tab_meshes_reveal_pending)) {
+				tab_meshes_scroll_to_slot(i);
+				ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+			}
+			tab_meshes_reveal_pending = NULL;
 		}
 
 		if (in_window && !g_ui->is_typing && g_ui->is_key_pressed && (g_ui->key_code == KEY_CODE_UP || g_ui->key_code == KEY_CODE_DOWN)) {
