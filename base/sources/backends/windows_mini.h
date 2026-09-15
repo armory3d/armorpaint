@@ -40,6 +40,7 @@ typedef CONST void *LPCVOID;
 #define CREATE_ALWAYS 2
 #define OPEN_EXISTING 3
 
+#define FILE_ATTRIBUTE_READONLY  0x00000001
 #define FILE_ATTRIBUTE_HIDDEN    0x00000002
 #define FILE_ATTRIBUTE_DIRECTORY 0x00000010
 #define FILE_ATTRIBUTE_NORMAL    0x00000080
@@ -81,6 +82,9 @@ WINBASEAPI HANDLE WINAPI CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, 
                                      DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
 WINBASEAPI DWORD WINAPI  GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
 WINBASEAPI DWORD WINAPI  GetFileAttributesA(LPCSTR lpFileName);
+WINBASEAPI DWORD WINAPI  GetFileAttributesW(LPCWSTR lpFileName);
+WINBASEAPI BOOL WINAPI   SetFileAttributesW(LPCWSTR lpFileName, DWORD dwFileAttributes);
+WINBASEAPI BOOL WINAPI   DeleteFileW(LPCWSTR lpFileName);
 WINBASEAPI BOOL WINAPI   ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
 WINBASEAPI DWORD WINAPI  SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod);
 WINBASEAPI BOOL WINAPI   CloseHandle(HANDLE hObject);
