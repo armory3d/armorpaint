@@ -30,7 +30,8 @@ static f32_array_t *pos_first;
 static f32_array_t *uv_first;
 static f32_array_t *nor_first;
 void                console_info(char *s);
-static bool         check_uvmap = true;
+static bool         check_uvmap         = true;
+bool                obj_parse_y_to_z_up = true;
 
 static int read_int() {
 	int bi = 0;
@@ -501,9 +502,10 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 	part->index_count  = pos_indices.length;
 	int inda_length    = pos_indices.length;
 	for (int i = 0; i < pos_indices.length; ++i) {
-		part->posa->buffer[i * 4]     = (int)(pos_temp.buffer[pos_indices.buffer[i] * 3] * inv);
-		part->posa->buffer[i * 4 + 1] = (int)(-pos_temp.buffer[pos_indices.buffer[i] * 3 + 2] * inv);
-		part->posa->buffer[i * 4 + 2] = (int)(pos_temp.buffer[pos_indices.buffer[i] * 3 + 1] * inv);
+		float *p                      = &pos_temp.buffer[pos_indices.buffer[i] * 3];
+		part->posa->buffer[i * 4]     = (int)(p[0] * inv);
+		part->posa->buffer[i * 4 + 1] = (int)((obj_parse_y_to_z_up ? -p[2] : p[1]) * inv);
+		part->posa->buffer[i * 4 + 2] = (int)((obj_parse_y_to_z_up ? p[1] : p[2]) * inv);
 		part->inda->buffer[i]         = i;
 	}
 
@@ -513,9 +515,10 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		part->nora->buffer                        = malloc(part->nora->capacity * sizeof(int16_t));
 
 		for (int i = 0; i < pos_indices.length; ++i) {
-			part->nora->buffer[i * 2]     = (int)(nor_temp.buffer[nor_indices.buffer[i] * 3] * 32767);
-			part->nora->buffer[i * 2 + 1] = (int)(-nor_temp.buffer[nor_indices.buffer[i] * 3 + 2] * 32767);
-			part->posa->buffer[i * 4 + 3] = (int)(nor_temp.buffer[nor_indices.buffer[i] * 3 + 1] * 32767);
+			float *n                      = &nor_temp.buffer[nor_indices.buffer[i] * 3];
+			part->nora->buffer[i * 2]     = (int)(n[0] * 32767);
+			part->nora->buffer[i * 2 + 1] = (int)((obj_parse_y_to_z_up ? -n[2] : n[1]) * 32767);
+			part->posa->buffer[i * 4 + 3] = (int)((obj_parse_y_to_z_up ? n[1] : n[2]) * 32767);
 		}
 	}
 	else {
