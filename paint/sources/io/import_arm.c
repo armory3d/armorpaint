@@ -516,7 +516,11 @@ static void import_arm_sculpt_init(void *_) {
 }
 
 void import_arm_run_project(char *path) {
-	buffer_t  *b = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project;
 	bool       import_as_mesh = false;
 #ifdef IRON_WINDOWS
