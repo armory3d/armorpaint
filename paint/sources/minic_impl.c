@@ -386,6 +386,10 @@ void script_append_mesh(char *path) {
 	g_context->ddirty = 2;
 }
 
+extern bool import_mesh_clear_layers;
+extern bool import_mesh_no_reset;
+extern bool import_mesh_append;
+
 void script_append_mesh_obj(char *data) {
 	if (data == NULL || data[0] == '\0') {
 		return;
@@ -393,7 +397,15 @@ void script_append_mesh_obj(char *data) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
-	import_mesh_run_obj(data);
+	import_mesh_clear_layers = false;
+	import_mesh_no_reset     = true;
+	import_mesh_append       = true;
+	g_context->layer_filter  = 0;
+	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
+	obj_parse_y_to_z_up      = false;
+	import_obj_parse(b, false);
+	obj_parse_y_to_z_up = true;
+	free(b);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }
