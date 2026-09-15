@@ -1142,6 +1142,18 @@ void script_fade_to_stage(char *stage) {
 	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
 }
 
+void script_timeline_resume(void) {
+	tab_timeline_resume();
+}
+
+void script_timeline_pause(void) {
+	tab_timeline_pause();
+}
+
+void script_timeline_set_frame(i32 frame) {
+	tab_timeline_set_frame(frame);
+}
+
 typedef struct particle {
 	float frame;
 	float x;

@@ -766,6 +766,9 @@ static void tab_timeline_frame_change_on_next_frame(void *_) {
 }
 
 static void tab_timeline_play_on_next_frame(void *_) {
+	if (tab_timeline_playing)
+		return;
+	tab_timeline_frame_change_on_next_frame(NULL);
 	tab_timeline_save_current(tab_timeline_selected_frame);
 	tab_timeline_playing         = true;
 	tab_timeline_play_time       = sys_time() - (f64)tab_timeline_selected_frame / tab_timeline_frame_rate;
@@ -1421,6 +1424,32 @@ void tab_timeline_play() {
 	tab_timeline_last_frame      = -1; // Ensure frame 0 scripts run
 	tab_timeline_loop_frames     = 0;
 	tab_timeline_last_skin_frame = -1;
+}
+
+void tab_timeline_resume() {
+	if (!tab_timeline_playing) {
+		sys_notify_on_next_frame(&tab_timeline_play_on_next_frame, NULL);
+	}
+}
+
+void tab_timeline_pause() {
+	tab_timeline_playing = false;
+	tab_timeline_set_frame(tab_timeline_selected_frame);
+}
+
+void tab_timeline_set_frame(i32 frame) {
+	frame                       = (i32)math_min(math_max(frame, 0), tab_timeline_max_frames - 1);
+	tab_timeline_selected_frame = frame;
+	tab_timeline_play_time      = sys_time() - (f64)frame / tab_timeline_frame_rate;
+	if (tab_timeline_playing || frame == tab_timeline_last_frame) {
+		return;
+	}
+	if (tab_timeline_pending_to < 0) {
+		tab_timeline_pending_from = tab_timeline_last_frame;
+		sys_notify_on_next_frame(&tab_timeline_frame_change_on_next_frame, NULL);
+	}
+	tab_timeline_pending_to = frame;
+	tab_timeline_last_frame = frame;
 }
 
 void tab_timeline_update() {
