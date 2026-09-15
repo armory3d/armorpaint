@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
-. `dirname "$0"`/tools/platform.sh
-MAKE="`dirname "$0"`/tools/bin/$IRON_PLATFORM/amake"
-exec $MAKE `dirname "$0"`/tools/make.js "$@"
+. "$(dirname "$0")/tools/platform.sh"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+MAKE="$SCRIPT_DIR/tools/bin/$IRON_PLATFORM/amake"
+
+if [ "$(pwd)" = "$SCRIPT_DIR" ] \
+   && [ -f "$SCRIPT_DIR/../paint/project.js" ] \
+   && [[ " $* " == *" --run "* ]] \
+   && [[ " $* " != *" --js "* ]]; then
+	cd "$SCRIPT_DIR/../paint" || exit 1
+fi
+
+exec "$MAKE" "$SCRIPT_DIR/tools/make.js" "$@"
