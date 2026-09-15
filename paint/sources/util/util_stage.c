@@ -59,6 +59,12 @@ void tab_stages_apply_visible(mesh_object_t *o) {
 	if (stage != NULL) {
 		tab_stages_set_hidden(stage, o->base->name, !o->base->visible);
 	}
+	bool single_trace = g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && !config_is_raytrace_multi();
+	if (tab_meshes_get_linked_override(o) >= 0 && !single_trace) {
+		render_path_raytrace_ready = false;
+		g_context->ddirty          = 2;
+		return;
+	}
 	util_mesh_visibility_changed();
 }
 
