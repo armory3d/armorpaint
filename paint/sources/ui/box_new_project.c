@@ -3,9 +3,7 @@
 
 void project_fetch_default_meshes() {
 	if (project_default_mesh_list == NULL) {
-		gc_unroot(project_default_mesh_list);
 		project_default_mesh_list = file_read_directory(string("%s%smeshes", path_data(), PATH_SEP));
-		gc_root(project_default_mesh_list);
 		for (i32 i = 0; i < project_default_mesh_list->length; ++i) {
 			char *s                              = project_default_mesh_list->buffer[i];
 			project_default_mesh_list->buffer[i] = substring(project_default_mesh_list->buffer[i], 0, string_length(s) - 4); // Trim .arm
@@ -14,15 +12,20 @@ void project_fetch_default_meshes() {
 		any_array_push(project_default_mesh_list, "plane_2048");
 		any_array_push(project_default_mesh_list, "sphere");
 		any_array_push(project_default_mesh_list, "sphere_2048");
+#ifdef WITH_EMBED
+		any_array_push(project_default_mesh_list, "cube_bevel");
+#endif
+
+		if (g_context->project_type == -1) {
+			g_context->project_type = string_array_index_of(project_default_mesh_list, "cube_bevel");
+		}
 	}
 }
 
 void project_new_box_draw() {
 	project_fetch_default_meshes();
 
-	ui_handle_t *h_project_type = ui_handle(__ID__);
-	h_project_type->i           = g_context->project_type;
-	g_context->project_type     = ui_combo(h_project_type, project_default_mesh_list, tr("Template"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&g_context->project_type, project_default_mesh_list, tr("Template"), true, UI_ALIGN_LEFT, true);
 	ui_end_element();
 	ui_row2();
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {

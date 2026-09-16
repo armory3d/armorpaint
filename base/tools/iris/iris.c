@@ -685,7 +685,7 @@ static int fit_refs_for_attention(int num_heads, int out_h, int out_w, int *ref_
 		if (w < 16)
 			w = 16;
 
-		/* No progress — already at minimum. */
+		/* No progress. */
 		if (h == ref_dims[best * 2] && w == ref_dims[best * 2 + 1])
 			break;
 
@@ -743,7 +743,7 @@ iris_image *iris_img2img(iris_ctx *ctx, const char *prompt, const iris_image *in
 	p.width  = (p.width / 16) * 16;
 	p.height = (p.height / 16) * 16;
 
-	/* Check attention memory budget — shrink reference if needed. */
+	/* Check attention memory budget */
 	int ref_w = p.width, ref_h = p.height;
 	{
 		int ref_dims[2] = {p.height, p.width};
@@ -1087,7 +1087,7 @@ iris_image *iris_img2img_strength(iris_ctx *ctx, const char *prompt, const iris_
  *      at every denoising step, so it reconstructs the original and blends in
  *      latent space (no pixel-space seams).
  *   2. The masked region of the reference fed to attention is neutralized
- *      (filled with mid-gray) so the model does not "see" — and redraw — the
+ *      (filled with mid-gray) so the model does not "see" and redraw the
  *      content being removed.
  * Output dimensions always match the (16-aligned) input; any width/height
  * override in params is ignored since the keep region must align with x0. */
@@ -1119,7 +1119,7 @@ iris_image *iris_inpaint(iris_ctx *ctx, const char *prompt, const iris_image *in
 	if (p.height < 64)
 		p.height = 64;
 
-	/* Check attention memory budget — shrink if needed (ref == target grid). */
+	/* Check attention memory budget */
 	int ref_w = p.width, ref_h = p.height;
 	{
 		int ref_dims[2] = {p.height, p.width};

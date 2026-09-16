@@ -10,22 +10,22 @@ static mesh_object_t *render_envsphere_metallic = NULL;
 static mesh_object_t *render_envsphere_diffuse  = NULL;
 
 static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f32 metallic) {
-	material_t            *mat   = GC_ALLOC_INIT(material_t, {.name = name, .canvas = NULL});
-	shader_context_t      *props = GC_ALLOC_INIT(shader_context_t, {
-	                                                                   .name            = "overlay",
-	                                                                   .depth_write     = false,
-	                                                                   .compare_mode    = "always",
-	                                                                   .cull_mode       = "clockwise",
-	                                                                   .vertex_elements = any_array_create_from_raw(
-                                                                      (void *[]){
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                          GC_ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                      },
-                                                                      3),
-	                                                                   .color_attachments = any_array_create_from_raw((void *[]){"RGBA64"}, 1),
-	                                                                   .depth_attachment  = "NONE",
-                                                              });
+	material_t            *mat   = ALLOC_INIT(material_t, {.name = name, .canvas = NULL});
+	shader_context_t      *props = ALLOC_INIT(shader_context_t, {
+	                                                                .name            = "overlay",
+	                                                                .depth_write     = false,
+	                                                                .compare_mode    = "always",
+	                                                                .cull_mode       = "clockwise",
+	                                                                .vertex_elements = any_array_create_from_raw(
+                                                                   (void *[]){
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+                                                                   },
+                                                                   3),
+	                                                                .color_attachments = any_array_create_from_raw((void *[]){"RGBA64"}, 1),
+	                                                                .depth_attachment  = "NONE",
+                                                           });
 	node_shader_context_t *con   = node_shader_context_create(mat, props);
 	node_shader_t         *kong  = node_shader_context_make_kong(con);
 
@@ -59,8 +59,8 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	node_shader_add_function(kong, str_env_brdf_approx);
 
 	node_shader_write_frag(kong, "var basecol: float3 = float3(0.8, 0.8, 0.8);");
-	node_shader_write_frag(kong, string("var roughness: float = %s;", f32_to_string_with_zeros(roughness)));
-	node_shader_write_frag(kong, string("var metallic: float = %s;", f32_to_string_with_zeros(metallic)));
+	node_shader_write_frag(kong, string_tmp("var roughness: float = %s;", f32_to_string_with_zeros(roughness)));
+	node_shader_write_frag(kong, string_tmp("var metallic: float = %s;", f32_to_string_with_zeros(metallic)));
 
 	// Indirect lighting
 	node_shader_write_frag(kong, "var albedo: float3 = lerp3(basecol, float3(0.0, 0.0, 0.0), metallic);");
@@ -76,9 +76,9 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	node_shader_write_frag(kong, "var lodc1: float3 = envmap_sample(lod1, envmap_coord);");
 	node_shader_write_frag(kong, "var prefiltered_color: float3 = lerp3(lodc0, lodc1, lodf);");
 	// Rotate normal by envmap angle for irradiance
-	node_shader_write_frag(kong, "var indirect: float3 = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z - n.y * constants.envmap_data.y, n.x * "
-	                             "constants.envmap_data.y + n.y * constants.envmap_data.z, n.z)) / 3.14159265);");
-	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * 0.5;");
+	node_shader_write_frag(kong, "var indirect: float3 = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z + n.y * constants.envmap_data.y, n.y * "
+	                             "constants.envmap_data.z - n.x * constants.envmap_data.y, n.z)) / 3.14159265);");
+	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv);");
 	node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
 	node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
 
@@ -101,22 +101,11 @@ static mesh_object_t *create_envsphere_object(char *name, f32 roughness, f32 met
 	node_shader_context_t *con = make_envsphere_shader(name, roughness, metallic);
 	shader_context_load(con->data);
 
-	shader_data_t      *sd   = GC_ALLOC_INIT(shader_data_t, {
-	                                                            .name     = name,
-	                                                            .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
-                                                     });
-	material_context_t *mcon = GC_ALLOC_INIT(material_context_t, {
-	                                                                 .name           = "overlay",
-	                                                                 .bind_constants = any_array_create_from_raw((void *[]){}, 0),
-	                                                                 .bind_textures  = any_array_create_from_raw((void *[]){}, 0),
-	                                                             });
-	material_context_load(mcon);
-	material_data_t *mat = GC_ALLOC_INIT(material_data_t, {
-	                                                          .name     = name,
-	                                                          .shader   = "",
-	                                                          .contexts = any_array_create_from_raw((void *[]){mcon}, 1),
-	                                                          ._        = GC_ALLOC_INIT(material_data_runtime_t, {.uid = 0.0, .shader = sd}),
-	                                                      });
+	shader_data_t *mat = ALLOC_INIT(shader_data_t, {
+	                                                   .name     = name,
+	                                                   .contexts = any_array_create_from_raw((void *[]){con->data}, 1),
+	                                                   ._        = ALLOC_INIT(shader_data_runtime_t, {.uid = 0.0}),
+	                                               });
 
 	mesh_object_t *obj   = mesh_object_create(md, mat);
 	obj->base->name      = name;
@@ -127,9 +116,7 @@ static mesh_object_t *create_envsphere_object(char *name, f32 roughness, f32 met
 
 static void render_envsphere_init() {
 	render_envsphere_metallic = create_envsphere_object("render_envsphere_metallic", 0.0, 1.0);
-	gc_root(render_envsphere_metallic);
-	render_envsphere_diffuse = create_envsphere_object("render_envsphere_diffuse", 0.9, 0.0);
-	gc_root(render_envsphere_diffuse);
+	render_envsphere_diffuse  = create_envsphere_object("render_envsphere_diffuse", 0.9, 0.0);
 }
 
 void render_envsphere() {

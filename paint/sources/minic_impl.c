@@ -50,25 +50,33 @@ void script_set_tilesheet_anim(object_t *o, char *anim) {
 		}
 
 		ui_node_button_t *enum_but = node->buttons->buffer[4];
-		string_array_t   *names    = string_split(u8_array_to_string(enum_but->data), "\n");
+		char             *texts    = u8_array_to_string(enum_but->data);
+		string_array_t   *names    = string_split(texts, "\n");
+		i32               match    = -1;
 		for (i32 j = 0; j < (i32)names->length; ++j) {
-			if (!string_equals(names->buffer[j], anim)) {
-				continue;
+			if (string_equals(names->buffer[j], anim)) {
+				match = j;
+				break;
 			}
-
-			enum_but->default_value->buffer[0] = (f32)j;
-			make_material_parse_paint_material(true);
-
-			// Material override
-			for (i32 k = 0; k < g_project->_->paint_objects->length; ++k) {
-				mesh_object_t *po = g_project->_->paint_objects->buffer[k];
-				if (tab_meshes_get_override(po) == slot_index) {
-					tab_meshes_set_override(po, slot_index);
-					g_context->ddirty = 2;
-				}
-			}
-			return;
 		}
+		string_split_free(names);
+		free(texts);
+		if (match == -1) {
+			continue;
+		}
+
+		enum_but->default_value->buffer[0] = (f32)match;
+		make_material_parse_paint_material(true);
+
+		// Material override
+		for (i32 k = 0; k < g_project->_->paint_objects->length; ++k) {
+			mesh_object_t *po = g_project->_->paint_objects->buffer[k];
+			if (tab_meshes_get_override(po) == slot_index) {
+				tab_meshes_set_override(po, slot_index);
+				g_context->ddirty = 2;
+			}
+		}
+		return;
 	}
 }
 
@@ -91,10 +99,10 @@ void script_tween_to(object_t *o, vec4_t to, f32 speed) {
 	_script_tween_transform = t;
 	f32    duration         = vec4_dist(t->loc, to) / speed;
 	ease_t ease             = EASE_LINEAR;
-	tween_to(GC_ALLOC_INIT(tween_anim_t,
-	                       {.target = &t->loc.x, .to = to.x, .duration = duration, .ease = ease, .tick = script_tween_tick, .done = script_tween_done}));
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &t->loc.y, .to = to.y, .duration = duration, .ease = ease}));
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &t->loc.z, .to = to.z, .duration = duration, .ease = ease}));
+	tween_to(
+	    ALLOC_INIT(tween_anim_t, {.target = &t->loc.x, .to = to.x, .duration = duration, .ease = ease, .tick = script_tween_tick, .done = script_tween_done}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.y, .to = to.y, .duration = duration, .ease = ease}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &t->loc.z, .to = to.z, .duration = duration, .ease = ease}));
 }
 
 static void script_timer_done(void *fn) {
@@ -164,6 +172,15 @@ object_t *script_get_object(char *s) {
 	return NULL;
 }
 
+slot_material_t *script_get_material(char *s) {
+	for (int i = 0; i < g_project->_->materials->length; ++i) {
+		if (string_equals(g_project->_->materials->buffer[i]->canvas->name, s)) {
+			return g_project->_->materials->buffer[i];
+		}
+	}
+	return NULL;
+}
+
 static bool script_paint_active = false;
 static bool script_paint_first  = true;
 
@@ -194,9 +211,9 @@ static void script_paint_begin_stroke(void) {
 		history_paint();
 	}
 
-	script_paint_active        = true;
-	script_paint_first         = true;
-	g_context->brush_time      = sys_delta();
+	script_paint_active         = true;
+	script_paint_first          = true;
+	g_context->brush_time       = sys_delta();
 	g_context->prev_paint_vec_x = -1.0f;
 	g_context->prev_paint_vec_y = -1.0f;
 }
@@ -266,7 +283,6 @@ void script_paint_end(void) {
 
 	g_context->pdirty              = 0;
 	g_context->rtdirty             = 1;
-	g_context->rdirty              = 2;
 	g_context->ddirty              = 2;
 	g_context->brush_time          = 0.0f;
 	g_context->brush_blend_dirty   = true;
@@ -297,7 +313,6 @@ void script_fill_layer(void) {
 	layers_update_fill_layer(true);
 	g_context->layer_preview_dirty = true;
 	g_context->rtdirty             = 1;
-	g_context->rdirty              = 2;
 	g_context->ddirty              = 2;
 }
 
@@ -308,7 +323,7 @@ static ui_node_canvas_t *script_material_canvas(void) {
 	return g_context->material->canvas;
 }
 
-static void script_material_gpu_begin(gpu_texture_t **out_current, bool *out_in_use) {
+static void script_gpu_begin(gpu_texture_t **out_current, bool *out_in_use) {
 	*out_current = _draw_current;
 	*out_in_use  = gpu_in_use;
 	if (*out_in_use) {
@@ -316,17 +331,112 @@ static void script_material_gpu_begin(gpu_texture_t **out_current, bool *out_in_
 	}
 }
 
-static void script_material_gpu_end(gpu_texture_t *current, bool in_use) {
+static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	if (in_use) {
 		draw_begin(current, false, 0);
 	}
+}
+
+void script_quit(void) {
+	iron_stop();
+}
+
+void script_project_new(void) {
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	project_new(true);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_project_open(char *path) {
+	if (path == NULL || !iron_file_exists(path)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_arm_run_project(path);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_import_asset(char *path, bool hdr_as_envmap) {
+	if (path == NULL || !iron_file_exists(path)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_asset_run(path, -1, -1, false, hdr_as_envmap, NULL);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_append_mesh(char *path) {
+	if (path == NULL || !iron_file_exists(path)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_mesh_run(path, false, false, true);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+extern bool import_mesh_clear_layers;
+extern bool import_mesh_no_reset;
+extern bool import_mesh_append;
+
+void script_append_mesh_obj(char *data) {
+	if (data == NULL || data[0] == '\0') {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	import_mesh_clear_layers = false;
+	import_mesh_no_reset     = true;
+	import_mesh_append       = true;
+	g_context->layer_filter  = 0;
+	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
+	obj_parse_y_to_z_up      = false;
+	import_obj_parse(b, false);
+	obj_parse_y_to_z_up = true;
+	free(b);
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+}
+
+void script_export_mesh(char *path) {
+	if (path == NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	export_mesh_run(path, NULL, true);
+	script_gpu_end(current, in_use);
+}
+
+void script_export_material(char *path) {
+	if (path == NULL || g_context == NULL || g_context->material == NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	export_arm_run_material(path);
+	script_gpu_end(current, in_use);
 }
 
 slot_material_t *script_material_create(char *name) {
 	if (g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL || g_project->_->materials->length == 0) {
 		return NULL;
 	}
-	material_data_t *data = g_project->_->materials->buffer[0]->data;
+	shader_data_t   *data = g_project->_->materials->buffer[0]->data;
 	slot_material_t *m    = slot_material_create(data, NULL);
 	if (name != NULL && name[0] != '\0') {
 		m->canvas->name = string_copy(name);
@@ -335,10 +445,10 @@ slot_material_t *script_material_create(char *name) {
 
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 	context_set_material(m);
 	util_render_make_material_preview();
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
 
 	history_new_material();
 	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
@@ -353,15 +463,44 @@ void script_material_set(slot_material_t *m) {
 	}
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 	context_set_material(m);
 	util_render_make_material_preview();
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
+}
+
+static slot_material_t *script_object_material_slot = NULL;
+static shader_data_t   *script_object_material_data = NULL;
+
+static void script_object_material_reset(void) {
+	script_object_material_slot = NULL;
+	script_object_material_data = NULL;
+}
+
+void script_object_set_material(object_t *o, slot_material_t *m) {
+	if (o == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL) {
+		return;
+	}
+	if (!string_equals(o->ext_type, "mesh_object_t")) {
+		return;
+	}
+	i32 index = m != NULL ? array_index_of(g_project->_->materials, m) : -1;
+	if (index >= 0 && m != script_object_material_slot) {
+		script_object_material_reset();
+		script_object_material_slot = m;
+		script_object_material_data = make_mesh_preview_viewport(m);
+	}
+	tab_meshes_set_override_data(o->ext, index, index >= 0 ? script_object_material_data : NULL);
+	g_project->mesh_materials = i32_array_create(0);
+	g_context->ddirty         = 2;
 }
 
 void script_material_delete(slot_material_t *m) {
 	if (m == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->materials == NULL) {
 		return;
+	}
+	if (m == script_object_material_slot) {
+		script_object_material_reset();
 	}
 	if (g_project->_->materials->length <= 1) {
 		return;
@@ -373,14 +512,18 @@ void script_material_delete(slot_material_t *m) {
 }
 
 ui_node_t *script_material_create_node(char *type) {
-	if (type == NULL || g_context == NULL || g_context->material == NULL) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (type == NULL || canvas == NULL) {
 		return NULL;
 	}
 	nodes_material_init();
-	ui_node_t *node = nodes_material_create_node(type, NULL);
-	if (node != NULL && ui_nodes_hwnd != NULL) {
-		ui_nodes_hwnd->redraws = 2;
+	ui_node_t *n = nodes_material_get_node_t(type);
+	if (n == NULL) {
+		return NULL;
 	}
+	ui_node_t *node = ui_nodes_make_node(n, g_context->material->nodes, canvas);
+	any_array_push(canvas->nodes, node);
+	ui_nodes_hwnd->redraws = 2;
 	return node;
 }
 
@@ -525,14 +668,26 @@ void script_material_set_vector(ui_node_t *node, i32 is_input, i32 socket, f32 x
 	soc->default_value->buffer[2] = z;
 }
 
+void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
+	if (node == NULL || button < 0 || button >= node->buttons->length) {
+		return;
+	}
+	ui_node_button_t *but = node->buttons->buffer[button];
+	if (but->default_value == NULL || but->default_value->length < 1) {
+		return;
+	}
+	but->default_value->buffer[0] = value;
+}
+
 void script_material_update(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return;
 	}
+	script_object_material_reset();
 
 	gpu_texture_t *current;
 	bool           in_use;
-	script_material_gpu_begin(&current, &in_use);
+	script_gpu_begin(&current, &in_use);
 
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
@@ -541,7 +696,7 @@ void script_material_update(void) {
 	}
 	base_update_workflow_nodes();
 
-	script_material_gpu_end(current, in_use);
+	script_gpu_end(current, in_use);
 
 	if (ui_nodes_hwnd != NULL) {
 		ui_nodes_hwnd->redraws = 2;
@@ -554,6 +709,209 @@ void script_material_update(void) {
 	}
 	g_context->ddirty  = 2;
 	g_context->rtdirty = 1;
+}
+
+string_array_t *script_shape_list(void) {
+	project_fetch_default_meshes();
+	return project_default_mesh_list;
+}
+
+object_t *script_shape_add(char *name) {
+	if (name == NULL || string_array_index_of(script_shape_list(), name) < 0) {
+		return NULL;
+	}
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->paint_objects == NULL || g_project->_->paint_objects->length == 0) {
+		return NULL;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	mesh_object_t *mo = tab_meshes_append_shape(name);
+	script_gpu_end(current, in_use);
+
+	if (mo == NULL) {
+		return NULL;
+	}
+
+	tab_meshes_reset_preview_map();
+	g_context->ddirty = 2;
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+	return mo->base;
+}
+
+object_t *script_object_duplicate(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return NULL;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	mesh_object_t *dup = util_mesh_duplicate_object(o->ext);
+	script_gpu_end(current, in_use);
+
+	g_context->ddirty                                 = 2;
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	return dup->base;
+}
+
+object_t *script_object_clone(char *name) {
+	return script_object_duplicate(script_get_object(name));
+}
+
+void script_object_set_name(object_t *o, char *name) {
+	if (o == NULL || name == NULL) {
+		return;
+	}
+
+	char *new_name = string_copy(name);
+	tab_stages_rename_object(o->name, new_name);
+	o->name = new_name;
+
+	if (o->ext != NULL && string_equals(o->ext_type, "mesh_object_t")) {
+		mesh_object_t *mo = o->ext;
+		if (mo->data != NULL && util_mesh_data_owner(mo->data) == array_index_of(g_project->_->paint_objects, mo)) {
+			mo->data->name = string_copy(new_name);
+		}
+	}
+
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+}
+
+static physics_body_t *script_physics_body(object_t *o) {
+	return o != NULL && o->_ != NULL ? o->_->body : NULL;
+}
+
+void script_physics_set_shape(object_t *o, i32 shape) {
+	if (o == NULL) {
+		return;
+	}
+
+	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+	util_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
+	g_project->mesh_physics_shapes = i32_array_create(0);
+}
+
+void script_physics_set_mass(object_t *o, f32 mass) {
+	if (o == NULL) {
+		return;
+	}
+	util_physics_set_mass(o, mass);
+	g_project->mesh_physics_shapes = i32_array_create(0);
+}
+
+void script_physics_apply_impulse(object_t *o, f32 x, f32 y, f32 z) {
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_apply_impulse(body->_body, (vec4_t){x, y, z, 0.0});
+	}
+}
+
+void script_physics_set_velocity(object_t *o, f32 x, f32 y, f32 z) {
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_set_velocity(body->_body, x, y, z);
+	}
+}
+
+void script_physics_sync_transform(object_t *o) {
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_sync_transform(body);
+	}
+}
+
+static bool script_pick_hit(object_t *o, ray_t *ray, f32 margin, f32 *out_t) {
+	if (o->ext == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return false;
+	}
+	mesh_data_t *data = ((mesh_object_t *)o->ext)->data;
+	if (data == NULL) {
+		return false;
+	}
+
+	vec4_t min;
+	vec4_t max;
+	mesh_data_calculate_aabb_min_max(data, &min, &max);
+
+	vec4_t scale = o->transform->scale;
+	vec4_t grow  = (vec4_t){scale.x != 0.0 ? margin / math_abs(scale.x) : 0.0, scale.y != 0.0 ? margin / math_abs(scale.y) : 0.0,
+                           scale.z != 0.0 ? margin / math_abs(scale.z) : 0.0, 0.0};
+	min = (vec4_t){min.x - grow.x, min.y - grow.y, min.z - grow.z, 0.0};
+	max = (vec4_t){max.x + grow.x, max.y + grow.y, max.z + grow.z, 0.0};
+
+	mat4_t inv    = mat4_inv(o->transform->world);
+	vec4_t origin = vec4_apply_mat4((vec4_t){ray->origin.x, ray->origin.y, ray->origin.z, 1.0}, inv);
+	vec4_t dir    = vec4_apply_mat4((vec4_t){ray->dir.x, ray->dir.y, ray->dir.z, 0.0}, inv);
+
+	f32 t0         = -10000.0;
+	f32 t1         = 10000.0;
+	f32 o_axis[3]  = {origin.x, origin.y, origin.z};
+	f32 d_axis[3]  = {dir.x, dir.y, dir.z};
+	f32 lo_axis[3] = {min.x, min.y, min.z};
+	f32 hi_axis[3] = {max.x, max.y, max.z};
+
+	for (i32 i = 0; i < 3; ++i) {
+		if (math_abs(d_axis[i]) < 1e-9) {
+			if (o_axis[i] < lo_axis[i] || o_axis[i] > hi_axis[i]) {
+				return false;
+			}
+			continue;
+		}
+
+		f32 ta = (lo_axis[i] - o_axis[i]) / d_axis[i];
+		f32 tb = (hi_axis[i] - o_axis[i]) / d_axis[i];
+		if (ta > tb) {
+			f32 tmp = ta;
+			ta      = tb;
+			tb      = tmp;
+		}
+		if (ta > t0) {
+			t0 = ta;
+		}
+		if (tb < t1) {
+			t1 = tb;
+		}
+		if (t0 > t1) {
+			return false;
+		}
+	}
+
+	if (t1 < 0.0) {
+		return false;
+	}
+	*out_t = t0 >= 0.0 ? t0 : t1;
+	return true;
+}
+
+object_t *script_pick_object() {
+	if (g_project == NULL || g_project->_ == NULL || g_project->_->paint_objects == NULL) {
+		return NULL;
+	}
+
+	ray_t *ray = raycast_get_ray(mouse_view_x(), mouse_view_y(), scene_camera);
+	if (ray == NULL) {
+		return NULL;
+	}
+
+	object_t *hit    = NULL;
+	f32       best_t = 10000.0;
+
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	for (i32 i = 0; i < objects->length; ++i) {
+		object_t *o = objects->buffer[i]->base;
+		f32       t;
+		if (o->visible && script_pick_hit(o, ray, 0.02, &t) && t < best_t) {
+			best_t = t;
+			hit    = o;
+		}
+	}
+	return hit;
 }
 
 extern string_array_t *_path_texture_formats;
@@ -593,7 +951,6 @@ void plugin_register_text(char *format, void *fn) {
 
 	if (custom_text_formats == NULL) {
 		custom_text_formats = string_array_create(0);
-		gc_root(custom_text_formats);
 	}
 	if (string_array_index_of(path_text_formats(), format) < 0) {
 		any_array_push((any_array_t *)_path_text_formats, format);
@@ -602,7 +959,6 @@ void plugin_register_text(char *format, void *fn) {
 
 	if (custom_text_importers == NULL) {
 		custom_text_importers = any_map_create();
-		gc_root(custom_text_importers);
 	}
 	any_map_set(custom_text_importers, format, fn);
 }
@@ -624,7 +980,6 @@ void plugin_register_texture(char *format, void *fn) {
 
 	if (custom_texture_importers == NULL) {
 		custom_texture_importers = any_map_create();
-		gc_root(custom_texture_importers);
 	}
 	any_map_set(custom_texture_importers, format, fn);
 }
@@ -640,7 +995,6 @@ void plugin_register_mesh(char *format, void *fn) {
 
 	if (custom_mesh_importers == NULL) {
 		custom_mesh_importers = any_map_create();
-		gc_root(custom_mesh_importers);
 	}
 	any_map_set(custom_mesh_importers, format, fn);
 }
@@ -651,7 +1005,7 @@ void plugin_unregister_mesh(char *format) {
 }
 
 raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
-	raw_mesh_t *mesh = gc_alloc(sizeof(raw_mesh_t));
+	raw_mesh_t *mesh = calloc(1, sizeof(raw_mesh_t));
 	memset(mesh, 0, sizeof(raw_mesh_t));
 	mesh->name         = name;
 	mesh->posa         = posa;
@@ -708,6 +1062,52 @@ void *plugin_material_kong_get() {
 	return parser_material_kong;
 }
 
+static char *_script_message    = NULL;
+static i32   _script_message_id = 0;
+
+static void script_message_draw(void *_) {
+	if (_script_message == NULL) {
+		return;
+	}
+
+	f32 scale = UI_SCALE();
+	i32 size  = math_floor(22 * scale);
+
+	draw_begin(NULL, false, 0);
+	draw_set_font(g_font, size);
+
+	f32 w = draw_string_width(draw_font, draw_font_size, _script_message);
+	f32 h = draw_font_height(draw_font, draw_font_size);
+	f32 x = (iron_window_width() - w) / 2.0;
+	f32 y = iron_window_height() - 100 * scale;
+
+	draw_set_color(0x99000000);
+	draw_filled_rect(x - 12 * scale, y - 6 * scale, w + 24 * scale, h + 12 * scale);
+	draw_set_color(0xffffffff);
+	draw_string(_script_message, x, y);
+	draw_end();
+}
+
+static void script_message_hide(void *data) {
+	if ((i32)(intptr_t)data != _script_message_id) {
+		return;
+	}
+	sys_remove_update(script_message_draw);
+	_script_message = NULL;
+}
+
+void script_show_message(char *text, f32 seconds) {
+	if (text == NULL) {
+		return;
+	}
+	if (_script_message == NULL) {
+		sys_notify_on_update(script_message_draw, NULL);
+	}
+	_script_message = string_copy(text);
+	_script_message_id++;
+	tween_timer(seconds, script_message_hide, (void *)(intptr_t)_script_message_id);
+}
+
 static f32   _script_fade_opacity = 0.0f;
 static char *_script_fade_stage   = NULL;
 
@@ -720,14 +1120,13 @@ static void script_fade_draw(void *_) {
 
 static void script_fade_in_done(void *_) {
 	sys_remove_update(script_fade_draw);
-	gc_unroot(_script_fade_stage);
 	_script_fade_stage = NULL;
 }
 
 static void script_fade_out_done(void *_) {
 	script_set_stage(_script_fade_stage);
 	tween_reset();
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 0.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_in_done}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 0.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_in_done}));
 }
 
 void script_fade_to_stage(char *stage) {
@@ -735,13 +1134,24 @@ void script_fade_to_stage(char *stage) {
 		return; // Fade in progress
 	}
 	_script_fade_stage = string_copy(stage);
-	gc_root(_script_fade_stage);
 
 	_script_fade_opacity = 0.0f;
 	sys_notify_on_update(script_fade_draw, NULL);
 
 	// Fade to black, set the stage, then fade back in
-	tween_to(GC_ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
+	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
+}
+
+void script_timeline_resume(void) {
+	tab_timeline_resume();
+}
+
+void script_timeline_pause(void) {
+	tab_timeline_pause();
+}
+
+void script_timeline_set_frame(i32 frame) {
+	tab_timeline_set_frame(frame);
 }
 
 typedef struct particle {

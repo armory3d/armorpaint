@@ -83,9 +83,7 @@ static descriptor_set_groups  all_descriptor_set_groups;
 static allocated_global allocated_globals[1024];
 size_t                  allocated_globals_size = 0;
 
-const char all_names[1024 * 1024];
-uint64_t   next_variable_id = 1;
-variable   all_variables[1024 * 1024];
+uint64_t next_variable_id = 1;
 
 bool               kong_error          = false;
 static function   *functions           = NULL;
@@ -858,10 +856,9 @@ variable find_variable(block *parent, name_id name) {
 
 variable allocate_variable(type_ref type, variable_kind kind) {
 	variable v;
-	v.index                = next_variable_id;
-	v.type                 = type;
-	v.kind                 = kind;
-	all_variables[v.index] = v;
+	v.index = next_variable_id;
+	v.type  = type;
+	v.kind  = kind;
 	++next_variable_id;
 	return v;
 }
@@ -2048,7 +2045,7 @@ void functions_init(void) {
 	function     *new_functions = realloc(functions, functions_size * sizeof(function));
 	debug_context context       = {0};
 	check(new_functions != NULL, context, "Could not allocate functions");
-	functions           = new_functions;
+	functions = new_functions;
 	zero_new_function_slots();
 	next_function_index = 0;
 
@@ -2679,7 +2676,7 @@ function_id add_function(name_id name) {
 	init_type_ref(&functions[f].return_type, NO_NAME);
 	functions[f].parameters_size = 0;
 	memset(functions[f].parameter_attributes, 0, sizeof(functions[f].parameter_attributes));
-	functions[f].block = NULL;
+	functions[f].block                      = NULL;
 	functions[f].code.size                  = 0;
 	functions[f].descriptor_set_group_index = UINT32_MAX;
 	functions[f].used_builtins              = (builtins){0};
@@ -2795,7 +2792,7 @@ char *get_name(name_id id) {
 }
 
 ////
-static statement statements_buffer[8192];
+static statement statements_buffer[4096];
 int              statement_index = 0;
 ////
 
@@ -3724,8 +3721,14 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 	size_t   count = 0;
 
 	while (current(state).kind != TOKEN_RIGHT_CURLY) {
-		debug_context context = {0};
-		check(count < MAX_MEMBERS, context, "Out of members");
+		if (count >= MAX_MEMBERS) {
+			debug_context context = {0};
+			error(context, "Out of members");
+			while (current(state).kind != TOKEN_RIGHT_CURLY && current(state).kind != TOKEN_NONE) {
+				advance_state(state);
+			}
+			break;
+		}
 
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		member_names[count] = current(state);
@@ -4252,17 +4255,33 @@ token token_create(int kind, tokenizer_state *state) {
 	return token;
 }
 
+static token *tokens_cache      = NULL;
+static size_t tokens_cache_size = 0;
+
 static void tokens_init(tokens *tokens) {
-	tokens->max_size     = 1024 * 1024;
-	tokens->t            = malloc(tokens->max_size * sizeof(token));
+	if (tokens_cache == NULL) {
+		tokens_cache_size     = 4096;
+		tokens_cache          = malloc(tokens_cache_size * sizeof(*tokens_cache));
+		debug_context context = {0};
+		check(tokens_cache != NULL, context, "Could not allocate tokens");
+	}
+	tokens->t            = tokens_cache;
+	tokens->max_size     = tokens_cache_size;
 	tokens->current_size = 0;
 }
 
 static void tokens_add(tokens *tokens, token token) {
+	if (tokens->current_size >= tokens->max_size) {
+		tokens_cache_size *= 2;
+		struct token *t       = realloc(tokens_cache, tokens_cache_size * sizeof(*tokens_cache));
+		debug_context context = {0};
+		check(t != NULL, context, "Out of tokens");
+		tokens_cache     = t;
+		tokens->t        = t;
+		tokens->max_size = tokens_cache_size;
+	}
 	tokens->t[tokens->current_size] = token;
 	tokens->current_size += 1;
-	debug_context context = {0};
-	check(tokens->current_size <= tokens->max_size, context, "Out of tokens");
 }
 
 static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokenizer_buffer *buffer) {
@@ -6161,7 +6180,6 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 
 	if (kong_error) {
 		console_info("Warning: Shader compilation failed");
-		free(tokens.t);
 #if defined(__APPLE__)
 		*vs = "";
 		*fs = "";
@@ -6199,6 +6217,4 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	spirv_export2(vs, fs, vs_size, fs_size, false);
 
 #endif
-
-	free(tokens.t);
 }

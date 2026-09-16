@@ -8,17 +8,7 @@ void ui_base_init_on_next_frame(void *_) {
 	layers_init();
 }
 
-void ui_base_view_top() {
-	bool is_typing = g_ui->is_typing;
-
-	if (context_in_paint_area() && !is_typing) {
-		if (mouse_view_x() < sys_w()) {
-			viewport_set_view(0, 0, 1, 0, 0, 0);
-		}
-	}
-}
-
-void ui_base_on_border_hover(ui_handle_t *handle, i32 side) {
+void ui_base_on_border_hover(ui_window_t *handle, i32 side) {
 	if (!base_ui_enabled) {
 		return;
 	}
@@ -51,21 +41,19 @@ void ui_base_on_border_hover(ui_handle_t *handle, i32 side) {
 
 	if (g_ui->input_started) {
 		ui_base_border_started = side;
-		gc_unroot(ui_base_border_handle);
-		ui_base_border_handle = handle;
-		gc_root(ui_base_border_handle);
-		base_is_resizing = true;
+		ui_base_border_handle  = handle;
+		base_is_resizing       = true;
 	}
 }
 
-void ui_base_on_tab_drop(ui_handle_t *to, i32 to_position, ui_handle_t *from, i32 from_position) {
+void ui_base_on_tab_drop(int *to, i32 to_position, int *from, i32 from_position) {
 	i32 i = -1;
 	i32 j = -1;
-	for (i32 k = 0; k < ui_base_htabs->length; ++k) {
-		if (ui_base_htabs->buffer[k] == to) {
+	for (i32 k = 0; k < ui_base_tabs->length; ++k) {
+		if (&ui_base_tabs->buffer[k] == to) {
 			i = k;
 		}
-		if (ui_base_htabs->buffer[k] == from) {
+		if (&ui_base_tabs->buffer[k] == from) {
 			j = k;
 		}
 	}
@@ -110,6 +98,8 @@ void ui_base_init() {
 		b->buffer[2]              = 0;
 		b->buffer[3]              = 255;
 		g_context->preview_envmap = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+		array_free(b);
+		free(b);
 	}
 
 	if (g_context->saved_envmap == NULL) {
@@ -131,18 +121,15 @@ void ui_base_init() {
 	resource_load(resources);
 
 	f32           scale = g_config->window_scale;
-	ui_options_t *ops   = GC_ALLOC_INIT(
+	ui_options_t *ops   = ALLOC_INIT(
         ui_options_t,
         {.theme = g_theme, .font = g_font, .scale_factor = scale, .color_wheel = base_color_wheel, .black_white_gradient = base_color_wheel_gradient});
 
 	g_ui = ui_create(ops);
-	gc_root(g_ui);
 
 	ui_on_border_hover = ui_base_on_border_hover;
-	gc_root(ui_on_border_hover);
 
 	ui_on_tab_drop = ui_base_on_tab_drop;
-	gc_root(ui_on_tab_drop);
 	if (UI_SCALE() > 1) {
 		ui_base_set_icon_scale();
 	}
@@ -165,13 +152,11 @@ void ui_base_init() {
 	if (string_equals(g_project->_->filepath, "")) {
 		sys_notify_on_next_frame(&ui_base_init_on_next_frame, NULL);
 	}
-
-	operator_register("view_top", ui_base_view_top);
 }
 
 void ui_base_menu_draw_viewport_mode() {
-	ui_handle_t *mode_handle = ui_handle(__ID__);
-	mode_handle->i           = g_context->viewport_mode;
+	i32  mode         = g_context->viewport_mode;
+	bool mode_changed = false;
 	ui_text(tr("Viewport Mode"), UI_ALIGN_RIGHT, 0x00000000);
 
 	string_array_t *modes     = base_get_viewport_modes();
@@ -181,17 +166,17 @@ void ui_base_menu_draw_viewport_mode() {
 		any_array_push(shortcuts, "p");
 	}
 	for (i32 i = 0; i < modes->length; ++i) {
-		ui_radio(mode_handle, i, modes->buffer[i], shortcuts->buffer[i]);
+		ui_radio(&mode, i, modes->buffer[i], shortcuts->buffer[i]);
+		mode_changed |= ui_item_changed();
 	}
 
 	i32 index = string_array_index_of(shortcuts, keyboard_key_code(g_ui->key_code));
 	if (g_ui->is_key_pressed && index != -1) {
-		mode_handle->i = index;
-		g_ui->changed  = true;
-		context_set_viewport_mode(mode_handle->i);
+		g_ui->changed = true;
+		context_set_viewport_mode(index);
 	}
-	else if (mode_handle->changed) {
-		context_set_viewport_mode(mode_handle->i);
+	else if (mode_changed) {
+		context_set_viewport_mode(mode);
 		g_ui->changed = true;
 	}
 }
@@ -231,7 +216,6 @@ void ui_base_update(void *_) {
 		util_shortcut_viewport();
 		util_resize_borders();
 		util_particle_update();
-		operator_update();
 	}
 
 	string_array_t *keys = map_keys(g_plugins);
@@ -241,9 +225,10 @@ void ui_base_update(void *_) {
 			minic_ctx_call_fn(p->ctx, p->on_update, NULL, 0);
 		}
 	}
+	array_free(keys);
+	free(keys);
 
 	if (!mouse_down("left")) {
-		gc_unroot(ui_base_border_handle);
 		ui_base_border_handle = NULL;
 		base_is_resizing      = false;
 	}
@@ -253,7 +238,8 @@ void ui_base_update(void *_) {
 	if (!ui_base_show && g_config->touch_ui) {
 		g_ui->input_enabled = true;
 		ui_begin(g_ui);
-		if (ui_window(ui_handle(__ID__), 0, 0, 150, math_floor(UI_ELEMENT_H() + UI_ELEMENT_OFFSET() + 1), false)) {
+		static ui_window_t window = {0};
+		if (ui_window(&window, 0, 0, 150, math_floor(UI_ELEMENT_H() + UI_ELEMENT_OFFSET() + 1), false)) {
 			if (ui_button(tr("Close"), UI_ALIGN_CENTER, "")) {
 				ui_base_toggle_distract_free();
 			}
@@ -268,16 +254,16 @@ void ui_base_update(void *_) {
 	g_ui->input_enabled = base_ui_enabled;
 
 	// Remember last tab positions
-	for (i32 i = 0; i < ui_base_htabs->length; ++i) {
-		if (ui_base_htabs->buffer[i]->changed) {
-			g_config->layout_tabs->buffer[i] = ui_base_htabs->buffer[i]->i;
+	for (i32 i = 0; i < ui_base_tabs->length; ++i) {
+		if (ui_tab_changed(ui_base_hwnds->buffer[i], &ui_base_tabs->buffer[i])) {
+			g_config->layout_tabs->buffer[i] = ui_base_tabs->buffer[i];
 			config_save();
 		}
 	}
 
 	// Set tab positions
-	for (i32 i = 0; i < ui_base_htabs->length; ++i) {
-		ui_base_htabs->buffer[i]->i = g_config->layout_tabs->buffer[i];
+	for (i32 i = 0; i < ui_base_tabs->length; ++i) {
+		ui_base_tabs->buffer[i] = g_config->layout_tabs->buffer[i];
 	}
 
 	// Nothing to display in the main area
@@ -299,30 +285,23 @@ void ui_base_update(void *_) {
 	g_ui->input_enabled = true;
 }
 
-ui_handle_t_array_t *ui_base_init_hwnds() {
-	ui_handle_t_array_t *hwnds = any_array_create_from_raw(
+ui_window_array_t *ui_base_init_hwnds() {
+	ui_window_array_t *hwnds = any_array_create_from_raw(
 	    (void *[]){
-	        ui_handle_create(),
-	        ui_handle_create(),
-	        ui_handle_create(),
+	        ui_window_create(),
+	        ui_window_create(),
+	        ui_window_create(),
 	    },
 	    3);
 	return hwnds;
 }
 
-ui_handle_t_array_t *ui_base_init_htabs() {
-	ui_handle_t_array_t *htabs = any_array_create_from_raw(
-	    (void *[]){
-	        ui_handle_create(),
-	        ui_handle_create(),
-	        ui_handle_create(),
-	    },
-	    3);
-	return htabs;
+i32_array_t *ui_base_init_tabs() {
+	return i32_array_create(3); // Selected tab per tab area
 }
 
-tab_draw_t *_draw_callback_create(void (*f)(ui_handle_t *)) {
-	tab_draw_t *cb = GC_ALLOC_INIT(tab_draw_t, {.f = f});
+tab_draw_t *_draw_callback_create(void (*f)(i32 *)) {
+	tab_draw_t *cb = ALLOC_INIT(tab_draw_t, {.f = f});
 	return cb;
 }
 

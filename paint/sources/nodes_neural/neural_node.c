@@ -6,7 +6,7 @@ char *neural_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	if (result == NULL) {
 		return "float3(0.0, 0.0, 0.0)";
 	}
-	char *tex_name = parser_material_node_name(node, NULL);
+	char *tex_name = string_copy(parser_material_node_name(node, NULL));
 	any_map_set(data_cached_textures, tex_name, result);
 	bind_tex_t *tex      = parser_material_make_bind_tex(tex_name, tex_name);
 	char       *texstore = parser_material_texture_store(node, tex, tex_name, COLOR_SPACE_AUTO);
@@ -18,7 +18,7 @@ char *neural_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	if (result == NULL) {
 		return "0.0";
 	}
-	char *tex_name = parser_material_node_name(node, NULL);
+	char *tex_name = string_copy(parser_material_node_name(node, NULL));
 	any_map_set(data_cached_textures, tex_name, result);
 	bind_tex_t *tex      = parser_material_make_bind_tex(tex_name, tex_name);
 	char       *texstore = parser_material_texture_store(node, tex, tex_name, COLOR_SPACE_AUTO);
@@ -39,7 +39,7 @@ ui_node_t *neural_from_node(ui_node_socket_t *inp, i32 socket) {
 }
 
 void neural_node_button_on_next_frame(void *_) {
-	box_preferences_htab->i = PREFERENCES_TAB_NEURAL;
+	box_preferences_tab = PREFERENCES_TAB_NEURAL;
 	box_preferences_show();
 }
 
@@ -87,9 +87,7 @@ void neural_node_load_result(ui_node_t *node) {
 }
 
 void neural_node_check_result(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		neural_node_load_result(node);
@@ -195,4 +193,40 @@ void neural_node_download_models(string_array_t *models) {
 	for (i32 i = 0; i < models->length; ++i) {
 		neural_node_download(models->buffer[i]);
 	}
+}
+
+f32 *neural_node_values(ui_node_t *node, i32 count) {
+	f32_array_t *values = node->buttons->buffer[0]->default_value;
+	while (values->length < count) { // Old projects
+		f32_array_push(values, 0.0);
+	}
+	return values->buffer;
+}
+
+i32 neural_node_model(ui_node_t *node, string_array_t *models) {
+	f32 *values = neural_node_values(node, 1);
+	i32  model  = (i32)values[0];
+	if (model < 0 || model >= models->length) {
+		model = 0;
+	}
+	ui_set_next_id((ui_id_t)&values[0]);
+	ui_combo(&model, models, tr("Model"), false, UI_ALIGN_LEFT, true);
+	values[0] = model;
+	return model;
+}
+
+char *neural_node_prompt(ui_node_t *node) {
+	u8_array_t *data = node->buttons->buffer[0]->data;
+	return data != NULL ? (char *)data->buffer : "";
+}
+
+char *neural_node_prompt_area(ui_node_t *node) {
+	ui_node_button_t *but    = node->buttons->buffer[0];
+	char             *prompt = neural_node_prompt(node);
+	ui_set_next_id((ui_id_t)&but->data);
+	ui_text_area(&prompt, &ui_nodes_editor_state(node)->line, UI_ALIGN_LEFT, true, tr("prompt"), true);
+	if (ui_item_changed()) {
+		but->data = u8_array_create_from_string(prompt);
+	}
+	return prompt;
 }

@@ -78,7 +78,6 @@ static void packbits_decode(uint8_t *in, size_t in_len, uint8_t *out, size_t out
 	}
 }
 
-// TIFF LZW — MSB-first bit order
 static void lzw_decode(uint8_t *in, size_t in_len, uint8_t *out, size_t out_len) {
 	uint16_t prefix[4096];
 	uint8_t  suffix[4096];

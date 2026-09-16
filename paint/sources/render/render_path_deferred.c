@@ -66,6 +66,8 @@ void render_path_deferred_init() {
 		buffer_t *b        = buffer_create(1);
 		buffer_set_u8(b, 0, 255);
 		t->_image = gpu_create_texture_from_bytes(b, t->width, t->height, GPU_TEXTURE_FORMAT_R8);
+		array_free(b);
+		free(b);
 		any_map_set(render_path_render_targets, t->name, t);
 	}
 	{
@@ -80,10 +82,12 @@ void render_path_deferred_init() {
 		buffer_set_u8(b, 2, 0);
 		buffer_set_u8(b, 3, 0);
 		t->_image = gpu_create_texture_from_bytes(b, t->width, t->height, GPU_TEXTURE_FORMAT_RGBA32);
+		array_free(b);
+		free(b);
 		any_map_set(render_path_render_targets, t->name, t);
 	}
 
-	if (g_config->rp_ssao) {
+	if (g_config->rp_ssao > 0.0) {
 		render_path_base_init_ssao();
 	}
 
@@ -122,6 +126,5 @@ void render_path_deferred_draw_deferred() {
 }
 
 void render_path_deferred_commands() {
-	render_path_paint_live_brush_dirty();
 	render_path_base_commands(render_path_deferred_draw_deferred);
 }

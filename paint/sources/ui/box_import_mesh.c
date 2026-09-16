@@ -13,9 +13,13 @@ extern int plugins_split_by;
 void project_import_mesh_box_menu() {
 	if (ui_menu_button(tr("Append"), "", ICON_CHECK)) {
 		ui_box_hide();
+		i32 first = g_project->_->paint_objects->length;
 		import_mesh_run(_project_import_mesh_box_path, _project_import_mesh_box_clear_layers, false, _project_import_mesh_box_keep_camera);
 		if (_project_import_mesh_box_done != NULL) {
 			_project_import_mesh_box_done();
+		}
+		else if (g_project->_->paint_objects->length > first) {
+			context_select_paint_object(g_project->_->paint_objects->buffer[first]);
 		}
 	}
 	if (ui_menu_button(tr("Help"), "", ICON_HELP)) {
@@ -31,7 +35,7 @@ void project_import_mesh_box_draw() {
 	void (*done)(void)     = _project_import_mesh_box_done;
 
 	if (ends_with(to_lower_case(path), ".obj") || ends_with(to_lower_case(path), ".fbx")) {
-		string_array_t *split_by_combo = any_array_create_from_raw(
+		string_array_t *split_by_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Object"),
 		        tr("Material"),
@@ -39,7 +43,8 @@ void project_import_mesh_box_draw() {
 		    },
 		    3);
 		ui_text(tr("Split By"), UI_ALIGN_LEFT, 0);
-		g_context->split_by = plugins_split_by = ui_inline_radio(ui_handle(__ID__), split_by_combo, UI_ALIGN_LEFT);
+		ui_inline_radio((int *)&g_context->split_by, split_by_combo, UI_ALIGN_LEFT);
+		plugins_split_by = g_context->split_by;
 		if (g_ui->is_hovered) {
 			ui_tooltip(tr("Split mesh into objects"));
 		}
@@ -50,17 +55,19 @@ void project_import_mesh_box_draw() {
 	}
 
 	if (ends_with(to_lower_case(path), ".fbx") || ends_with(to_lower_case(path), ".gltf") || ends_with(to_lower_case(path), ".glb")) {
+		static bool skinning = false;
+		static f32  frame    = 0.0;
 		ui_row2();
-		bool b                 = ui_check(ui_handle(__ID__), tr("Apply Skinning"), "");
-		g_ui->enabled          = b;
-		plugins_skinning_frame = ui_slider(ui_handle(__ID__), tr("Frame"), 1, 99, false, 1, true, UI_ALIGN_RIGHT, true);
+		ui_check(&skinning, tr("Apply Skinning"), "");
+		g_ui->enabled          = skinning;
+		plugins_skinning_frame = ui_slider(&frame, tr("Frame"), 1, 99, false, 1, true, UI_ALIGN_RIGHT, true);
 		g_ui->enabled          = true;
-		if (!b) {
+		if (!skinning) {
 			plugins_skinning_frame = -1;
 		}
 	}
 
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        0.45,
 	        0.45,
@@ -91,15 +98,11 @@ void project_import_mesh_box_draw() {
 }
 
 void project_import_mesh_box(char *path, bool replace_existing, bool clear_layers, bool keep_camera, void (*done)(void)) {
-	gc_unroot(_project_import_mesh_box_path);
-	_project_import_mesh_box_path = string_copy(path);
-	gc_root(_project_import_mesh_box_path);
+	_project_import_mesh_box_path             = string_copy(path);
 	_project_import_mesh_box_replace_existing = replace_existing;
 	_project_import_mesh_box_clear_layers     = clear_layers;
 	_project_import_mesh_box_keep_camera      = keep_camera;
-	gc_unroot(_project_import_mesh_box_done);
-	_project_import_mesh_box_done = done;
-	gc_root(_project_import_mesh_box_done);
+	_project_import_mesh_box_done             = done;
 	ui_box_show_custom(&project_import_mesh_box_draw, 400, 200, NULL, true, tr("Import Mesh"));
 	ui_box_click_to_hide = false; // Prevent closing when going back to window from file browser
 }

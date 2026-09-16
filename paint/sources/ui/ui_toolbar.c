@@ -39,22 +39,14 @@ void ui_toolbar_tool_properties_menu() {
 	ui_menu_draw(&ui_toolbar_tool_properties_menu_draw, g_ui->_x + g_ui->_w + 6 * UI_SCALE(), y);
 }
 
-void ui_toolbar_draw_highlight() {
+void ui_toolbar_draw_highlight(u32 col) {
 	i32 size = ui_toolbar_w(false) - 4;
-	draw_set_color(g_theme->HIGHLIGHT_COL);
+	draw_set_color(col);
 	ui_draw_rect(true, true, g_ui->_x + -1, g_ui->_y + 2, size + 2, size + 2);
 }
 
 void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 	g_ui->_x += 2;
-	if (g_context->tool == tool) {
-		ui_toolbar_draw_highlight();
-	}
-	i32     tile_y = math_floor(tool / 12.0);
-	i32     tile_x = tile_y % 2 == 0 ? tool % 12 : (11 - (tool % 12));
-	i32     tile_i = tile_y * 12 + tile_x;
-	rect_t *rect   = resource_tile50(img, tile_i);
-	i32     _y     = g_ui->_y;
 
 	bool visible = true;
 	if (context_is_floating_toolbar()) {
@@ -62,6 +54,20 @@ void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 		i32 statusy = iron_window_height() - statush;
 		visible     = g_ui->input_y < statusy;
 	}
+
+	i32 size = ui_toolbar_w(false) - 4;
+	if (g_context->tool == tool) {
+		ui_toolbar_draw_highlight(g_theme->HIGHLIGHT_COL);
+	}
+	else if (visible && ui_input_in_rect(g_ui->_window_x + g_ui->_x - 1, g_ui->_window_y + g_ui->_y + 2, size + 2, size + 2)) {
+		ui_toolbar_draw_highlight(g_theme->HOVER_COL);
+	}
+
+	i32     tile_y = math_floor(tool / 12.0);
+	i32     tile_x = tile_y % 2 == 0 ? tool % 12 : (11 - (tool % 12));
+	i32     tile_i = tile_y * 12 + tile_x;
+	rect_t *rect   = resource_tile50(img, tile_i);
+	i32     _y     = g_ui->_y;
 
 	g_ui->_x -= 2;
 	ui_state_t image_state = ui_sub_image(img, icon_accent, -1.0, rect->x, rect->y, rect->w, rect->h);
@@ -84,14 +90,18 @@ void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 	}
 
 	if (g_ui->is_hovered) {
-		char *tooltip = tr(ui_toolbar_tool_names->buffer[tool]);
-		char *key     = any_map_get(g_keymap, string("tool_%s", to_lower_case(ui_toolbar_tool_names->buffer[tool])));
+		char *tooltip  = tr(ui_toolbar_tool_names->buffer[tool]);
+		char *key_name = string_tmp("tool_%s", ui_toolbar_tool_names->buffer[tool]);
+		for (char *c = key_name; *c != '\0'; ++c) {
+			*c = tolower(*c);
+		}
+		char *key = any_map_get(g_keymap, key_name);
 		if (!string_equals(key, "")) {
-			tooltip = string("%s (%s)", tooltip, key);
+			tooltip = string_tmp("%s (%s)", tooltip, key);
 		}
 		char *extra = ui_toolbar_tooltip_extras->buffer[tool];
 		if (!string_equals(extra, "")) {
-			tooltip = string("%s - %s", tooltip, vtr(extra, g_keymap));
+			tooltip = string_tmp("%s - %s", tooltip, vtr(extra, g_keymap));
 		}
 		ui_tooltip(tooltip);
 	}

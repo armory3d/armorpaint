@@ -1,15 +1,20 @@
 
 #include "../global.h"
 
+static bool util_brush_clone_source_down = false;
+
 void util_brush_update() {
+	bool paint_down = keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN);
+
 	bool set_clone_source =
 	    g_context->tool == TOOL_TYPE_CLONE &&
-	    operator_shortcut(string("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+	    (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
+	     (g_context->clone_set_source && (paint_down || pen_down("tip"))));
 
 	bool decal_mask = context_is_decal_mask_paint();
 
-	bool down = operator_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) || decal_mask || set_clone_source ||
-	            operator_shortcut(string("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
+	bool down = paint_down || decal_mask || set_clone_source ||
+	            keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
 	            (pen_down("tip") && !keyboard_down("alt"));
 
 	if (g_config->touch_ui) {
@@ -42,14 +47,15 @@ void util_brush_update() {
 		if (mx < ww && mx > sys_x() && my < sys_h() && my > sys_y()) {
 
 			if (set_clone_source) {
-				g_context->clone_start_x = mx;
-				g_context->clone_start_y = my;
+				g_context->clone_start_x     = mx;
+				g_context->clone_start_y     = my;
+				util_brush_clone_source_down = true;
 			}
 			else {
-				if (g_context->brush_time == 0 && !base_is_dragging && !base_is_resizing && g_ui->combo_selected_handle == NULL) { // Paint started
+				if (g_context->brush_time == 0 && !base_is_dragging && !base_is_resizing && g_ui->combo_selected_id == 0) { // Paint started
 
 					// Draw line
-					if (operator_shortcut(string("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN)) {
+					if (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN)) {
 						g_context->last_paint_vec_x = g_context->last_paint_x;
 						g_context->last_paint_vec_y = g_context->last_paint_y;
 					}
@@ -103,5 +109,11 @@ void util_brush_update() {
 		if (g_context->tool == TOOL_TYPE_COLORID && g_context->layer->fill_material != NULL) {
 			sys_notify_on_next_frame(&ui_base_update_ui_on_next_frame, NULL);
 		}
+	}
+
+	if (util_brush_clone_source_down && !paint_down && !pen_down("tip")) {
+		util_brush_clone_source_down = false;
+		g_context->clone_set_source  = false;
+		ui_header_handle->redraws    = 2;
 	}
 }

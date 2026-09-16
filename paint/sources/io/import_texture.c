@@ -12,6 +12,7 @@ gpu_texture_t *import_texture_default_importer(char *path) {
 
 void import_texture_run_on_next_frame(import_texture_data_t *itd) {
 	import_envmap_run(itd->path, itd->image);
+	free(itd);
 }
 
 void import_texture_run(char *path, bool hdr_as_envmap) {
@@ -29,7 +30,7 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 			// Set as envmap
 			if (hdr_as_envmap && ends_with(to_lower_case(path), ".hdr")) {
 				gpu_texture_t         *image = data_get_texture(path);
-				import_texture_data_t *itd   = GC_ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
+				import_texture_data_t *itd   = ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
 				sys_notify_on_next_frame(&import_texture_run_on_next_frame, itd); // Make sure file browser process did finish
 			}
 			console_info(strings_asset_already_imported());
@@ -56,7 +57,7 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 	any_map_set(data_cached_textures, path, image);
 	string_array_t *ar    = string_split(path, PATH_SEP);
 	char           *name  = ar->buffer[ar->length - 1];
-	asset_t        *asset = GC_ALLOC_INIT(asset_t, {.name = name, .file = path, .id = g_project->_->next_asset_id++});
+	asset_t        *asset = ALLOC_INIT(asset_t, {.name = name, .file = path, .id = g_project->_->next_asset_id++});
 	any_array_push(g_project->_->assets, asset);
 	if (g_context->texture == NULL) {
 		g_context->texture = asset;
@@ -67,7 +68,7 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 
 	// Set as envmap
 	if (hdr_as_envmap && ends_with(to_lower_case(path), ".hdr")) {
-		import_texture_data_t *itd = GC_ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
+		import_texture_data_t *itd = ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
 		sys_notify_on_next_frame(&import_texture_run_on_next_frame, itd); // Make sure file browser process did finish
 	}
 }

@@ -152,8 +152,7 @@ static uint8_t *psd_decode_channel(uint8_t *buf, size_t buf_size, size_t *pos, u
 			copy_len = plane_size;
 		memcpy(plane, buf + data_off, copy_len);
 	}
-	else if (comp == 1) {
-		// PackBits RLE — row byte counts then data
+	else if (comp == 1) { // PackBits RLE
 		size_t cnt_bytes = (version == 2) ? 4 : 2;
 		size_t rdata     = data_off + (size_t)rows * cnt_bytes;
 		for (uint32_t row = 0; row < rows; row++) {
@@ -493,8 +492,7 @@ void *io_psd_parse(uint8_t *buf, size_t buf_size, const char *file_name) {
 			return result;
 	}
 
-fallback:
-	// No layers (or all empty) — decode the merged composite image in section 5
+fallback: // No layers
 	pos = section4_end;
 	if (pos + 2 > buf_size)
 		return NULL;

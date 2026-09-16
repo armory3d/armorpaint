@@ -10,7 +10,7 @@ rect_t *ui_base_get_brush_stencil_rect() {
 	i32     h = math_floor(base_h() * g_context->brush_stencil_scale);
 	i32     x = math_floor(base_x() + g_context->brush_stencil_x * base_w());
 	i32     y = math_floor(base_y() + g_context->brush_stencil_y * base_h());
-	rect_t *r = GC_ALLOC_INIT(rect_t, {.w = w, .h = h, .x = x, .y = y});
+	rect_t *r = ALLOC_INIT(rect_t, {.w = w, .h = h, .x = x, .y = y});
 	return r;
 }
 
@@ -26,6 +26,8 @@ void ui_base_make_empty_envmap(i32 col) {
 	b->buffer[2]            = color_get_bb(col);
 	b->buffer[3]            = 255;
 	g_context->empty_envmap = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+	array_free(b);
+	free(b);
 }
 
 void ui_base_set_icon_scale() {

@@ -34,7 +34,7 @@ void box_projects_draw_badge() {
 }
 
 void box_projects_tab() {
-	if (ui_tab(box_projects_htab, tr("Projects"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Projects"), true, -1, false)) {
 		ui_begin_sticky();
 
 		ui_separator(UI_ELEMENT_H(), false);
@@ -104,17 +104,15 @@ void box_projects_tab() {
 				path                     = string("%s%s", document_directory, path);
 #endif
 
-				char *icon_path = string("%s_icon.png", substring(path, 0, string_length(path) - 4));
+				char *icon_path = string_tmp("%s_icon.png", substring(path, 0, string_length(path) - 4));
 				if (box_projects_icon_map == NULL) {
-					gc_unroot(box_projects_icon_map);
 					box_projects_icon_map = any_map_create();
-					gc_root(box_projects_icon_map);
 				}
 				gpu_texture_t *icon = any_map_get(box_projects_icon_map, icon_path);
 				if (icon == NULL) {
 					gpu_texture_t *image = data_get_texture(icon_path);
 					icon                 = image;
-					any_map_set(box_projects_icon_map, icon_path, icon);
+					any_map_set(box_projects_icon_map, string_copy(icon_path), icon); // The map holds the key
 				}
 
 				i32 uix = g_ui->_x;
@@ -135,13 +133,9 @@ void box_projects_tab() {
 
 					char *name = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_last_index_of(path, "."));
 					if (g_ui->is_hovered && g_ui->input_released_r) {
-						gc_unroot(_box_projects_path);
-						_box_projects_path = string_copy(path);
-						gc_root(_box_projects_path);
-						gc_unroot(_box_projects_icon_path);
+						_box_projects_path      = string_copy(path);
 						_box_projects_icon_path = string_copy(icon_path);
-						gc_root(_box_projects_icon_path);
-						_box_projects_i = i;
+						_box_projects_i         = i;
 						ui_menu_draw(&box_projects_tab_menu, -1, -1);
 					}
 
@@ -173,7 +167,7 @@ void box_projects_tab() {
 }
 
 void box_projects_get_started_tab() {
-	if (ui_tab(box_projects_htab, tr("Get Started"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Get Started"), true, -1, false)) {
 
 		ui_separator(UI_ELEMENT_H(), false);
 
@@ -219,8 +213,11 @@ void box_projects_show() {
 		for (i32 i = 0; i < keys->length; ++i) {
 			char *handle = keys->buffer[i];
 			data_delete_texture(handle);
+			free(handle);
 		}
-		gc_unroot(box_projects_icon_map);
+		array_free(keys);
+		free(keys);
+		map_free(box_projects_icon_map);
 		box_projects_icon_map = NULL;
 	}
 
@@ -251,15 +248,15 @@ void box_projects_recent_load(char *path) {
 }
 
 void box_projects_recent_tab() {
-	if (ui_tab(box_projects_htab, tr("Recent"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Recent"), true, -1, false)) {
 
 		box_projects_draw_badge();
 
-		g_ui->enabled              = g_config->recent_projects->length > 0;
-		bool was_typing            = g_ui->is_typing;
-		box_projects_hsearch->text = string_copy(ui_text_input(box_projects_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
-		g_ui->enabled              = true;
-		char *first_path           = NULL; // Most recent project that passes the search filter
+		g_ui->enabled       = g_config->recent_projects->length > 0;
+		bool was_typing     = g_ui->is_typing;
+		box_projects_search = string_copy(ui_text_input(&box_projects_search, tr("Search"), UI_ALIGN_LEFT, true, true));
+		g_ui->enabled       = true;
+		char *first_path    = NULL; // Most recent project that passes the search filter
 		for (i32 i = 0; i < g_config->recent_projects->length; ++i) {
 			char *path = g_config->recent_projects->buffer[i];
 #ifdef IRON_WINDOWS
@@ -269,7 +266,7 @@ void box_projects_recent_tab() {
 #endif
 			char *file = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path));
 
-			if (string_index_of(to_lower_case(file), to_lower_case(box_projects_hsearch->text)) < 0) {
+			if (string_index_of(to_lower_case(file), to_lower_case(box_projects_search)) < 0) {
 				continue; // Search filter
 			}
 			if (first_path == NULL) {

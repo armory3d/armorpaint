@@ -3,7 +3,7 @@
 
 raw_mesh_t *geom_make_plane(f32 size_x, f32 size_y, i32 verts_x, i32 verts_y, f32 uv_scale) {
 
-	raw_mesh_t *mesh = GC_ALLOC_INIT(raw_mesh_t, {0});
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {0});
 	mesh->scale_pos  = 1.0;
 	mesh->scale_tex  = uv_scale;
 	mesh->name       = "Plane";
@@ -51,7 +51,7 @@ raw_mesh_t *geom_make_plane(f32 size_x, f32 size_y, i32 verts_x, i32 verts_y, f3
 
 raw_mesh_t *geom_make_uv_sphere(f32 radius, i32 width_segments, i32 height_segments, bool stretch_uv, f32 uv_scale) {
 
-	raw_mesh_t *mesh = GC_ALLOC_INIT(raw_mesh_t, {0});
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {0});
 	mesh->scale_pos  = 1.0;
 	mesh->scale_tex  = 1.0;
 	mesh->name       = "Sphere";

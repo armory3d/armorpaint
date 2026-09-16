@@ -18,7 +18,7 @@ void render() {
 
 void _kickstart() {
 	iron_window_options_t *ops =
-	    GC_ALLOC_INIT(iron_window_options_t, {.title     = "Iron",
+	    ALLOC_INIT(iron_window_options_t, {.title     = "Iron",
 	                                          .width     = 640,
 	                                          .height    = 480,
 	                                          .x         = -1,
@@ -31,9 +31,8 @@ void _kickstart() {
 	_iron_init(ops);
 
 	pipeline = gpu_create_pipeline();
-	gc_root(pipeline);
 
-	gpu_vertex_structure_t *vs = GC_ALLOC_INIT(gpu_vertex_structure_t, {0});
+	gpu_vertex_structure_t *vs = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_3X);
 	buffer_t     *vs_buffer         = iron_load_blob(string("./data/test.vert%s", sys_shader_ext()));
 	buffer_t     *fs_buffer         = iron_load_blob(string("./data/test.frag%s", sys_shader_ext()));
@@ -68,7 +67,6 @@ void _kickstart() {
 	    3);
 
 	vb = gpu_create_vertex_buffer(vertices->length / (float)3, vs->elements);
-	gc_root(vb);
 
 	float *vb_data = gpu_vertex_buffer_lock(vb);
 	for (i32 i = 0; i < vertices->length; i++) {
@@ -77,7 +75,6 @@ void _kickstart() {
 	gpu_vertex_buffer_unlock(vb);
 
 	ib = gpu_create_index_buffer(indices->length);
-	gc_root(ib);
 
 	uint32_t *ib_data = gpu_index_buffer_lock(ib);
 	for (i32 i = 0; i < indices->length; i++) {

@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <vulkan/vulkan_core.h>
 
+#define GPU_RAYTRACE_MAX_OBJECTS 64
+
 typedef struct gpu_pipeline_impl {
 	VkPipeline       pipeline;
 	VkPipelineLayout pipeline_layout;
@@ -33,12 +35,12 @@ typedef struct {
 
 typedef struct {
 	VkAccelerationStructureKHR top_level_acceleration_structure;
-	VkAccelerationStructureKHR bottom_level_acceleration_structure[16];
+	VkAccelerationStructureKHR bottom_level_acceleration_structure[GPU_RAYTRACE_MAX_OBJECTS];
 	uint64_t                   top_level_acceleration_structure_handle;
-	uint64_t                   bottom_level_acceleration_structure_handle[16];
+	uint64_t                   bottom_level_acceleration_structure_handle[GPU_RAYTRACE_MAX_OBJECTS];
 
-	VkBuffer       bottom_level_buffer[16];
-	VkDeviceMemory bottom_level_mem[16];
+	VkBuffer       bottom_level_buffer[GPU_RAYTRACE_MAX_OBJECTS];
+	VkDeviceMemory bottom_level_mem[GPU_RAYTRACE_MAX_OBJECTS];
 	VkBuffer       top_level_buffer;
 	VkDeviceMemory top_level_mem;
 	VkBuffer       instances_buffer;

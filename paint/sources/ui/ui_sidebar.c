@@ -57,15 +57,15 @@ void ui_sidebar_render_ui() {
 	              g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_H0] - sidebar_y, false)) {
 		tab_draw_t_array_t *tabs = ui_base_hwnd_tabs->buffer[TAB_AREA_SIDEBAR0];
 		for (i32 i = 0; i < (mini ? 1 : tabs->length); ++i) {
-			tabs->buffer[i]->f(ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]);
+			tabs->buffer[i]->f(&ui_base_tabs->buffer[TAB_AREA_SIDEBAR0]);
 		}
 
-		if (ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]->i < tabs->length) {
-			ui_sidebar_last_tab = ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]->i;
+		if (ui_base_tabs->buffer[TAB_AREA_SIDEBAR0] < tabs->length) {
+			ui_sidebar_last_tab = ui_base_tabs->buffer[TAB_AREA_SIDEBAR0];
 		}
 
 		if (!g_config->touch_ui && !mini) {
-			if (ui_tab(ui_base_htabs->buffer[TAB_AREA_SIDEBAR0], ">", false, -2, false)) {
+			if (ui_tab(&ui_base_tabs->buffer[TAB_AREA_SIDEBAR0], ">", false, -2, false)) {
 				ui_sidebar_show(false);
 			}
 		}
@@ -74,7 +74,7 @@ void ui_sidebar_render_ui() {
 	              g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W], g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_H1] - expand_button_offset, false)) {
 		tab_draw_t_array_t *tabs = ui_base_hwnd_tabs->buffer[TAB_AREA_SIDEBAR1];
 		for (i32 i = 0; i < (mini ? 1 : tabs->length); ++i) {
-			tabs->buffer[i]->f(ui_base_htabs->buffer[TAB_AREA_SIDEBAR1]);
+			tabs->buffer[i]->f(&ui_base_tabs->buffer[TAB_AREA_SIDEBAR1]);
 		}
 	}
 
@@ -83,9 +83,10 @@ void ui_sidebar_render_ui() {
 
 	// Collapse / expand button for mini sidebar
 	if (g_config->touch_ui) {
-		i32 width  = g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W];
-		i32 height = math_floor(UI_ELEMENT_H() + UI_ELEMENT_OFFSET());
-		if (ui_window(ui_handle(__ID__), iron_window_width() - width, iron_window_height() - height, width, height + 1, false)) {
+		i32                width  = g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W];
+		i32                height = math_floor(UI_ELEMENT_H() + UI_ELEMENT_OFFSET());
+		static ui_window_t window = {0};
+		if (ui_window(&window, iron_window_width() - width, iron_window_height() - height, width, height + 1, false)) {
 			g_ui->_w            = width;
 			i32 _BUTTON_H       = g_theme->BUTTON_H;
 			i32 _BUTTON_COL     = g_theme->BUTTON_COL;
@@ -107,7 +108,7 @@ void ui_sidebar_show(bool b) {
 		    g_context->maximized_sidebar_width != 0 ? g_context->maximized_sidebar_width : math_floor(ui_sidebar_default_w * g_config->window_scale);
 	}
 	else {
-		ui_base_htabs->buffer[TAB_AREA_SIDEBAR0]->i      = ui_sidebar_last_tab;
+		ui_base_tabs->buffer[TAB_AREA_SIDEBAR0]          = ui_sidebar_last_tab;
 		g_config->layout_tabs->buffer[TAB_AREA_SIDEBAR0] = ui_sidebar_last_tab;
 		g_context->maximized_sidebar_width               = g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W];
 		g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W]  = 0;

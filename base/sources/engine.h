@@ -1,16 +1,15 @@
 #pragma once
 
+#include "iron_alloc.h"
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_audio.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
 #include "iron_gpu.h"
 #include "iron_map.h"
 #include "iron_math.h"
 #include "iron_path.h"
 #include "iron_string.h"
-#include "iron_sys.h"
 #include "iron_system.h"
 #include "iron_thread.h"
 #include <math.h>
@@ -57,23 +56,11 @@ typedef struct vertex_element_t_array {
 	int                     capacity;
 } vertex_element_t_array_t;
 
-typedef struct bind_const_t_array {
-	struct bind_const **buffer;
-	int                 length;
-	int                 capacity;
-} bind_const_t_array_t;
-
 typedef struct bind_tex_t_array {
 	struct bind_tex **buffer;
 	int               length;
 	int               capacity;
 } bind_tex_t_array_t;
-
-typedef struct material_context_t_array {
-	struct material_context **buffer;
-	int                       length;
-	int                       capacity;
-} material_context_t_array_t;
 
 typedef struct obj_runtime {
 	void *_gc; // Link to armpack_decode result
@@ -104,6 +91,9 @@ typedef struct mesh_data_runtime {
 	gpu_buffer_t          *vertex_buffer;
 	gpu_buffer_t          *index_buffer;
 	gpu_vertex_structure_t structure;
+	buffer_t              *skin_blob; // Source file bytes
+	i32                    skin_frames;
+	bool                   owns_arrays;
 } mesh_data_runtime_t;
 
 typedef struct mesh_data {
@@ -170,17 +160,15 @@ typedef struct irradiance {
 } irradiance_t;
 
 typedef struct scene {
-	char           *name;
-	any_array_t    *objects;      // obj_t[]
-	any_array_t    *mesh_datas;   // mesh_data_t[]
-	any_array_t    *camera_datas; // camera_data_t[]
-	char           *camera_ref;
-	any_array_t    *material_datas; // material_data_t[]
-	any_array_t    *shader_datas;   // shader_data_t[]
-	any_array_t    *world_datas;    // world_data_t[]
-	char           *world_ref;
-	any_array_t    *speaker_datas;  // TODO: deprecated
-	string_array_t *embedded_datas; // Preload for this scene, images only for now
+	char        *name;
+	any_array_t *objects;      // obj_t[]
+	any_array_t *mesh_datas;   // mesh_data_t[]
+	any_array_t *camera_datas; // camera_data_t[]
+	char        *camera_ref;
+	any_array_t *material_datas; // TODO: deprecated
+	any_array_t *shader_datas;   // shader_data_t[]
+	any_array_t *world_datas;    // world_data_t[]
+	char        *world_ref;
 } scene_t;
 
 typedef struct shader_context_runtime {
@@ -190,6 +178,7 @@ typedef struct shader_context_runtime {
 	gpu_vertex_structure_t structure;
 	i32                    vertex_shader_size;
 	i32                    fragment_shader_size;
+	any_array_t           *textures; // gpu_texture_t[]
 } shader_context_runtime_t;
 
 typedef struct vertex_element {
@@ -207,6 +196,11 @@ typedef struct tex_unit {
 	char *name;
 	char *link;
 } tex_unit_t;
+
+typedef struct bind_tex {
+	char *name;
+	char *file;
+} bind_tex_t;
 
 typedef struct shader_context {
 	char                     *name;
@@ -229,46 +223,19 @@ typedef struct shader_context {
 	vertex_element_t_array_t *vertex_elements;   // vertex_element_t[]
 	shader_const_t_array_t   *constants;         // shader_const_t[]
 	tex_unit_t_array_t       *texture_units;     // tex_unit_t[]
+	bind_tex_t_array_t       *bind_textures;     // bind_tex_t[]
 	shader_context_runtime_t *_;
 } shader_context_t;
 
+typedef struct shader_data_runtime {
+	float uid;
+} shader_data_runtime_t;
+
 typedef struct shader_data {
-	char        *name;
-	any_array_t *contexts; // shader_context_t[]
+	char                  *name;
+	any_array_t           *contexts; // shader_context_t[]
+	shader_data_runtime_t *_;
 } shader_data_t;
-
-typedef struct bind_const {
-	char        *name;
-	f32_array_t *vec; // bool (vec[0] > 0) | i32 | f32 | vec2 | vec3 | vec4
-} bind_const_t;
-
-typedef struct bind_tex {
-	char *name;
-	char *file;
-} bind_tex_t;
-
-typedef struct material_context_runtime {
-	any_array_t *textures; // gpu_texture_t[]
-} material_context_runtime_t;
-
-typedef struct material_context {
-	char                       *name;
-	bind_const_t_array_t       *bind_constants; // bind_const_t[]
-	bind_tex_t_array_t         *bind_textures;  // bind_tex_t[]
-	material_context_runtime_t *_;
-} material_context_t;
-
-typedef struct material_data_runtime {
-	float          uid;
-	shader_data_t *shader;
-} material_data_runtime_t;
-
-typedef struct material_data {
-	char                       *name;
-	char                       *shader;
-	material_context_t_array_t *contexts; // material_context_t[]
-	material_data_runtime_t    *_;
-} material_data_t;
 
 typedef struct render_target {
 	char *name;
@@ -286,13 +253,13 @@ typedef struct cached_shader_context {
 } cached_shader_context_t;
 
 typedef struct mesh_object {
-	object_t        *base;
-	mesh_data_t     *data;
-	material_data_t *material;
-	f32              camera_dist;
-	bool             frustum_culling;
-	char            *skip_context;  // Do not draw this context
-	char            *force_context; // Draw only this context
+	object_t      *base;
+	mesh_data_t   *data;
+	shader_data_t *material;
+	f32            camera_dist;
+	bool           frustum_culling;
+	char          *skip_context;  // Do not draw this context
+	char          *force_context; // Draw only this context
 } mesh_object_t;
 
 typedef struct transform {
@@ -312,7 +279,7 @@ typedef struct transform {
 typedef struct {
 	int empty;
 #ifdef WITH_PHYSICS
-	asim_body_t *body;
+	physics_body_t *body;
 #endif
 } object_runtime_t;
 
@@ -327,6 +294,7 @@ typedef struct object {
 	bool              visible;
 	bool              culled;
 	bool              is_empty;
+	bool              owns_raw;
 	void             *ext;
 	char             *ext_type;
 	object_runtime_t *_;
@@ -344,6 +312,7 @@ extern i32 _object_uid_counter;
 object_t *object_create(bool is_empty);
 void      object_set_parent(object_t *raw, object_t *parent_object);
 void      object_remove_super(object_t *raw);
+void      object_free(object_t *raw);
 void      object_remove(object_t *raw);
 object_t *object_get_child(object_t *raw, char *name);
 
@@ -429,20 +398,6 @@ f32_array_t        *world_data_get_empty_irradiance();
 f32_array_t        *world_data_set_irradiance(world_data_t *raw);
 void                world_data_load_envmap(world_data_t *raw);
 
-// ███╗   ███╗ █████╗ ████████╗███████╗██████╗ ██╗ █████╗ ██╗         ██████╗  █████╗ ████████╗ █████╗
-// ████╗ ████║██╔══██╗╚══██╔══╝██╔════╝██╔══██╗██║██╔══██╗██║        ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
-// ██╔████╔██║███████║   ██║   █████╗  ██████╔╝██║███████║██║        ██║  ██║███████║   ██║   ███████║
-// ██║╚██╔╝██║██╔══██║   ██║   ██╔══╝  ██╔══██╗██║██╔══██║██║        ██║  ██║██╔══██║   ██║   ██╔══██║
-// ██║ ╚═╝ ██║██║  ██║   ██║   ███████╗██║  ██║██║██║  ██║███████╗   ██████╔╝██║  ██║   ██║   ██║  ██║
-// ╚═╝     ╚═╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝╚══════╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝
-
-extern i32          _material_data_uid_counter;
-material_data_t    *material_data_create(material_data_t *raw, char *file);
-material_data_t    *material_data_parse(char *file, char *name);
-material_data_t    *material_data_get_raw_by_name(any_array_t *datas, char *name);
-material_context_t *material_data_get_context(material_data_t *raw, char *name);
-void                material_context_load(material_context_t *raw);
-
 // ███████╗██╗  ██╗ █████╗ ██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗ █████╗
 // ██╔════╝██║  ██║██╔══██╗██╔══██╗██╔════╝██╔══██╗    ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
 // ███████╗███████║███████║██║  ██║█████╗  ██████╔╝    ██║  ██║███████║   ██║   ███████║
@@ -450,6 +405,7 @@ void                material_context_load(material_context_t *raw);
 // ███████║██║  ██║██║  ██║██████╔╝███████╗██║  ██║    ██████╔╝██║  ██║   ██║   ██║  ██║
 // ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝
 
+extern i32           _shader_data_uid_counter;
 shader_data_t       *shader_data_create(shader_data_t *raw);
 char                *shader_data_ext();
 shader_data_t       *shader_data_parse(char *file, char *name);
@@ -457,10 +413,13 @@ shader_data_t       *shader_data_get_raw_by_name(shader_data_t_array_t *datas, c
 void                 shader_data_delete(shader_data_t *raw);
 shader_context_t    *shader_data_get_context(shader_data_t *raw, char *name);
 void                 shader_context_load(shader_context_t *raw);
+void                 shader_context_load_textures(shader_context_t *raw);
 void                 shader_context_compile(shader_context_t *raw);
 i32                  shader_context_type_size(char *t);
 i32                  shader_context_type_pad(i32 offset, i32 size);
 void                 shader_context_finish_compile(shader_context_t *raw);
+void                 shader_compile_batch_begin(void);
+void                 shader_compile_batch_end(void);
 gpu_vertex_data_t    shader_context_parse_data(char *data);
 void                 shader_context_parse_vertex_struct(shader_context_t *raw);
 void                 shader_context_delete(shader_context_t *raw);
@@ -489,6 +448,7 @@ void                   mesh_data_build_indices(gpu_buffer_t *index_buffer, u32_a
 vertex_array_t        *mesh_data_get_vertex_array(mesh_data_t *raw, char *name);
 void                   mesh_data_build(mesh_data_t *raw);
 vec4_t                 mesh_data_calculate_aabb(mesh_data_t *raw);
+void                   mesh_data_calculate_aabb_min_max(mesh_data_t *raw, vec4_t *out_min, vec4_t *out_max);
 void                   mesh_data_delete(mesh_data_t *raw);
 
 // ███╗   ███╗███████╗███████╗██╗  ██╗     ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
@@ -499,13 +459,13 @@ void                   mesh_data_delete(mesh_data_t *raw);
 // ╚═╝     ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝     ╚═════╝ ╚═════╝  ╚════╝ ╚══════╝ ╚═════╝   ╚═╝
 
 extern gpu_pipeline_t *_mesh_object_last_pipeline;
-mesh_object_t         *mesh_object_create(mesh_data_t *data, material_data_t *material);
+mesh_object_t         *mesh_object_create(mesh_data_t *data, shader_data_t *material);
 void                   mesh_object_set_data(mesh_object_t *raw, mesh_data_t *data);
 void                   mesh_object_remove(mesh_object_t *raw);
 bool                   mesh_object_cull_material(mesh_object_t *raw, char *context);
 bool                   mesh_object_cull_mesh(mesh_object_t *raw, char *context, camera_object_t *camera);
 void                   mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_params);
-bool                   mesh_object_valid_context(mesh_object_t *raw, material_data_t *mat, char *context);
+bool                   mesh_object_valid_context(mesh_object_t *raw, shader_data_t *mat, char *context);
 
 extern mat4_t _uniforms_mat;
 extern mat4_t _uniforms_mat2;
@@ -515,14 +475,14 @@ extern vec4_t _uniforms_vec2;
 extern quat_t _uniforms_quat;
 extern f32    uniforms_pos_unpack;
 extern f32    uniforms_tex_unpack;
-extern gpu_texture_t *(*uniforms_tex_links)(object_t *o, material_data_t *md, char *s);
-extern mat4_t (*uniforms_mat4_links)(object_t *o, material_data_t *md, char *s);
-extern vec4_t (*uniforms_vec4_links)(object_t *o, material_data_t *md, char *s);
-extern vec4_t (*uniforms_vec3_links)(object_t *o, material_data_t *md, char *s);
-extern vec2_t (*uniforms_vec2_links)(object_t *o, material_data_t *md, char *s);
-extern f32 (*uniforms_f32_links)(object_t *o, material_data_t *md, char *s);
-extern f32_array_t *(*uniforms_f32_array_links)(object_t *o, material_data_t *md, char *s);
-extern i32 (*uniforms_i32_links)(object_t *o, material_data_t *md, char *s);
+extern gpu_texture_t *(*uniforms_tex_links)(object_t *o, shader_data_t *md, char *s);
+extern mat4_t (*uniforms_mat4_links)(object_t *o, shader_data_t *md, char *s);
+extern vec4_t (*uniforms_vec4_links)(object_t *o, shader_data_t *md, char *s);
+extern vec4_t (*uniforms_vec3_links)(object_t *o, shader_data_t *md, char *s);
+extern vec2_t (*uniforms_vec2_links)(object_t *o, shader_data_t *md, char *s);
+extern f32 (*uniforms_f32_links)(object_t *o, shader_data_t *md, char *s);
+extern f32_array_t *(*uniforms_f32_array_links)(object_t *o, shader_data_t *md, char *s);
+extern i32 (*uniforms_i32_links)(object_t *o, shader_data_t *md, char *s);
 
 // ██╗   ██╗███╗   ██╗██╗███████╗ ██████╗ ██████╗ ███╗   ███╗███████╗
 // ██║   ██║████╗  ██║██║██╔════╝██╔═══██╗██╔══██╗████╗ ████║██╔════╝
@@ -531,14 +491,12 @@ extern i32 (*uniforms_i32_links)(object_t *o, material_data_t *md, char *s);
 // ╚██████╔╝██║ ╚████║██║██║     ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████║
 //  ╚═════╝ ╚═╝  ╚═══╝╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝
 
-void             uniforms_set_context_consts(shader_context_t *context, string_array_t *bind_params);
-void             uniforms_set_obj_consts(shader_context_t *context, object_t *object);
-void             uniforms_bind_render_target(render_target_t *rt, shader_context_t *context, char *sampler_id);
-bool             uniforms_set_context_const(i32 location, shader_const_t *c);
-void             uniforms_set_obj_const(object_t *obj, i32 loc, shader_const_t *c);
-void             uniforms_set_material_consts(shader_context_t *context, material_context_t *material_context);
-material_data_t *current_material(object_t *object);
-void             uniforms_set_material_const(i32 location, shader_const_t *shader_const, bind_const_t *material_const);
+void           uniforms_set_context_consts(shader_context_t *context, string_array_t *bind_params);
+void           uniforms_set_obj_consts(shader_context_t *context, object_t *object);
+void           uniforms_bind_render_target(render_target_t *rt, shader_context_t *context, char *sampler_id);
+bool           uniforms_set_context_const(i32 location, shader_const_t *c);
+void           uniforms_set_obj_const(object_t *obj, i32 loc, shader_const_t *c);
+shader_data_t *current_material(object_t *object);
 
 // ██████╗  █████╗ ████████╗ █████╗
 // ██╔══██╗██╔══██╗╚══██╔══╝██╔══██╗
@@ -552,7 +510,6 @@ typedef void sound_t;
 extern any_map_t *data_cached_scene_raws;
 extern any_map_t *data_cached_meshes;
 extern any_map_t *data_cached_cameras;
-extern any_map_t *data_cached_materials;
 extern any_map_t *data_cached_worlds;
 extern any_map_t *data_cached_shaders;
 extern any_map_t *data_cached_blobs;
@@ -562,27 +519,26 @@ extern any_map_t *data_cached_fonts;
 extern any_map_t *data_cached_sounds;
 extern i32        data_assets_loaded;
 
-mesh_data_t     *data_get_mesh(char *file, char *name);
-camera_data_t   *data_get_camera(char *file, char *name);
-material_data_t *data_get_material(char *file, char *name);
-world_data_t    *data_get_world(char *file, char *name);
-shader_data_t   *data_get_shader(char *file, char *name);
-scene_t         *data_get_scene_raw(char *file);
-gpu_texture_t   *data_get_texture(char *file);
-buffer_t        *data_get_blob(char *file);
-video_t         *data_get_video(char *file);
-draw_font_t     *data_get_font(char *file);
-sound_t         *data_get_sound(char *file);
-void             data_delete_mesh(char *handle);
-void             data_delete_blob(char *handle);
-void             data_delete_texture(char *handle);
-void             data_delete_video(char *handle);
-void             data_delete_font(char *handle);
-void             data_delete_sound(char *handle);
-bool             data_is_abs(char *file);
-bool             data_is_up(char *file);
-char            *data_resolve_path(char *file);
-char            *data_path(void);
+mesh_data_t   *data_get_mesh(char *file, char *name);
+camera_data_t *data_get_camera(char *file, char *name);
+world_data_t  *data_get_world(char *file, char *name);
+shader_data_t *data_get_shader(char *file, char *name);
+scene_t       *data_get_scene_raw(char *file);
+gpu_texture_t *data_get_texture(char *file);
+buffer_t      *data_get_blob(char *file);
+video_t       *data_get_video(char *file);
+draw_font_t   *data_get_font(char *file);
+sound_t       *data_get_sound(char *file);
+void           data_delete_mesh(char *handle);
+void           data_delete_blob(char *handle);
+void           data_delete_texture(char *handle);
+void           data_delete_video(char *handle);
+void           data_delete_font(char *handle);
+void           data_delete_sound(char *handle);
+bool           data_is_abs(char *file);
+bool           data_is_up(char *file);
+char          *data_resolve_path(char *file);
+char          *data_path(void);
 
 // ███████╗ ██████╗███████╗███╗   ██╗███████╗
 // ██╔════╝██╔════╝██╔════╝████╗  ██║██╔════╝
@@ -596,12 +552,10 @@ extern world_data_t    *scene_world;
 extern any_array_t     *scene_meshes;
 extern any_array_t     *scene_cameras;
 extern any_array_t     *scene_empties;
-extern any_map_t       *scene_embedded;
 extern i32              _scene_uid_counter;
 extern i32              _scene_uid;
 extern scene_t         *_scene_raw;
 extern object_t        *_scene_root;
-extern object_t        *_scene_scene_parent;
 extern i32              _scene_objects_traversed;
 extern i32              _scene_objects_count;
 
@@ -611,22 +565,20 @@ object_t        *scene_set_active(char *scene_name);
 void             scene_render_frame(void);
 object_t        *scene_add_object(object_t *parent);
 object_t        *scene_get_child(char *name);
-mesh_object_t   *scene_add_mesh_object(mesh_data_t *data, material_data_t *material, object_t *parent);
+mesh_object_t   *scene_add_mesh_object(mesh_data_t *data, shader_data_t *material, object_t *parent);
 camera_object_t *scene_add_camera_object(camera_data_t *data, object_t *parent);
 void             scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *objects);
-object_t        *scene_add_scene(char *scene_name, object_t *parent);
+void             scene_add_scene(char *scene_name);
 i32              scene_get_objects_count(any_array_t *objects);
 object_t        *_scene_spawn_object_tree(obj_t *obj, object_t *parent, bool spawn_children);
 object_t        *scene_spawn_object(char *name, object_t *parent, bool spawn_children);
 obj_t           *scene_get_raw_object_by_name(scene_t *format, char *name);
 obj_t           *scene_traverse_objs(any_array_t *children, char *name);
 object_t        *scene_create_object(obj_t *o, scene_t *format, object_t *parent);
-object_t        *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, material_data_t *material);
-object_t        *scene_return_mesh_object(char *object_file, char *data_ref, material_data_t *material, object_t *parent, obj_t *o);
+object_t        *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, shader_data_t *material);
+object_t        *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, obj_t *o);
 object_t        *scene_return_object(object_t *object, obj_t *o);
 void             scene_gen_transform(obj_t *object, transform_t *transform);
-void             scene_load_embedded_data(string_array_t *datas);
-void             scene_embed_data(char *file);
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗██╗  ██╗
 // ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗    ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║
@@ -639,15 +591,14 @@ extern void (*render_path_commands)(void);
 extern any_map_t       *render_path_render_targets;
 extern i32              render_path_current_w;
 extern i32              render_path_current_h;
-extern f32              _render_path_frame_time;
+extern f64              _render_path_frame_time;
 extern i32              _render_path_frame;
 extern render_target_t *_render_path_current_target;
 extern gpu_texture_t   *_render_path_current_image;
-extern bool             _render_path_paused;
 extern i32              _render_path_last_w;
 extern i32              _render_path_last_h;
 extern string_array_t  *_render_path_bind_params;
-extern f32              _render_path_last_frame_time;
+extern f64              _render_path_last_frame_time;
 extern i32              _render_path_loading;
 extern any_map_t       *_render_path_cached_shader_contexts;
 

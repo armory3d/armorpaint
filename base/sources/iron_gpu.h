@@ -184,7 +184,7 @@ void gpu_set_mat3(int location, mat3_t value);
 void gpu_set_mat4(int location, mat4_t value);
 
 void  gpu_vertex_structure_add(gpu_vertex_structure_t *structure, const char *name, gpu_vertex_data_t data);
-void  gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format);
+void  gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress);
 void  gpu_texture_destroy(gpu_texture_t *texture);
 void  gpu_texture_destroy_internal(gpu_texture_t *texture);
 void  gpu_render_target_init(gpu_texture_t *target, uint32_t width, uint32_t height, gpu_texture_format_t format);
@@ -235,7 +235,7 @@ void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel
 void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb_full, gpu_buffer_t *_ib_full);
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel);
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
-                               gpu_texture_t *texscramble, gpu_texture_t *texrank);
+                               gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf);
 void gpu_raytrace_set_acceleration_structure(gpu_acceleration_structure_t *accel);
 void gpu_raytrace_set_pipeline(gpu_raytrace_pipeline_t *pipeline);
 void gpu_raytrace_set_target(gpu_texture_t *output);
@@ -245,8 +245,6 @@ void _gpu_raytrace_init(buffer_t *shader);
 void _gpu_raytrace_as_init();
 void _gpu_raytrace_as_add(gpu_buffer_t *vb, gpu_buffer_t *ib, mat4_t transform);
 void _gpu_raytrace_as_build(gpu_buffer_t *vb_full, gpu_buffer_t *ib_full);
-void gpu_raytrace_set_textures(gpu_texture_t *tex0, gpu_texture_t *tex1, gpu_texture_t *tex2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
-                               gpu_texture_t *texscramble, gpu_texture_t *texrank);
 void _gpu_raytrace_dispatch_rays(gpu_texture_t *render_target, buffer_t *buffer);
 
 uint32_t gpu_vertex_data_size(gpu_vertex_data_t data);
@@ -254,6 +252,7 @@ uint32_t gpu_vertex_struct_size(gpu_vertex_structure_t *s);
 uint32_t gpu_texture_format_size(gpu_texture_format_t format);
 
 extern bool            gpu_in_use;
+extern bool            gpu_raytrace_multi;
 extern gpu_texture_t  *current_textures[GPU_MAX_TEXTURES];
 extern gpu_texture_t  *current_render_targets[8];
 extern uint32_t        current_render_targets_count;

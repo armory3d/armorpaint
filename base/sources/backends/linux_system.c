@@ -749,10 +749,8 @@ static int xk_to_iron(KeySym symbol) {
 	return KEY_CODE_UNKNOWN;
 }
 
-void *gc_alloc(size_t size);
-
 static char *uri_decode(const char *src) {
-	char *res = gc_alloc(1024);
+	char *res = calloc(1, 1024);
 	char *dst = res;
 	char  a, b;
 	while (*src) {
@@ -1212,6 +1210,10 @@ void iron_copy_to_clipboard(const char *text) {
 		clipboardString     = (char *)malloc(clipboardStringSize);
 	}
 	strcpy(clipboardString, text);
+
+	struct iron_x11_window *window = &x11_ctx.windows[0];
+	XSetSelectionOwner(x11_ctx.display, CLIPBOARD, window->window, CurrentTime);
+	XFlush(x11_ctx.display);
 }
 
 int iron_hardware_threads(void) {
@@ -1555,6 +1557,11 @@ void iron_exec_async(const char *path, char *argv[]) {
 		dup2(fd, STDERR_FILENO);
 		if (fd > STDERR_FILENO) {
 			close(fd);
+		}
+		int in_fd = open("/dev/null", O_RDONLY);
+		dup2(in_fd, STDIN_FILENO);
+		if (in_fd > STDERR_FILENO) {
+			close(in_fd);
 		}
 		char *home = getenv("HOME");
 		char *env  = getenv("PATH");

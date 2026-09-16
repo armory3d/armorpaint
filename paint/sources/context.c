@@ -2,13 +2,11 @@
 #include "global.h"
 
 void context_init() {
-	g_context = GC_ALLOC_INIT(context_t, {0});
-	gc_root(g_context);
+	g_context = ALLOC_INIT(context_t, {0});
 
 	g_context->merged_object_is_atlas       = false; // Only objects referenced by atlas are merged
 	g_context->ddirty                       = 0;     // depth
 	g_context->pdirty                       = 0;     // paint
-	g_context->rdirty                       = 0;     // render
 	g_context->brush_blend_dirty            = true;
 	g_context->split_view                   = false;
 	g_context->view_index                   = -1;
@@ -44,6 +42,7 @@ void context_init() {
 	g_context->clone_start_y                = -1.0;
 	g_context->clone_delta_x                = 0.0;
 	g_context->clone_delta_y                = 0.0;
+	g_context->clone_set_source             = false;
 	g_context->show_compass                 = true;
 	g_context->last_paint_vec_x             = -1.0;
 	g_context->last_paint_vec_y             = -1.0;
@@ -103,7 +102,7 @@ void context_init() {
 	g_context->particle_lifetime            = 5.0;
 	g_context->particle_mass                = 1.0;
 	g_context->particle_random              = 0.1;
-	g_context->particle_spawn_distance      = 0.3;
+	g_context->particle_spawn_distance      = 0.0;
 	g_context->layer_filter                 = 0;
 	g_context->gizmo_started                = false;
 	g_context->gizmo_offset                 = 0.0;
@@ -174,6 +173,7 @@ void context_init() {
 	g_context->color_picker_previous_tool   = TOOL_TYPE_BRUSH;
 	g_context->brush_radius                 = 0.5;
 	g_context->brush_hardness               = 1.0;
+	g_context->project_type                 = -1;
 }
 
 bool context_use_deferred() {
@@ -201,9 +201,7 @@ void context_set_material(slot_material_t *m) {
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
 	ui_header_handle->redraws                         = 2;
 	ui_nodes_hwnd->redraws                            = 2;
-	gc_unroot(ui_nodes_group_stack);
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
+	ui_nodes_group_stack                              = any_array_create_from_raw((void *[]){}, 0);
 
 	bool decal = context_is_decal();
 	if (decal) {
@@ -328,10 +326,6 @@ void context_select_paint_object(mesh_object_t *o) {
 		p->skip_context  = "paint";
 	}
 
-	// #ifdef is_forge
-	// g_context->paint_object->skip_context = "";
-	// #endif
-
 	g_context->paint_object = o;
 
 	i32 mask = slot_layer_get_object_mask(g_context->layer);
@@ -403,6 +397,11 @@ bool context_in_fonts() {
 	return string_equals(tab, tr("Fonts"));
 }
 
+bool context_in_sounds() {
+	char *tab = ui_hovered_tab_name();
+	return string_equals(tab, tr("Sounds"));
+}
+
 bool context_in_textures() {
 	char *tab = ui_hovered_tab_name();
 	return string_equals(tab, tr("Textures"));
@@ -427,18 +426,17 @@ bool context_is_decal() {
 }
 
 bool context_is_decal_mask() {
-	return context_is_decal() && operator_shortcut(any_map_get(g_keymap, "decal_mask"), SHORTCUT_TYPE_DOWN);
+	return context_is_decal() && keymap_shortcut(any_map_get(g_keymap, "decal_mask"), SHORTCUT_TYPE_DOWN);
 }
 
 bool context_is_brush_camera_align() {
 	bool brush = g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER;
-	return (context_is_decal() || brush) &&
-	       (g_context->brush_camera_align || operator_shortcut(any_map_get(g_keymap, "brush_camera_align"), SHORTCUT_TYPE_DOWN));
+	return (context_is_decal() || brush) && (g_context->brush_camera_align || keymap_shortcut(any_map_get(g_keymap, "brush_camera_align"), SHORTCUT_TYPE_DOWN));
 }
 
 bool context_is_decal_mask_paint() {
 	return context_is_decal() &&
-	       operator_shortcut(string("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
+	       keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN);
 }
 
 bool context_is_decal_mask_paint_pass() {
@@ -459,16 +457,16 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 	g_context->viewport_mode           = mode;
 
 	if (context_use_deferred()) {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_deferred_commands;
-		gc_root(render_path_commands);
 	}
 	else {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_forward_commands;
-		gc_root(render_path_commands);
 	}
 	make_material_parse_mesh_material();
+
+	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+		util_mesh_merge(NULL);
+	}
 
 	// Rotate mode is not supported for path tracing yet
 	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->camera_controls == CAMERA_CONTROLS_ROTATE) {
@@ -535,14 +533,10 @@ void context_set_render_path_on_next_frame(void *_) {
 
 void context_set_render_path() {
 	if (g_config->render_mode == RENDER_MODE_FORWARD || g_context->viewport_shader != NULL) {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_forward_commands;
-		gc_root(render_path_commands);
 	}
 	else {
-		gc_unroot(render_path_commands);
 		render_path_commands = render_path_deferred_commands;
-		gc_root(render_path_commands);
 	}
 	sys_notify_on_next_frame(&context_set_render_path_on_next_frame, NULL);
 }

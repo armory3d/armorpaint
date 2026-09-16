@@ -48,12 +48,6 @@ extern type_id     next_type_index;
 void               hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
 void               spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
 void               wgsl_export2(char **vs, char **fs);
-#ifdef IRON_METAL
-extern size_t vertex_inputs_size;
-extern size_t fragment_inputs_size;
-extern size_t vertex_functions_size;
-extern size_t fragment_functions_size;
-#endif
 
 void kong_compile(char *shader_lang, const char *from, const char *to) {
 	FILE *fp = fopen(from, "rb");
@@ -72,12 +66,6 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 	names_index            = 1;
 	sets_count             = 0;
 	next_type_index        = 0;
-#ifdef IRON_METAL
-	vertex_inputs_size      = 0;
-	fragment_inputs_size    = 0;
-	vertex_functions_size   = 0;
-	fragment_functions_size = 0;
-#endif
 	names_init();
 	types_init();
 	functions_init();

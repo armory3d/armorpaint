@@ -86,7 +86,7 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 			}
 		}
 
-		export_obj_write_string(o, string("o %s\n", p->base->name));
+		export_obj_write_string(o, string_tmp("o %s\n", p->base->name));
 		for (i32 i = 0; i < pi; ++i) {
 			export_obj_write_string(o, "v ");
 			f32 f = posa2->buffer[i * 3] * sc;
@@ -155,12 +155,20 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 		poff += pi;
 		noff += ni;
 		toff += ti;
+
+		array_delete(posa2);
+		array_delete(nora2);
+		array_delete(texa2);
+		array_delete(posmap);
+		array_delete(normap);
+		array_delete(texmap);
 	}
 
 	if (!ends_with(path, ".obj")) {
-		path = string("%s.obj", path);
+		path = string_tmp("%s.obj", path);
 	}
 	iron_file_save_bytes(path, o, 0);
+	array_delete(o);
 }
 
 void export_obj_run_fast(char *path, mesh_object_t_array_t *paint_objects) {
@@ -185,7 +193,7 @@ void export_obj_run_fast(char *path, mesh_object_t_array_t *paint_objects) {
 		i32 ni = pi;
 		i32 ti = pi;
 
-		export_obj_write_string(o, string("o %s\n", p->base->name));
+		export_obj_write_string(o, string_tmp("o %s\n", p->base->name));
 		for (i32 i = 0; i < pi; ++i) {
 			export_obj_write_string(o, "v ");
 			f32 f = posa->buffer[i * 4] * sc;
@@ -257,9 +265,10 @@ void export_obj_run_fast(char *path, mesh_object_t_array_t *paint_objects) {
 	}
 
 	if (!ends_with(path, ".obj")) {
-		path = string("%s.obj", path);
+		path = string_tmp("%s.obj", path);
 	}
 	iron_file_save_bytes(path, o, 0);
+	array_delete(o);
 }
 
 static bool export_obj_sculpt_layer_mask(slot_layer_t *l, f32_array_t *pmask, i32 len, i16_array_t *texa, u32_array_t *inda, f32 inv) {
@@ -319,6 +328,7 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	}
 	i32 count = sculpt_layers->length;
 	if (count == 0) {
+		array_delete(sculpt_layers);
 		return;
 	}
 
@@ -388,7 +398,7 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 		}
 	}
 
-	export_obj_write_string(o, string("o %s\n", p->base->name));
+	export_obj_write_string(o, string_tmp("o %s\n", p->base->name));
 
 	for (i32 i = 0; i < len; ++i) {
 		f32 x = cpos->buffer[i * 3] * sc;
@@ -469,7 +479,12 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	}
 
 	if (!ends_with(path, ".obj")) {
-		path = string("%s.obj", path);
+		path = string_tmp("%s.obj", path);
 	}
 	iron_file_save_bytes(path, o, 0);
+
+	array_delete(o);
+	array_delete(cpos);
+	array_delete(pmask);
+	array_delete(sculpt_layers);
 }

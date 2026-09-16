@@ -6,13 +6,9 @@ void nodes_brush_init() {
 		return;
 	}
 
-	gc_unroot(nodes_brush_creates);
 	nodes_brush_creates = any_map_create();
-	gc_root(nodes_brush_creates);
 
-	gc_unroot(nodes_brush_category0);
 	nodes_brush_category0 = any_array_create(0);
-	gc_root(nodes_brush_category0);
 
 	brush_output_node_init();
 	tex_image_node_init();
@@ -25,13 +21,11 @@ void nodes_brush_init() {
 	vector_node_init();
 	vector_math_node_init();
 
-	gc_unroot(nodes_brush_list);
 	nodes_brush_list = any_array_create_from_raw(
 	    (void *[]){
 	        nodes_brush_category0,
 	    },
 	    1);
-	gc_root(nodes_brush_list);
 }
 
 ui_node_t *nodes_brush_create_node(char *node_type) {

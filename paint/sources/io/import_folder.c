@@ -7,7 +7,7 @@ void import_folder_place_image_node(ui_nodes_t *nodes, ui_node_canvas_t *canvas,
 	n->x                                 = 72;
 	n->y                                 = ny;
 	ui_node_link_t *l =
-	    GC_ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(canvas->links), .from_id = n->id, .from_socket = 0, .to_id = to_id, .to_socket = to_socket});
+	    ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(canvas->links), .from_id = n->id, .from_socket = 0, .to_id = to_id, .to_socket = to_socket});
 	any_array_push(canvas->links, l);
 }
 

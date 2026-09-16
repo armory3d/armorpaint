@@ -1,5 +1,5 @@
+#include "iron_alloc.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
 #include "iron_string.h"
 #include "iron_system.h"
 #include "iron_ui.h"
@@ -8,17 +8,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-static ui_handle_t *wheel_selected_handle    = NULL;
-static ui_handle_t *gradient_selected_handle = NULL;
-static ui_handle_t  radio_handle;
 static int          _ELEMENT_OFFSET               = 0;
 static int          _BUTTON_COL                   = 0;
 static bool         _SHADOWS                      = false;
 static int          text_area_selection_start     = -1;
 static int          text_area_selection_start_col = 0;
+static double       text_area_last_click_time     = 0.0;
+static int          text_area_last_click_line     = -1;
 bool                ui_text_area_line_numbers     = false;
 bool                ui_text_area_scroll_past_end  = false;
 ui_text_coloring_t *ui_text_area_coloring         = NULL;
+char               *ui_text_area_search           = NULL;
 bool (*ui_picker_button)(void)                    = NULL;
 
 float ui_dist(float x1, float y1, float x2, float y2) {
@@ -76,21 +76,40 @@ void               ui_rgb_to_hsv(float cr, float cg, float cb, float *out) {
     out[2]   = qx;
 }
 
-float ui_float_input(ui_handle_t *handle, char *label, int align, float precision) {
-	char tmp[256];
-	handle->text = tmp;
-	sprintf(handle->text, "%f", round(handle->f * precision) / precision);
-	char *text = ui_text_input(handle, label, align, true, false);
-	handle->f  = atof(text);
-	return handle->f;
+float ui_float_input(float *value, char *label, int align, float precision) {
+	char buffer[256];
+	snprintf(buffer, sizeof(buffer), "%f", round(*value * precision) / precision);
+	char   *text = buffer;
+	ui_id_t id   = ui_widget_id(value, UI_ID_FLOAT_INPUT);
+	ui_push_id(id);
+	ui_set_next_id(1);
+	ui_text_input(&text, label, align, true, false);
+	if (ui_item_changed())
+		*value = ui_parse_float(text);
+	if (text != buffer)
+		free(text);
+	ui_pop_id();
+	return *value;
 }
 
-int ui_inline_radio(ui_handle_t *handle, string_array_t *texts, int align) {
+int ui_slider_int(int *value, char *text, float from, float to, bool filled, bool display_value, int align, bool text_edit) {
 	ui_t *current = ui_get_current();
+	float f       = *value;
+	if (current->next_id == 0)
+		ui_set_next_id((ui_id_t)value); // Keep the id of the int instead of the temporary float
+	ui_slider(&f, text, from, to, filled, 1, display_value, align, text_edit);
+	*value = (int)f;
+	return *value;
+}
+
+int ui_inline_radio(int *value, string_array_t *texts, int align) {
+	ui_t *current         = ui_get_current();
+	current->item_changed = false;
 
 	if (!ui_is_visible(UI_ELEMENT_H())) {
 		ui_end_element();
-		return handle->i;
+		ui_record_change();
+		return (*value);
 	}
 	float step    = current->_w / texts->length;
 	int   hovered = -1;
@@ -104,16 +123,16 @@ int ui_inline_radio(ui_handle_t *handle, string_array_t *texts, int align) {
 		}
 	}
 	if (ui_get_released(UI_ELEMENT_H())) {
-		handle->i       = hovered;
-		handle->changed = current->changed = true;
+		(*value)              = hovered;
+		current->item_changed = current->changed = true;
 	}
 	else {
-		handle->changed = false;
+		current->item_changed = false;
 	}
 
 	ui_theme_t *theme = ui_get_current()->ops->theme;
 	for (int i = 0; i < texts->length; ++i) {
-		if (handle->i == i) {
+		if ((*value) == i) {
 			draw_set_color(theme->HIGHLIGHT_COL);
 			if (!current->enabled) {
 				ui_fade_color(0.25);
@@ -136,7 +155,8 @@ int ui_inline_radio(ui_handle_t *handle, string_array_t *texts, int align) {
 		current->_w = _w;
 	}
 	ui_end_element();
-	return handle->i;
+	ui_record_change();
+	return (*value);
 }
 
 uint8_t ui_color_r(uint32_t color) {
@@ -163,26 +183,36 @@ bool _ui_picker_button() {
 	return ui_button("P", UI_ALIGN_CENTER, "");
 }
 
-int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color_preview, void (*picker)(void *), void *data) {
-	ui_t *current = ui_get_current();
+int ui_color_wheel(uint32_t *value, ui_color_state_t *state, bool alpha, float w, float h, bool color_preview, void (*picker)(void *), void *data) {
+	ui_t   *current  = ui_get_current();
+	ui_id_t id       = ui_widget_id(value, UI_ID_COLOR);
+	current->next_id = 0;
+	ui_push_id(id);
+	bool wheel_changed   = false;
+	bool channel_changed = false;
 	if (w < 0) {
 		w = current->_w;
 	}
 
-	float r = ui_color_r(handle->color) / 255.0f;
-	float g = ui_color_g(handle->color) / 255.0f;
-	float b = ui_color_b(handle->color) / 255.0f;
-	if (fabs(handle->red - r) > 0.01 || fabs(handle->green - g) > 0.01 || fabs(handle->blue - b) > 0.01) {
-		handle->red   = r;
-		handle->green = g;
-		handle->blue  = b;
-		ui_rgb_to_hsv(r, g, b, &handle->hue);
+	float r = ui_color_r((*value)) / 255.0f;
+	float g = ui_color_g((*value)) / 255.0f;
+	float b = ui_color_b((*value)) / 255.0f;
+	if (fabs(state->red - r) > 0.01 || fabs(state->green - g) > 0.01 || fabs(state->blue - b) > 0.01) {
+		state->red   = r;
+		state->green = g;
+		state->blue  = b;
+		float hsv[3];
+		ui_rgb_to_hsv(r, g, b, hsv);
+		if (hsv[1] > 0)
+			state->hue = hsv[0];
+		state->sat = hsv[1];
+		state->val = hsv[2];
 	}
 
 	// Wheel
 	float px     = current->_x;
 	float py     = current->_y;
-	bool  scroll = current->current_window != NULL ? current->current_window->scroll_enabled : false;
+	bool  scroll = current->current_window != 0 ? current->current_window->scroll_enabled : false;
 	if (!scroll) {
 		w -= UI_SCROLL_W();
 		px += UI_SCROLL_W() / 2.0;
@@ -194,18 +224,21 @@ int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color
 	if (ui_picker_button == NULL) {
 		ui_picker_button = &_ui_picker_button;
 	}
-	if (picker != NULL && ui_picker_button()) {
+	if (picker != 0 && ui_picker_button()) {
 		(*picker)(data);
 		current->changed = false;
-		handle->changed  = false;
-		return handle->color;
+		wheel_changed    = false;
+		ui_pop_id();
+		current->item_changed = wheel_changed;
+		ui_record_change();
+		return (*value);
 	}
 	current->_x = _x;
 	current->_y = _y;
 	current->_w = _w;
 
 	ui_theme_t *theme   = current->ops->theme;
-	uint32_t    col     = ui_color(round(handle->val * 255.0f), round(handle->val * 255.0f), round(handle->val * 255.0f), 255);
+	uint32_t    col     = ui_color(round(state->val * 255.0f), round(state->val * 255.0f), round(state->val * 255.0f), 255);
 	float       wheel_h = current->ops->color_wheel->height * (w / current->ops->color_wheel->width);
 	ui_image(current->ops->color_wheel, col, wheel_h - 2);
 
@@ -216,13 +249,13 @@ int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color
 	float cw      = w * 0.7;
 	float cwh     = cw / 2.0;
 	float cx      = ox;
-	float cy      = oy + handle->sat * cwh; // Sat is distance from center
+	float cy      = oy + state->sat * cwh; // Sat is distance from center
 	float grad_tx = px + 0.897 * w;
 	float grad_ty = oy - cwh;
 	float grad_w  = 0.0777 * w;
 	float grad_h  = cw;
 	// Rotate around origin by hue
-	float theta = handle->hue * (IRON_PI * 2.0);
+	float theta = state->hue * (IRON_PI * 2.0);
 	float cx2   = cos(theta) * (cx - ox) - sin(theta) * (cy - oy) + ox;
 	float cy2   = sin(theta) * (cx - ox) + cos(theta) * (cy - oy) + oy;
 	cx          = cx2;
@@ -238,99 +271,104 @@ int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color
 	draw_filled_rect(cx - 2.0 * UI_SCALE(), cy - 2.0 * UI_SCALE(), 4.0 * UI_SCALE(), 4.0 * UI_SCALE());
 
 	draw_set_color(0xff000000);
-	draw_filled_rect(grad_tx + grad_w / 2.0 - 3.0 * UI_SCALE(), grad_ty + (1.0 - handle->val) * grad_h - 3.0 * UI_SCALE(), 6.0 * UI_SCALE(), 6.0 * UI_SCALE());
+	draw_filled_rect(grad_tx + grad_w / 2.0 - 3.0 * UI_SCALE(), grad_ty + (1.0 - state->val) * grad_h - 3.0 * UI_SCALE(), 6.0 * UI_SCALE(), 6.0 * UI_SCALE());
 	draw_set_color(0xffffffff);
-	draw_filled_rect(grad_tx + grad_w / 2.0 - 2.0 * UI_SCALE(), grad_ty + (1.0 - handle->val) * grad_h - 2.0 * UI_SCALE(), 4.0 * UI_SCALE(), 4.0 * UI_SCALE());
+	draw_filled_rect(grad_tx + grad_w / 2.0 - 2.0 * UI_SCALE(), grad_ty + (1.0 - state->val) * grad_h - 2.0 * UI_SCALE(), 4.0 * UI_SCALE(), 4.0 * UI_SCALE());
 
-	float a = ui_color_a(handle->color) / 255.0f;
+	float a = ui_color_a((*value)) / 255.0f;
 	if (alpha) {
-		ui_handle_t *alpha_handle = ui_nest(handle, 1);
-		if (alpha_handle->init) {
-			alpha_handle->f = round(a * 100.0) / 100.0;
-		}
-		a = ui_slider(alpha_handle, "Alpha", 0.0, 1.0, true, 100, true, UI_ALIGN_LEFT, true);
-		if (alpha_handle->changed) {
-			handle->changed = current->changed = true;
-		}
+		state->alpha = a;
+		a            = ui_slider(&state->alpha, "Alpha", 0.0, 1.0, true, 100, true, UI_ALIGN_LEFT, true);
+		wheel_changed |= ui_item_changed();
 	}
 
 	// Mouse picking for color wheel
 	float gx = ox + current->_window_x;
 	float gy = oy + current->_window_y;
 	if (current->input_started && ui_input_in_rect(gx - cwh, gy - cwh, cw, cw)) {
-		wheel_selected_handle = handle;
+		current->color_wheel_id = id;
 	}
-	if (current->input_released && wheel_selected_handle != NULL) {
-		wheel_selected_handle = NULL;
-		handle->changed = current->changed = true;
+	if (current->input_released && current->color_wheel_id == id) {
+		current->color_wheel_id = 0;
+		wheel_changed = current->changed = true;
 	}
-	if (current->input_down && wheel_selected_handle == handle) {
-		handle->sat = fmin(ui_dist(gx, gy, current->input_x, current->input_y), cwh) / cwh;
+	if (current->input_down && current->color_wheel_id == id) {
+		state->sat  = fmin(ui_dist(gx, gy, current->input_x, current->input_y), cwh) / cwh;
 		float angle = atan2(current->input_x - gx, current->input_y - gy);
 		if (angle < 0) {
 			angle = IRON_PI + (IRON_PI - fabs(angle));
 		}
-		angle           = IRON_PI * 2.0 - angle;
-		handle->hue     = angle / (IRON_PI * 2.0);
-		handle->changed = current->changed = true;
+		angle         = IRON_PI * 2.0 - angle;
+		state->hue    = angle / (IRON_PI * 2.0);
+		wheel_changed = current->changed = true;
 	}
 	// Mouse picking for val
 	if (current->input_started && ui_input_in_rect(grad_tx + current->_window_x, grad_ty + current->_window_y, grad_w, grad_h)) {
-		gradient_selected_handle = handle;
+		current->color_gradient_id = id;
 	}
-	if (current->input_released && gradient_selected_handle != NULL) {
-		gradient_selected_handle = NULL;
-		handle->changed = current->changed = true;
+	if (current->input_released && current->color_gradient_id == id) {
+		current->color_gradient_id = 0;
+		wheel_changed = current->changed = true;
 	}
-	if (current->input_down && gradient_selected_handle == handle) {
-		handle->val     = fmax(0.01, fmin(1.0, 1.0 - (current->input_y - grad_ty - current->_window_y) / grad_h));
-		handle->changed = current->changed = true;
+	if (current->input_down && current->color_gradient_id == id) {
+		state->val    = fmax(0.01, fmin(1.0, 1.0 - (current->input_y - grad_ty - current->_window_y) / grad_h));
+		wheel_changed = current->changed = true;
 	}
 
 	// Save as rgb
-	ui_hsv_to_rgb(handle->hue, handle->sat, handle->val, &handle->red);
-	handle->color = ui_color(round(handle->red * 255.0), round(handle->green * 255.0), round(handle->blue * 255.0), round(a * 255.0));
+	ui_hsv_to_rgb(state->hue, state->sat, state->val, &state->red);
+	(*value) = ui_color(round(state->red * 255.0), round(state->green * 255.0), round(state->blue * 255.0), round(a * 255.0));
 
 	if (color_preview) {
-		ui_text("", UI_ALIGN_RIGHT, handle->color);
+		ui_text("", UI_ALIGN_RIGHT, (*value));
 	}
 
 	char          *strings[] = {"RGB", "HSV", "Hex"};
 	string_array_t car;
 	car.buffer = strings;
 	car.length = 3;
-	int pos    = ui_inline_radio(&radio_handle, &car, UI_ALIGN_LEFT);
+	int pos    = ui_inline_radio(&state->mode, &car, UI_ALIGN_LEFT);
 
-	ui_handle_t *h0 = ui_nest(ui_nest(handle, 0), 0);
-	ui_handle_t *h1 = ui_nest(ui_nest(handle, 0), 1);
-	ui_handle_t *h2 = ui_nest(ui_nest(handle, 0), 2);
 	if (pos == 0) {
-		h0->f         = handle->red;
-		h1->f         = handle->green;
-		h2->f         = handle->blue;
-		handle->red   = ui_slider(h0, "R", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		handle->green = ui_slider(h1, "G", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		handle->blue  = ui_slider(h2, "B", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		ui_rgb_to_hsv(handle->red, handle->green, handle->blue, &handle->hue);
-		handle->color = ui_color(round(handle->red * 255.0), round(handle->green * 255.0), round(handle->blue * 255.0), round(a * 255.0));
+		ui_slider(&state->red, "R", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		ui_slider(&state->green, "G", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		ui_slider(&state->blue, "B", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		if (channel_changed) {
+			float hsv[3];
+			ui_rgb_to_hsv(state->red, state->green, state->blue, hsv);
+			if (hsv[1] > 0)
+				state->hue = hsv[0];
+			state->sat = hsv[1];
+			state->val = hsv[2];
+		}
+		(*value) = ui_color(round(state->red * 255.0), round(state->green * 255.0), round(state->blue * 255.0), round(a * 255.0));
 	}
 	else if (pos == 1) {
-		h0->f       = handle->hue;
-		h1->f       = handle->sat;
-		h2->f       = handle->val;
-		handle->hue = ui_slider(h0, "H", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		handle->sat = ui_slider(h1, "S", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		handle->val = ui_slider(h2, "V", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-		ui_hsv_to_rgb(handle->hue, handle->sat, handle->val, &handle->red);
-		handle->color = ui_color(round(handle->red * 255.0), round(handle->green * 255.0), round(handle->blue * 255.0), round(a * 255.0));
+		ui_slider(&state->hue, "H", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		ui_slider(&state->sat, "S", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		ui_slider(&state->val, "V", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+		channel_changed |= ui_item_changed();
+		ui_hsv_to_rgb(state->hue, state->sat, state->val, &state->red);
+		(*value) = ui_color(round(state->red * 255.0), round(state->green * 255.0), round(state->blue * 255.0), round(a * 255.0));
 	}
 	else if (pos == 2) {
-		char tmp[16];
-		handle->text = tmp;
-		sprintf(handle->text, "%x", handle->color);
-		char *hex_code = ui_text_input(handle, "#", UI_ALIGN_LEFT, true, false);
+		char  tmp[16];
+		char *text = tmp;
+		sprintf(text, "%x", (*value));
+		ui_set_next_id(1);
+		char *edited = ui_text_input(&text, "#", UI_ALIGN_LEFT, true, false);
+		wheel_changed |= ui_item_changed();
+		char hex_code[UI_TEXT_MAX];
+		snprintf(hex_code, sizeof(hex_code), "%s", edited);
+		if (edited != tmp)
+			free(edited);
 		if (strlen(hex_code) >= 1 && hex_code[0] == '#') { // Allow # at the beginning
-			hex_code = strcpy(hex_code, hex_code + 1);
+			memmove(hex_code, hex_code + 1, strlen(hex_code));
 		}
 		if (strlen(hex_code) == 3) { // 3 digit CSS style values like fa0 --> ffaa00
 			hex_code[5] = hex_code[2];
@@ -359,15 +397,16 @@ int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color
 			hex_code[2] = hex_code[0];
 			hex_code[0] = 'f';
 			hex_code[1] = 'f';
+			hex_code[8] = '\0';
 		}
 #ifdef _WIN32
-		handle->color = _strtoi64(hex_code, NULL, 16);
+		(*value) = _strtoi64(hex_code, NULL, 16);
 #else
-		handle->color = strtol(hex_code, NULL, 16);
+		(*value) = strtol(hex_code, NULL, 16);
 #endif
 	}
-	if (h0->changed || h1->changed || h2->changed) {
-		handle->changed = current->changed = true;
+	if (channel_changed) {
+		wheel_changed = current->changed = true;
 	}
 
 	// Do not close if user clicks
@@ -376,16 +415,21 @@ int ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color
 		current->changed = true;
 	}
 
-	return handle->color;
+	ui_pop_id();
+	current->item_changed = wheel_changed;
+	ui_record_change();
+	return (*value);
 }
 
-static void scroll_align(ui_t *current, ui_handle_t *handle) {
+static void scroll_align(ui_t *current, int *line_index) {
+	if (current->current_window == NULL)
+		return;
 	// Scroll down
-	if ((handle->i + 1) * UI_ELEMENT_H() + current->current_window->scroll_offset > current->_h - current->window_header_h) {
+	if (((*line_index) + 1) * UI_ELEMENT_H() + current->current_window->scroll_offset > current->_h - current->window_header_h) {
 		current->current_window->scroll_offset -= UI_ELEMENT_H();
 	}
 	// Scroll up
-	else if ((handle->i + 1) * UI_ELEMENT_H() + current->current_window->scroll_offset < current->window_header_h) {
+	else if (((*line_index) + 1) * UI_ELEMENT_H() + current->current_window->scroll_offset < current->window_header_h) {
 		current->current_window->scroll_offset += UI_ELEMENT_H();
 	}
 }
@@ -401,10 +445,38 @@ static char *right_align_number(char *s, int number, int length) {
 	return s;
 }
 
-static void handle_line_select(ui_t *current, ui_handle_t *handle) {
+static bool ui_text_area_is_word_char(char c) {
+	return c == '_' || (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+static void ui_text_area_select_word(ui_t *current) {
+	char *text = current->text_selected;
+	int   len  = (int)strlen(text);
+	int   pos  = current->cursor_x > len ? len : current->cursor_x;
+	if (!(pos < len && ui_text_area_is_word_char(text[pos])) && !(pos > 0 && ui_text_area_is_word_char(text[pos - 1]))) {
+		return;
+	}
+	int start = pos;
+	while (start > 0 && ui_text_area_is_word_char(text[start - 1])) {
+		start--;
+	}
+	int end = pos;
+	while (end < len && ui_text_area_is_word_char(text[end])) {
+		end++;
+	}
+	current->highlight_anchor = start;
+	current->cursor_x         = end;
+	current->cursor_sticky_x  = end;
+}
+
+void ui_text_area_clear_selection() {
+	text_area_selection_start = -1;
+}
+
+static void handle_line_select(ui_t *current, int *line_index) {
 	if (current->is_shift_down) {
 		if (text_area_selection_start == -1) {
-			text_area_selection_start     = handle->i;
+			text_area_selection_start     = (*line_index);
 			text_area_selection_start_col = current->cursor_x;
 		}
 		current->highlight_anchor = 0;
@@ -445,7 +517,9 @@ static char *ui_extract_word(char *str, int word) {
 		if (word_i > word) {
 			break;
 		}
-		temp[pos++] = str[i];
+		if (pos < (int)sizeof(temp) - 1) {
+			temp[pos++] = str[i];
+		}
 	}
 	temp[pos] = 0;
 	return temp;
@@ -479,16 +553,16 @@ static void ui_append_capped(char *dst, char *src, int cap) {
 	dst[len + count] = '\0';
 }
 
-void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
+void ui_text_area_word_wrap(char *lines, char **value, int *line_index, bool selected) {
 	ui_t *current    = ui_get_current();
 	bool  cursor_set = false;
 	int   cursor_pos = current->cursor_x;
-	for (int i = 0; i < handle->i; ++i) {
+	for (int i = 0; i < (*line_index); ++i) {
 		cursor_pos += strlen(ui_extract_line(lines, i)) + 1; // + '\n'
 	}
 	bool anchor_set = false;
 	int  anchor_pos = current->highlight_anchor;
-	for (int i = 0; i < handle->i; ++i) {
+	for (int i = 0; i < (*line_index); ++i) {
 		anchor_pos += strlen(ui_extract_line(lines, i)) + 1;
 	}
 	int  word_count = ui_word_count(lines);
@@ -526,7 +600,7 @@ void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 
 		if (selected && !cursor_set && cursor_pos <= lines_len + strlen(line)) {
 			cursor_set        = true;
-			handle->i         = new_line_count;
+			(*line_index)     = new_line_count;
 			current->cursor_x = cursor_pos - lines_len;
 		}
 		if (selected && !anchor_set && anchor_pos <= lines_len + strlen(line)) {
@@ -539,8 +613,8 @@ void ui_text_area_word_wrap(char *lines, ui_handle_t *handle, bool selected) {
 	}
 	ui_append_capped(new_lines, line, UI_TEXT_MAX);
 	if (selected) {
-		handle->text = string_copy(ui_extract_line(new_lines, handle->i));
-		strcpy(current->text_selected, handle->text);
+		(*value) = string_copy(ui_extract_line(new_lines, (*line_index)));
+		strcpy(current->text_selected, (*value));
 	}
 	strcpy(lines, new_lines);
 }
@@ -566,12 +640,59 @@ void ui_text_area_draw_line_numbers(int line_count) {
 	current->_w -= numbers_w - UI_SCROLL_W();
 }
 
-char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, bool word_wrap) {
-	ui_t *current = ui_get_current();
-	handle->text  = string_replace_all(handle->text, "\t", "    ");
-	bool selected = current->text_selected_handle == handle; // Text being edited
+static char ui_text_area_lower(char c) {
+	return c >= 'A' && c <= 'Z' ? c + 32 : c;
+}
 
-	int text_size = strlen(handle->text) + 1 + UI_TEXT_MAX;
+static int ui_text_area_search_next(char *line, char *search, int from) {
+	int len = strlen(search);
+	if (len == 0) {
+		return -1;
+	}
+	for (int i = from; line[i] != '\0'; ++i) {
+		int j = 0;
+		while (j < len && ui_text_area_lower(line[i + j]) == ui_text_area_lower(search[j])) {
+			j++;
+		}
+		if (j == len) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void ui_text_area_draw_search(char *line) {
+	// Highlight the occurrences of ui_text_area_search
+	if (ui_text_area_search == NULL || ui_text_area_search[0] == '\0') {
+		return;
+	}
+	ui_t *current = ui_get_current();
+	if (!ui_is_visible(UI_ELEMENT_H())) {
+		return;
+	}
+	int   len = strlen(ui_text_area_search);
+	float off = UI_TEXT_OFFSET();
+	float h   = UI_ELEMENT_H() - current->button_offset_y * 3.0;
+	int   i   = ui_text_area_search_next(line, ui_text_area_search, 0);
+	while (i >= 0) {
+		float x = current->_x + off + draw_sub_string_width(current->ops->font, current->font_size, line, 0, i);
+		float w = draw_sub_string_width(current->ops->font, current->font_size, line, i, i + len);
+		draw_set_color(0x77ffee00);
+		draw_filled_rect(x, current->_y + current->button_offset_y * 1.5, w, h);
+		i = ui_text_area_search_next(line, ui_text_area_search, i + len);
+	}
+}
+
+char *ui_text_area(char **value, int *line_index, int align, bool editable, char *label, bool word_wrap) {
+	ui_t   *current       = ui_get_current();
+	ui_id_t text_id       = current->next_id != 0 ? current->next_id : (ui_id_t)value;
+	char   *original_text = string_copy(*value);
+	current->item_changed = false;
+	(*value)              = string_replace_all((*value), "\t", "    ");
+	bool selected         = current->text_selected_id == ui_widget_id(value, UI_ID_TEXT); // Text being edited
+	current->next_id      = 0;                                                            // Internal labels must not consume the text areas identity
+
+	int text_size = strlen((*value)) + 1 + UI_TEXT_MAX;
 	if (lines_size < text_size) {
 		if (lines_buffer != NULL) {
 			free(lines_buffer);
@@ -581,20 +702,20 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 	}
 
 	char *lines = lines_buffer;
-	strcpy(lines, handle->text);
-	int  line_count              = ui_line_count(lines);
-	bool show_label              = (line_count == 1 && lines[0] == '\0');
+	strcpy(lines, (*value));
+	bool show_label              = (lines[0] == '\0');
 	bool key_pressed             = selected && current->is_key_pressed;
 	current->highlight_on_select = false;
 	current->tab_switch_enabled  = false;
-	if (word_wrap && handle->text[0] != '\0') {
-		ui_text_area_word_wrap(lines, handle, selected);
+	if (word_wrap && (*value)[0] != '\0') {
+		ui_text_area_word_wrap(lines, value, line_index, selected);
 	}
+	int line_count = ui_line_count(lines);
 	if (ui_text_area_line_numbers) {
 		ui_text_area_draw_line_numbers(line_count);
 	}
 	int cursor_start_x  = current->cursor_x;
-	int active_line_len = selected ? (int)strlen(ui_extract_line(lines, handle->i)) : 0;
+	int active_line_len = selected ? (int)strlen(ui_extract_line(lines, (*line_index))) : 0;
 
 	ui_theme_t *theme = current->ops->theme;
 	draw_set_color(theme->SEPARATOR_COL); // Background
@@ -615,11 +736,13 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 	edit_new_text[0] = '\0';
 	for (int i = 0; i < line_count; ++i) { // Draw lines
 		char *line = ui_extract_line_off(lines, 0, &lines_off);
+		ui_text_area_draw_search(line);
 		// Text input
-		if ((!selected && ui_get_hover(UI_ELEMENT_H())) || (selected && i == handle->i)) {
-			handle->i = i; // Set active line
-			strcpy(handle->text, line);
-			current->submit_text_handle = NULL;
+		if ((!selected && ui_get_hover(UI_ELEMENT_H())) || (selected && i == (*line_index))) {
+			(*line_index)      = i; // Set active line
+			bool line_released = ui_get_released(UI_ELEMENT_H());
+			strcpy((*value), line);
+			current->submit_text_id = 0;
 			// Suppress cut / paste / select-all in ui_update_text_edit for multi-line handling
 			bool _is_cut            = ui_is_cut;
 			bool _is_copy           = ui_is_copy;
@@ -651,7 +774,8 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			if (current->is_ctrl_down && current->is_a_down) {
 				current->key_char = 0; // Prevent
 			}
-			ui_text_input(handle, show_label ? label : "", align, editable, false);
+			ui_set_next_id(text_id);
+			ui_text_input(value, show_label ? label : "", align, editable, false);
 			if ((text_area_selection_start != -1 && text_area_selection_start != i) || paste_is_multiline) {
 				// Restore flags that were suppressed for multi-line handling
 				ui_is_cut                 = _is_cut;
@@ -663,6 +787,18 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			}
 			current->is_a_down = _is_a_down;
 			current->key_char  = _key_char;
+			if (line_released) { // Double click word select
+				double now = iron_time();
+				if (now - text_area_last_click_time < 0.3 && text_area_last_click_line == i) {
+					text_area_selection_start = -1;
+					ui_text_area_select_word(current);
+					text_area_last_click_time = 0.0;
+				}
+				else {
+					text_area_last_click_time = now;
+				}
+				text_area_last_click_line = i;
+			}
 			if (selected && current->key_code != KEY_CODE_RETURN && current->key_code != KEY_CODE_ESCAPE &&
 			    strcmp(line, current->text_selected) != 0) { // Edit text - defer to after loop
 				edit_line_pos     = ui_line_pos(lines, i);
@@ -681,17 +817,17 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			else {
 				// Multi-line selection highlight
 				if (text_area_selection_start > -1 &&
-				    ((i >= text_area_selection_start && i < handle->i) || (i <= text_area_selection_start && i > handle->i))) {
+				    ((i >= text_area_selection_start && i < (*line_index)) || (i <= text_area_selection_start && i > (*line_index)))) {
 					int   line_height   = UI_ELEMENT_H();
 					int   cursor_height = line_height - current->button_offset_y * 3.0;
 					float off           = UI_TEXT_OFFSET();
 					float hl_x, hl_w;
-					if (i == text_area_selection_start && i > handle->i) {
+					if (i == text_area_selection_start && i > (*line_index)) {
 						// Start line is below active line: highlight from 0 to start col
 						hl_x = current->_x + off;
 						hl_w = draw_sub_string_width(current->ops->font, current->font_size, line, 0, text_area_selection_start_col);
 					}
-					else if (i == text_area_selection_start && i < handle->i) {
+					else if (i == text_area_selection_start && i < (*line_index)) {
 						// Start line is above active line: highlight from start col to end
 						float start_off = draw_sub_string_width(current->ops->font, current->font_size, line, 0, text_area_selection_start_col);
 						hl_x            = current->_x + off + start_off;
@@ -722,32 +858,32 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 
 	// Multi-line paste with no selection
 	bool paste_is_multiline_out = ui_is_paste && strchr(ui_text_to_paste, '\n') != NULL;
-	if (selected && paste_is_multiline_out && (text_area_selection_start == -1 || text_area_selection_start == handle->i)) {
-		int pos = ui_line_pos(lines, handle->i) + current->cursor_x;
+	if (selected && paste_is_multiline_out && (text_area_selection_start == -1 || text_area_selection_start == (*line_index))) {
+		int pos = ui_line_pos(lines, (*line_index)) + current->cursor_x;
 		ui_insert_chars_at(lines, pos, ui_text_to_paste);
 		int paste_lines = ui_line_count(ui_text_to_paste) - 1;
-		handle->i += paste_lines;
+		(*line_index) += paste_lines;
 		char *last_pasted_line = ui_extract_line(ui_text_to_paste, paste_lines);
 		current->cursor_x = current->highlight_anchor = (int)strlen(last_pasted_line);
 		text_area_selection_start                     = -1;
 		ui_text_to_paste[0]                           = '\0';
 		ui_is_paste                                   = false;
-		strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-		handle->text = string_copy(current->text_selected);
+		strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+		(*value) = string_copy(current->text_selected);
 	}
 
 	// Multi-line copy/cut/paste
-	if (selected && text_area_selection_start != -1 && text_area_selection_start != handle->i) {
+	if (selected && text_area_selection_start != -1 && text_area_selection_start != (*line_index)) {
 		// Determine ordered selection bounds
 		int sel_top_line, sel_bot_line, sel_top_col, sel_bot_col;
-		if (text_area_selection_start < handle->i) {
+		if (text_area_selection_start < (*line_index)) {
 			sel_top_line = text_area_selection_start;
-			sel_bot_line = handle->i;
+			sel_bot_line = (*line_index);
 			sel_top_col  = text_area_selection_start_col;
 			sel_bot_col  = current->cursor_x;
 		}
 		else {
-			sel_top_line = handle->i;
+			sel_top_line = (*line_index);
 			sel_bot_line = text_area_selection_start;
 			sel_top_col  = current->cursor_x;
 			sel_bot_col  = text_area_selection_start_col;
@@ -776,11 +912,11 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			int pos_start = ui_line_pos(lines, sel_top_line) + sel_top_col;
 			int pos_end   = ui_line_pos(lines, sel_bot_line) + sel_bot_col;
 			ui_remove_chars_at(lines, pos_start, pos_end - pos_start);
-			handle->i         = sel_top_line;
+			(*line_index)     = sel_top_line;
 			current->cursor_x = current->highlight_anchor = sel_top_col;
 			text_area_selection_start                     = -1;
-			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			handle->text = string_copy(current->text_selected);
+			strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+			(*value) = string_copy(current->text_selected);
 		}
 		if (editable && ui_is_paste) {
 			// Delete selected range then insert clipboard
@@ -790,14 +926,14 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 			ui_insert_chars_at(lines, pos_start, ui_text_to_paste);
 			// Reposition cursor: count newlines in pasted text
 			int paste_lines        = ui_line_count(ui_text_to_paste) - 1;
-			handle->i              = sel_top_line + paste_lines;
+			(*line_index)          = sel_top_line + paste_lines;
 			char *last_pasted_line = ui_extract_line(ui_text_to_paste, paste_lines);
 			current->cursor_x = current->highlight_anchor = sel_top_col + (int)strlen(last_pasted_line);
 			text_area_selection_start                     = -1;
 			ui_text_to_paste[0]                           = '\0';
 			ui_is_paste                                   = false;
-			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			handle->text = string_copy(current->text_selected);
+			strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+			(*value) = string_copy(current->text_selected);
 		}
 	}
 
@@ -807,48 +943,48 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 
 	if (key_pressed) {
 		// Move cursor vertically
-		if (current->key_code == KEY_CODE_DOWN && handle->i < line_count - 1) {
-			handle_line_select(current, handle);
+		if (current->key_code == KEY_CODE_DOWN && (*line_index) < line_count - 1) {
+			handle_line_select(current, line_index);
 			current->cursor_sticky_x = current->cursor_sticky_x > current->cursor_x ? current->cursor_sticky_x : current->cursor_x;
-			handle->i++;
-			int next_len      = (int)strlen(ui_extract_line(lines, handle->i));
+			(*line_index)++;
+			int next_len      = (int)strlen(ui_extract_line(lines, (*line_index)));
 			current->cursor_x = current->cursor_sticky_x < next_len ? current->cursor_sticky_x : next_len;
 			if (!current->is_shift_down) {
 				current->highlight_anchor = current->cursor_x;
 			}
-			scroll_align(current, handle);
+			scroll_align(current, line_index);
 		}
-		else if (current->key_code == KEY_CODE_UP && handle->i > 0) {
-			handle_line_select(current, handle);
+		else if (current->key_code == KEY_CODE_UP && (*line_index) > 0) {
+			handle_line_select(current, line_index);
 			current->cursor_sticky_x = current->cursor_sticky_x > current->cursor_x ? current->cursor_sticky_x : current->cursor_x;
-			handle->i--;
-			int prev_len      = (int)strlen(ui_extract_line(lines, handle->i));
+			(*line_index)--;
+			int prev_len      = (int)strlen(ui_extract_line(lines, (*line_index)));
 			current->cursor_x = current->cursor_sticky_x < prev_len ? current->cursor_sticky_x : prev_len;
 			if (!current->is_shift_down) {
 				current->highlight_anchor = current->cursor_x;
 			}
-			scroll_align(current, handle);
+			scroll_align(current, line_index);
 		}
-		else if (current->key_code == KEY_CODE_RIGHT && cursor_start_x == active_line_len && handle->i < line_count - 1 && !current->is_ctrl_down) {
-			handle_line_select(current, handle);
-			handle->i++;
+		else if (current->key_code == KEY_CODE_RIGHT && cursor_start_x == active_line_len && (*line_index) < line_count - 1 && !current->is_ctrl_down) {
+			handle_line_select(current, line_index);
+			(*line_index)++;
 			current->cursor_x         = 0;
 			current->highlight_anchor = 0;
 			current->cursor_sticky_x  = 0;
-			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			handle->text = string_copy(current->text_selected);
-			scroll_align(current, handle);
+			strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+			(*value) = string_copy(current->text_selected);
+			scroll_align(current, line_index);
 		}
-		else if (current->key_code == KEY_CODE_LEFT && cursor_start_x == 0 && handle->i > 0 && !current->is_ctrl_down) {
-			handle_line_select(current, handle);
-			handle->i--;
-			int prev_len              = (int)strlen(ui_extract_line(lines, handle->i));
+		else if (current->key_code == KEY_CODE_LEFT && cursor_start_x == 0 && (*line_index) > 0 && !current->is_ctrl_down) {
+			handle_line_select(current, line_index);
+			(*line_index)--;
+			int prev_len              = (int)strlen(ui_extract_line(lines, (*line_index)));
 			current->cursor_x         = prev_len;
 			current->highlight_anchor = prev_len;
 			current->cursor_sticky_x  = prev_len;
-			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			handle->text = string_copy(current->text_selected);
-			scroll_align(current, handle);
+			strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+			(*value) = string_copy(current->text_selected);
+			scroll_align(current, line_index);
 		}
 		else if (current->key_code == KEY_CODE_HOME || current->key_code == KEY_CODE_END) {
 			text_area_selection_start = -1; // Home/End are single-line operations, cancel multi-line selection
@@ -856,13 +992,13 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 		else if (current->is_ctrl_down && current->is_a_down) { // Select all lines
 			text_area_selection_start     = 0;
 			text_area_selection_start_col = 0;
-			handle->i                     = line_count - 1;
+			(*line_index)                 = line_count - 1;
 			current->highlight_anchor     = 0;
-			current->cursor_x             = (int)strlen(ui_extract_line(lines, handle->i));
+			current->cursor_x             = (int)strlen(ui_extract_line(lines, (*line_index)));
 			current->cursor_sticky_x      = current->cursor_x;
-			strcpy(current->text_selected, ui_extract_line(lines, handle->i));
-			handle->text = string_copy(current->text_selected);
-			scroll_align(current, handle);
+			strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
+			(*value) = string_copy(current->text_selected);
+			scroll_align(current, line_index);
 		}
 		else {
 			current->cursor_sticky_x = current->cursor_x; // Reset sticky column on any non-vertical move
@@ -872,50 +1008,55 @@ char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, b
 		}
 		// New line
 		if (editable && current->key_code == KEY_CODE_RETURN && !word_wrap) {
-			handle->i++;
-			ui_insert_char_at(lines, ui_line_pos(lines, handle->i - 1) + current->cursor_x, '\n');
+			(*line_index)++;
+			ui_insert_char_at(lines, ui_line_pos(lines, (*line_index) - 1) + current->cursor_x, '\n');
 			// Auto indent
-			char *prev_line = ui_extract_line(lines, handle->i - 1);
+			char *prev_line = ui_extract_line(lines, (*line_index) - 1);
 			int   indent    = 0;
 			while (prev_line[indent] == ' ') {
 				indent++;
 			}
-			int new_line_pos = ui_line_pos(lines, handle->i);
+			int new_line_pos = ui_line_pos(lines, (*line_index));
 			for (int s = 0; s < indent; ++s) {
 				ui_insert_char_at(lines, new_line_pos, ' ');
 			}
-			ui_start_text_edit(handle, UI_ALIGN_LEFT);
+			ui_set_next_id(text_id);
+			ui_start_text_edit(value, UI_ALIGN_LEFT);
+			current->next_id  = 0;
 			current->cursor_x = current->highlight_anchor = indent;
-			scroll_align(current, handle);
+			scroll_align(current, line_index);
 		}
 		// Delete line
-		if (editable && current->key_code == KEY_CODE_BACKSPACE && cursor_start_x == 0 && handle->i > 0 && text_area_selection_start == -1) {
-			handle->i--;
-			current->cursor_x = current->highlight_anchor = strlen(ui_extract_line(lines, handle->i));
-			ui_remove_chars_at(lines, ui_line_pos(lines, handle->i + 1) - 1, 1); // Remove '\n' of the previous line
-			scroll_align(current, handle);
+		if (editable && current->key_code == KEY_CODE_BACKSPACE && cursor_start_x == 0 && (*line_index) > 0 && text_area_selection_start == -1) {
+			(*line_index)--;
+			current->cursor_x = current->highlight_anchor = strlen(ui_extract_line(lines, (*line_index)));
+			ui_remove_chars_at(lines, ui_line_pos(lines, (*line_index) + 1) - 1, 1); // Remove '\n' of the previous line
+			scroll_align(current, line_index);
 		}
 		// Delete line
-		if (editable && current->key_code == KEY_CODE_DELETE && handle->i < line_count - 1 && cursor_start_x == active_line_len &&
+		if (editable && current->key_code == KEY_CODE_DELETE && (*line_index) < line_count - 1 && cursor_start_x == active_line_len &&
 		    text_area_selection_start == -1) {
 			current->highlight_anchor = current->cursor_x;
-			ui_remove_chars_at(lines, ui_line_pos(lines, handle->i + 1) - 1, 1); // Remove '\n' at end of current line
+			ui_remove_chars_at(lines, ui_line_pos(lines, (*line_index) + 1) - 1, 1); // Remove '\n' at end of current line
 		}
 		// Tab indent
 		if (editable && current->key_code == KEY_CODE_TAB) {
-			int pos = ui_line_pos(lines, handle->i) + current->cursor_x;
+			int pos = ui_line_pos(lines, (*line_index)) + current->cursor_x;
 			ui_insert_chars_at(lines, pos, "    ");
 			current->cursor_x += 4;
 			current->highlight_anchor = current->cursor_x;
 			current->cursor_sticky_x  = current->cursor_x;
 		}
-		strcpy(current->text_selected, ui_extract_line(lines, handle->i));
+		strcpy(current->text_selected, ui_extract_line(lines, (*line_index)));
 	}
 
 	current->highlight_on_select = true;
 	current->tab_switch_enabled  = true;
-	handle->text                 = string_copy(lines);
-	return handle->text;
+	(*value)                     = string_copy(lines);
+	current->item_changed        = strcmp(original_text, *value) != 0;
+	free(original_text);
+	ui_record_change();
+	return (*value);
 }
 
 float UI_MENUBAR_H() {
@@ -963,27 +1104,14 @@ f32 ui_MENUBAR_H(ui_t *ui) {
 	return ui->ops->theme->BUTTON_H * UI_SCALE() * 1.1 + 2 + button_offset_y;
 }
 
-extern any_map_t *ui_children;
-
-ui_handle_t *ui_handle(char *s) {
-	ui_handle_t *h = any_map_get(ui_children, s);
-	if (h == NULL) {
-		h = ui_handle_create();
-		any_map_set(ui_children, s, h);
-		return h;
-	}
-	h->init = false;
-	return h;
-}
-
 ui_t *ui_create(ui_options_t *ops) {
-	ui_t *raw = GC_ALLOC_INIT(ui_t, {0});
+	ui_t *raw = ALLOC_INIT(ui_t, {0});
 	ui_init(raw, ops);
 	return raw;
 }
 
 ui_theme_t *ui_theme_create() {
-	ui_theme_t *raw = GC_ALLOC_INIT(ui_theme_t, {0});
+	ui_theme_t *raw = ALLOC_INIT(ui_theme_t, {0});
 	ui_theme_default(raw);
 	return raw;
 }

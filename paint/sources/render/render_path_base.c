@@ -2,8 +2,6 @@
 #include "../global.h"
 
 f32                      render_path_base_super_sample = 1.0;
-f32                      render_path_base_last_x       = -1.0;
-f32                      render_path_base_last_y       = -1.0;
 render_target_t_array_t *render_path_base_bloom_mipmaps;
 
 void render_path_base_init() {
@@ -14,14 +12,17 @@ void render_path_base_init() {
 
 void render_path_base_apply_config() {
 	if (render_path_base_super_sample != g_config->rp_supersample) {
+		f32 last                      = render_path_base_super_sample;
 		render_path_base_super_sample = g_config->rp_supersample;
 		string_array_t *keys          = map_keys(render_path_render_targets);
 		for (i32 i = 0; i < keys->length; ++i) {
 			render_target_t *rt = any_map_get(render_path_render_targets, keys->buffer[i]);
-			if (rt->width == 0) {
-				rt->scale = render_path_base_super_sample;
+			if (rt != NULL && rt->width == 0) {
+				rt->scale = rt->scale / last * render_path_base_super_sample;
 			}
 		}
+		array_free(keys);
+		free(keys);
 		render_path_resize();
 	}
 }
@@ -93,46 +94,6 @@ bool render_path_base_ssaa4() {
 	return g_config->rp_supersample == 4;
 }
 
-bool render_path_base_is_cached() {
-	if (iron_window_width() == 0 || iron_window_height() == 0) {
-		return true;
-	}
-
-	f32 mx                  = render_path_base_last_x;
-	f32 my                  = render_path_base_last_y;
-	render_path_base_last_x = mouse_view_x();
-	render_path_base_last_y = mouse_view_y();
-
-	if (g_context->ddirty <= 0 && g_context->rdirty <= 0 && g_context->pdirty <= 0) {
-		if (mx != render_path_base_last_x || my != render_path_base_last_y || iron_mouse_is_locked()) {
-			g_context->ddirty = 0;
-		}
-
-		if (g_context->ddirty > -6) {
-			// Accumulate taa frames
-			g_context->ddirty--;
-			return false;
-		}
-
-		if (g_context->ddirty > -12) {
-			render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("last", "tex");
-			if (render_path_base_ssaa4()) {
-				render_path_draw_shader("Scene/supersample_resolve/supersample_resolveRGBA64");
-			}
-			else {
-				render_path_draw_shader("Scene/copy_pass/copy_pass");
-			}
-			render_path_paint_commands_cursor();
-			g_context->ddirty--;
-		}
-
-		render_path_base_end();
-		return true;
-	}
-	return false;
-}
-
 void render_path_base_draw_split(void (*draw_commands)(void)) {
 	if (g_context->split_view && !g_context->paint2d_view) {
 		g_context->ddirty    = 2;
@@ -157,7 +118,7 @@ void render_path_base_draw_split(void (*draw_commands)(void)) {
 }
 
 void render_path_base_commands(void (*draw_commands)(void)) {
-	if (render_path_base_is_cached()) {
+	if (iron_window_width() == 0 || iron_window_height() == 0) {
 		return;
 	}
 
@@ -189,9 +150,7 @@ void render_path_base_draw_bloom(char *source, char *target) {
 	}
 
 	if (render_path_base_bloom_mipmaps == NULL) {
-		gc_unroot(render_path_base_bloom_mipmaps);
 		render_path_base_bloom_mipmaps = any_array_create_from_raw((void *[]){}, 0);
-		gc_root(render_path_base_bloom_mipmaps);
 
 		f32 prev_scale = 1.0;
 		for (i32 i = 0; i < 10; ++i) {
@@ -232,19 +191,13 @@ void render_path_base_draw_bloom(char *source, char *target) {
 }
 
 void render_path_base_init_ssao() {
-#if defined(IRON_MACOS) || defined(IRON_IOS) || defined(IRON_ANDROID)
-	f32 scale = 0.5;
-#else
-	f32 scale = 1.0;
-#endif
-
 	{
 		render_target_t *t = render_target_create();
 		t->name            = "singlea";
 		t->width           = 0;
 		t->height          = 0;
 		t->format          = "R8";
-		t->scale           = scale * render_path_base_get_super_sampling();
+		t->scale           = render_path_base_get_super_sampling();
 		render_path_create_render_target(t);
 	}
 
@@ -254,7 +207,17 @@ void render_path_base_init_ssao() {
 		t->width           = 0;
 		t->height          = 0;
 		t->format          = "R8";
-		t->scale           = scale * render_path_base_get_super_sampling();
+		t->scale           = render_path_base_get_super_sampling();
+		render_path_create_render_target(t);
+	}
+
+	{
+		render_target_t *t = render_target_create();
+		t->name            = "singlec";
+		t->width           = 0;
+		t->height          = 0;
+		t->format          = "R8";
+		t->scale           = render_path_base_get_super_sampling();
 		render_path_create_render_target(t);
 	}
 
@@ -263,24 +226,30 @@ void render_path_base_init_ssao() {
 	render_path_load_shader("Scene/ssao_blur_pass/ssao_blur_pass_y");
 }
 
+char *render_path_base_ssao_target() {
+	return scene_camera->frame % 2 == 0 ? "singlea" : "singlec";
+}
+
 void render_path_base_draw_ssao() {
-	bool ssao = g_config->rp_ssao != false && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
+	bool ssao = g_config->rp_ssao > 0.0 && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
 	if (ssao && g_context->ddirty > -6 && _render_path_frame > 0) {
 		if (any_map_get(render_path_render_targets, "singlea") == NULL) {
 			render_path_base_init_ssao();
 		}
 
-		render_path_set_target("singlea", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		char *target = render_path_base_ssao_target();
+
+		render_path_set_target(target, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("main", "gbufferD");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_pass/ssao_pass");
 
 		render_path_set_target("singleb", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target("singlea", "tex");
+		render_path_bind_target(target, "tex");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_blur_pass/ssao_blur_pass_x");
 
-		render_path_set_target("singlea", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(target, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target("singleb", "tex");
 		render_path_bind_target("gbuffer0", "gbuffer0");
 		render_path_draw_shader("Scene/ssao_blur_pass/ssao_blur_pass_y");
@@ -292,9 +261,9 @@ void render_path_base_draw_deferred_light() {
 	render_path_bind_target("main", "gbufferD");
 	render_path_bind_target("gbuffer0", "gbuffer0");
 	render_path_bind_target("gbuffer1", "gbuffer1");
-	bool ssao = g_config->rp_ssao != false && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
+	bool ssao = g_config->rp_ssao > 0.0 && g_context->camera_type == CAMERA_TYPE_PERSPECTIVE;
 	if (ssao && _render_path_frame > 0) {
-		render_path_bind_target("singlea", "ssaotex");
+		render_path_bind_target(render_path_base_ssao_target(), "ssaotex");
 	}
 	else {
 		render_path_bind_target("empty_white", "ssaotex");
@@ -349,7 +318,7 @@ void render_path_base_draw_taa(char *bufa, char *bufb) {
 void render_path_base_swap_buf(char *bufa) {
 	// Swap buf and last targets
 	render_target_t *last_target = any_map_get(render_path_render_targets, "last");
-	last_target->name            = string_copy(bufa);
+	last_target->name            = bufa;
 	render_target_t *buf_target  = any_map_get(render_path_render_targets, bufa);
 	buf_target->name             = "last";
 	any_map_set(render_path_render_targets, bufa, last_target);
@@ -392,7 +361,7 @@ void render_path_base_make_gbuffer_copy_textures() {
 }
 
 void render_path_base_copy_to_gbuffer() {
-	string_array_t *additional = any_array_create_from_raw(
+	string_array_t *additional = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "gbuffer1",
 	        "gbuffer2",
@@ -413,7 +382,7 @@ void render_path_base_draw_gbuffer() {
 	}
 
 	render_path_set_target("gbuffer0", NULL, "main", GPU_CLEAR_DEPTH, 0, 1.0); // Only clear gbuffer0
-	string_array_t *additional = any_array_create_from_raw(
+	string_array_t *additional = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        "gbuffer1",
 	        "gbuffer2",
@@ -429,22 +398,18 @@ void render_path_base_draw_gbuffer() {
 			char *ping = i % 2 == 1 ? "_copy" : "";
 			char *pong = i % 2 == 1 ? "" : "_copy";
 			if (i == make_mesh_layer_pass_count - 1) {
-				render_path_set_target(string("gbuffer2%s", ping), NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
+				render_path_set_target(string_tmp("gbuffer2%s", ping), NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 			}
-			char           *g1ping     = string("gbuffer1%s", ping);
-			char           *g2ping     = string("gbuffer2%s", ping);
-			string_array_t *additional = any_array_create_from_raw(
-			    (void *[]){
-			        g1ping,
-			        g2ping,
-			    },
-			    2);
-			render_path_set_target(string("gbuffer0%s", ping), additional, "main", GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string("gbuffer0%s", pong), "gbuffer0");
-			render_path_bind_target(string("gbuffer1%s", pong), "gbuffer1");
-			render_path_bind_target(string("gbuffer2%s", pong), "gbuffer2");
+			static string_array_t additional = {0};
+			additional.length                = 0;
+			string_array_push(&additional, string_tmp("gbuffer1%s", ping));
+			string_array_push(&additional, string_tmp("gbuffer2%s", ping));
+			render_path_set_target(string_tmp("gbuffer0%s", ping), &additional, "main", GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target(string_tmp("gbuffer0%s", pong), "gbuffer0");
+			render_path_bind_target(string_tmp("gbuffer1%s", pong), "gbuffer1");
+			render_path_bind_target(string_tmp("gbuffer2%s", pong), "gbuffer2");
 			render_path_paint_bind_layers();
-			render_path_draw_meshes(string("mesh%d", i));
+			render_path_draw_meshes(string_tmp("mesh%d", i));
 			render_path_paint_unbind_layers();
 		}
 		if (make_mesh_layer_pass_count % 2 == 0) {
@@ -457,7 +422,7 @@ void render_path_base_draw_gbuffer() {
 		render_path_draw_meshes("depth");
 	}
 
-	bool hide     = operator_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN) || keyboard_down("control");
+	bool hide     = keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN) || keyboard_down("control");
 	bool is_decal = base_is_decal_layer();
 	if (is_decal && !hide) {
 		line_draw_color            = 0xff000000;

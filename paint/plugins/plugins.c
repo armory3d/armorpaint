@@ -14,6 +14,7 @@ void *io_psd_parse(uint8_t *buf, size_t len, const char *filename);
 void *io_tiff_parse(uint8_t *buf, size_t len);
 void *io_gltf_parse(char *buf, size_t size, const char *path);
 void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame);
+int   io_gltf_frame_count();
 void *io_fbx_parse(char *buf, size_t size);
 void *io_fbx_parse_skinned(char *buf, size_t size, int frame);
 void  proc_uv_unwrap(void *mesh);
@@ -46,16 +47,17 @@ void io_psd_import_layer(char *file_name, char *layer_name, void *tex) {
 }
 
 static void *import_exr(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_exr_parse((char *)b->buffer, b->length);
 	data_delete_blob(path);
-	return io_exr_parse((char *)b->buffer, b->length);
+	return res;
 }
 
 static void *import_psd(char *path) {
 	char *filename = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path));
 
 	// Delete existing layers so they can be re-imported
-	char *prefix = string("%s.", filename);
+	char        *prefix         = string("%s.", filename);
 	any_array_t *project_assets = project_get_assets();
 	for (int i = project_assets->length - 1; i >= 0; --i) {
 		asset_t *a = project_assets->buffer[i];
@@ -64,38 +66,24 @@ static void *import_psd(char *path) {
 		}
 	}
 
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_psd_parse((uint8_t *)b->buffer, b->length, filename);
 	data_delete_blob(path);
-	return io_psd_parse((uint8_t *)b->buffer, b->length, filename);
+	return res;
 }
 
 static void *import_tiff(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_tiff_parse((uint8_t *)b->buffer, b->length);
 	data_delete_blob(path);
-	return io_tiff_parse((uint8_t *)b->buffer, b->length);
+	return res;
 }
 
 static void *import_svg(char *path) {
-	buffer_t *b = data_get_blob(path);
+	buffer_t *b   = data_get_blob(path);
+	void     *res = io_svg_parse((char *)b->buffer);
 	data_delete_blob(path);
-	return io_svg_parse((char *)b->buffer);
-}
-
-static buffer_t *plugins_skin_blob = NULL;
-
-void plugins_skin_data_clear() {
-	gc_unroot(plugins_skin_blob);
-	plugins_skin_blob = NULL;
-}
-
-static void plugins_skin_data_set(buffer_t *b) {
-	plugins_skin_data_clear();
-	plugins_skin_blob = b;
-	gc_root(plugins_skin_blob);
-}
-
-bool plugins_skin_data_exists() {
-	return plugins_skin_blob != NULL;
+	return res;
 }
 
 static void plugins_free_raw_mesh(raw_mesh_t *raw) {
@@ -114,12 +102,12 @@ static void plugins_free_raw_mesh(raw_mesh_t *raw) {
 	free(raw);
 }
 
-bool plugins_skin_data_apply(int frame, i16_array_t *posa, i16_array_t *nora, float *scale_pos) {
-	if (plugins_skin_blob == NULL) {
+bool plugins_skin_data_apply(buffer_t *blob, int frame, i16_array_t *posa, i16_array_t *nora, float *scale_pos) {
+	if (blob == NULL) {
 		return false;
 	}
 
-	raw_mesh_t *raw = io_gltf_parse_skinned((char *)plugins_skin_blob->buffer, plugins_skin_blob->length, NULL, frame);
+	raw_mesh_t *raw = io_gltf_parse_skinned((char *)blob->buffer, blob->length, NULL, frame);
 	if (raw == NULL) {
 		return false;
 	}
@@ -132,28 +120,37 @@ bool plugins_skin_data_apply(int frame, i16_array_t *posa, i16_array_t *nora, fl
 	return true;
 }
 
+int plugins_skin_frame_count() {
+	return io_gltf_frame_count();
+}
+
 static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
-	data_delete_blob(path);
 	if (plugins_skinning_frame == -1) {
-		return io_gltf_parse((char *)b->buffer, b->length, path);
+		void *res = io_gltf_parse((char *)b->buffer, b->length, path);
+		data_delete_blob(path);
+		return res;
 	}
 	else {
-		plugins_skin_data_set(b);
-		return io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
+		raw_mesh_t *raw = io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
+		if (raw != NULL) {
+			raw->blob = b;
+		}
+		return raw;
 	}
 }
 
 static void *import_fbx(char *path) {
 	buffer_t *b = data_get_blob(path);
+	void     *res =
+        plugins_skinning_frame == -1 ? io_fbx_parse((char *)b->buffer, b->length) : io_fbx_parse_skinned((char *)b->buffer, b->length, plugins_skinning_frame);
 	data_delete_blob(path);
-	if (plugins_skinning_frame == -1) {
-		return io_fbx_parse((char *)b->buffer, b->length);
-	}
-	else {
-		return io_fbx_parse_skinned((char *)b->buffer, b->length, plugins_skinning_frame);
-	}
+	return res;
 }
+
+#ifdef WITH_EXTERNAL
+	void external_init();
+#endif
 
 void plugins_init() {
 	path_texture_formats(); // Init array
@@ -177,6 +174,10 @@ void plugins_init() {
 	any_array_push(_path_mesh_formats, "fbx");
 
 	any_map_set(util_mesh_unwrappers, "uv_unwrap", proc_uv_unwrap);
+
+#ifdef WITH_EXTERNAL
+	external_init();
+#endif
 }
 
 #endif

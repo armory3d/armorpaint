@@ -1,6 +1,9 @@
 
 #include "../global.h"
 
+char *tab_console_input      = "";
+i32   tab_console_input_line = 0;
+
 void tab_console_draw_export_on_file_picked(char *path) {
 	char *str = string_array_join(console_last_traces, "\n");
 	char *f   = ui_files_filename;
@@ -19,12 +22,10 @@ void tab_console_run_done(char *s) {
 
 	i32 i = string_index_of(s, "```c");
 	if (i >= 0) {
-		s = substring(s, i + 5, string_length(s) - 4);
+		s = substring(s, i + 5, string_last_index_of(s, "```"));
 	}
 
-	tab_scripts_get();
-	g_project->script_datas->buffer[0] = string_copy(s);
-	tab_scripts_minimap_dirty          = true;
+	tab_scripts_set(s);
 
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
@@ -32,11 +33,11 @@ void tab_console_run_done(char *s) {
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
 
 void tab_console_run_button_on_next_frame(void *_) {
-	box_preferences_htab->i = PREFERENCES_TAB_NEURAL;
+	box_preferences_tab = PREFERENCES_TAB_NEURAL;
 	box_preferences_show();
 }
 
-bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
+bool tab_console_run_button(bool press_run) {
 	bool use_cli = g_config->console_model != CONSOLE_MODEL_QWEN;
 	bool found   = true;
 	if (!use_cli) {
@@ -52,11 +53,10 @@ bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
 		sys_notify_on_next_frame(&tab_console_run_button_on_next_frame, NULL);
 	}
 	else if (found && (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run)) {
-
-		console_log(string(">%s", h_input->text));
-		text_to_text_node_run(h_input->text, tab_console_run_done);
-		h_input->text = "";
-
+		char *prompt = string_replace_all(tab_console_input, "\n", " ");
+		console_log(string(">%s", prompt));
+		text_to_text_node_run(prompt, tab_console_run_done);
+		tab_console_input = "";
 		return true;
 	}
 	return false;
@@ -64,15 +64,15 @@ bool tab_console_run_button(ui_handle_t *h_input, bool press_run) {
 
 #endif
 
-void tab_console_draw(ui_handle_t *htab) {
-	char *title = console_message_timer > 0 ? string("%s        ", console_message) : tr("Console");
+void tab_console_draw(i32 *htab) {
+	char *title = console_message_timer > 0 ? string_tmp("%s        ", console_message) : tr("Console");
 	i32   color = console_message_timer > 0 ? console_message_color : -1;
 
 	if (ui_tab(htab, title, false, color, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS) // Copy
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		        -100,
@@ -80,7 +80,7 @@ void tab_console_draw(ui_handle_t *htab) {
 		    },
 		    3);
 #else
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -100,
 		        -100,
@@ -89,13 +89,9 @@ void tab_console_draw(ui_handle_t *htab) {
 #endif
 		ui_row(row);
 
-		ui_handle_t *h_input = ui_handle(__ID__);
-
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
-			gc_unroot(console_last_traces);
 			console_last_traces = any_array_create_from_raw((void *[]){}, 0);
-			gc_root(console_last_traces);
-			h_input->text = "";
+			tab_console_input   = "";
 			text_to_text_node_clear();
 		}
 		if (ui_icon_button(tr("Export"), ICON_EXPORT, UI_ALIGN_CENTER)) {
@@ -155,28 +151,42 @@ void tab_console_draw(ui_handle_t *htab) {
 
 		g_theme->ELEMENT_OFFSET = _element_offset;
 
-		row = f32_array_create_from_raw(
-		    (f32[]){
-		        0.9,
-		        0.1,
-		    },
-		    2);
-		ui_row(row);
+		f32 _input_x = g_ui->_x;
+		f32 _input_y = g_ui->_y;
+		f32 _input_w = g_ui->_w;
+		f32 input_w  = _input_w * 0.9;
 
-		ui_text_input(h_input, "", UI_ALIGN_LEFT, true, false);
-		bool press_run = h_input->changed && g_ui->is_return_down;
+		g_ui->_w          = input_w;
+		ui_id_t input_id  = ui_widget_id(&tab_console_input, UI_ID_TEXT);
+		bool    press_run = g_ui->text_selected_id == input_id && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_RETURN;
+		ui_text_area(&tab_console_input, &tab_console_input_line, UI_ALIGN_LEFT, true, "", true);
+		if (press_run && g_ui->text_selected_id == input_id) {
+			ui_deselect_text(g_ui);
+			g_ui->submit_text_id = 0;
+		}
+		press_run   = press_run && tab_console_input[0] != '\0';
+		f32 input_y = g_ui->_y;
 
 		ui_set_font(g_ui, _font);
 		g_ui->font_size = _font_size;
 
+		g_ui->_x = _input_x + input_w;
+		g_ui->_y = _input_y;
+		g_ui->_w = _input_w - input_w;
+
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
-		tab_console_run_button(h_input, press_run);
+		tab_console_run_button(press_run);
 #else
 		if (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run) {
-			console_log(string(">%s", h_input->text));
-			minic_ctx_free(minic_eval(string("float main() { %s }", h_input->text)));
-			h_input->text = "";
+			char *prompt = string_replace_all(tab_console_input, "\n", " ");
+			console_log(string(">%s", prompt));
+			minic_ctx_free(minic_eval(string("float main() { %s }", prompt)));
+			tab_console_input = "";
 		}
 #endif
+
+		g_ui->_x = _input_x;
+		g_ui->_w = _input_w;
+		g_ui->_y = input_y > g_ui->_y ? input_y : g_ui->_y;
 	}
 }

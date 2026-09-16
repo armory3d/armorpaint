@@ -11,9 +11,7 @@ buffer_t *image_to_3d_mesh_node_remove_background(buffer_t *buffer) {
 }
 
 void image_to_3d_mesh_node_check_result(ui_node_t *node) {
-	gc_unroot(neural_node_current);
 	neural_node_current = node;
-	gc_root(neural_node_current);
 	iron_delay_idle_sleep();
 	if (iron_exec_async_done == 1) {
 		char *file = string("%s%soutput.obj", neural_node_dir(), PATH_SEP);
@@ -29,16 +27,14 @@ void image_to_3d_mesh_node_check_result(ui_node_t *node) {
 }
 
 void image_to_3d_mesh_node_button(i32 node_id) {
-	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
-	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = parser_material_node_name(node, NULL);
-	ui_handle_t      *h         = ui_handle(node_name);
-	string_array_t   *models    = any_array_create_from_raw(
+	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+	ui_node_t        *node   = ui_get_node(canvas->nodes, node_id);
+	string_array_t   *models = any_array_create_from_raw(
         (void *[]){
             "Hunyuan3D",
         },
         1);
-	i32 model = ui_combo(ui_nest(h, 0), models, tr("Model"), false, UI_ALIGN_LEFT, true);
+	i32 model = neural_node_model(node, models);
 	if (neural_node_button(node, models->buffer[model])) {
 		ui_node_t     *from_node = neural_from_node(node->inputs->buffer[0], 0);
 		gpu_texture_t *input     = ui_nodes_get_node_preview_image(from_node);
@@ -77,55 +73,55 @@ void image_to_3d_mesh_node_button(i32 node_id) {
 void image_to_3d_mesh_node_init() {
 
 	ui_node_t *image_to_3d_mesh_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
-	                              .name   = _tr("Image to 3D Mesh"),
-	                              .type   = "NEURAL_IMAGE_TO_3D_MESH",
-	                              .x      = 0,
-	                              .y      = 0,
-	                              .color  = 0xff4982a0,
-	                              .inputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Color"),
-	                                                                       .type          = "RGBA",
-	                                                                       .color         = 0xffc7c729,
-	                                                                       .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .outputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Mesh"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .buttons = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "image_to_3d_mesh_node_button",
-	                                                                       .type          = "CUSTOM",
-	                                                                       .output        = -1,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = NULL,
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 2}),
-	                                  },
-	                                  1),
-	                              .width = 0,
-	                              .flags = 0});
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
+	                           .name   = _tr("Image to 3D Mesh"),
+	                           .type   = "NEURAL_IMAGE_TO_3D_MESH",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff4982a0,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Color"),
+	                                                                 .type          = "RGBA",
+	                                                                 .color         = 0xffc7c729,
+	                                                                 .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Mesh"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = "image_to_3d_mesh_node_button",
+	                                                                 .type          = "CUSTOM",
+	                                                                 .output        = -1,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = NULL,
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 2}),
+	                               },
+	                               1),
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_neural, image_to_3d_mesh_node_def);
 	any_map_set(parser_material_node_values, "NEURAL_IMAGE_TO_3D_MESH", neural_node_value);

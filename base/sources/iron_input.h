@@ -93,7 +93,7 @@ extern i32_map_t      *keyboard_keys_started;
 extern i32_map_t      *keyboard_keys_released;
 extern string_array_t *keyboard_keys_frame;
 extern bool            keyboard_repeat_key;
-extern f32             keyboard_repeat_time;
+extern f64             keyboard_repeat_time;
 
 void  keyboard_end_frame(void);
 void  keyboard_reset(void);

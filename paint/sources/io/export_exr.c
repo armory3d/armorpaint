@@ -304,18 +304,12 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	i32 stride = channels * byte_size;
 	i32 pos    = 0;
 
-	_export_exr_width  = width;
-	_export_exr_stride = stride;
-	gc_unroot(_export_exr_out);
-	_export_exr_out = out;
-	gc_root(_export_exr_out);
-	gc_unroot(_export_exr_src_view);
-	_export_exr_src_view = src;
-	gc_root(_export_exr_src_view);
-	gc_unroot(_export_exr_write_line);
-	_export_exr_write_line = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
-	gc_root(_export_exr_write_line);
-	void (*write_data)(i32, i32, i32) = type == 1 ? export_exr_write_bgr : export_exr_write_single;
+	_export_exr_width                 = width;
+	_export_exr_stride                = stride;
+	_export_exr_out                   = out;
+	_export_exr_src_view              = src;
+	_export_exr_write_line            = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
+	void (*write_data)(i32, i32, i32) = type == 1 || type == 3 ? export_exr_write_bgr : export_exr_write_single; // RGB1, RGBA
 
 	for (i32 y = 0; y < height; ++y) {
 		// coordinate

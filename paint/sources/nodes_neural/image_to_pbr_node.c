@@ -144,10 +144,8 @@ void image_to_pbr_node_all_done(void *_) {
 	render_path_bind_target("_height_map", "height_map");
 	render_path_draw_shader("Scene/depth_to_normal_pass/depth_to_normal_pass");
 
-	gc_unroot(image_to_pbr_node_result_normal);
 	image_to_pbr_node_result_normal = normmap->_image;
-	gc_root(image_to_pbr_node_result_normal);
-	normal_map_rt->_image = normmap->_image;
+	normal_map_rt->_image           = normmap->_image;
 
 	// Occlusion
 	render_path_set_target("occmap", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
@@ -155,9 +153,7 @@ void image_to_pbr_node_all_done(void *_) {
 	render_path_bind_target("_normal_map", "normal_map");
 	render_path_draw_shader("Scene/depth_to_ao_pass/depth_to_ao_pass");
 
-	gc_unroot(image_to_pbr_node_result_occlusion);
 	image_to_pbr_node_result_occlusion = occmap->_image;
-	gc_root(image_to_pbr_node_result_occlusion);
 
 	// Base color
 	char          *dir       = neural_node_dir();
@@ -198,9 +194,7 @@ void image_to_pbr_node_all_done(void *_) {
 	}
 	gpu_texture_t *base = gpu_create_texture_from_bytes(base_px, bw, bh, GPU_TEXTURE_FORMAT_RGBA32);
 
-	gc_unroot(image_to_pbr_node_result_base);
 	image_to_pbr_node_result_base = base;
-	gc_root(image_to_pbr_node_result_base);
 
 	// Roughness
 	buffer_t *rough_px = buffer_create(bw * bh * 4);
@@ -240,9 +234,7 @@ void image_to_pbr_node_all_done(void *_) {
 	}
 	gpu_texture_t *rough = gpu_create_texture_from_bytes(rough_px, bw, bh, GPU_TEXTURE_FORMAT_RGBA32);
 
-	gc_unroot(image_to_pbr_node_result_roughness);
 	image_to_pbr_node_result_roughness = rough;
-	gc_root(image_to_pbr_node_result_roughness);
 
 	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
 	ui_node_t        *node   = ui_get_node(canvas->nodes, image_to_pbr_node_node_id);
@@ -256,24 +248,20 @@ void image_to_pbr_node_all_done(void *_) {
 }
 
 void image_to_pbr_node_depth_done(gpu_texture_t *tex) {
-	gc_unroot(image_to_pbr_node_result_height);
 	image_to_pbr_node_result_height = tex;
-	gc_root(image_to_pbr_node_result_height);
 	sys_notify_on_next_frame(&image_to_pbr_node_all_done, NULL);
 }
 
 void image_to_pbr_node_button(i32 node_id) {
-	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
-	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = parser_material_node_name(node, NULL);
-	ui_handle_t      *h         = ui_handle(node_name);
+	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+	ui_node_t        *node   = ui_get_node(canvas->nodes, node_id);
 
 	string_array_t *models = any_array_create_from_raw(
 	    (void *[]){
 	        "DA3MONO",
 	    },
 	    1);
-	i32 model = ui_combo(ui_nest(h, 0), models, tr("Model"), false, UI_ALIGN_LEFT, true);
+	i32 model = neural_node_model(node, models);
 
 	if (neural_node_button(node, models->buffer[model])) {
 		ui_node_t     *from_node = neural_from_node(node->inputs->buffer[0], 0);
@@ -297,105 +285,104 @@ void image_to_pbr_node_button(i32 node_id) {
 
 void image_to_pbr_node_init() {
 
-	ui_node_t *image_to_pbr_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
-	                              .name   = _tr("Image to PBR"),
-	                              .type   = "NEURAL_IMAGE_TO_PBR",
-	                              .x      = 0,
-	                              .y      = 0,
-	                              .color  = 0xff4982a0,
-	                              .inputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Color"),
-	                                                                       .type          = "RGBA",
-	                                                                       .color         = 0xffc7c729,
-	                                                                       .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .outputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Base Color"),
-	                                                                       .type          = "RGBA",
-	                                                                       .color         = 0xffc7c729,
-	                                                                       .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Occlusion"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Roughness"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Normal Map"),
-	                                                                       .type          = "VECTOR",
-	                                                                       .color         = 0xffc7c729,
-	                                                                       .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Height"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  5),
-	                              .buttons = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "image_to_pbr_node_button",
-	                                                                       .type          = "CUSTOM",
-	                                                                       .output        = -1,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = NULL,
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 2}),
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
-	                                                                       .type          = "BOOL",
-	                                                                       .output        = 0,
-	                                                                       .default_value = f32_array_create_x(0),
-	                                                                       .data          = NULL,
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 0}),
-	                                  },
-	                                  2),
-	                              .width = 0,
-	                              .flags = 0});
+	ui_node_t *image_to_pbr_node_def = ALLOC_INIT(ui_node_t, {.id     = 0,
+	                                                          .name   = _tr("Image to PBR"),
+	                                                          .type   = "NEURAL_IMAGE_TO_PBR",
+	                                                          .x      = 0,
+	                                                          .y      = 0,
+	                                                          .color  = 0xff4982a0,
+	                                                          .inputs = any_array_create_from_raw(
+	                                                              (void *[]){
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Color"),
+	                                                                                                .type          = "RGBA",
+	                                                                                                .color         = 0xffc7c729,
+	                                                                                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                              },
+	                                                              1),
+	                                                          .outputs = any_array_create_from_raw(
+	                                                              (void *[]){
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Base Color"),
+	                                                                                                .type          = "RGBA",
+	                                                                                                .color         = 0xffc7c729,
+	                                                                                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Occlusion"),
+	                                                                                                .type          = "VALUE",
+	                                                                                                .color         = 0xffa1a1a1,
+	                                                                                                .default_value = f32_array_create_x(1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Roughness"),
+	                                                                                                .type          = "VALUE",
+	                                                                                                .color         = 0xffa1a1a1,
+	                                                                                                .default_value = f32_array_create_x(1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Normal Map"),
+	                                                                                                .type          = "VECTOR",
+	                                                                                                .color         = 0xffc7c729,
+	                                                                                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                                                .node_id       = 0,
+	                                                                                                .name          = _tr("Height"),
+	                                                                                                .type          = "VALUE",
+	                                                                                                .color         = 0xffa1a1a1,
+	                                                                                                .default_value = f32_array_create_x(1.0),
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .display       = 0}),
+	                                                              },
+	                                                              5),
+	                                                          .buttons = any_array_create_from_raw(
+	                                                              (void *[]){
+	                                                                  ALLOC_INIT(ui_node_button_t, {.name          = "image_to_pbr_node_button",
+	                                                                                                .type          = "CUSTOM",
+	                                                                                                .output        = -1,
+	                                                                                                .default_value = f32_array_create_x(0),
+	                                                                                                .data          = NULL,
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .height        = 2}),
+	                                                                  ALLOC_INIT(ui_node_button_t, {.name          = _tr("Tile"),
+	                                                                                                .type          = "BOOL",
+	                                                                                                .output        = 0,
+	                                                                                                .default_value = f32_array_create_x(0),
+	                                                                                                .data          = NULL,
+	                                                                                                .min           = 0.0,
+	                                                                                                .max           = 1.0,
+	                                                                                                .precision     = 100,
+	                                                                                                .height        = 0}),
+	                                                              },
+	                                                              2),
+	                                                          .width = 0,
+	                                                          .flags = 0});
 
 	any_array_push(nodes_material_neural, image_to_pbr_node_def);
 	any_map_set(parser_material_node_vectors, "NEURAL_IMAGE_TO_PBR", image_to_pbr_node_vector);

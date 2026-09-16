@@ -17,6 +17,7 @@ uint32_t        constant_buffer_index              = 0;
 uint32_t        draw_calls                         = 0;
 uint32_t        draw_calls_last                    = 0;
 bool            gpu_in_use                         = false;
+bool            gpu_raytrace_multi                 = false;
 gpu_texture_t  *current_textures[GPU_MAX_TEXTURES] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 gpu_texture_t  *current_render_targets[8]          = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 uint32_t        current_render_targets_count       = 0;
