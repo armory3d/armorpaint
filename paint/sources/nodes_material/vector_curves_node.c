@@ -61,18 +61,18 @@ f32 vector_curves_eval_cpu(f32 *points, i32 num, f32 t) {
 }
 
 char *vector_curves_eval(char *name, char *fac, f32 *points, i32 num) {
-	char *result_var = string("%s_result", name);
-	char *fac_var    = string("%s_fac", name);
-	parser_material_write(parser_material_kong, string("var %s: float = %s;", fac_var, fac));
+	char *result_var = string_tmp("%s_result", name);
+	char *fac_var    = string_tmp("%s_fac", name);
+	parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", fac_var, fac));
 
 	if (num <= 0) {
-		parser_material_write(parser_material_kong, string("var %s: float = %s;", result_var, fac_var));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", result_var, fac_var));
 		return result_var;
 	}
 
 	if (num == 1) {
 		char *y = f32_to_string_with_zeros(points[1]);
-		parser_material_write(parser_material_kong, string("var %s: float = %s;", result_var, y));
+		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", result_var, y));
 		return result_var;
 	}
 
@@ -86,18 +86,18 @@ char *vector_curves_eval(char *name, char *fac, f32 *points, i32 num) {
 	i32   s0 = sorted[0], s1 = sorted[1];
 	f32   x0 = points[s0 * 2], y0 = points[s0 * 2 + 1];
 	f32   x1 = points[s1 * 2], y1 = points[s1 * 2 + 1];
-	char *b01 = string("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(x0), f32_to_string_with_zeros(x1 - x0));
+	char *b01 = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(x0), f32_to_string_with_zeros(x1 - x0));
 	parser_material_write(parser_material_kong,
-	                      string("var %s: float = lerp(%s, %s, %s);", result_var, f32_to_string_with_zeros(y0), f32_to_string_with_zeros(y1), b01));
+	                      string_tmp("var %s: float = lerp(%s, %s, %s);", result_var, f32_to_string_with_zeros(y0), f32_to_string_with_zeros(y1), b01));
 
 	// Override for each subsequent segment
 	for (i32 i = 1; i < num - 1; i++) {
 		i32   si = sorted[i], si1 = sorted[i + 1];
 		f32   xi = points[si * 2], yi = points[si * 2 + 1];
 		f32   xi1 = points[si1 * 2], yi1 = points[si1 * 2 + 1];
-		char *blend = string("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(xi), f32_to_string_with_zeros(xi1 - xi));
-		parser_material_write(parser_material_kong, string("if (%s > %s) { %s = lerp(%s, %s, %s); }", fac_var, f32_to_string_with_zeros(xi), result_var,
-		                                                   f32_to_string_with_zeros(yi), f32_to_string_with_zeros(yi1), blend));
+		char *blend = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(xi), f32_to_string_with_zeros(xi1 - xi));
+		parser_material_write(parser_material_kong, string_tmp("if (%s > %s) { %s = lerp(%s, %s, %s); }", fac_var, f32_to_string_with_zeros(xi), result_var,
+		                                                       f32_to_string_with_zeros(yi), f32_to_string_with_zeros(yi1), blend));
 	}
 
 	return result_var;
@@ -119,26 +119,26 @@ char *vector_curves_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	i32   nx   = (i32)curves->buffer[96];
 	i32   ny   = (i32)curves->buffer[97];
 	i32   nz   = (i32)curves->buffer[98];
-	char *vc0  = vector_curves_eval(string("%s_x", name), string("%s.x", vec), curves->buffer + 32 * 0, nx);
-	char *vc1  = vector_curves_eval(string("%s_y", name), string("%s.y", vec), curves->buffer + 32 * 1, ny);
-	char *vc2  = vector_curves_eval(string("%s_z", name), string("%s.z", vec), curves->buffer + 32 * 2, nz);
+	char *vc0  = vector_curves_eval(string_tmp("%s_x", name), string_tmp("%s.x", vec), curves->buffer + 32 * 0, nx);
+	char *vc1  = vector_curves_eval(string_tmp("%s_y", name), string_tmp("%s.y", vec), curves->buffer + 32 * 1, ny);
+	char *vc2  = vector_curves_eval(string_tmp("%s_z", name), string_tmp("%s.z", vec), curves->buffer + 32 * 2, nz);
 	// Blend between original and mapped using factor
-	return string("lerp3(%s, float3(%s, %s, %s), %s)", vec, vc0, vc1, vc2, fac);
+	return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", vec, vc0, vc1, vc2, fac);
 }
 
 void nodes_material_vector_curves_button(i32 node_id) {
-	ui_node_t        *node    = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	ui_node_button_t *but     = node->buttons->buffer[0];
-	ui_handle_t      *nhandle = ui_nest(ui_handle(__ID__), node->id);
-	f32_array_t      *val     = but->default_value;
-	f32               sw      = g_ui->_w / (float)UI_NODES_SCALE();
+	ui_node_t               *node  = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	ui_node_button_t        *but   = node->buttons->buffer[0];
+	ui_nodes_editor_state_t *state = ui_nodes_editor_state(node);
+	f32_array_t             *val   = but->default_value;
+	f32                      sw    = g_ui->_w / (float)UI_NODES_SCALE();
 
 	// Axis selector
 	ui_row3();
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 0, "X", "");
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 1, "Y", "");
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 2, "Z", "");
-	i32 axis = ui_nest(ui_nest(nhandle, 0), 1)->i;
+	ui_radio(&state->channel, 0, "X", "");
+	ui_radio(&state->channel, 1, "Y", "");
+	ui_radio(&state->channel, 2, "Z", "");
+	i32 axis = state->channel;
 
 	// Initialize on first use
 	if (val->buffer[96 + axis] == 0.0f) {
@@ -180,7 +180,7 @@ void nodes_material_vector_curves_button(i32 node_id) {
 	g_ui->_y += UI_LINE_H() * 4;
 
 	// Edit controls
-	f32_array_t *row = f32_array_create_from_raw(
+	f32_array_t *row = f32_array_create_from_raw_tmp(
 	    (f32[]){
 	        1 / 5.0,
 	        1 / 5.0,
@@ -199,82 +199,79 @@ void nodes_material_vector_curves_button(i32 node_id) {
 		num--;
 		val->buffer[96 + axis] = (f32)num;
 	}
-	ui_handle_t *ihandle = ui_nest(ui_nest(ui_nest(nhandle, 0), 2), axis);
-	i32          i       = math_floor(ui_slider(ihandle, "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
+	i32 i = math_floor(ui_slider(&state->index[axis], "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
 	if (i >= num || i < 0) {
-		ihandle->f = i = num - 1;
+		state->index[axis] = i = num - 1;
 	}
 	ui_row2();
-	ui_handle_t *h1                    = ui_nest(ui_nest(nhandle, 0), 3);
-	ui_handle_t *h2                    = ui_nest(ui_nest(nhandle, 0), 4);
-	h1->f                              = val->buffer[axis * 32 + i * 2 + 0];
-	h2->f                              = val->buffer[axis * 32 + i * 2 + 1];
-	val->buffer[axis * 32 + i * 2 + 0] = ui_slider(h1, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-	val->buffer[axis * 32 + i * 2 + 1] = ui_slider(h2, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	state->x                           = val->buffer[axis * 32 + i * 2 + 0];
+	state->y                           = val->buffer[axis * 32 + i * 2 + 1];
+	val->buffer[axis * 32 + i * 2 + 0] = ui_slider(&state->x, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	val->buffer[axis * 32 + i * 2 + 1] = ui_slider(&state->y, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
 }
 
 void vector_curves_node_init() {
 
 	ui_node_t *vector_curves_node_def =
-	    GC_ALLOC_INIT(ui_node_t, {.id     = 0,
-	                              .name   = _tr("Vector Curves"),
-	                              .type   = "CURVE_VEC",
-	                              .x      = 0,
-	                              .y      = 0,
-	                              .color  = 0xff522c99,
-	                              .inputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Factor"),
-	                                                                       .type          = "VALUE",
-	                                                                       .color         = 0xffa1a1a1,
-	                                                                       .default_value = f32_array_create_x(1.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Vector"),
-	                                                                       .type          = "VECTOR",
-	                                                                       .color         = 0xff6363c7,
-	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  2),
-	                              .outputs = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                       .node_id       = 0,
-	                                                                       .name          = _tr("Vector"),
-	                                                                       .type          = "VECTOR",
-	                                                                       .color         = 0xff6363c7,
-	                                                                       .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .display       = 0}),
-	                                  },
-	                                  1),
-	                              .buttons = any_array_create_from_raw(
-	                                  (void *[]){
-	                                      GC_ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_vector_curves_button",
-	                                                                       .type          = "CUSTOM",
-	                                                                       .output        = 0,
-	                                                                       .default_value = f32_array_create(96 + 3),
-	                                                                       .data          = NULL,
-	                                                                       .min           = 0.0,
-	                                                                       .max           = 1.0,
-	                                                                       .precision     = 100,
-	                                                                       .height        = 7.2}),
-	                                  },
-	                                  1),
-	                              .width = 0,
-	                              .flags = 0});
+	    ALLOC_INIT(ui_node_t, {.id     = 0,
+	                           .name   = _tr("Vector Curves"),
+	                           .type   = "CURVE_VEC",
+	                           .x      = 0,
+	                           .y      = 0,
+	                           .color  = 0xff522c99,
+	                           .inputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Factor"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Vector"),
+	                                                                 .type          = "VECTOR",
+	                                                                 .color         = 0xff6363c7,
+	                                                                 .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               2),
+	                           .outputs = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Vector"),
+	                                                                 .type          = "VECTOR",
+	                                                                 .color         = 0xff6363c7,
+	                                                                 .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
+	                               },
+	                               1),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = "nodes_material_vector_curves_button",
+	                                                                 .type          = "CUSTOM",
+	                                                                 .output        = 0,
+	                                                                 .default_value = f32_array_create(96 + 3),
+	                                                                 .data          = NULL,
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 7.2}),
+	                               },
+	                               1),
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_utilities, vector_curves_node_def);
 	any_map_set(parser_material_node_vectors, "CURVE_VEC", vector_curves_node_vector);

@@ -7,6 +7,9 @@ gpu_texture_t      *tab_scripts_minimap_tex      = NULL;
 i32                 tab_scripts_minimap_selected = -1;
 extern bool         tab_scripts_minimap_dirty;
 bool                tab_scripts_minimap_scrolling = false;
+bool                tab_scripts_search_show       = false;
+bool                tab_scripts_search_focus      = false;
+char               *tab_scripts_search            = "";
 
 void tab_scripts_prepare() {
 	if (g_project->script_datas == NULL) {
@@ -80,6 +83,33 @@ void tab_scripts_create(char *name) {
 	}
 }
 
+static void tab_scripts_duplicate() {
+	tab_scripts_prepare();
+	char *base = g_project->script_names->buffer[tab_scripts_selected];
+	if (ends_with(base, ".c")) {
+		base = substring(base, 0, string_length(base) - 2);
+	}
+	i32 len = string_length(base);
+	if (len > 3 && base[len - 1] >= '0' && base[len - 1] <= '9' && base[len - 2] >= '0' && base[len - 2] <= '9' && base[len - 3] >= '0' &&
+	    base[len - 3] <= '9') {
+		base = substring(base, 0, len - 3);
+	}
+	char *name = NULL;
+	for (i32 i = 1; i < 1000; ++i) {
+		char *n = string("%s%03d.c", base, i);
+		if (string_array_index_of(g_project->script_names, n) < 0) {
+			name = n;
+			break;
+		}
+	}
+	if (name != NULL) {
+		string_array_push(g_project->script_names, name);
+		string_array_push(g_project->script_datas, string_copy(g_project->script_datas->buffer[tab_scripts_selected]));
+		tab_scripts_selected      = g_project->script_datas->length - 1;
+		tab_scripts_minimap_dirty = true;
+	}
+}
+
 void tab_scripts_draw_export(char *path) {
 	char *str = tab_scripts_get();
 	char *f   = ui_files_filename;
@@ -105,6 +135,23 @@ void tab_scripts_draw_edit() {
 	if (ui_menu_button(tr("Clear"), "", ICON_ERASE)) {
 		tab_scripts_set("");
 	}
+	if (ui_menu_button(tr("New"), "", ICON_PLUS)) {
+		// mainNNN.c
+		char *name = NULL;
+		for (i32 i = 1; i < 1000; ++i) {
+			char *n = string("main%03d.c", i);
+			if (string_array_index_of(g_project->script_names, n) < 0) {
+				name = n;
+				break;
+			}
+		}
+		if (name != NULL) {
+			string_array_push(g_project->script_names, name);
+			string_array_push(g_project->script_datas, string_copy("void main() {\n    \n}\n"));
+			tab_scripts_selected      = g_project->script_datas->length - 1;
+			tab_scripts_minimap_dirty = true;
+		}
+	}
 	g_ui->enabled = !string_equals(g_project->script_names->buffer[tab_scripts_selected], "main.c");
 	if (ui_menu_button(tr("Delete"), "", ICON_DELETE)) {
 		array_splice((any_array_t *)g_project->script_datas, tab_scripts_selected, 1);
@@ -118,7 +165,10 @@ void tab_scripts_draw_edit() {
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
 		ui_files_show("c", true, false, &tab_scripts_draw_export);
 	}
-	if (ui_menu_sub_button(ui_handle(__ID__), tr("Templates"))) {
+	if (ui_menu_button(tr("Duplicate"), "", ICON_DUPLICATE)) {
+		tab_scripts_duplicate();
+	}
+	if (ui_menu_sub_button(tr("Templates"))) {
 		ui_menu_sub_begin(3);
 		if (ui_menu_button("hello.c", "", ICON_DRAFT)) {
 			tab_scripts_set("\
@@ -158,6 +208,14 @@ void main() {\n\
 ");
 		}
 		ui_menu_sub_end();
+	}
+
+	ui_menu_separator();
+	g_ui->changed = false;
+	ui_check(&tab_scripts_search_show, tr("Search"), "");
+	if (g_ui->changed) {
+		ui_menu_keep_open                                 = true;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 	}
 }
 
@@ -225,25 +283,25 @@ static i32 tab_scripts_autocomplete_matches(char *prefix, char **names) {
 static void tab_scripts_autocomplete_complete(char *name, i32 prefix_len, i32 suffix_len) {
 	tab_scripts_prepare();
 	char *text   = g_project->script_datas->buffer[tab_scripts_selected];
-	i32   line   = tab_scripts_hscript->i;
+	i32   line   = tab_scripts_line;
 	i32   col    = g_ui->cursor_x;
 	i32   cur    = tab_scripts_line_start(text, line) + col;
 	char *before = substring(text, 0, cur - prefix_len);
 	char *after  = substring(text, cur + suffix_len, string_length(text));
 	tab_scripts_set(string("%s%s%s", before, name, after));
-	tab_scripts_hscript->text = g_project->script_datas->buffer[tab_scripts_selected];
-	i32 new_col               = col - prefix_len + string_length(name);
-	g_ui->cursor_x            = new_col;
-	g_ui->highlight_anchor    = new_col;
-	g_ui->cursor_sticky_x     = new_col;
-	strcpy(g_ui->text_selected, ui_extract_line(tab_scripts_hscript->text, line)); // Keep the active line in sync
+	tab_scripts_text       = g_project->script_datas->buffer[tab_scripts_selected];
+	i32 new_col            = col - prefix_len + string_length(name);
+	g_ui->cursor_x         = new_col;
+	g_ui->highlight_anchor = new_col;
+	g_ui->cursor_sticky_x  = new_col;
+	strcpy(g_ui->text_selected, ui_extract_line(tab_scripts_text, line)); // Keep the active line in sync
 	tab_scripts_ac_show = false;
 }
 
 static void tab_scripts_toggle_comment() {
 	tab_scripts_prepare();
 	char *text  = g_project->script_datas->buffer[tab_scripts_selected];
-	i32   line  = tab_scripts_hscript->i;
+	i32   line  = tab_scripts_line;
 	i32   col   = g_ui->cursor_x;
 	i32   start = tab_scripts_line_start(text, line);
 	i32   end   = start;
@@ -273,7 +331,7 @@ static void tab_scripts_toggle_comment() {
 		delta = 3;
 	}
 
-	tab_scripts_hscript->text = g_project->script_datas->buffer[tab_scripts_selected];
+	tab_scripts_text = g_project->script_datas->buffer[tab_scripts_selected];
 
 	// Keep the caret on the same characters
 	i32 new_col;
@@ -289,7 +347,7 @@ static void tab_scripts_toggle_comment() {
 	g_ui->cursor_x         = new_col;
 	g_ui->highlight_anchor = new_col;
 	g_ui->cursor_sticky_x  = new_col;
-	strcpy(g_ui->text_selected, ui_extract_line(tab_scripts_hscript->text, line)); // Keep the active line in sync
+	strcpy(g_ui->text_selected, ui_extract_line(tab_scripts_text, line)); // Keep the active line in sync
 }
 
 static bool tab_scripts_minimap_visible(f32 *x, f32 *y, f32 *w, f32 *h) {
@@ -325,9 +383,7 @@ static void tab_scripts_cache_minimap() {
 		if (tab_scripts_minimap_tex != NULL) {
 			gpu_delete_texture(tab_scripts_minimap_tex);
 		}
-		gc_unroot(tab_scripts_minimap_tex);
 		tab_scripts_minimap_tex = gpu_create_render_target(tex_w, tex_h, GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(tab_scripts_minimap_tex);
 	}
 
 	// Render each word as a small rect
@@ -352,7 +408,7 @@ static void tab_scripts_draw_minimap(f32 mm_x, f32 mm_y, f32 mm_w, f32 mm_h) {
 		return;
 	}
 	f32             line_h          = 2 * UI_SCALE();
-	string_array_t *lines           = string_split(tab_scripts_hscript->text, "\n");
+	string_array_t *lines           = string_split(tab_scripts_text, "\n");
 	f32             content_h       = lines->length * UI_ELEMENT_H();
 	f32             full_h          = lines->length * line_h;
 	f32             scroll_progress = content_h > 0 ? -g_ui->current_window->scroll_offset / content_h : 0;
@@ -406,7 +462,7 @@ static void tab_scripts_draw_minimap(f32 mm_x, f32 mm_y, f32 mm_w, f32 mm_h) {
 	}
 }
 
-void tab_scripts_draw(ui_handle_t *htab) {
+void tab_scripts_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Scripts"), false, -1, false)) {
 
 		// Cache minimap
@@ -419,7 +475,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		}
 
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -427,16 +483,10 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		    },
 		    3);
 
-		// #ifndef NDEBUG
-		// 		if (g_config->experimental) {
-		// 			f32_array_push(row, -90);
-		// 		}
-		// #endif
-
 		ui_row(row);
 
 		if (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER)) {
-			minic_ctx_t *ctx = minic_eval(tab_scripts_hscript->text);
+			minic_ctx_t *ctx = minic_eval(tab_scripts_text);
 			// minic_ctx_free(ctx);
 		}
 
@@ -445,15 +495,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		}
 
 		tab_scripts_prepare();
-		ui_handle_t *file_handle = ui_handle(__ID__);
-		file_handle->i           = tab_scripts_selected;
-		tab_scripts_selected     = ui_combo(file_handle, g_project->script_names, tr("File"), false, UI_ALIGN_LEFT, true);
-
-		// #ifndef NDEBUG
-		// 		if (g_config->experimental && ui_icon_button("Run Tests", ICON_PLAY, UI_ALIGN_CENTER)) {
-		// 			minic_tests();
-		// 		}
-		// #endif
+		ui_combo(&tab_scripts_selected, g_project->script_names, tr("File"), false, UI_ALIGN_LEFT, true);
 
 		ui_end_sticky();
 
@@ -464,36 +506,74 @@ void tab_scripts_draw(ui_handle_t *htab) {
 		g_ui->font_size              = math_floor(15 * UI_SCALE());
 		ui_text_area_line_numbers    = true;
 		ui_text_area_scroll_past_end = true;
-		gc_unroot(ui_text_area_coloring);
-		ui_text_area_coloring = tab_scripts_get_text_coloring();
-		gc_root(ui_text_area_coloring);
+		ui_text_area_coloring        = tab_scripts_get_text_coloring();
 
 		tab_scripts_prepare();
 
-		tab_scripts_hscript->text = g_project->script_datas->buffer[tab_scripts_selected];
+		tab_scripts_text = g_project->script_datas->buffer[tab_scripts_selected];
 
-		bool ac_selected = g_ui->text_selected_handle == tab_scripts_hscript;
-		if (!ac_selected) {
+		bool is_text_selected = g_ui->text_selected_id == ui_widget_id(&tab_scripts_text, UI_ID_TEXT);
+		if (!is_text_selected) {
 			tab_scripts_ac_show = false;
 		}
 
 		// Open the autocomplete popup on ctrl+space
-		if (ac_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SPACE) {
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SPACE) {
 			tab_scripts_ac_show   = true;
 			tab_scripts_ac_offset = 0;
 			g_ui->is_key_pressed  = false; // Consume so the editor ignores ctrl+space
 			minic_register_builtins();     // Ensure the script api is registered
 		}
 
+		// Open the search box on ctrl+f
+		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F &&
+		    ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h)) {
+			tab_scripts_search_show  = true;
+			tab_scripts_search_focus = true;
+			// Pre-fill the search with selected text
+			if (is_text_selected && g_ui->cursor_x != g_ui->highlight_anchor) {
+				i32 a   = g_ui->cursor_x < g_ui->highlight_anchor ? g_ui->cursor_x : g_ui->highlight_anchor;
+				i32 b   = g_ui->cursor_x < g_ui->highlight_anchor ? g_ui->highlight_anchor : g_ui->cursor_x;
+				i32 len = string_length(g_ui->text_selected);
+				if (a < 0) {
+					a = 0;
+				}
+				if (b > len) {
+					b = len;
+				}
+				if (a < b) {
+					tab_scripts_search = substring(g_ui->text_selected, a, b);
+				}
+			}
+			g_ui->is_key_pressed = false;
+			g_ui->key_code       = 0;
+		}
+
+		// ctrl+d to select word
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_D) {
+			char *line = g_ui->text_selected;
+			i32   col  = g_ui->cursor_x;
+			i32   pre  = tab_scripts_prefix_len(line, col);
+			i32   suf  = tab_scripts_suffix_len(line, col);
+			if (pre + suf > 0) {
+				ui_text_area_clear_selection();
+				g_ui->highlight_anchor = col - pre;
+				g_ui->cursor_x         = col + suf;
+				g_ui->cursor_sticky_x  = g_ui->cursor_x;
+			}
+			g_ui->is_key_pressed = false;
+			g_ui->key_code       = 0;
+		}
+
 		// Toggle line comment on ctrl+/
-		if (ac_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SLASH) {
+		if (is_text_selected && g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_SLASH) {
 			tab_scripts_toggle_comment();
 			g_ui->is_key_pressed = false; // Consume so the editor ignores ctrl+/
 			g_ui->key_code       = 0;
 		}
 
 		bool ac_accept = false;
-		if (tab_scripts_ac_show && ac_selected && g_ui->is_key_pressed) {
+		if (tab_scripts_ac_show && is_text_selected && g_ui->is_key_pressed) {
 			if (g_ui->key_code == KEY_CODE_DOWN) {
 				tab_scripts_ac_offset++;
 				g_ui->is_key_pressed = false;
@@ -516,7 +596,7 @@ void tab_scripts_draw(ui_handle_t *htab) {
 			}
 		}
 
-		if (ac_selected && g_ui->is_key_pressed) {
+		if (is_text_selected && g_ui->is_key_pressed) {
 			tab_scripts_minimap_dirty = true;
 		}
 
@@ -533,23 +613,31 @@ void tab_scripts_draw(ui_handle_t *htab) {
 			tab_scripts_minimap_scrolling = false;
 		}
 
-		// Prevent text area clicks while scrolling the minimap
+		// Search box
+		f32  sb_h           = UI_ELEMENT_H() + UI_ELEMENT_OFFSET() * 2;
+		f32  sb_y           = g_ui->_window_h - sb_h;
+		f32  sb_w           = minimap_on ? mm_x : g_ui->_window_w;
+		bool sb_hover       = tab_scripts_search_show && ui_input_in_rect(g_ui->_window_x, g_ui->_window_y + sb_y, sb_w, sb_h);
+		ui_text_area_search = tab_scripts_search_show ? tab_scripts_search : NULL;
+
+		// Prevent text area clicks while scrolling the minimap or using the search box
 		bool _input_enabled = g_ui->input_enabled;
-		if (tab_scripts_minimap_scrolling) {
+		if (tab_scripts_minimap_scrolling || sb_hover) {
 			g_ui->input_enabled = false;
 		}
-		ui_text_area(tab_scripts_hscript, UI_ALIGN_LEFT, true, "", false);
+		ui_text_area(&tab_scripts_text, &tab_scripts_line, UI_ALIGN_LEFT, true, "", false);
 		g_ui->input_enabled                                   = _input_enabled;
-		g_project->script_datas->buffer[tab_scripts_selected] = tab_scripts_hscript->text;
+		ui_text_area_search                                   = NULL;
+		g_project->script_datas->buffer[tab_scripts_selected] = tab_scripts_text;
 
 		if (minimap_on) {
 			tab_scripts_draw_minimap(mm_x, mm_y, mm_w, mm_h);
 		}
 
 		// Autocomplete popup
-		if (tab_scripts_ac_show && ac_selected) {
-			char *text   = tab_scripts_hscript->text;
-			i32   line   = tab_scripts_hscript->i;
+		if (tab_scripts_ac_show && is_text_selected) {
+			char *text   = tab_scripts_text;
+			i32   line   = tab_scripts_line;
 			i32   col    = g_ui->cursor_x;
 			i32   cur    = tab_scripts_line_start(text, line) + col;
 			i32   plen   = tab_scripts_prefix_len(text, cur);
@@ -599,19 +687,48 @@ void tab_scripts_draw(ui_handle_t *htab) {
 
 		ui_text_area_line_numbers    = false;
 		ui_text_area_scroll_past_end = false;
-		gc_unroot(ui_text_area_coloring);
-		ui_text_area_coloring = NULL;
+		ui_text_area_coloring        = NULL;
 		ui_set_font(g_ui, _font);
 		g_ui->font_size = _font_size;
+
+		if (tab_scripts_search_show) {
+			f32 _x = g_ui->_x;
+			f32 _y = g_ui->_y;
+			f32 _w = g_ui->_w;
+			draw_set_color(g_theme->WINDOW_BG_COL);
+			draw_filled_rect(0, sb_y, sb_w, sb_h);
+			draw_set_color(g_theme->SEPARATOR_COL);
+			draw_filled_rect(0, sb_y, sb_w, 1);
+			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_scripts_search, UI_ID_TEXT);
+			g_ui->_x             = 0;
+			g_ui->_y             = sb_y + UI_ELEMENT_OFFSET();
+			g_ui->_w             = sb_w;
+			ui_text_input(&tab_scripts_search, tr("Search"), UI_ALIGN_LEFT, true, true);
+			if (tab_scripts_search_focus) { // Ctrl+f to open
+				tab_scripts_search_focus = false;
+				ui_start_text_edit(&tab_scripts_search, UI_ALIGN_LEFT);
+				g_ui->cursor_x         = string_length(tab_scripts_search);
+				g_ui->highlight_anchor = 0;
+			}
+			// Esc to close
+			bool in_window = ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h);
+			if ((search_selected || is_text_selected || in_window) && g_ui->is_escape_down) {
+				tab_scripts_search_show = false;
+			}
+			g_ui->_x = _x;
+			g_ui->_y = _y;
+			g_ui->_w = _w;
+		}
 	}
 }
 
 ui_text_coloring_t *tab_scripts_get_text_coloring() {
 	if (tab_scripts_text_coloring == NULL) {
 		buffer_t *blob = data_get_blob("text_coloring.json");
-		gc_unroot(tab_scripts_text_coloring);
+		if (blob == NULL) {
+			return NULL;
+		}
 		tab_scripts_text_coloring = json_parse(sys_buffer_to_string(blob));
-		gc_root(tab_scripts_text_coloring);
 	}
 	return tab_scripts_text_coloring;
 }

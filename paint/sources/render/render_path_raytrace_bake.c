@@ -26,10 +26,8 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		render_path_raytrace_bake_last_bake_type = g_context->bake_type;
 		render_path_raytrace_ready               = true;
 		render_path_raytrace_is_bake             = true;
-		gc_unroot(render_path_raytrace_last_envmap);
-		render_path_raytrace_last_envmap = NULL;
-		gc_unroot(render_path_raytrace_bake_last_layer);
-		render_path_raytrace_bake_last_layer = NULL;
+		render_path_raytrace_last_envmap         = NULL;
+		render_path_raytrace_bake_last_layer     = NULL;
 
 		if (any_map_get(render_path_render_targets, "baketex0") != NULL) {
 			render_target_t *baketex0 = any_map_get(render_path_render_targets, "baketex0");
@@ -99,17 +97,13 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 
 		g_context->rtdirty = 0;
 
-		gc_unroot(render_path_raytrace_last_envmap);
-		render_path_raytrace_last_envmap = saved_envmap;
-		gc_root(render_path_raytrace_last_envmap);
-		gc_unroot(render_path_raytrace_bake_last_layer);
-		render_path_raytrace_bake_last_layer = g_context->layer->texpaint;
-		gc_root(render_path_raytrace_bake_last_layer);
+		render_path_raytrace_last_envmap          = saved_envmap;
+		render_path_raytrace_bake_last_layer      = g_context->layer->texpaint;
 		render_path_raytrace_bake_last_bake_type2 = g_context->bake_type;
 
-		gpu_texture_t *bnoise_sobol    = any_map_get(scene_embedded, "bnoise_sobol.k");
-		gpu_texture_t *bnoise_scramble = any_map_get(scene_embedded, "bnoise_scramble.k");
-		gpu_texture_t *bnoise_rank     = any_map_get(scene_embedded, "bnoise_rank.k");
+		gpu_texture_t *bnoise_sobol    = data_get_texture("bnoise_sobol.k");
+		gpu_texture_t *bnoise_scramble = data_get_texture("bnoise_scramble.k");
+		gpu_texture_t *bnoise_rank     = data_get_texture("bnoise_rank.k");
 
 		render_target_t *baketex0 = any_map_get(render_path_render_targets, "baketex0");
 		render_target_t *baketex1 = any_map_get(render_path_render_targets, "baketex1");
@@ -124,15 +118,17 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		}
 		else {
 			render_target_t *texpaint_undo = any_map_get(render_path_render_targets, string("texpaint_undo%d", history_undo_i));
-			tex2                           = texpaint_undo->_image;
+			if (texpaint_undo == NULL) {
+				texpaint_undo = any_map_get(render_path_render_targets, "empty_black");
+			}
+			tex2 = texpaint_undo->_image;
 		}
 
-		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank);
+		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank, NULL);
 	}
 
 	if (g_context->brush_time > 0) {
 		g_context->pdirty = 2;
-		g_context->rdirty = 2;
 	}
 
 	if (g_context->pdirty > 0) {

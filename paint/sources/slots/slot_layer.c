@@ -1,8 +1,51 @@
 
-#include "global.h"
+#include "../global.h"
+
+bool slot_layer_defer_alloc = false;
+
+void slot_layer_alloc_textures(slot_layer_t *raw) {
+	if (raw->texpaint != NULL) {
+		return;
+	}
+
+	char *ext    = raw->ext;
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint      = render_path_create_render_target(t)->_image;
+	}
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint_nor%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint_nor  = render_path_create_render_target(t)->_image;
+	}
+	{
+		render_target_t *t = render_target_create();
+		t->name            = string("texpaint_pack%s", ext);
+		t->width           = config_get_texture_res_x();
+		t->height          = config_get_texture_res_y();
+		t->format          = string_copy(format);
+		raw->texpaint_pack = render_path_create_render_target(t)->_image;
+	}
+}
+
+slot_layer_t *slot_layer_create_undo(char *ext) {
+	slot_layer_defer_alloc = true;
+	slot_layer_t *l        = slot_layer_create(ext, LAYER_SLOT_TYPE_LAYER, NULL);
+	slot_layer_defer_alloc = false;
+	return l;
+}
 
 slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t *parent) {
-	slot_layer_t *raw       = GC_ALLOC_INIT(slot_layer_t, {0});
+	slot_layer_t *raw       = ALLOC_INIT(slot_layer_t, {0});
 	raw->id                 = 0;
 	raw->ext                = "";
 	raw->visible            = true;
@@ -44,34 +87,11 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 		raw->name = string("Group %d", id);
 	}
 	else if (type == LAYER_SLOT_TYPE_LAYER) {
-		i32 id       = (raw->id + 1);
-		raw->name    = string("Layer %d", id);
-		char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		i32 id    = (raw->id + 1);
+		raw->name = string("Layer %d", id);
 
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint      = render_path_create_render_target(t)->_image;
-		}
-
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint_nor%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint_nor  = render_path_create_render_target(t)->_image;
-		}
-		{
-			render_target_t *t = render_target_create();
-			t->name            = string("texpaint_pack%s", ext);
-			t->width           = config_get_texture_res_x();
-			t->height          = config_get_texture_res_y();
-			t->format          = string_copy(format);
-			raw->texpaint_pack = render_path_create_render_target(t)->_image;
+		if (!slot_layer_defer_alloc) {
+			slot_layer_alloc_textures(raw);
 		}
 
 		raw->texpaint_preview = gpu_create_render_target(util_render_layer_preview_size, util_render_layer_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
@@ -133,6 +153,7 @@ void slot_layer_delete(slot_layer_t *raw) {
 
 	i32 lpos = array_index_of(g_project->_->layers, raw);
 	array_remove(g_project->_->layers, raw);
+	tab_timeline_sync();
 	// Undo can remove base layer and then restore it from undo layers
 	if (g_project->_->layers->length > 0) {
 		context_set_layer(g_project->_->layers->buffer[lpos > 0 ? lpos - 1 : 0]);
@@ -143,6 +164,10 @@ void slot_layer_delete(slot_layer_t *raw) {
 
 void slot_layer_unload(slot_layer_t *raw) {
 	if (slot_layer_is_group(raw)) {
+		if (raw->texpaint_preview != NULL) {
+			gpu_delete_texture(raw->texpaint_preview);
+			raw->texpaint_preview = NULL;
+		}
 		return;
 	}
 
@@ -371,6 +396,7 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 		l->path_points_parent = i32_array_create_from_raw(raw->path_points_parent->buffer, raw->path_points_parent->length);
 		l->path_tool          = raw->path_tool;
 		l->path_curved        = raw->path_curved;
+		l->path_text          = raw->path_text;
 		l->path_material      = raw->path_material;
 	}
 
@@ -383,9 +409,9 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 	any_map_t *rts   = render_path_render_targets;
 
 	if (slot_layer_is_layer(raw)) {
-		gpu_texture_format_t format = base_bits_handle->i == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-		                              : base_bits_handle->i == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-		                                                                           : GPU_TEXTURE_FORMAT_RGBA128;
+		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
+		                              : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
+		                                                                 : GPU_TEXTURE_FORMAT_RGBA128;
 
 		gpu_pipeline_t *pipe = format == GPU_TEXTURE_FORMAT_RGBA32 ? pipes_copy : format == GPU_TEXTURE_FORMAT_RGBA64 ? pipes_copy64 : pipes_copy128;
 
@@ -487,6 +513,7 @@ void slot_layer_to_paint_layer(slot_layer_t *raw) {
 	if (raw->path_material != NULL) {
 		raw->path_material = NULL;
 		raw->path_points   = NULL;
+		raw->path_text     = false;
 		util_layer_update_path();
 	}
 	make_material_parse_paint_material(true);
@@ -537,28 +564,42 @@ slot_layer_t_array_t *slot_layer_get_masks(slot_layer_t *raw, bool include_group
 		return NULL;
 	}
 
-	slot_layer_t_array_t *children = NULL;
+	bool group_masks = include_group_masks && raw->parent != NULL && slot_layer_is_group(raw->parent);
+
+	i32 count = 0;
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (slot_layer_is_mask(l) && l->parent == raw) {
+			count++;
+		}
+	}
+	if (group_masks) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (slot_layer_is_mask(l) && l->parent == raw->parent) {
+				count++;
+			}
+		}
+	}
+	if (count == 0) {
+		return NULL;
+	}
+
+	slot_layer_t_array_t *children = any_array_create_from_raw_tmp(NULL, count);
+	i32                   pos      = 0;
 	// Child masks of a layer
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
-		if (l->parent == raw && slot_layer_is_mask(l)) {
-			if (children == NULL) {
-				children = any_array_create_from_raw((void *[]){}, 0);
-			}
-			any_array_push(children, l);
+		if (slot_layer_is_mask(l) && l->parent == raw) {
+			children->buffer[pos++] = l;
 		}
 	}
 	// Child masks of a parent group
-	if (include_group_masks) {
-		if (raw->parent != NULL && slot_layer_is_group(raw->parent)) {
-			for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-				slot_layer_t *l = g_project->_->layers->buffer[i];
-				if (l->parent == raw->parent && slot_layer_is_mask(l)) {
-					if (children == NULL) {
-						children = any_array_create_from_raw((void *[]){}, 0);
-					}
-					any_array_push(children, l);
-				}
+	if (group_masks) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (slot_layer_is_mask(l) && l->parent == raw->parent) {
+				children->buffer[pos++] = l;
 			}
 		}
 	}
@@ -787,11 +828,11 @@ void slot_layer_move(slot_layer_t *raw, i32 to) {
 		return;
 	}
 
-	i32_map_t    *pointers  = tab_layers_init_layer_map();
-	i32           old_index = array_index_of(g_project->_->layers, raw);
-	i32           delta     = to - old_index;
-	slot_layer_t *new_upper_layer =
-	    delta > 0 ? (to < g_project->_->layers->length - 1 ? g_project->_->layers->buffer[to + 1] : NULL) : g_project->_->layers->buffer[to];
+	slot_layer_t_array_t *pointers  = tab_layers_init_layer_map();
+	i32                   old_index = array_index_of(g_project->_->layers, raw);
+	i32                   delta     = to - old_index;
+	slot_layer_t         *new_upper_layer =
+        delta > 0 ? (to < g_project->_->layers->length - 1 ? g_project->_->layers->buffer[to + 1] : NULL) : g_project->_->layers->buffer[to];
 
 	// Group or layer is collapsed so we check below and update the upper layer
 	if (new_upper_layer != NULL && !new_upper_layer->show_panel) {

@@ -22,10 +22,13 @@ void tab_brushes_draw_duplicate(void *_) {
 	g_context->brush->canvas = cloned;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
+	history_duplicate_brush();
 }
 
 void tab_brushes_delete_brush(slot_brush_t *b) {
-	i32 i = array_index_of(g_project->_->brushes, b);
+	i32 i            = array_index_of(g_project->_->brushes, b);
+	g_context->brush = b;
+	history_delete_brush();
 	context_select_brush(i == g_project->_->brushes->length - 1 ? i - 1 : i + 1);
 	array_splice(g_project->_->brushes, i, 1);
 	ui_base_hwnds->buffer[1]->redraws = 2;
@@ -49,10 +52,10 @@ void tab_brushes_draw_context_menu() {
 	}
 }
 
-void tab_brushes_draw(ui_handle_t *htab) {
+void tab_brushes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Brushes"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -64,6 +67,7 @@ void tab_brushes_draw(ui_handle_t *htab) {
 			g_context->brush = slot_brush_create(NULL);
 			any_array_push(g_project->_->brushes, g_context->brush);
 			make_material_parse_brush();
+			history_new_brush();
 			ui_nodes_hwnd->redraws = 2;
 		}
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -149,12 +153,9 @@ void tab_brushes_draw(ui_handle_t *htab) {
 					}
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					gc_unroot(base_drag_brush);
 					base_drag_brush = g_context->brush;
-					gc_root(base_drag_brush);
 					if (sys_time() - g_context->select_time < 0.2) {
 						ui_base_show_brush_nodes();
-						gc_unroot(base_drag_brush);
 						base_drag_brush  = NULL;
 						base_is_dragging = false;
 					}

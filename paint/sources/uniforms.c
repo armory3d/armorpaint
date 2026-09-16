@@ -1,7 +1,7 @@
 
 #include "global.h"
 
-i32 uniforms_ext_i32_link(object_t *object, material_data_t *mat, char *link) {
+i32 uniforms_ext_i32_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_bloom_current_mip")) {
 		return render_path_base_bloom_current_mip;
 	}
@@ -11,7 +11,7 @@ i32 uniforms_ext_i32_link(object_t *object, material_data_t *mat, char *link) {
 	return INT_MAX;
 }
 
-f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
+f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_brush_radius")) {
 		bool decal                   = context_is_decal();
 		bool decal_mask              = context_is_decal_mask_paint_pass();
@@ -87,15 +87,12 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 		return val;
 	}
 	else if (string_equals(link, "_brush_scale")) {
-		// if (g_context->tool == TOOL_TYPE_CURSOR) {
-		// 	i32 atlas_w      = config_get_scene_atlas_res();
-		// 	i32 item_w       = config_get_layer_res();
-		// 	i32 atlas_stride = atlas_w / (float)item_w;
-		// 	return atlas_stride;
-		// }
 		bool fill = g_context->layer->fill_material != NULL;
 		f32  val  = (fill ? g_context->layer->scale : g_context->brush_scale) * g_context->brush_nodes_scale;
 		return val;
+	}
+	else if (string_equals(link, "_atlas_stride")) {
+		return util_mesh_udim_active() ? util_mesh_atlas_stride() : 1.0;
 	}
 	else if (string_equals(link, "_object_id")) {
 		return array_index_of(g_project->_->paint_objects, object->ext);
@@ -119,7 +116,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	}
 	else if (string_equals(link, "_particle_radius")) {
 		i32 idx           = g_context->particle_index;
-		f32 speed         = g_context->particles[idx].body != NULL ? asim_body_get_speed(g_context->particles[idx].body) : 0.0f;
+		f32 speed         = g_context->particles[idx].body != NULL ? physics_body_get_speed(g_context->particles[idx].body) : 0.0f;
 		f32 vel_scale     = fminf(speed / 0.12f, 1.0f);
 		f32 contact_scale = 1.0f - fminf(g_context->particles[idx].contact_time, 1.0f);
 		return fmaxf(g_context->brush_radius * vel_scale * contact_scale, 0.1f);
@@ -149,17 +146,22 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	else if (string_equals(link, "_taa_blend")) {
 		return scene_camera->frame == 0 ? 0.0 : 0.5;
 	}
+	else if (string_equals(link, "_ssao_strength")) {
+		return g_config->rp_ssao * 0.95;
+	}
+	else if (string_equals(link, "_ssao_frame")) {
+		return scene_camera->frame % 2 == 0 ? 0.0 : 0.5;
+	}
 	if (parser_material_script_links != NULL) {
-		string_array_t *keys = map_keys(parser_material_script_links);
-		for (i32 i = 0; i < keys->length; ++i) {
-			char *key    = keys->buffer[i];
-			char *script = any_map_get(parser_material_script_links, key);
-			f32   result = NAN;
-			if (script != NULL) {
-				result = 0.0;
-			}
+		string_array_t *keys   = map_keys(parser_material_script_links);
+		bool            found  = keys->length > 0;
+		char           *script = found ? any_map_get(parser_material_script_links, keys->buffer[0]) : NULL;
+		array_free(keys);
+		free(keys);
+		if (found) {
+			f32 result = script != NULL ? 0.0 : NAN;
 			if (!string_equals(script, "")) {
-				minic_ctx_t *_ctx = minic_eval(string("float main() { return %s; }", script));
+				minic_ctx_t *_ctx = minic_eval(string_tmp("float main() { return %s; }", script));
 				result            = minic_ctx_result(_ctx);
 				minic_ctx_free(_ctx);
 			}
@@ -169,7 +171,7 @@ f32 uniforms_ext_f32_link(object_t *object, material_data_t *mat, char *link) {
 	return NAN;
 }
 
-vec2_t uniforms_ext_vec2_link(object_t *object, material_data_t *mat, char *link) {
+vec2_t uniforms_ext_vec2_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_gbuffer_size")) {
 		render_target_t *gbuffer2 = any_map_get(render_path_render_targets, "gbuffer2");
 		return (vec2_t){gbuffer2->_image->width, gbuffer2->_image->height};
@@ -215,7 +217,7 @@ f32 uniforms_ext_vec2d(f32 x) {
 	return res;
 }
 
-vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link) {
+vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) {
 	vec4_t v = vec4_nan();
 	if (string_equals(link, "_brush_direction")) {
 		// Discard first paint for directional brush (no prev position yet)
@@ -234,6 +236,17 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 		g_context->prev_paint_vec_x = g_context->last_paint_vec_x;
 		g_context->prev_paint_vec_y = g_context->last_paint_vec_y;
 		return v;
+	}
+	else if (string_equals(link, "_atlas_transform")) {
+		if (!config_is_raytrace_multi() && !util_mesh_udim_active()) {
+			return (vec4_t){0.0, 0.0, 1.0, 1.0};
+		}
+		i32 stride = util_mesh_atlas_stride();
+		i32 slot   = util_mesh_atlas_slot(object);
+		if (slot < 0) {
+			return (vec4_t){0.0, 0.0, 1.0, 1.0};
+		}
+		return (vec4_t){(slot % stride) / (f32)stride, (slot / stride) / (f32)stride, 1.0 / stride, 1.0};
 	}
 	else if (string_equals(link, "_decal_layer_loc")) {
 		v = (vec4_t){g_context->layer->decal_mat.m30, g_context->layer->decal_mat.m31, g_context->layer->decal_mat.m32, 1.0};
@@ -285,7 +298,7 @@ vec4_t uniforms_ext_vec3_link(object_t *object, material_data_t *mat, char *link
 	return v;
 }
 
-vec4_t uniforms_ext_vec4_link(object_t *object, material_data_t *mat, char *link) {
+vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_input_brush")) {
 		bool   down = mouse_down("left") || pen_down("tip");
 		vec4_t v    = (vec4_t){g_context->paint_vec.x, g_context->paint_vec.y, down ? 1.0 : 0.0, g_context->paint2d ? 1.0 : 0.0};
@@ -337,7 +350,7 @@ vec4_t uniforms_ext_vec4_link(object_t *object, material_data_t *mat, char *link
 	return vec4_nan();
 }
 
-mat4_t uniforms_ext_mat4_link(object_t *object, material_data_t *mat, char *link) {
+mat4_t uniforms_ext_mat4_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_sculpt_symmetry_reflect")) {
 		transform_t *t       = object->transform;
 		mat4_t       W       = t->world;
@@ -388,26 +401,38 @@ void uniforms_ext_cache_uv_map(void *_) {
 	util_uv_cache_uv_map();
 }
 
-gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, char *link) {
+static gpu_texture_t *_uniforms_ext_get_target(char *name) {
+	render_target_t *rt = any_map_get(render_path_render_targets, name);
+	if (rt == NULL) {
+		rt = any_map_get(render_path_render_targets, "empty_black");
+	}
+	return rt->_image;
+}
+
+gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_get_target(string_tmp("texpaint_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_nor_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_nor_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_get_target(string_tmp("texpaint_nor_undo%d", i));
 	}
 	else if (string_equals(link, "_texpaint_pack_undo")) {
-		i32              i  = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-		render_target_t *rt = any_map_get(render_path_render_targets, string("texpaint_pack_undo%d", i));
-		return rt->_image;
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_get_target(string_tmp("texpaint_pack_undo%d", i));
+	}
+	else if (string_equals(link, "_texpaint_ref")) {
+		return _uniforms_ext_get_target("texpaint_ref");
+	}
+	else if (string_equals(link, "_texpaint_nor_ref")) {
+		return _uniforms_ext_get_target("texpaint_nor_ref");
+	}
+	else if (string_equals(link, "_texpaint_pack_ref")) {
+		return _uniforms_ext_get_target("texpaint_pack_ref");
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
-		// Per-frame accumulation reference
-		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_sculpt_ref");
-		return rt->_image;
+		return _uniforms_ext_get_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {
@@ -453,12 +478,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return util_uv_dilatemap;
 	}
 	if (starts_with(link, "_texpaint_pack_vert")) {
-		char            *tid = substring(link, string_length(link) - 1, string_length(link));
-		render_target_t *rt  = any_map_get(render_path_render_targets, string("texpaint_pack%s", tid));
+		render_target_t *rt = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%c", link[string_length(link) - 1]));
 		return rt->_image;
 	}
 	if (starts_with(link, "_texpaint_vert")) {
-		i32 tid = parse_int(substring(link, string_length("_texpaint_vert"), string_length(link)));
+		i32 tid = parse_int(link + string_length("_texpaint_vert"));
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 			if (g_project->_->layers->buffer[i]->id == tid) {
 				return g_project->_->layers->buffer[i]->texpaint;
@@ -467,11 +491,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return NULL;
 	}
 	if (starts_with(link, "_texpaint_nor")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_nor : NULL;
 	}
 	if (starts_with(link, "_texpaint_pack")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_pack : NULL;
 	}
 	if (string_equals(link, "_texpaint_sculpt_base")) {
@@ -479,15 +503,15 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		return rt != NULL ? rt->_image : NULL;
 	}
 	if (starts_with(link, "_texpaint_sculpt")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_sculpt : NULL;
 	}
 	if (starts_with(link, "_texpaint")) {
-		i32 tid = parse_int(substring(link, string_length(link) - 1, string_length(link)));
+		i32 tid = parse_int(link + string_length(link) - 1);
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint : NULL;
 	}
 	if (starts_with(link, "_texblur_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -497,7 +521,7 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		}
 	}
 	if (starts_with(link, "_texwarp_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -507,7 +531,7 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 		}
 	}
 	if (starts_with(link, "_texbake_")) {
-		char *id = substring(link, 9, string_length(link));
+		char *id = link + 9;
 		if (g_context->node_previews != NULL) {
 			return any_map_get(g_context->node_previews, id);
 		}
@@ -531,25 +555,11 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, material_data_t *mat, cha
 }
 
 void uniforms_ext_init() {
-	gc_unroot(uniforms_i32_links);
-	uniforms_i32_links = uniforms_ext_i32_link;
-	gc_root(uniforms_i32_links);
-	gc_unroot(uniforms_f32_links);
-	uniforms_f32_links = uniforms_ext_f32_link;
-	gc_root(uniforms_f32_links);
-	gc_unroot(uniforms_vec2_links);
+	uniforms_i32_links  = uniforms_ext_i32_link;
+	uniforms_f32_links  = uniforms_ext_f32_link;
 	uniforms_vec2_links = uniforms_ext_vec2_link;
-	gc_root(uniforms_vec2_links);
-	gc_unroot(uniforms_vec3_links);
 	uniforms_vec3_links = uniforms_ext_vec3_link;
-	gc_root(uniforms_vec3_links);
-	gc_unroot(uniforms_vec4_links);
 	uniforms_vec4_links = uniforms_ext_vec4_link;
-	gc_root(uniforms_vec4_links);
-	gc_unroot(uniforms_mat4_links);
 	uniforms_mat4_links = uniforms_ext_mat4_link;
-	gc_root(uniforms_mat4_links);
-	gc_unroot(uniforms_tex_links);
-	uniforms_tex_links = uniforms_ext_tex_link;
-	gc_root(uniforms_tex_links);
+	uniforms_tex_links  = uniforms_ext_tex_link;
 }

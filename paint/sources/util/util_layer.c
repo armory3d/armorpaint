@@ -68,8 +68,8 @@ void layers_init() {
 }
 
 void layers_resize() {
-	if (config_get_texture_res_x() >= 16384 || config_get_texture_res_y() >= 16384) { // Save memory for >=16k
-		g_config->undo_steps = 1;
+	if (config_get_texture_res_x() >= 8192 || config_get_texture_res_y() >= 8192) { // Save memory for >=8k
+		g_config->undo_steps = config_get_texture_res_x() == 8192 ? 4 : 1;
 		while (history_undo_layers->length > g_config->undo_steps) {
 			slot_layer_t *l = array_pop(history_undo_layers);
 			sys_notify_on_next_frame(&slot_layer_unload, l);
@@ -155,21 +155,18 @@ void layers_make_temp_img() {
 		render_target_t *_temptex0 = any_map_get(render_path_render_targets, "temptex0");
 		gpu_delete_texture(_temptex0->_image);
 		map_delete(render_path_render_targets, "temptex0");
-		gc_unroot(layers_temp_image);
 		layers_temp_image = NULL;
 	}
 
 	if (layers_temp_image == NULL) {
-		char            *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char            *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
 		render_target_t *t      = render_target_create();
 		t->name                 = "temptex0";
 		t->width                = l->texpaint->width;
 		t->height               = l->texpaint->height;
 		t->format               = string_copy(format);
 		render_target_t *rt     = render_path_create_render_target(t);
-		gc_unroot(layers_temp_image);
-		layers_temp_image = rt->_image;
-		gc_root(layers_temp_image);
+		layers_temp_image       = rt->_image;
 	}
 }
 
@@ -178,15 +175,12 @@ void layers_make_temp_mask_img() {
 	    (pipes_temp_mask_image->width != config_get_texture_res_x() || pipes_temp_mask_image->height != config_get_texture_res_y())) {
 		gpu_texture_t *_temp_mask_image = pipes_temp_mask_image;
 		gpu_delete_texture(_temp_mask_image);
-		gc_unroot(pipes_temp_mask_image);
 		pipes_temp_mask_image = NULL;
 	}
 
 	if (pipes_temp_mask_image == NULL) {
-		gc_unroot(pipes_temp_mask_image);
 		// pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_R8);
 		pipes_temp_mask_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA32);
-		gc_root(pipes_temp_mask_image);
 	}
 }
 
@@ -200,18 +194,15 @@ void layers_make_export_img() {
 		gpu_delete_texture(_expa);
 		gpu_delete_texture(_expb);
 		gpu_delete_texture(_expc);
-		gc_unroot(layers_expa);
 		layers_expa = NULL;
-		gc_unroot(layers_expb);
 		layers_expb = NULL;
-		gc_unroot(layers_expc);
 		layers_expc = NULL;
 		map_delete(render_path_render_targets, "expa");
 		map_delete(render_path_render_targets, "expb");
 		map_delete(render_path_render_targets, "expc");
 	}
 	if (layers_expa == NULL) {
-		char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
 		{
 			render_target_t *t  = render_target_create();
 			t->name             = "expa";
@@ -219,9 +210,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			gc_unroot(layers_expa);
-			layers_expa = rt->_image;
-			gc_root(layers_expa);
+			layers_expa         = rt->_image;
 		}
 		{
 			render_target_t *t  = render_target_create();
@@ -230,9 +219,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			gc_unroot(layers_expb);
-			layers_expb = rt->_image;
-			gc_root(layers_expb);
+			layers_expb         = rt->_image;
 		}
 		{
 			render_target_t *t  = render_target_create();
@@ -241,9 +228,7 @@ void layers_make_export_img() {
 			t->height           = l->texpaint->height;
 			t->format           = string_copy(format);
 			render_target_t *rt = render_path_create_render_target(t);
-			gc_unroot(layers_expc);
-			layers_expc = rt->_image;
-			gc_root(layers_expc);
+			layers_expc         = rt->_image;
 		}
 	}
 }
@@ -291,9 +276,7 @@ void layers_update_fill_layers() {
 
 	if (g_context->tool == TOOL_TYPE_MATERIAL) {
 		if (render_path_paint_live_layer == NULL) {
-			gc_unroot(render_path_paint_live_layer);
 			render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
-			gc_root(render_path_paint_live_layer);
 		}
 
 		current     = _draw_current;
@@ -313,7 +296,6 @@ void layers_update_fill_layers() {
 		g_context->tool      = _tool;
 		g_context->fill_type = _fill_type;
 		g_context->pdirty    = 0;
-		g_context->rdirty    = 2;
 		render_path_paint_restore_plane_mesh();
 		make_material_parse_paint_material(true);
 		ui_view2d_hwnd->redraws = 2;
@@ -362,7 +344,7 @@ void layers_update_fill_layers() {
 						i32 tid = l->id;
 						i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
 						sculpt_import_mesh_pack_to_texture(l->texpaint_sculpt);
-						render_path_set_target(string("texpaint_sculpt_undo%d", hid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+						render_path_set_target(string_tmp("texpaint_sculpt_undo%d", hid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 						render_path_bind_target(string("texpaint_sculpt%d", tid), "tex");
 						render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
 						render_path_sculpt_commands();
@@ -394,7 +376,6 @@ void layers_update_fill_layers() {
 		}
 		g_context->pdirty               = 0;
 		g_context->ddirty               = 2;
-		g_context->rdirty               = 2;
 		g_context->rtdirty              = 1;
 		g_context->layers_preview_dirty = true;
 		if (in_use)
@@ -447,7 +428,7 @@ void layers_update_fill_layer(bool parse_paint) {
 		i32 tid = g_context->layer->id;
 		i32 hid = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
 		sculpt_import_mesh_pack_to_texture(g_context->layer->texpaint_sculpt);
-		render_path_set_target(string("texpaint_sculpt_undo%d", hid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_set_target(string_tmp("texpaint_sculpt_undo%d", hid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 		render_path_bind_target(string("texpaint_sculpt%d", tid), "tex");
 		render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
 		if (parse_paint) {
@@ -464,7 +445,6 @@ void layers_update_fill_layer(bool parse_paint) {
 		render_path_paint_dilate(true, true);
 	}
 
-	g_context->rdirty    = 2;
 	g_context->tool      = _tool;
 	g_context->fill_type = _fill_type;
 	if (parse_paint && layers_tool_paints_fill_layer(_tool)) {
@@ -613,10 +593,7 @@ slot_layer_t *layers_new_layer(bool clear, i32 position, slot_layer_t *parent) {
 		sys_notify_on_next_frame(&layers_new_layer_clear, l);
 	}
 
-	stage_t *stage = tab_stages_get_stage();
-	if (stage != NULL && string_array_index_of(stage->layers, l->name) < 0) {
-		string_array_push(stage->layers, l->name);
-	}
+	tab_stages_add_layer(l->name);
 
 	g_context->layer_preview_dirty = true;
 	return l;
@@ -640,6 +617,7 @@ slot_layer_t *layers_new_mask(bool clear, slot_layer_t *parent, i32 position) {
 	if (clear) {
 		sys_notify_on_next_frame(&layers_new_mask_clear, l);
 	}
+	tab_stages_add_layer(l->name);
 	g_context->layer_preview_dirty = true;
 	return l;
 }
@@ -652,6 +630,7 @@ slot_layer_t *layers_new_group() {
 	slot_layer_t *l = slot_layer_create("", LAYER_SLOT_TYPE_GROUP, NULL);
 	any_array_push(g_project->_->layers, l);
 	context_set_layer(l);
+	tab_stages_add_layer(l->name);
 	return l;
 }
 
@@ -674,13 +653,28 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	l->path_tool          = -1;
 	l->path_curved        = curved;
 	l->path_material      = g_context->material;
-	l->name               = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	char *name            = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	tab_stages_rename_layer(l->name, name);
+	l->name = name;
 
 	if (g_config->workflow == WORKFLOW_SCULPT) {
 		_layers_path_sculpt_layer = l;
 		sys_notify_on_next_frame(&layers_new_path_layer_sculpt_init, NULL);
 	}
 
+	return l;
+}
+
+slot_layer_t *layers_new_text_layer() {
+	slot_layer_t *l = layers_new_path_layer(true);
+	if (l == NULL) {
+		return NULL;
+	}
+	l->path_text = true;
+	l->path_tool = TOOL_TYPE_TEXT;
+	char *name   = string("Text %d", l->id + 1);
+	tab_stages_rename_layer(l->name, name);
+	l->name = name;
 	return l;
 }
 
@@ -703,10 +697,6 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 }
 
 void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position) {
-	// if (g_context->tool == TOOL_TYPE_CURSOR) {
-	// 	return;
-	// }
-
 	_layers_uv_type   = uv_type;
 	_layers_decal_mat = decal_mat;
 	_layers_position  = position;
@@ -755,7 +745,7 @@ void layers_create_filter_on_next_frame(void *_) {
 
 	for (int i = 0; i < 9; ++i) {
 		ui_node_link_t *l =
-		    GC_ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(canvas->links), .from_id = n->id, .from_socket = i, .to_id = nout->id, .to_socket = i});
+		    ALLOC_INIT(ui_node_link_t, {.id = ui_next_link_id(canvas->links), .from_id = n->id, .from_socket = i, .to_id = nout->id, .to_socket = i});
 		any_array_push(canvas->links, l);
 	}
 
@@ -1049,6 +1039,88 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 	}
 }
 
+void layers_draw_mesh_materials() {
+	bool any = false;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (tab_meshes_get_override(g_project->_->paint_objects->buffer[i]) >= 0) {
+			any = true;
+			break;
+		}
+	}
+	if (!any) {
+		return;
+	}
+
+	string_array_t *additional = any_array_create_from_raw(
+	    (void *[]){
+	        "expb",
+	        "expc",
+	        "texpaint_blend0",
+	    },
+	    3);
+	render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target("main", "gbufferD");
+	render_path_bind_target("texpaint_blend1", "paintmask");
+	render_path_draw_meshes("atlas");
+}
+
+static gpu_texture_t *layers_udim_a    = NULL;
+static gpu_texture_t *layers_udim_b    = NULL;
+static gpu_texture_t *layers_udim_c    = NULL;
+static gpu_texture_t *layers_udim_mask = NULL;
+
+static gpu_texture_t *_layers_udim_target(gpu_texture_t **t, gpu_texture_t *like) {
+	if (*t != NULL && ((*t)->width != like->width || (*t)->height != like->height || (*t)->format != like->format)) {
+		gpu_delete_texture(*t);
+		*t = NULL;
+	}
+	if (*t == NULL) {
+		*t = gpu_create_render_target(like->width, like->height, like->format);
+	}
+	return *t;
+}
+
+static gpu_texture_t *_layers_udim_copy(gpu_texture_t **target, gpu_texture_t *src, i32 slot, bool to_tile) {
+	gpu_texture_t *dst    = _layers_udim_target(target, src);
+	i32            stride = util_mesh_atlas_stride();
+	f32            cx     = (slot % stride) / (f32)stride;
+	f32            cy     = (slot / stride) / (f32)stride;
+	draw_begin(dst, true, 0x00000000);
+	draw_set_pipeline(pipes_copy);
+	if (to_tile) {
+		draw_scaled_sub_image(src, cx * src->width, cy * src->height, src->width / (f32)stride, src->height / (f32)stride, 0, 0, dst->width, dst->height);
+	}
+	else {
+		draw_scaled_image(src, cx * dst->width, cy * dst->height, dst->width / (f32)stride, dst->height / (f32)stride);
+	}
+	draw_set_pipeline(NULL);
+	draw_end();
+	return dst;
+}
+
+// Remap layer textures between the shared udim atlas and a single tile, mask is remapped in place when set
+slot_layer_t *layers_udim_remap(slot_layer_t *l, gpu_texture_t **mask, i32 slot, bool to_tile) {
+	static slot_layer_t remapped;
+	remapped               = *l;
+	remapped.texpaint      = _layers_udim_copy(&layers_udim_a, l->texpaint, slot, to_tile);
+	remapped.texpaint_nor  = _layers_udim_copy(&layers_udim_b, l->texpaint_nor, slot, to_tile);
+	remapped.texpaint_pack = _layers_udim_copy(&layers_udim_c, l->texpaint_pack, slot, to_tile);
+	if (mask != NULL) {
+		*mask = _layers_udim_copy(&layers_udim_mask, *mask, slot, to_tile);
+	}
+	return &remapped;
+}
+
+// Atlas slot of a layer assigned to a single udim tile object, -1 otherwise
+i32 layers_udim_tile_slot(slot_layer_t *l) {
+	i32 mask = slot_layer_get_object_mask(l);
+	if (!util_mesh_udim_active() || l->uv_map == 1 || mask <= 0 || mask > g_project->_->paint_objects->length) {
+		return -1;
+	}
+	i32 tile = util_mesh_udim_tile(g_project->_->paint_objects->buffer[mask - 1]->base->name);
+	return tile < 0 ? -1 : util_mesh_udim_slot(tile);
+}
+
 slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers) {
 	if (layers == NULL) {
 		layers = g_project->_->layers;
@@ -1085,11 +1157,17 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			layers_make_temp_mask_img();
 			draw_begin(pipes_temp_mask_image, GPU_CLEAR_COLOR, 0xffffffff);
 			draw_end();
-			slot_layer_t *l1 = GC_ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
+			slot_layer_t *l1 = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
 			for (i32 i = 0; i < l1masks->length; ++i) {
 				layers_merge_layer(l1, l1masks->buffer[i], false);
 			}
 			mask = pipes_temp_mask_image;
+		}
+
+		// Flattened layers are in shared atlas space
+		i32 tile_slot = layers_udim_tile_slot(l1);
+		if (tile_slot >= 0) {
+			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, tile_slot, false);
 		}
 
 		if (l1->paint_base) {
@@ -1171,7 +1249,9 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		}
 	}
 
-	slot_layer_t *l0 = GC_ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
+	layers_draw_mesh_materials();
+
+	slot_layer_t *l0 = ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
 
 	// Merge height map into normal map
 	if (height_to_normal && make_material_height_used) {
@@ -1220,10 +1300,8 @@ void layers_on_resized_on_next_frame(void *_) {
 
 void layers_on_resized() {
 	sys_notify_on_next_frame(&layers_on_resized_on_next_frame, NULL);
-	gc_unroot(util_uv_uvmap);
-	util_uv_uvmap        = NULL;
-	util_uv_uvmap_cached = false;
-	gc_unroot(util_uv_trianglemap);
+	util_uv_uvmap              = NULL;
+	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap        = NULL;
 	util_uv_trianglemap_cached = false;
 	util_uv_dilatemap_cached   = false;
@@ -1242,20 +1320,16 @@ void tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *point
 	}
 }
 
-i32_map_t *tab_layers_init_layer_map() {
-	i32_map_t *res = any_map_create();
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		i32_map_set(res, g_project->_->layers->buffer[i], i);
-	}
-	return res;
+slot_layer_t_array_t *tab_layers_init_layer_map() {
+	return array_slice(g_project->_->layers, 0, g_project->_->layers->length);
 }
 
-i32_imap_t *tab_layers_fill_layer_map(i32_map_t *map) {
-	i32_imap_t     *res  = any_map_create();
-	string_array_t *keys = map_keys(map);
-	for (i32 i = 0; i < keys->length; ++i) {
-		char *l = keys->buffer[i];
-		i32_imap_set(res, i32_map_get(map, l), array_index_of(g_project->_->layers, l) > -1 ? array_index_of(g_project->_->layers, l) : 9999);
+i32_imap_t *tab_layers_fill_layer_map(slot_layer_t_array_t *old_layers) {
+	// Old index -> new index, 9999 for removed layers
+	i32_imap_t *res = any_imap_create();
+	for (i32 i = 0; i < old_layers->length; ++i) {
+		i32 new_index = array_index_of(g_project->_->layers, old_layers->buffer[i]);
+		i32_imap_set(res, i, new_index > -1 ? new_index : 9999);
 	}
 	return res;
 }
@@ -1277,9 +1351,7 @@ void tab_layers_make_mask_preview_rgba32(slot_layer_t *l) {
 	// Convert from R8 to RGBA32 for tooltip display
 	if (g_context->mask_preview_last != l) {
 		g_context->mask_preview_last = l;
-		gc_unroot(tab_layers_l);
-		tab_layers_l = l;
-		gc_root(tab_layers_l);
+		tab_layers_l                 = l;
 		sys_notify_on_next_frame(&tab_layers_make_mask_preview_rgba32_on_next_frame, NULL);
 	}
 }

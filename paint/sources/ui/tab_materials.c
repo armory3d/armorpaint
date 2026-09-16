@@ -9,7 +9,7 @@ void tab_materials_button_nodes() {
 		ui_base_show_material_nodes();
 	}
 	else if (g_ui->is_hovered) {
-		ui_tooltip(string("%s (%s)", tr("Show Node Editor"), (char *)any_map_get(g_keymap, "toggle_node_editor")));
+		ui_tooltip(string_tmp("%s (%s)", tr("Show Node Editor"), (char *)any_map_get(g_keymap, "toggle_node_editor")));
 	}
 }
 
@@ -20,9 +20,7 @@ void tab_materials_draw_slots_update_fill_layers(void *_) {
 void tab_materials_update_material() {
 	ui_header_handle->redraws = 2;
 	ui_nodes_hwnd->redraws    = 2;
-	gc_unroot(ui_nodes_group_stack);
-	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
-	gc_root(ui_nodes_group_stack);
+	ui_nodes_group_stack      = any_array_create_from_raw((void *[]){}, 0);
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
 	bool decal = context_is_decal();
@@ -32,11 +30,33 @@ void tab_materials_update_material() {
 	base_update_workflow_nodes();
 }
 
+static bool tab_materials_is_unique_name(char *s) {
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m = g_project->_->materials->buffer[i];
+		if (string_equals(m->canvas->name, s)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static char *tab_materials_unique_name(char *name) {
+	char *base;
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
+	while (!tab_materials_is_unique_name(res)) {
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
+	}
+	return res;
+}
+
 void tab_materials_draw_slots_duplicate(void *_) {
-	i32 i               = _tab_materials_draw_slots;
+	i32   i             = _tab_materials_draw_slots;
+	char *name          = tab_materials_unique_name(g_project->_->materials->buffer[i]->canvas->name);
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	any_array_push(g_project->_->materials, g_context->material);
 	ui_node_canvas_t *cloned    = util_clone_canvas(g_project->_->materials->buffer[i]->canvas);
+	cloned->name                = string_copy(name);
 	g_context->material->canvas = cloned;
 	tab_materials_update_material();
 	history_duplicate_material();
@@ -111,64 +131,53 @@ void tab_materials_draw_slots_menu() {
 		context_select_material(i);
 	}
 
-	ui_handle_t *base_handle   = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *opac_handle   = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *nor_handle    = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *occ_handle    = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *rough_handle  = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *met_handle    = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *height_handle = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *emis_handle   = ui_nest(ui_handle(__ID__), m->id);
-	ui_handle_t *subs_handle   = ui_nest(ui_handle(__ID__), m->id);
-	base_handle->b             = m->paint_base;
-	opac_handle->b             = m->paint_opac;
-	nor_handle->b              = m->paint_nor;
-	occ_handle->b              = m->paint_occ;
-	rough_handle->b            = m->paint_rough;
-	met_handle->b              = m->paint_met;
-	height_handle->b           = m->paint_height;
-	emis_handle->b             = m->paint_emis;
-	subs_handle->b             = m->paint_subs;
-
 	ui_menu_separator();
 	ui_menu_align();
 	ui_menu_label(tr("Opacity Mode"), NULL);
 	ui_menu_align();
-	ui_handle_t *opac_mode_handle   = ui_handle(__ID__);
-	opac_mode_handle->i             = m->paint_opac_mode;
 	string_array_t *opac_mode_items = any_array_create_from_raw(
 	    (void *[]){
 	        tr("Alpha"),
 	        tr("Translucency"),
 	    },
 	    2);
-	m->paint_opac_mode = ui_inline_radio(opac_mode_handle, opac_mode_items, UI_ALIGN_LEFT);
+	ui_inline_radio(&m->paint_opac_mode, opac_mode_items, UI_ALIGN_LEFT);
+	bool opac_mode_changed = ui_item_changed();
 
 	ui_menu_separator();
 	ui_menu_align();
 	ui_menu_label(tr("Channels"), NULL);
 	ui_menu_align();
 	ui_row2();
-	m->paint_base = ui_check(base_handle, tr("Base Color"), "");
-	m->paint_opac = ui_check(opac_handle, tr("Opacity"), "");
+	bool channels_changed = false;
+	ui_check(&m->paint_base, tr("Base Color"), "");
+	channels_changed |= ui_item_changed();
+	ui_check(&m->paint_opac, tr("Opacity"), "");
+	channels_changed |= ui_item_changed();
 
 	if (g_config->workflow == WORKFLOW_PBR) {
 		ui_row2();
-		m->paint_nor    = ui_check(nor_handle, tr("Normal"), "");
-		m->paint_height = ui_check(height_handle, tr("Height"), "");
+		ui_check(&m->paint_nor, tr("Normal"), "");
+		channels_changed |= ui_item_changed();
+		ui_check(&m->paint_height, tr("Height"), "");
+		channels_changed |= ui_item_changed();
 		ui_row2();
-		m->paint_rough = ui_check(rough_handle, tr("Roughness"), "");
-		m->paint_met   = ui_check(met_handle, tr("Metallic"), "");
+		ui_check(&m->paint_rough, tr("Roughness"), "");
+		channels_changed |= ui_item_changed();
+		ui_check(&m->paint_met, tr("Metallic"), "");
+		channels_changed |= ui_item_changed();
 		ui_row2();
-		m->paint_emis = ui_check(emis_handle, tr("Emission"), "");
-		m->paint_subs = ui_check(subs_handle, tr("Subsurface"), "");
-		m->paint_occ  = ui_check(occ_handle, tr("Occlusion"), "");
+		ui_check(&m->paint_emis, tr("Emission"), "");
+		channels_changed |= ui_item_changed();
+		ui_check(&m->paint_subs, tr("Subsurface"), "");
+		channels_changed |= ui_item_changed();
+		ui_check(&m->paint_occ, tr("Occlusion"), "");
+		channels_changed |= ui_item_changed();
 	}
 
-	if (base_handle->changed || opac_handle->changed || nor_handle->changed || occ_handle->changed || rough_handle->changed || met_handle->changed ||
-	    height_handle->changed || emis_handle->changed || subs_handle->changed || opac_mode_handle->changed) {
+	if (channels_changed || opac_mode_changed) {
 		make_material_parse_paint_material(true);
-		if (opac_mode_handle->changed) {
+		if (opac_mode_changed) {
 			sys_notify_on_next_frame(util_render_make_material_preview, NULL);
 		}
 		ui_menu_keep_open = true;
@@ -189,9 +198,9 @@ void tab_materials_draw_slots(bool mini) {
 
 	for (i32 row = 0; row < math_floor(math_ceil(g_project->_->materials->length / (float)num)); ++row) {
 		i32          mult = g_config->show_asset_names ? 2 : 1;
-		f32_array_t *ar   = f32_array_create_from_raw((f32[]){}, 0);
+		f32_array_t *ar   = f32_array_create_from_raw_tmp(NULL, num * mult);
 		for (i32 i = 0; i < num * mult; ++i) {
-			f32_array_push(ar, 1 / (float)num);
+			ar->buffer[i] = 1 / (float)num;
 		}
 		ui_row(ar);
 
@@ -252,7 +261,7 @@ void tab_materials_draw_slots(bool mini) {
 			// Draw material numbers when selecting a material via keyboard shortcut
 			bool is_typing = g_ui->is_typing;
 			if (!is_typing) {
-				if (i < 9 && operator_shortcut(any_map_get(g_keymap, "select_material"), SHORTCUT_TYPE_DOWN)) {
+				if (i < 9 && keymap_shortcut(any_map_get(g_keymap, "select_material"), SHORTCUT_TYPE_DOWN)) {
 					char *number = i32_to_string(i + 1);
 					i32   width  = draw_string_width(g_font, g_ui->font_size, number) + 10;
 					i32   height = draw_font_height(g_font, g_ui->font_size);
@@ -271,15 +280,12 @@ void tab_materials_draw_slots(bool mini) {
 						sys_notify_on_next_frame(&tab_materials_draw_slots_update_fill_layers, NULL);
 					}
 				}
-				base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-				base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-				gc_unroot(base_drag_material);
+				base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
+				base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
 				base_drag_material = g_context->material;
-				gc_root(base_drag_material);
 				// Double click to show nodes
 				if (sys_time() - g_context->select_time < 0.2) {
 					ui_base_show_material_nodes();
-					gc_unroot(base_drag_material);
 					base_drag_material = NULL;
 					base_is_dragging   = false;
 				}
@@ -296,7 +302,8 @@ void tab_materials_draw_slots(bool mini) {
 				ui_tooltip_image(img_full, 0);
 				if (i < 9) {
 					i32 i1 = i + 1;
-					ui_tooltip(string("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
+					ui_tooltip(
+					    string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
 				}
 				else {
 					ui_tooltip(g_project->_->materials->buffer[i]->canvas->name);
@@ -310,7 +317,7 @@ void tab_materials_draw_slots(bool mini) {
 					if (i < 9) {
 						i32 i1 = i + 1;
 						ui_tooltip(
-						    string("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
+						    string_tmp("%s - (%s %d)", g_project->_->materials->buffer[i]->canvas->name, (char *)any_map_get(g_keymap, "select_material"), i1));
 					}
 					else {
 						ui_tooltip(g_project->_->materials->buffer[i]->canvas->name);
@@ -374,7 +381,7 @@ void tab_materials_button_new(char *text) {
 	}
 }
 
-void tab_materials_draw_mini(ui_handle_t *htab) {
+void tab_materials_draw_mini(i32 *htab) {
 	ui_set_hovered_tab_name(tr("Materials"));
 
 	ui_begin_sticky();
@@ -388,10 +395,10 @@ void tab_materials_draw_mini(ui_handle_t *htab) {
 	tab_materials_draw_slots(true);
 }
 
-void tab_materials_draw_full(ui_handle_t *htab) {
+void tab_materials_draw_full(i32 *htab) {
 	if (ui_tab(htab, tr("Materials"), false, -1, false)) {
 		ui_begin_sticky();
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        -70,
 		        -70,
@@ -412,7 +419,7 @@ void tab_materials_draw_full(ui_handle_t *htab) {
 	}
 }
 
-void tab_materials_draw(ui_handle_t *htab) {
+void tab_materials_draw(i32 *htab) {
 	bool mini = g_ui->_window_w <= ui_sidebar_w_mini;
 	mini ? tab_materials_draw_mini(htab) : tab_materials_draw_full(htab);
 }

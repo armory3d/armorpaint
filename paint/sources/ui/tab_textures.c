@@ -46,9 +46,7 @@ void tab_textures_draw_export_on_next_frame(void *_) {
 }
 
 void tab_textures_draw_export(char *path) {
-	gc_unroot(_tab_textures_draw_path);
 	_tab_textures_draw_path = string_copy(path);
-	gc_root(_tab_textures_draw_path);
 	sys_notify_on_next_frame(&tab_textures_draw_export_on_next_frame, NULL);
 }
 
@@ -109,6 +107,11 @@ void tab_textures_delete_texture(asset_t *asset) {
 		tab_textures_update_texture_pointers(m->canvas->nodes, index);
 	}
 
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		node_group_t *g = g_project->_->material_groups->buffer[i];
+		tab_textures_update_texture_pointers(g->canvas->nodes, index);
+	}
+
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 		slot_brush_t *b = g_project->_->brushes->buffer[i];
 		tab_textures_update_texture_pointers(b->canvas->nodes, index);
@@ -151,60 +154,183 @@ void tab_textures_draw_context_menu() {
 	}
 }
 
+bool tab_textures_nodes_use_texture(ui_node_t_array_t *nodes, i32 index) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		if (string_equals(n->type, "TEX_IMAGE") && n->buttons->buffer[0]->default_value->buffer[0] == index) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool tab_textures_is_texture_used(i32 index) {
+	if (index == g_context->colorid) {
+		return true;
+	}
+
+	asset_t *asset = g_project->_->assets->buffer[index];
+	if (g_project->envmap != NULL && string_equals(g_project->envmap, asset->file)) {
+		return true;
+	}
+
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m = g_project->_->materials->buffer[i];
+		if (tab_textures_nodes_use_texture(m->canvas->nodes, index)) {
+			return true;
+		}
+	}
+
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		node_group_t *g = g_project->_->material_groups->buffer[i];
+		if (tab_textures_nodes_use_texture(g->canvas->nodes, index)) {
+			return true;
+		}
+	}
+
+	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
+		slot_brush_t *b = g_project->_->brushes->buffer[i];
+		if (tab_textures_nodes_use_texture(b->canvas->nodes, index)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void tab_textures_delete_unused() {
+	asset_t_array_t *unused = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+		if (!tab_textures_is_texture_used(i)) {
+			any_array_push(unused, g_project->_->assets->buffer[i]);
+		}
+	}
+
+	for (i32 i = 0; i < unused->length; ++i) {
+		tab_textures_delete_texture(unused->buffer[i]);
+	}
+
+	array_delete(unused);
+}
+
+static void tab_textures_apply_node_indices(ui_node_t_array_t *nodes, i32_array_t *new_indices) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		if (string_equals(n->type, "TEX_IMAGE")) {
+			i32 idx = n->buttons->buffer[0]->default_value->buffer[0];
+			if (idx >= 0 && idx < new_indices->length) {
+				n->buttons->buffer[0]->default_value->buffer[0] = new_indices->buffer[idx];
+			}
+		}
+	}
+}
+
+static int tab_textures_sort_by_name_compare(const void *pa, const void *pb) {
+	asset_t *a = *(asset_t **)pa;
+	asset_t *b = *(asset_t **)pb;
+	return strcmp(a->name, b->name);
+}
+
+static void tab_textures_sort_by_name() {
+	asset_t_array_t *assets = g_project->_->assets;
+	if (assets->length < 2) {
+		return;
+	}
+	asset_t_array_t *old_order = (asset_t_array_t *)array_slice((any_array_t *)assets, 0, assets->length);
+	array_sort((any_array_t *)assets, &tab_textures_sort_by_name_compare);
+
+	// Old asset index -> new asset index
+	i32_array_t *new_indices = i32_array_create(assets->length);
+	for (i32 i = 0; i < old_order->length; ++i) {
+		new_indices->buffer[i] = array_index_of(assets, old_order->buffer[i]);
+	}
+
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, new_indices);
+	}
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, new_indices);
+	}
+	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, new_indices);
+	}
+	if (g_context->colorid >= 0 && g_context->colorid < new_indices->length) {
+		g_context->colorid = new_indices->buffer[g_context->colorid];
+	}
+
+	array_delete(new_indices);
+	array_delete(old_order);
+	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+}
+
+void tab_textures_draw_edit() {
+	if (ui_menu_button(tr("Sort"), "", ICON_NONE)) {
+		tab_textures_sort_by_name();
+	}
+	if (ui_menu_button(tr("Delete Unused"), "", ICON_DELETE)) {
+		tab_textures_delete_unused();
+	}
+}
+
 void tab_textures_draw_import(char *path) {
 	import_asset_run(path, -1.0, -1.0, true, false, NULL);
 	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
 }
 
-void tab_textures_draw(ui_handle_t *htab) {
+char *tab_textures_search = "";
+
+void tab_textures_draw(i32 *htab) {
 
 	if (ui_tab(htab, tr("Textures"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
 
-		ui_handle_t *hsearch = ui_handle(__ID__);
-
-		f32_array_t *row = string_equals(hsearch->text, "") ? f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -100,
-		                                                              -200,
-		                                                          },
-		                                                          3)
-		                                                    : f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -100,
-		                                                              -200,
-		                                                              -40,
-		                                                          },
-		                                                          4);
+		f32_array_t *row = string_equals(tab_textures_search, "") ? f32_array_create_from_raw(
+		                                                                (f32[]){
+		                                                                    -100,
+		                                                                    -100,
+		                                                                    -100,
+		                                                                    -200,
+		                                                                },
+		                                                                4)
+		                                                          : f32_array_create_from_raw(
+		                                                                (f32[]){
+		                                                                    -100,
+		                                                                    -100,
+		                                                                    -100,
+		                                                                    -200,
+		                                                                    -40,
+		                                                                },
+		                                                                5);
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			ui_files_show(string_array_join(path_texture_formats(), ","), false, true, &tab_textures_draw_import);
 		}
 		if (g_ui->is_hovered) {
-			ui_tooltip(string("%s (%s)", tr("Import texture file"), (char *)any_map_get(g_keymap, "file_import_assets")));
+			ui_tooltip(string_tmp("%s (%s)", tr("Import texture file"), (char *)any_map_get(g_keymap, "file_import_assets")));
 		}
 		if (ui_icon_button(tr("2D View"), ICON_WINDOW, UI_ALIGN_CENTER)) {
 			ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
 		}
+		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
+			ui_menu_draw(&tab_textures_draw_edit, -1, -1);
+		}
 
-		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
+		ui_text_input(&tab_textures_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 		if (g_ui->is_hovered) {
-			ui_tooltip(string("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
+			ui_tooltip(string_tmp("%s\n%s", tr("ctrl+f to search"), tr("esc to cancel")));
 		}
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
-			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
+			ui_start_text_edit(&tab_textures_search, UI_ALIGN_LEFT);
 		}
-		if (!string_equals(hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
-			hsearch->text = "";
+		if (!string_equals(tab_textures_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
+			tab_textures_search = "";
 		}
 
 		ui_end_sticky();
 
-		char *search = to_lower_case(hsearch->text);
+		char *search = to_lower_case(tab_textures_search);
 
 		if (g_project->_->assets->length > 0) {
 
@@ -276,11 +402,9 @@ void tab_textures_draw(ui_handle_t *htab) {
 					}
 
 					if (_state == UI_STATE_STARTED && g_ui->input_y > g_ui->_window_y) {
-						base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
-						base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-						gc_unroot(base_drag_asset);
-						base_drag_asset = asset;
-						gc_root(base_drag_asset);
+						base_drag_off_x    = -(mouse_x - uix - g_ui->_window_x - 3);
+						base_drag_off_y    = -(mouse_y - uiy - g_ui->_window_y + 1);
+						base_drag_asset    = asset;
 						g_context->texture = asset;
 						if (sys_time() - g_context->select_time < 0.2) {
 							ui_base_show_2d_view(VIEW_2D_TYPE_ASSET);
@@ -310,11 +434,11 @@ void tab_textures_draw(ui_handle_t *htab) {
 						ui_tooltip_image(img, 256);
 						char *tooltip = asset->name;
 						if (is_packed) {
-							tooltip = string("%s %s", tooltip, tr("(packed)"));
+							tooltip = string_tmp("%s %s", tooltip, tr("(packed)"));
 						}
 #ifdef WITH_BC7
 						if (img->format == GPU_TEXTURE_FORMAT_RGBA32_BC7) {
-							tooltip = string("%s %s", tooltip, tr("(compressed)"));
+							tooltip = string_tmp("%s %s", tooltip, tr("(compressed)"));
 						}
 #endif
 						ui_tooltip(tooltip);
@@ -323,12 +447,8 @@ void tab_textures_draw(ui_handle_t *htab) {
 					if (g_ui->is_hovered && g_ui->input_released_r) {
 						g_context->texture = asset;
 
-						gc_unroot(_tab_textures_draw_img);
-						_tab_textures_draw_img = img;
-						gc_root(_tab_textures_draw_img);
-						gc_unroot(_tab_textures_draw_asset);
-						_tab_textures_draw_asset = asset;
-						gc_root(_tab_textures_draw_asset);
+						_tab_textures_draw_img       = img;
+						_tab_textures_draw_asset     = asset;
 						_tab_textures_draw_i         = i;
 						_tab_textures_draw_is_packed = is_packed;
 						ui_menu_draw(&tab_textures_draw_context_menu, -1, -1);
@@ -378,12 +498,14 @@ void tab_textures_draw(ui_handle_t *htab) {
 			i32 i = array_index_of(g_project->_->assets, g_context->texture);
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_UP) {
 				if (i > 0) {
-					g_context->texture = g_project->_->assets->buffer[i - 1];
+					g_context->texture      = g_project->_->assets->buffer[i - 1];
+					ui_view2d_hwnd->redraws = 2;
 				}
 			}
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_DOWN) {
 				if (i < g_project->_->assets->length - 1) {
-					g_context->texture = g_project->_->assets->buffer[i + 1];
+					g_context->texture      = g_project->_->assets->buffer[i + 1];
+					ui_view2d_hwnd->redraws = 2;
 				}
 			}
 		}
@@ -421,6 +543,9 @@ void tab_textures_accept_asset_drop(asset_t *asset) {
 
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			tab_textures_remap_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, asset_pos, new_pos);
+		}
+		for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+			tab_textures_remap_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, asset_pos, new_pos);
 		}
 		for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 			tab_textures_remap_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, asset_pos, new_pos);

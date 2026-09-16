@@ -1,4 +1,3 @@
-
 #[set(everything)]
 const constants: {
 	dir_inv: float2;
@@ -13,11 +12,10 @@ const tex: tex2d;
 #[set(everything)]
 const gbuffer0: tex2d;
 
-// const blur_weights: float[] = {
-// 	0.132572, 0.125472, 0.106373, 0.08078, 0.05495, 0.033482, 0.018275, 0.008934, 0.003912, 0.001535
-// };
-
-const discard_threshold: float = 0.95;
+const num_taps: float      = 4.0;
+const blur_sigma: float    = 0.125;
+const nor_threshold: float = 0.8;
+const nor_scale: float     = 5.0;
 
 struct vert_in {
 	pos: float2;
@@ -58,8 +56,6 @@ fun octahedron_wrap(v: float2): float2 {
 	r.x = 1.0 - r.x;
 	r.y = 1.0 - r.y;
 	return r * a;
-
-	// return (1.0 - abs(v.yx)) * (float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0));
 }
 
 fun get_nor(enc: float2): float3 {
@@ -78,54 +74,26 @@ fun get_nor(enc: float2): float3 {
 fun ssao_blur_pass_frag(input: vert_out): float {
 
 	var nor: float3 = get_nor(sample_lod(gbuffer0, sampler_linear, input.tex, 0.0).rg);
-	// var weight: float = blur_weights[0];
-	var weight: float = 0.132572;
-	var color: float = sample_lod(tex, sampler_linear, input.tex, 0.0).r * weight;
+	var weight: float = 1.0;
+	var color: float = sample_lod(tex, sampler_linear, input.tex, 0.0).r;
 
-	for (var i: int = 1; i < 8; i += 1) {
-		var blur_weight_i: float; // = blur_weights[i];
-		if (i == 1) {
-			blur_weight_i = 0.125472;
-		}
-		if (i == 2) {
-			blur_weight_i = 0.106373;
-		}
-		if (i == 3) {
-			blur_weight_i = 0.08078;
-		}
-		if (i == 4) {
-			blur_weight_i = 0.05495;
-		}
-		if (i == 5) {
-			blur_weight_i = 0.033482;
-		}
-		if (i == 6) {
-			blur_weight_i = 0.018275;
-		}
-		if (i == 7) {
-			blur_weight_i = 0.008934;
-		}
+	for (var i: int = 1; i <= int(num_taps); i += 1) {
+		var fi: float = float(i);
+		var gw: float = exp(0.0 - fi * fi * blur_sigma);
+		var off: float2 = fi * constants.dir_inv;
 
-		var posadd: float = float(i);
-
-		var nor2: float3 = get_nor(sample_lod(gbuffer0, sampler_linear, input.tex + posadd * constants.dir_inv, 0.0).rg);
-		var influence_factor: float = step(discard_threshold, dot(nor2, nor));
-		var col: float = sample_lod(tex, sampler_linear, input.tex + posadd * constants.dir_inv, 0.0).r;
-
-		var w: float = blur_weight_i * influence_factor;
-		color += col * w;
+		var nor2: float3 = get_nor(sample_lod(gbuffer0, sampler_linear, input.tex + off, 0.0).rg);
+		var w: float = gw * clamp((dot(nor2, nor) - nor_threshold) * nor_scale, 0.0, 1.0);
+		color += sample_lod(tex, sampler_linear, input.tex + off, 0.0).r * w;
 		weight += w;
 
-		nor2 = get_nor(sample_lod(gbuffer0, sampler_linear, input.tex - posadd * constants.dir_inv, 0.0).rg);
-		influence_factor = step(discard_threshold, dot(nor2, nor));
-		col = sample_lod(tex, sampler_linear, input.tex - posadd * constants.dir_inv, 0.0).r;
-		w = blur_weight_i * influence_factor;
-		color += col * w;
+		nor2 = get_nor(sample_lod(gbuffer0, sampler_linear, input.tex - off, 0.0).rg);
+		w = gw * clamp((dot(nor2, nor) - nor_threshold) * nor_scale, 0.0, 1.0);
+		color += sample_lod(tex, sampler_linear, input.tex - off, 0.0).r * w;
 		weight += w;
 	}
 
-	color = color / weight;
-	return color;
+	return color / weight;
 }
 
 #[pipe]

@@ -840,6 +840,12 @@ char *metal_export(char *directory) {
 	int texture_index = 0;
 	int sampler_index = 0;
 
+	vertex_inputs_size      = 0;
+	fragment_inputs_size    = 0;
+	vertex_functions_size   = 0;
+	fragment_functions_size = 0;
+	compute_functions_size  = 0;
+
 	memset(global_register_indices, 0, sizeof(global_register_indices));
 
 	for (global_id i = 0; get_global(i) != NULL && get_global(i)->type != NO_TYPE; ++i) {

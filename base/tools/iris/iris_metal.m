@@ -6201,7 +6201,7 @@ int iris_metal_attention_fused(float *out, const float *Q, const float *K, const
 }
 
 /* ========================================================================
- * F32 VAE GPU Operations — Keep data on GPU for the VAE decoder
+ * F32 VAE GPU Operations
  * ======================================================================== */
 
 /* GroupNorm on f32 GPU tensors */

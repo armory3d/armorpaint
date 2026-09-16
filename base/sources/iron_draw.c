@@ -1,7 +1,7 @@
 #include "iron_draw.h"
 #include "const_data.h"
+#include "iron_alloc.h"
 #include "iron_file.h"
-#include "iron_gc.h"
 #include "iron_gpu.h"
 #include "iron_math.h"
 #include "iron_simd.h"
@@ -124,6 +124,9 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		draw_pipeline_init(&image_r8_pipeline, &vert_shader, &frag_shader);
 		image_r8_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_R8;
 		gpu_pipeline_compile(&image_r8_pipeline);
+
+		gpu_shader_destroy(&vert_shader);
+		gpu_shader_destroy(&frag_shader);
 	}
 
 	// Rect painter
@@ -133,6 +136,9 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		draw_pipeline_init(&rect_pipeline, &vert_shader, &frag_shader);
 		rect_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
 		gpu_pipeline_compile(&rect_pipeline);
+
+		gpu_shader_destroy(&vert_shader);
+		gpu_shader_destroy(&frag_shader);
 	}
 
 	// Tris painter
@@ -142,6 +148,9 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		draw_pipeline_init(&tris_pipeline, &vert_shader, &frag_shader);
 		tris_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
 		gpu_pipeline_compile(&tris_pipeline);
+
+		gpu_shader_destroy(&vert_shader);
+		gpu_shader_destroy(&frag_shader);
 	}
 
 	// Text painter
@@ -156,6 +165,9 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		draw_pipeline_init(&text_rt_pipeline, &vert_shader, &frag_shader);
 		text_rt_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
 		gpu_pipeline_compile(&text_rt_pipeline);
+
+		gpu_shader_destroy(&vert_shader);
+		gpu_shader_destroy(&frag_shader);
 	}
 }
 
@@ -524,7 +536,7 @@ bool draw_font_load(draw_font_t *font, int size) {
 	img->chars          = baked;
 	img->first_unused_y = status;
 	img->tex            = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
-	gpu_texture_init_from_bytes(img->tex, pixels, width, height, GPU_TEXTURE_FORMAT_R8);
+	gpu_texture_init_from_bytes(img->tex, pixels, width, height, GPU_TEXTURE_FORMAT_R8, false);
 	free(pixels);
 	return true;
 }
@@ -656,7 +668,7 @@ void draw_font_13(draw_font_t *font) {
 	img->height         = 128;
 	img->first_unused_y = 0;
 	img->tex            = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
-	gpu_texture_init_from_bytes(img->tex, (void *)iron_font_13_pixels, 128, 128, GPU_TEXTURE_FORMAT_R8);
+	gpu_texture_init_from_bytes(img->tex, (void *)iron_font_13_pixels, 128, 128, GPU_TEXTURE_FORMAT_R8, false);
 
 	stbtt_bakedchar *baked = (stbtt_bakedchar *)malloc(95 * sizeof(stbtt_bakedchar));
 	for (int i = 0; i < 95; ++i) {
@@ -672,8 +684,6 @@ void draw_font_13(draw_font_t *font) {
 }
 
 void draw_font_init_glyphs(int from, int to) {
-	gc_unroot(draw_font_glyphs);
-	gc_unroot(draw_font_glyph_blocks);
 
 	draw_font_glyphs = i32_array_create(to - from);
 	for (int i = from; i < to; ++i) {
@@ -683,9 +693,6 @@ void draw_font_init_glyphs(int from, int to) {
 	draw_font_glyph_blocks->buffer[0] = from;
 	draw_font_glyph_blocks->buffer[1] = to - 1;
 	draw_glyphs_version++;
-
-	gc_root(draw_font_glyphs);
-	gc_root(draw_font_glyph_blocks);
 }
 
 bool draw_font_has_glyph(int glyph) {
@@ -709,9 +716,7 @@ void draw_font_build_glyphs() {
 		++pos;
 	}
 
-	gc_unroot(draw_font_glyph_blocks);
 	draw_font_glyph_blocks = i32_array_create(2 * blocks);
-	gc_root(draw_font_glyph_blocks);
 
 	draw_font_glyph_blocks->buffer[0] = draw_font_glyphs->buffer[0];
 	next_char                         = draw_font_glyphs->buffer[0] + 1;

@@ -161,8 +161,23 @@ function os_argv() {
 }
 
 function os_cpus_length() {
-	// return os.cpus().length;
-	return 8;
+	let cores = 0;
+	if (os_platform() === "win32") {
+		cores = parseInt(os_env("NUMBER_OF_PROCESSORS"));
+	}
+	else if (os_platform() === "darwin") {
+		cores = parseInt(os_popen("sysctl", [ "-n", "hw.logicalcpu" ]).stdout);
+	}
+	else {
+		let cpuinfo = fs_readfile("/proc/cpuinfo");
+		if (cpuinfo != null) {
+			cores = (cpuinfo.match(/^processor\s*:/gm) || []).length;
+		}
+	}
+	if (!(cores > 0)) {
+		cores = 8;
+	}
+	return cores;
 }
 
 function os_chmod(p, m) {
@@ -689,13 +704,19 @@ class VisualStudioExporter extends Exporter {
 		this.p('<ClCompile>', indent + 1);
 		this.p('<AdditionalIncludeDirectories>' + includes + '</AdditionalIncludeDirectories>', indent + 2);
 
-		this.p('<AdditionalOptions>-Wno-deprecated-declarations -Wno-c23-extensions -Wno-incompatible-pointer-types -Wno-incompatible-function-pointer-types -Wno-microsoft-enum-forward-reference /bigobj %(AdditionalOptions)</AdditionalOptions>', indent + 2);
+		let additionalOptions =
+		    '-Wno-deprecated-declarations -Wno-c23-extensions -Wno-incompatible-pointer-types -Wno-incompatible-function-pointer-types -Wno-microsoft-enum-forward-reference /bigobj';
+		if (config === 'Release') {
+			additionalOptions += ' /Gw';
+		}
+		this.p('<AdditionalOptions>' + additionalOptions + ' %(AdditionalOptions)</AdditionalOptions>', indent + 2);
 
 		this.p('<WarningLevel>Level3</WarningLevel>', indent + 2);
 		this.p('<Optimization>' + this.get_optimization(config) + '</Optimization>', indent + 2);
 		if (config === 'Release') {
 			this.p('<FunctionLevelLinking>true</FunctionLevelLinking>', indent + 2);
 			this.p('<IntrinsicFunctions>true</IntrinsicFunctions>', indent + 2);
+			this.p('<DebugInformationFormat>None</DebugInformationFormat>', indent + 2);
 		}
 		this.p('<PreprocessorDefinitions>' + (config === 'Release' ? releaseDefines : debugDefines) + ((system === 'x64') ? 'SYS_64;' : '') +
 		           'WIN32;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>',
@@ -719,7 +740,7 @@ class VisualStudioExporter extends Exporter {
 		else {
 			this.p('<SubSystem>Windows</SubSystem>', indent + 2);
 		}
-		this.p('<GenerateDebugInformation>true</GenerateDebugInformation>', indent + 2);
+		this.p('<GenerateDebugInformation>' + (config === 'Release' ? 'false' : 'true') + '</GenerateDebugInformation>', indent + 2);
 		if (config === 'Release') {
 			this.p('<EnableCOMDATFolding>true</EnableCOMDATFolding>', indent + 2);
 			this.p('<OptimizeReferences>true</OptimizeReferences>', indent + 2);
@@ -945,9 +966,12 @@ class WasmExporter extends Exporter {
 		this.compile_commands = new CompilerCommandsExporter();
 		let compiler          = "clang --target=wasm32 -nostdlib -matomics -mbulk-memory";
 		let compilerFlags     = "";
-		this.make =
-		    new MakeExporter(compiler, compiler, compilerFlags, compilerFlags,
-							 '--target=wasm32 -nostdlib -matomics -mbulk-memory "-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=671088640,--max-memory=671088640,-z,stack-size=256000"', '.wasm');
+		let linkerFlags =
+		    '--target=wasm32 -nostdlib -matomics -mbulk-memory "-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=671088640,--max-memory=671088640,-z,stack-size=256000"';
+		if (!goptions.debug) {
+			linkerFlags += " -Wl,--strip-all";
+		}
+		this.make = new MakeExporter(compiler, compiler, compilerFlags, compilerFlags, linkerFlags, '.wasm');
 	}
 
 	export_solution(project) {
@@ -1955,6 +1979,10 @@ class LinuxExporter extends Exporter {
 			compilerFlags += "-flto";
 			linkerFlags += " -flto";
 		}
+		if (!goptions.debug) {
+			compilerFlags += " -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables";
+			linkerFlags += " -Wl,--gc-sections -Wl,-s";
+		}
 		this.make             = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, compilerFlags, compilerFlags, linkerFlags, '');
 		this.compile_commands = new CompilerCommandsExporter();
 	}
@@ -2581,6 +2609,12 @@ class ShaderCompiler {
 		return shaders;
 	}
 
+	shader_outputs(to) {
+		let ext  = this.type === 'hlsl' ? 'd3d11' : this.type;
+		let base = to.substring(0, to.lastIndexOf('.') + 1);
+		return [ base + 'vert.' + ext, base + 'frag.' + ext ];
+	}
+
 	compile_shader(file, options) {
 		let from = file;
 		let to   = path_join(this.to, path_basename_noext(file) + '.' + this.type);
@@ -2600,7 +2634,19 @@ class ShaderCompiler {
 			return compiled_shader;
 		}
 
-		if (!from_time || (to_time && to_time > from_time)) {
+		let out_time;
+		for (let out of this.shader_outputs(to)) {
+			if (!fs_exists(out)) {
+				out_time = undefined;
+				break;
+			}
+			let t = fs_mtime(out);
+			if (out_time === undefined || t < out_time) {
+				out_time = t;
+			}
+		}
+
+		if (!from_time || (out_time && out_time > from_time)) {
 			return null;
 		}
 		else {
@@ -2653,7 +2699,9 @@ class IronExporter {
 			fs_ensuredir(path_join("build", "temp", path_dirname(to)));
 			to_full = path_join("build", "temp", to);
 		}
-		fs_copyfile(from, to_full);
+		if (!fs_exists(to_full) || fs_mtime(to_full) <= fs_mtime(from)) {
+			fs_copyfile(from, to_full);
+		}
 		return [ to ];
 	}
 
@@ -2709,7 +2757,7 @@ function export_iron_project(project, options) {
 			let embed_header = "#pragma once\n";
 			for (let file of embed_files) {
 				embed_header += "const unsigned char " + path_basename(file).replaceAll(".", "_") + "[] = {\n"
-				if (platform === "windows") {
+				if (os_platform() === "win32") {
 					file = file.replaceAll("\\", "/");
 				}
 				embed_header += "#embed \"" + file + "\"\n";
@@ -3087,7 +3135,8 @@ function export_amake_project() {
 
 	let exporter = null;
 	if (goptions.ccompiler === "tcc") {
-		exporter = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, "", "", "", "");
+		let cFlags = goptions.debug ? "" : "-fno-asynchronous-unwind-tables";
+		exporter   = new MakeExporter(goptions.ccompiler, goptions.cppcompiler, cFlags, cFlags, "", "");
 	}
 	else if (goptions.target === 'ios' || goptions.target === 'macos') {
 		exporter = new XCodeExporter();

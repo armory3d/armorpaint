@@ -1,9 +1,11 @@
 #[set(everything)]
 const constants: {
 	invP: float4x4;
-	P: float4x4;
 	V3: float3x3;
 	camera_proj: float2;
+	screen_size_inv: float2;
+	frame_offset: float;
+	ssao_strength: float;
 };
 
 #[set(everything)]
@@ -15,8 +17,16 @@ const gbufferD: tex2d;
 #[set(everything)]
 const gbuffer0: tex2d;
 
-const max_steps: float = 30.0;
-const ray_step: float = 0.005;
+const num_slices: float      = 3.0;
+const num_steps: float       = 5.0;
+const radius: float          = 0.15;
+const min_radius_px: float   = 2.0;
+const max_radius_frac: float = 0.35;
+const falloff_start: float   = 0.75;
+const ao_power: float        = 1.5;
+const ao_dim: float          = 0.6;
+const PI: float              = 3.14159265358979;
+const HALF_PI: float         = 1.57079632679;
 
 struct vert_in {
 	pos: float2;
@@ -43,60 +53,6 @@ fun ssao_pass_vert(input: vert_in): vert_out {
 	return output;
 }
 
-fun get_projected_coord(hit_coord: float3): float2 {
-	var projected_coord: float4 = constants.P * float4(hit_coord, 1.0);
-	projected_coord.xy = projected_coord.xy / projected_coord.w;
-	projected_coord.xy = projected_coord.xy * 0.5 + 0.5;
-	projected_coord.y = 1.0 - projected_coord.y;
-	return projected_coord.xy;
-}
-
-fun get_pos_view(view_ray: float3, depth: float): float3 {
-	var linear_depth: float = constants.camera_proj.y / (constants.camera_proj.x - depth);
-	return view_ray * linear_depth;
-}
-
-fun get_delta_depth(hit_coord: float3): float {
-	var coord: float2 = get_projected_coord(hit_coord);
-	if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0) {
-		return 1000.0;
-	}
-	var depth: float = sample_lod(gbufferD, sampler_linear, coord, 0.0).r;
-	var linear_depth: float = constants.camera_proj.y / (constants.camera_proj.x - depth);
-	return linear_depth - hit_coord.z;
-}
-
-fun ray_cast(dir: float3, vpos: float3): float {
-	var n_dir: float3 = normalize(dir);
-	var step_vec: float3 = n_dir * ray_step;
-	var hit_coord: float3 = vpos;
-	var t: float = 0.0;
-
-	var i: int = 0;
-	while (i < int(max_steps)) {
-		hit_coord += step_vec;
-		t += ray_step;
-		var delta: float = get_delta_depth(hit_coord);
-		if (delta > 0.0 && delta < 0.2) {
-			return t;
-		}
-		if (t > 2.0) {
-			return 0.15; // max_radius;
-		}
-		i += 1;
-	}
-	return 0.15; // max_radius;
-}
-
-fun tangent(n: float3): float3 {
-	var t1: float3 = cross(n, float3(0.0, 0.0, 1.0));
-	var t2: float3 = cross(n, float3(0.0, 1.0, 0.0));
-	if (length(t1) > length(t2)) {
-		return normalize(t1);
-	}
-	return normalize(t2);
-}
-
 fun octahedron_wrap(v: float2): float2 {
 	var a: float2;
 	if (v.x >= 0.0) {
@@ -121,11 +77,7 @@ fun octahedron_wrap(v: float2): float2 {
 	return r * a;
 }
 
-fun ssao_pass_frag(input: vert_out): float {
-	var g0: float4 = sample_lod(gbuffer0, sampler_linear, input.tex, 0.0);
-	var d: float = sample_lod(gbufferD, sampler_linear, input.tex, 0.0).r;
-
-	var enc: float2 = g0.rg;
+fun get_nor(enc: float2): float3 {
 	var n: float3;
 	n.z = 1.0 - abs(enc.x) - abs(enc.y);
 	if (n.z >= 0.0) {
@@ -133,27 +85,119 @@ fun ssao_pass_frag(input: vert_out): float {
 		n.y = enc.y;
 	}
 	else {
-		var f2: float2 = octahedron_wrap(enc.xy);
+		var f2: float2 = octahedron_wrap(enc);
 		n.x = f2.x;
 		n.y = f2.y;
 	}
-	n = normalize(constants.V3 * n);
+	return normalize(n);
+}
 
-	var vpos: float3 = get_pos_view(input.view_ray, d);
-	var o1: float3 = tangent(n);
-	var o2: float3 = cross(o1, n);
-	var c1: float3 = 0.5 * (o1 + o2);
-	var c2: float3 = 0.5 * (o1 - o2);
+fun get_linear_depth(d: float): float {
+	return constants.camera_proj.y / (constants.camera_proj.x - d);
+}
 
-	var col: float = ray_cast(lerp3(n, o1, 0.5), vpos);
-	col += ray_cast(lerp3(n, -o1, 0.5), vpos);
-	col += ray_cast(lerp3(n, o2, 0.5), vpos);
-	col += ray_cast(lerp3(n, -o2, 0.5), vpos);
-	col += ray_cast(lerp3(n, c1, 0.5), vpos);
-	col += ray_cast(lerp3(n, -c1, 0.5), vpos);
-	col += ray_cast(lerp3(n, c2, 0.5), vpos);
-	col += ray_cast(lerp3(n, -c2, 0.5), vpos);
-	return col * 0.5;
+fun gradient_noise(x: float, y: float): float {
+	return frac(52.9829189 * frac(0.06711056 * x + 0.00583715 * y));
+}
+
+fun horizon_cos(uv: float2, dndc: float2, ray_c: float3, rx: float2, ry: float2, vpos: float3, view_v: float3, fall_scale: float,
+                fall_bias: float): float {
+	if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+		return -1.0;
+	}
+
+	var ds: float = sample_lod(gbufferD, sampler_linear, uv, 0.0).r;
+	if (ds >= 1.0) {
+		return -1.0;
+	}
+
+	var ray: float3 = float3(ray_c.x + dndc.x * rx.x + dndc.y * ry.x, ray_c.y + dndc.x * rx.y + dndc.y * ry.y, 1.0);
+	var delta: float3 = ray * get_linear_depth(ds) - vpos;
+
+	var d2: float = dot(delta, delta);
+	var inv_len: float = rsqrt(max(d2, 0.00000001));
+	var len: float = d2 * inv_len;
+	var ch: float = dot(delta, view_v) * inv_len;
+	return lerp(ch, -1.0, clamp(len * fall_scale - fall_bias, 0.0, 1.0));
+}
+
+fun ssao_pass_frag(input: vert_out): float {
+	var ao: float = 1.0;
+	var d: float = sample_lod(gbufferD, sampler_linear, input.tex, 0.0).r;
+
+	if (d < 1.0) {
+		var p0: float4 = constants.invP * float4(0.0, 0.0, 1.0, 1.0);
+		var px: float4 = constants.invP * float4(1.0, 0.0, 1.0, 1.0);
+		var py: float4 = constants.invP * float4(0.0, 1.0, 1.0, 1.0);
+		var r0: float2 = p0.xy / p0.z;
+		var rx: float2 = (px.xy / px.z) - r0;
+		var ry: float2 = (py.xy / py.z) - r0;
+
+		var vpos: float3 = input.view_ray * get_linear_depth(d);
+		var view_v: float3 = normalize(0.0 - vpos);
+		var n: float3 = normalize(constants.V3 * get_nor(sample_lod(gbuffer0, sampler_linear, input.tex, 0.0).rg));
+
+		var screen_w: float = 1.0 / constants.screen_size_inv.x;
+		var screen_h: float = 1.0 / constants.screen_size_inv.y;
+		var view_to_px: float = screen_w * 0.5 / (abs(rx.x) * abs(vpos.z));
+		var radius_px: float = clamp(radius * view_to_px, min_radius_px, screen_h * max_radius_frac);
+
+		var eff_radius: float = radius_px / view_to_px;
+		var fall_scale: float = 1.0 / max(eff_radius * (1.0 - falloff_start), 0.0001);
+		var fall_bias: float = eff_radius * falloff_start * fall_scale;
+
+		var px_x: float = input.tex.x * screen_w;
+		var px_y: float = input.tex.y * screen_h;
+		var slice_noise: float = gradient_noise(px_x, px_y) + constants.frame_offset;
+		var step_noise: float = frac(gradient_noise(px_y, px_x) + constants.frame_offset);
+
+		var vis: float = 0.0;
+		var slice: int = 0;
+		while (slice < int(num_slices)) {
+			var phi: float = (float(slice) + slice_noise) * (PI / num_slices);
+			var cp: float = cos(phi);
+			var sp: float = sin(phi);
+
+			var dir_uv: float2 = float2(cp * constants.screen_size_inv.x, sp * constants.screen_size_inv.y);
+			var dir_v: float3 = float3(cp, 0.0 - sp, 0.0);
+
+			var axis: float3 = normalize(cross(dir_v, view_v));
+			var proj_n: float3 = n - axis * dot(n, axis);
+			var proj_len: float = max(length(proj_n), 0.0001);
+			var cos_n: float = clamp(dot(proj_n, view_v) / proj_len, -1.0, 1.0);
+			var ortho: float3 = cross(view_v, axis);
+			var n_ang: float = sign(dot(proj_n, ortho)) * acos(cos_n);
+			var sin_n: float = sin(n_ang);
+
+			var h_pos: float = -1.0;
+			var h_neg: float = -1.0;
+
+			var s: int = 0;
+			while (s < int(num_steps)) {
+				var t: float = (float(s) + step_noise) / num_steps;
+				var dist_px: float = max(t * t * radius_px, min_radius_px);
+				var off: float2 = dir_uv * dist_px;
+				var dndc: float2 = float2(off.x * 2.0, off.y * -2.0);
+
+				h_pos = max(h_pos, horizon_cos(input.tex + off, dndc, input.view_ray, rx, ry, vpos, view_v, fall_scale, fall_bias));
+				h_neg = max(h_neg, horizon_cos(input.tex - off, 0.0 - dndc, input.view_ray, rx, ry, vpos, view_v, fall_scale, fall_bias));
+				s += 1;
+			}
+
+			var ang_pos: float = acos(clamp(h_pos, -1.0, 1.0));
+			var ang_neg: float = 0.0 - acos(clamp(h_neg, -1.0, 1.0));
+			ang_pos = n_ang + min(ang_pos - n_ang, HALF_PI);
+			ang_neg = n_ang + max(ang_neg - n_ang, 0.0 - HALF_PI);
+
+			vis += proj_len * 0.25 *
+			       ((cos_n - cos(2.0 * ang_neg - n_ang) + 2.0 * ang_neg * sin_n) + (cos_n - cos(2.0 * ang_pos - n_ang) + 2.0 * ang_pos * sin_n));
+			slice += 1;
+		}
+
+		ao = pow(clamp(vis / num_slices, 0.0, 1.0), ao_power);
+	}
+
+	return ao_dim * clamp(1.0 - (1.0 - ao) * constants.ssao_strength, 0.0, 1.0);
 }
 
 #[pipe]

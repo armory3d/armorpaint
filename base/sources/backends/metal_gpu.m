@@ -513,6 +513,8 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 	id<MTLFunction> function  = (__bridge_transfer id<MTLFunction>)shader->impl.mtl_function;
 	function                  = nil;
 	shader->impl.mtl_function = NULL;
+	free(shader->impl.source);
+	shader->impl.source = NULL;
 }
 
 void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_shader_type_t type) {
@@ -527,11 +529,12 @@ void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_
 		shader->impl.name[i - 3] = source[i];
 	}
 
-	shader->impl.source = data;
+	shader->impl.source = malloc(length);
+	memcpy(shader->impl.source, data, length);
 	shader->impl.length = length;
 }
 
-void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format) {
+void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress) {
 	texture->width  = width;
 	texture->height = height;
 	texture->format = format;
@@ -548,7 +551,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	int   bytes_per_image = bytes_per_row * height;
 
 #ifdef WITH_BC7
-	if (gpu_bc7_supported(width, height, format)) {
+	if (compress && gpu_bc7_supported(width, height, format)) {
 		texture->format = GPU_TEXTURE_FORMAT_RGBA32_BC7;
 		mtlformat       = MTLPixelFormatBC7_RGBAUnorm;
 		data            = gpu_bc7_compress(data, width, height);
@@ -576,7 +579,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 			free(data);
 		}
 #endif
-		gpu_texture_init_from_bytes(texture, original_data, width, height, format);
+		gpu_texture_init_from_bytes(texture, original_data, width, height, format, compress);
 		return;
 	}
 	texture->impl._tex = (__bridge_retained void *)tex;
@@ -701,13 +704,16 @@ static gpu_texture_t                *_texenv;
 static gpu_texture_t                *_texsobol;
 static gpu_texture_t                *_texscramble;
 static gpu_texture_t                *_texrank;
-static gpu_buffer_t                 *vb[16];
-static gpu_buffer_t                 *vb_last[16];
-static gpu_buffer_t                 *ib[16];
+static gpu_texture_t                *_texenv_cdf;
+static gpu_buffer_t                 *vb[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *vb_last[GPU_RAYTRACE_MAX_OBJECTS];
+static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           vb_count      = 0;
 static int                           vb_count_last = 0;
 static inst_t                        instances[1024];
 static int                           instances_count = 0;
+static gpu_buffer_t                 *vb_full         = NULL;
+static gpu_buffer_t                 *ib_full         = NULL;
 
 void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader, int ray_shader_size, gpu_buffer_t *constant_buffer) {
 	id<MTLDevice> device = get_metal_device();
@@ -771,7 +777,12 @@ id<MTLAccelerationStructure> create_acceleration_sctructure(MTLAccelerationStruc
 void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *accel) {
 	vb_count        = 0;
 	instances_count = 0;
-	memset(vb_last, 0, sizeof(vb_last));
+	if (gpu_raytrace_multi) {
+		memset(vb, 0, sizeof(vb));
+	}
+	else {
+		memset(vb_last, 0, sizeof(vb_last));
+	}
 }
 
 void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb, gpu_buffer_t *_ib, mat4_t _transform) {
@@ -784,10 +795,17 @@ void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel
 		}
 	}
 	if (vb_i == -1) {
+		if (vb_count >= GPU_RAYTRACE_MAX_OBJECTS) {
+			return;
+		}
 		vb_i         = vb_count;
 		vb[vb_count] = _vb;
 		ib[vb_count] = _ib;
 		vb_count++;
+	}
+
+	if (instances_count >= (int)(sizeof(instances) / sizeof(instances[0]))) {
+		return;
 	}
 
 	inst_t inst                = {.i = vb_i, .m = _transform};
@@ -803,12 +821,14 @@ void _gpu_raytrace_acceleration_structure_destroy_bottom(gpu_acceleration_struct
 
 void _gpu_raytrace_acceleration_structure_destroy_top(gpu_acceleration_structure_t *accel) {
 	_instance_accel = nil;
+	vb_full         = NULL;
+	ib_full         = NULL;
 }
 
 void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb_full, gpu_buffer_t *_ib_full) {
 
 	bool build_bottom = false;
-	for (int i = 0; i < 16; ++i) {
+	for (int i = 0; i < GPU_RAYTRACE_MAX_OBJECTS; ++i) {
 		if (vb_last[i] != vb[i]) {
 			build_bottom = true;
 		}
@@ -835,42 +855,64 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 	MTLResourceOptions options = MTLResourceStorageModeShared;
 
-	MTLAccelerationStructureTriangleGeometryDescriptor *descriptor = [MTLAccelerationStructureTriangleGeometryDescriptor descriptor];
-	descriptor.indexType                                           = MTLIndexTypeUInt32;
-	descriptor.indexBuffer                                         = (__bridge id<MTLBuffer>)ib[0]->impl.metal_buffer;
-	descriptor.vertexBuffer                                        = (__bridge id<MTLBuffer>)vb[0]->impl.metal_buffer;
-	descriptor.vertexStride                                        = vb[0]->stride;
-	descriptor.triangleCount                                       = ib[0]->count / 3;
-	descriptor.vertexFormat                                        = MTLAttributeFormatShort4Normalized;
+	// Bottom level
+	if (build_bottom || _primitive_accels == nil) {
+		_primitive_accels = [[NSMutableArray alloc] init];
+		for (int i = 0; i < vb_count; ++i) {
+			MTLAccelerationStructureTriangleGeometryDescriptor *descriptor = [MTLAccelerationStructureTriangleGeometryDescriptor descriptor];
+			descriptor.indexType                                           = MTLIndexTypeUInt32;
+			descriptor.indexBuffer                                         = (__bridge id<MTLBuffer>)ib[i]->impl.metal_buffer;
+			descriptor.vertexBuffer                                        = (__bridge id<MTLBuffer>)vb[i]->impl.metal_buffer;
+			descriptor.vertexStride                                        = vb[i]->stride;
+			descriptor.triangleCount                                       = ib[i]->count / 3;
+			descriptor.vertexFormat                                        = MTLAttributeFormatShort4Normalized;
 
-	MTLPrimitiveAccelerationStructureDescriptor *accel_descriptor = [MTLPrimitiveAccelerationStructureDescriptor descriptor];
-	accel_descriptor.geometryDescriptors                          = @[ descriptor ];
-	id<MTLAccelerationStructure> acceleration_structure           = create_acceleration_sctructure(accel_descriptor);
-	_primitive_accels                                             = [[NSMutableArray alloc] init];
-	[_primitive_accels addObject:acceleration_structure];
+			MTLPrimitiveAccelerationStructureDescriptor *accel_descriptor = [MTLPrimitiveAccelerationStructureDescriptor descriptor];
+			accel_descriptor.geometryDescriptors                          = @[ descriptor ];
+			[_primitive_accels addObject:create_acceleration_sctructure(accel_descriptor)];
+		}
+	}
 
-	id<MTLBuffer> instance_buffer = [device newBufferWithLength:sizeof(MTLAccelerationStructureInstanceDescriptor) * 1 options:options];
+	// Top level
+	int instance_count = gpu_raytrace_multi ? instances_count : 1;
 
-	MTLAccelerationStructureInstanceDescriptor *instance_descriptors = (MTLAccelerationStructureInstanceDescriptor *)instance_buffer.contents;
-	instance_descriptors[0].accelerationStructureIndex               = 0;
-	instance_descriptors[0].options                                  = MTLAccelerationStructureInstanceOptionOpaque;
-	instance_descriptors[0].mask                                     = 1;
-	instance_descriptors[0].transformationMatrix.columns[0]          = MTLPackedFloat3Make(instances[0].m.m[0], instances[0].m.m[1], instances[0].m.m[2]);
-	instance_descriptors[0].transformationMatrix.columns[1]          = MTLPackedFloat3Make(instances[0].m.m[4], instances[0].m.m[5], instances[0].m.m[6]);
-	instance_descriptors[0].transformationMatrix.columns[2]          = MTLPackedFloat3Make(instances[0].m.m[8], instances[0].m.m[9], instances[0].m.m[10]);
-	instance_descriptors[0].transformationMatrix.columns[3]          = MTLPackedFloat3Make(instances[0].m.m[12], instances[0].m.m[13], instances[0].m.m[14]);
+	id<MTLBuffer> instance_buffer = [device newBufferWithLength:sizeof(MTLAccelerationStructureUserIDInstanceDescriptor) * instance_count options:options];
+	MTLAccelerationStructureUserIDInstanceDescriptor *instance_descriptors = (MTLAccelerationStructureUserIDInstanceDescriptor *)instance_buffer.contents;
+
+	for (int i = 0; i < instance_count; ++i) {
+		float *m = instances[i].m.m;
+
+		instance_descriptors[i].accelerationStructureIndex      = instances[i].i;
+		instance_descriptors[i].options                         = MTLAccelerationStructureInstanceOptionOpaque;
+		instance_descriptors[i].mask                            = 1;
+		instance_descriptors[i].intersectionFunctionTableOffset = 0;
+		instance_descriptors[i].transformationMatrix.columns[0] = MTLPackedFloat3Make(m[0], m[1], m[2]);
+		instance_descriptors[i].transformationMatrix.columns[1] = MTLPackedFloat3Make(m[4], m[5], m[6]);
+		instance_descriptors[i].transformationMatrix.columns[2] = MTLPackedFloat3Make(m[8], m[9], m[10]);
+		instance_descriptors[i].transformationMatrix.columns[3] = MTLPackedFloat3Make(m[12], m[13], m[14]);
+
+		uint32_t ib_off = 0;
+		for (int j = 0; j < instances[i].i; ++j) {
+			ib_off += ib[j]->count;
+		}
+		instance_descriptors[i].userID = ib_off;
+	}
 
 	MTLInstanceAccelerationStructureDescriptor *inst_accel_descriptor = [MTLInstanceAccelerationStructureDescriptor descriptor];
 	inst_accel_descriptor.instancedAccelerationStructures             = _primitive_accels;
-	inst_accel_descriptor.instanceCount                               = 1;
+	inst_accel_descriptor.instanceCount                               = instance_count;
 	inst_accel_descriptor.instanceDescriptorBuffer                    = instance_buffer;
+	inst_accel_descriptor.instanceDescriptorType                      = MTLAccelerationStructureInstanceDescriptorTypeUserID;
 	_instance_accel                                                   = create_acceleration_sctructure(inst_accel_descriptor);
+
+	vb_full = gpu_raytrace_multi ? _vb_full : vb[0];
+	ib_full = gpu_raytrace_multi ? _ib_full : ib[0];
 }
 
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel) {}
 
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
-                               gpu_texture_t *texscramble, gpu_texture_t *texrank) {
+                               gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf) {
 	_texpaint0   = texpaint0;
 	_texpaint1   = texpaint1;
 	_texpaint2   = texpaint2;
@@ -878,6 +920,7 @@ void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint
 	_texsobol    = texsobol;
 	_texscramble = texscramble;
 	_texrank     = texrank;
+	_texenv_cdf  = texenv_cdf != NULL ? texenv_cdf : texenv;
 }
 
 void gpu_raytrace_set_acceleration_structure(gpu_acceleration_structure_t *_accel) {
@@ -895,6 +938,8 @@ void gpu_raytrace_set_target(gpu_texture_t *_output) {
 void gpu_raytrace_dispatch_rays() {
 	id<MTLDevice> device = get_metal_device();
 	if (!device.supportsRaytracing)
+		return;
+	if (_instance_accel == nil || vb_full == NULL || ib_full == NULL)
 		return;
 	dispatch_semaphore_wait(_semaphore, DISPATCH_TIME_FOREVER);
 
@@ -914,8 +959,8 @@ void gpu_raytrace_dispatch_rays() {
 	id<MTLComputeCommandEncoder> compute_encoder = [command_buffer computeCommandEncoder];
 	[compute_encoder setBuffer:(__bridge id<MTLBuffer>)constant_buf->impl.metal_buffer offset:0 atIndex:0];
 	[compute_encoder setAccelerationStructure:_instance_accel atBufferIndex:1];
-	[compute_encoder setBuffer:(__bridge id<MTLBuffer>)ib[0]->impl.metal_buffer offset:0 atIndex:2];
-	[compute_encoder setBuffer:(__bridge id<MTLBuffer>)vb[0]->impl.metal_buffer offset:0 atIndex:3];
+	[compute_encoder setBuffer:(__bridge id<MTLBuffer>)ib_full->impl.metal_buffer offset:0 atIndex:2];
+	[compute_encoder setBuffer:(__bridge id<MTLBuffer>)vb_full->impl.metal_buffer offset:0 atIndex:3];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)output->impl._tex atIndex:0];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texpaint0->impl._tex atIndex:1];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texpaint1->impl._tex atIndex:2];
@@ -924,6 +969,7 @@ void gpu_raytrace_dispatch_rays() {
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texsobol->impl._tex atIndex:5];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texscramble->impl._tex atIndex:6];
 	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texrank->impl._tex atIndex:7];
+	[compute_encoder setTexture:(__bridge id<MTLTexture>)_texenv_cdf->impl._tex atIndex:8];
 	[compute_encoder setSamplerState:linear_sampler atIndex:0];
 
 	for (id<MTLAccelerationStructure> primitive_accel in _primitive_accels) {

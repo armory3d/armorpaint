@@ -3,7 +3,7 @@
 // armorpaint/base/assets/licenses/license_lz4-wasm.md
 #include "iron_lz4.h"
 
-#include "iron_gc.h"
+#include "iron_alloc.h"
 #include "iron_system.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -28,7 +28,6 @@ buffer_t *lz4_encode(buffer_t *b) {
 
 	if (_lz4_hash_table == NULL) {
 		_lz4_hash_table = i32_array_create(65536);
-		gc_root(_lz4_hash_table);
 	}
 	for (uint32_t i = 0; i < _lz4_hash_table->length; ++i) {
 		_lz4_hash_table->buffer[i] = -65536;
@@ -136,7 +135,10 @@ buffer_t *lz4_encode(buffer_t *b) {
 		obuf->buffer[opos++] = ibuf->buffer[anchor_pos++];
 	}
 
-	return buffer_slice(obuf, 0, opos);
+	buffer_t *result = buffer_slice(obuf, 0, opos);
+	array_free(obuf);
+	free(obuf);
+	return result;
 }
 
 buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {

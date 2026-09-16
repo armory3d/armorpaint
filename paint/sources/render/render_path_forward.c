@@ -20,6 +20,5 @@ void render_path_forward_draw_forward() {
 }
 
 void render_path_forward_commands() {
-	render_path_paint_live_brush_dirty();
 	render_path_base_commands(render_path_forward_draw_forward);
 }

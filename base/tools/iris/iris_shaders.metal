@@ -2009,7 +2009,7 @@ kernel void rope_bf16(
 }
 
 /* ========================================================================
- * F32 VAE Shaders — GPU-resident VAE decoder operations
+ * F32 VAE Shaders
  * ======================================================================== */
 
 /* GroupNorm f32: one threadgroup per (batch, group) pair.

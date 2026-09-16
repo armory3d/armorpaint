@@ -1,14 +1,16 @@
 #include "iron_ui.h"
 
+#include "iron_alloc.h"
 #include "iron_armpack.h"
 #include "iron_array.h"
 #include "iron_draw.h"
-#include "iron_gc.h"
 #include "iron_gpu.h"
 #include "iron_json.h"
+#include "iron_map.h"
 #include "iron_string.h"
 #include "iron_system.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -66,8 +68,8 @@ void ui_nodes_init(ui_nodes_t *nodes) {
 	nodes->snap_from_id      = -1;
 	nodes->snap_to_id        = -1;
 	nodes->link_drag_id      = -1;
-	nodes->nodes_selected_id = gc_alloc(sizeof(i32_array_t));
-	nodes->handle            = ui_handle_create();
+	nodes->nodes_selected_id = calloc(1, sizeof(i32_array_t));
+	nodes->color_states      = any_imap_create();
 }
 
 float UI_NODES_SCALE() {
@@ -376,18 +378,33 @@ void ui_color_wheel_picker(void *data) {
 }
 
 static void rgba_popup_commands(ui_t *ui, void *data, void *data2) {
-	ui_handle_t *nhandle = (ui_handle_t *)data;
-	float       *val     = (float *)data2;
-	nhandle->color       = ui_color(val[0] * 255.0, val[1] * 255.0, val[2] * 255.0, 255.0);
-	ui_color_wheel(nhandle, false, -1, -1, true, &ui_color_wheel_picker, val);
-	val[0] = ui_color_r(nhandle->color) / 255.0f;
-	val[1] = ui_color_g(nhandle->color) / 255.0f;
-	val[2] = ui_color_b(nhandle->color) / 255.0f;
+	ui_color_state_t *state = (ui_color_state_t *)data;
+	float            *val   = (float *)data2;
+	uint32_t          color = ui_color(val[0] * 255.0, val[1] * 255.0, val[2] * 255.0, 255.0);
+	ui_set_next_id((ui_id_t)state);
+	ui_color_wheel(&color, state, false, -1, -1, true, &ui_color_wheel_picker, val);
+	val[0] = ui_color_r(color) / 255.0f;
+	val[1] = ui_color_g(color) / 255.0f;
+	val[2] = ui_color_b(color) / 255.0f;
 }
 
-void ui_nodes_rgba_popup(ui_handle_t *nhandle, float *val, int x, int y) {
+void ui_nodes_rgba_popup(ui_color_state_t *state, float *val, int x, int y) {
 	ui_t *current = ui_get_current();
-	ui_popup(x, y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands, nhandle, val);
+	ui_popup(x, y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands, state, val);
+}
+
+static ui_color_state_t *ui_nodes_color_state(ui_node_t *node) {
+	ui_color_state_t *state = any_imap_get(current_nodes->color_states, node->id);
+	if (state == NULL) {
+		state = calloc(1, sizeof(ui_color_state_t)); // Never freed, the color popup keeps a pointer
+		any_imap_set(current_nodes->color_states, node->id, state);
+	}
+	return state;
+}
+
+// Node values are edited through temporaries or armpack buffers that can move, key the controls by node and slot instead
+static void ui_nodes_next_id(ui_node_t *node, int slot) {
+	ui_set_next_id(((ui_id_t)node->id << 16) + slot + 1);
 }
 
 static float ui_nodes_snap(float f) {
@@ -438,7 +455,6 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 	}
 
 	// Buttons
-	ui_handle_t *nhandle = ui_nest(current_nodes->handle, node->id);
 	ny -= lineh / 3.0; // Fix align
 	for (int buti = 0; buti < node->buttons->length; ++buti) {
 		ui_node_button_t *but = node->buttons->buffer[buti];
@@ -449,11 +465,12 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			current->_x    = nx + 1; // Offset for node selection border
 			current->_y    = ny;
 			current->_w    = w;
-			nhandle->color = ui_color(val[0] * 255.0, val[1] * 255.0, val[2] * 255.0, 255.0);
-			ui_color_wheel(nhandle, false, -1, -1, true, &ui_color_wheel_picker, val);
-			val[0] = ui_color_r(nhandle->color) / 255.0f;
-			val[1] = ui_color_g(nhandle->color) / 255.0f;
-			val[2] = ui_color_b(nhandle->color) / 255.0f;
+			uint32_t color = ui_color(val[0] * 255.0, val[1] * 255.0, val[2] * 255.0, 255.0);
+			ui_nodes_next_id(node, buti * 4);
+			ui_color_wheel(&color, ui_nodes_color_state(node), false, -1, -1, true, &ui_color_wheel_picker, val);
+			val[0] = ui_color_r(color) / 255.0f;
+			val[1] = ui_color_g(color) / 255.0f;
+			val[2] = ui_color_b(color) / 255.0f;
 		}
 		else if (strcmp(but->type, "VECTOR") == 0) {
 			ny += lineh;
@@ -465,24 +482,12 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			float text_off                   = current->ops->theme->TEXT_OFFSET;
 			current->ops->theme->TEXT_OFFSET = 6;
 			ui_text(ui_tr(but->name), UI_ALIGN_LEFT, 0);
-
-			ui_handle_t *h  = ui_nest(nhandle, buti);
-			ui_handle_t *h0 = ui_nest(h, 0);
-			if (h0->init) {
-				h0->f = val[0];
-			}
-			ui_handle_t *h1 = ui_nest(h, 1);
-			if (h1->init) {
-				h1->f = val[1];
-			}
-			ui_handle_t *h2 = ui_nest(h, 2);
-			if (h2->init) {
-				h2->f = val[2];
-			}
-
-			val[0]                           = ui_slider(h0, "X", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
-			val[1]                           = ui_slider(h1, "Y", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
-			val[2]                           = ui_slider(h2, "Z", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, buti * 4 + 0);
+			ui_slider(&val[0], "X", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, buti * 4 + 1);
+			ui_slider(&val[1], "Y", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, buti * 4 + 2);
+			ui_slider(&val[2], "Z", min, max, true, but->precision, true, UI_ALIGN_LEFT, true);
 			current->ops->theme->TEXT_OFFSET = text_off;
 			ny += lineh * 3.0;
 		}
@@ -496,21 +501,18 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			float prec                       = but->precision;
 			float text_off                   = current->ops->theme->TEXT_OFFSET;
 			current->ops->theme->TEXT_OFFSET = 6;
-			ui_handle_t *soc_handle          = ui_nest(nhandle, buti);
-			if (soc_handle->init) {
-				soc_handle->f = val[0];
-			}
-			val[0]                           = ui_slider(soc_handle, ui_tr(but->name), min, max, true, prec, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, buti * 4);
+			ui_slider(&val[0], ui_tr(but->name), min, max, true, prec, true, UI_ALIGN_LEFT, true);
 			current->ops->theme->TEXT_OFFSET = text_off;
 		}
 		else if (strcmp(but->type, "STRING") == 0) {
 			ny += lineh;
-			current->_x                = nx;
-			current->_y                = ny;
-			current->_w                = w;
-			ui_handle_t *h             = ui_nest(nhandle, buti);
-			h->text                    = val != NULL ? (char *)val : "";
-			but->default_value->buffer = ui_text_input(h, ui_tr(but->name), UI_ALIGN_LEFT, true, false);
+			current->_x = nx;
+			current->_y = ny;
+			current->_w = w;
+			char *text  = val != NULL ? (char *)val : "";
+			ui_nodes_next_id(node, buti * 4);
+			but->default_value->buffer = ui_text_input(&text, ui_tr(but->name), UI_ALIGN_LEFT, true, false);
 			but->default_value->length = strlen(but->default_value->buffer) + 1;
 		}
 		else if (strcmp(but->type, "ENUM") == 0) {
@@ -519,15 +521,13 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			current->_y = ny;
 			current->_w = w;
 
-			ui_handle_t *but_handle = ui_nest(nhandle, buti);
-			but_handle->i           = ((float *)but->default_value->buffer)[0];
+			int value = ((float *)but->default_value->buffer)[0];
 
-			bool  combo_select      = current->combo_selected_handle == NULL && ui_get_released(UI_ELEMENT_H());
-			char *label             = combo_select ? temp_label : enum_label;
-			char (*texts_data)[256] = combo_select ? temp_texts_data : enum_texts_data;
-			char          **texts   = combo_select ? temp_texts : enum_texts;
-			string_array_t *ar      = combo_select ? &temp_ar : &enum_ar;
-			any_array_t    *images  = NULL;
+			bool  combo_select     = current->combo_selected_id == 0 && ui_get_released(UI_ELEMENT_H());
+			char *label            = combo_select ? temp_label : enum_label;
+			char (*texts_data)[64] = combo_select ? temp_texts_data : enum_texts_data;
+			char          **texts  = combo_select ? temp_texts : enum_texts;
+			string_array_t *ar     = combo_select ? &temp_ar : &enum_ar;
 
 			int  texts_count  = 0;
 			bool has_but_data = but->data != NULL && but->data->length > 1;
@@ -549,11 +549,16 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 						wi = 0;
 						continue;
 					}
-					texts_data[texts_count][wi] = c;
-					wi++;
+					if (wi < 63) {
+						texts_data[texts_count][wi] = c;
+						wi++;
+					}
 				}
 				for (int i = 0; i < texts_count; ++i) {
-					strcpy(texts_data[i], ui_tr(texts_data[i]));
+					char *translated = ui_tr(texts_data[i]);
+					if (translated != texts_data[i]) {
+						snprintf(texts_data[i], sizeof(texts_data[i]), "%s", translated);
+					}
 					texts[i] = texts_data[i];
 				}
 
@@ -561,28 +566,25 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 				ar->length = texts_count;
 			}
 			else {
-				gc_unroot(ar);
 				ar = (*ui_nodes_enum_texts)(node->type);
-				gc_root(ar);
 			}
 
-			strcpy(label, ui_tr(but->name));
+			snprintf(label, sizeof(enum_label), "%s", ui_tr(but->name));
 
-			((float *)but->default_value->buffer)[0] = ui_combo(but_handle, ar, label, false, UI_ALIGN_LEFT, true);
-			if (current->combo_selected_handle == but_handle && !has_but_data && ui_nodes_enum_textures != NULL) {
+			ui_nodes_next_id(node, buti * 4);
+			ui_id_t combo_id                         = ui_widget_id(&value, UI_ID_COMBO);
+			((float *)but->default_value->buffer)[0] = ui_combo(&value, ar, label, false, UI_ALIGN_LEFT, true);
+			if (current->combo_selected_id == combo_id && !has_but_data && ui_nodes_enum_textures != NULL) {
 				current->combo_selected_images = (*ui_nodes_enum_textures)(node->type);
 			}
 		}
 		else if (strcmp(but->type, "BOOL") == 0) {
 			ny += lineh;
-			current->_x    = nx;
-			current->_y    = ny;
-			current->_w    = w;
-			ui_handle_t *h = ui_nest(nhandle, buti);
-			if (h->init) {
-				h->b = ((float *)but->default_value->buffer)[0];
-			}
-			((float *)but->default_value->buffer)[0] = ui_check(h, ui_tr(but->name), "");
+			current->_x                              = nx;
+			current->_y                              = ny;
+			current->_w                              = w;
+			bool value                               = ((float *)but->default_value->buffer)[0] != 0.0f;
+			((float *)but->default_value->buffer)[0] = ui_check(&value, ui_tr(but->name), "");
 		}
 		else if (strcmp(but->type, "CUSTOM") == 0) { // Calls external function for custom button drawing
 			ny += lineh;
@@ -613,13 +615,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			float             text_off       = current->ops->theme->TEXT_OFFSET;
 			current->ops->theme->TEXT_OFFSET = 6;
 
-			ui_handle_t *_handle    = ui_nest(nhandle, ui_max_buttons);
-			ui_handle_t *soc_handle = ui_nest(_handle, i);
-			if (soc_handle->init) {
-				soc_handle->f = ((float *)soc->default_value->buffer)[0];
-			}
-			((float *)soc->default_value->buffer)[0] = ui_slider(soc_handle, ui_tr(inp->name), min, max, true, prec, true, UI_ALIGN_LEFT, true);
-			current->ops->theme->TEXT_OFFSET         = text_off;
+			ui_nodes_next_id(node, (ui_max_buttons + i) * 4);
+			ui_slider((float *)soc->default_value->buffer, ui_tr(inp->name), min, max, true, prec, true, UI_ALIGN_LEFT, true);
+			current->ops->theme->TEXT_OFFSET = text_off;
 		}
 		else if (!is_linked && strcmp(inp->type, "STRING") == 0) {
 			current->_x                      = nx + ui_p(6);
@@ -628,12 +626,9 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			ui_node_socket_t *soc            = inp;
 			float             text_off       = current->ops->theme->TEXT_OFFSET;
 			current->ops->theme->TEXT_OFFSET = 6;
-			ui_handle_t *_handle             = ui_nest(nhandle, ui_max_buttons);
-			ui_handle_t *h                   = ui_nest(_handle, i);
-			if (h->init) {
-				strcpy(h->text, soc->default_value->buffer);
-			}
-			soc->default_value->buffer       = ui_text_input(h, ui_tr(inp->name), UI_ALIGN_LEFT, true, false);
+			char *text                       = (char *)soc->default_value->buffer;
+			ui_nodes_next_id(node, (ui_max_buttons + i) * 4);
+			soc->default_value->buffer       = ui_text_input(&text, ui_tr(inp->name), UI_ALIGN_LEFT, true, false);
 			current->ops->theme->TEXT_OFFSET = text_off;
 		}
 		else if (!is_linked && strcmp(inp->type, "RGBA") == 0) {
@@ -653,13 +648,13 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			float iy = current->input_y - wy;
 			if (current->input_started && ix > rx && iy > ry && ix < rx + rw && iy < ry + rh) {
 				current_nodes->_input_started = current->input_started = false;
-				ui_nodes_rgba_popup(nhandle, soc->default_value->buffer, (int)(rx), (int)(ry + UI_ELEMENT_H()));
+				ui_nodes_rgba_popup(ui_nodes_color_state(node), soc->default_value->buffer, (int)(rx), (int)(ry + UI_ELEMENT_H()));
 				ui_popup_handle_node_id        = node->id;
 				ui_popup_handle_node_socket_id = soc->id;
 			}
 			if (ui_popup_commands != NULL && ui_popup_handle_node_id == node->id && ui_popup_handle_node_socket_id == soc->id) {
 				// armpack data may have been moved in memory
-				ui_popup_data  = nhandle;
+				ui_popup_data  = ui_nodes_color_state(node);
 				ui_popup_data2 = soc->default_value->buffer;
 			}
 		}
@@ -674,24 +669,13 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			float max                        = inp->max;
 			float text_off                   = current->ops->theme->TEXT_OFFSET;
 			current->ops->theme->TEXT_OFFSET = 6;
-			float       *val                 = (float *)inp->default_value->buffer;
-			ui_handle_t *h                   = ui_nest(nhandle, ui_max_buttons);
-			ui_handle_t *hi                  = ui_nest(h, i);
-			ui_handle_t *h0                  = ui_nest(hi, 0);
-			if (h0->init) {
-				h0->f = val[0];
-			}
-			ui_handle_t *h1 = ui_nest(hi, 1);
-			if (h1->init) {
-				h1->f = val[1];
-			}
-			ui_handle_t *h2 = ui_nest(hi, 2);
-			if (h2->init) {
-				h2->f = val[2];
-			}
-			val[0]                           = ui_slider(h0, "X", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
-			val[1]                           = ui_slider(h1, "Y", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
-			val[2]                           = ui_slider(h2, "Z", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
+			float *val                       = (float *)inp->default_value->buffer;
+			ui_nodes_next_id(node, (ui_max_buttons + i) * 4 + 0);
+			ui_slider(&val[0], "X", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, (ui_max_buttons + i) * 4 + 1);
+			ui_slider(&val[1], "Y", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
+			ui_nodes_next_id(node, (ui_max_buttons + i) * 4 + 2);
+			ui_slider(&val[2], "Z", min, max, true, inp->precision, true, UI_ALIGN_LEFT, true);
 			current->ops->theme->TEXT_OFFSET = text_off;
 			ny += lineh * 2.5;
 		}
@@ -842,8 +826,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		draw_begin(current, false, 0);
 	}
 	if (ui_nodes_exclude_remove == NULL) {
-		ui_nodes_exclude_remove = gc_alloc(sizeof(string_array_t));
-		gc_root(ui_nodes_exclude_remove);
+		ui_nodes_exclude_remove = calloc(1, sizeof(string_array_t));
 	}
 
 	float wx                      = current->_window_x;
@@ -1271,9 +1254,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 			ui_node_link_array_t links   = {.buffer = copy_links, .length = copy_links_count};
 			copy_canvas.nodes            = &nodes;
 			copy_canvas.links            = &links;
-			gc_unroot(ui_clipboard);
-			ui_clipboard = ui_node_canvas_to_json(&copy_canvas);
-			gc_root(ui_clipboard);
+			ui_clipboard                 = ui_node_canvas_to_json(&copy_canvas);
 			iron_copy_to_clipboard(ui_clipboard);
 		}
 		cut_selected = ui_is_cut;
@@ -1288,7 +1269,6 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 		if (is_json) {
 
 			ui_node_canvas_t *paste_canvas = json_parse(ui_clipboard);
-			gc_root(paste_canvas); // TODO
 
 			// Convert button data from string to u8 array
 			for (int i = 0; i < paste_canvas->nodes->length; ++i) {
@@ -1758,9 +1738,8 @@ void nodes_on_custom_button(i32 node_id, char *button_name) {
 }
 
 ui_nodes_t *ui_nodes_create() {
-	ui_nodes_t *raw = GC_ALLOC_INIT(ui_nodes_t, {0});
+	ui_nodes_t *raw = ALLOC_INIT(ui_nodes_t, {0});
 	ui_nodes_init(raw);
-	gc_unroot(ui_nodes_exclude_remove);
 	ui_nodes_exclude_remove = any_array_create_from_raw(
 	    (void *[]){
 	        "OUTPUT_MATERIAL_PBR",
@@ -1769,7 +1748,6 @@ ui_nodes_t *ui_nodes_create() {
 	        "brush_output_node",
 	    },
 	    4);
-	gc_root(ui_nodes_exclude_remove);
 	ui_nodes_on_custom_button = nodes_on_custom_button;
 	return raw;
 }

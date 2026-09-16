@@ -48,6 +48,13 @@ struct RayPayload {
 uint thread_seed = 0;
 
 ////
+uint table_byte(texture2D tex, int i) {
+    int t = (i & 131071) >> 2;
+    vec4 c = texelFetch(sampler2D(tex, sampler_linear), ivec2(t & 127, t >> 7), 0);
+    int ch = i & 3;
+    return uint((ch == 0 ? c.r : (ch == 1 ? c.g : (ch == 2 ? c.b : c.a))) * 255.0);
+}
+
 float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame) {
     pixel_i += int(frame) * 9;
     pixel_j += int(frame) * 11;
@@ -56,14 +63,11 @@ float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int
     sample_index = sample_index & 255;
     sample_dimension = sample_dimension & 255;
     int i = sample_dimension + (pixel_i + pixel_j * 128) * 8;
-    int ranked_sample_index = sample_index ^ int(texelFetch(sampler2D(mytexture_rank, sampler_linear),
-        ivec2(i % 128, i / 128), 0).r * 255.0);
-    i = sample_dimension + ranked_sample_index * 256;
+    int ranked_sample_index = sample_index ^ int(table_byte(mytexture_rank, i));
     int value = int(texelFetch(sampler2D(mytexture_sobol, sampler_linear),
-        ivec2(i % 256, i / 256), 0).r * 255.0);
+        ivec2(ranked_sample_index, sample_dimension), 0).r * 255.0);
     i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
-    value = value ^ int(texelFetch(sampler2D(mytexture_scramble, sampler_linear),
-        ivec2(i % 128, i / 128), 0).r * 255.0);
+    value = value ^ int(table_byte(mytexture_scramble, i));
     float v = (0.5 + float(value)) / 256.0;
     return v;
 }

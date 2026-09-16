@@ -1,11 +1,11 @@
 
 #include "../global.h"
 
-bool         ui_menu_hide_flag  = false;
-i32          ui_menu_sub_x      = 0;
-i32          ui_menu_sub_y      = 0;
-ui_handle_t *ui_menu_sub_handle = NULL;
-char        *_ui_menu_render_msg;
+bool  ui_menu_hide_flag     = false;
+i32   ui_menu_sub_x         = 0;
+i32   ui_menu_sub_y         = 0;
+char  ui_menu_sub_text[128] = ""; // Label of the open sub menu
+char *_ui_menu_render_msg;
 
 void ui_menu_hide() {
 	ui_menu_show = false;
@@ -58,14 +58,14 @@ void ui_menu_render() {
 
 	draw_begin(NULL, false, 0);
 	ui_begin_region(g_ui, ui_menu_x, ui_menu_y, menu_w);
-	g_ui->input_enabled = g_ui->combo_selected_handle == NULL;
+	g_ui->input_enabled = g_ui->combo_selected_id == 0;
 	ui_menu_begin();
 
 	if (ui_menu_commands != NULL) {
 		ui_menu_commands();
 	}
 
-	ui_menu_hide_flag = g_ui->combo_selected_handle == NULL && !ui_menu_keep_open && !ui_menu_show_first &&
+	ui_menu_hide_flag = g_ui->combo_selected_id == 0 && !ui_menu_keep_open && !ui_menu_show_first &&
 	                    (g_ui->changed || g_ui->input_released || g_ui->input_released_r || g_ui->is_escape_down);
 	ui_menu_keep_open = false;
 
@@ -92,8 +92,7 @@ void ui_menu_render() {
 	if (ui_menu_hide_flag) {
 		ui_menu_hide();
 		ui_menu_show_first = true;
-		gc_unroot(ui_menu_commands);
-		ui_menu_commands = NULL;
+		ui_menu_commands   = NULL;
 	}
 }
 
@@ -103,13 +102,11 @@ void ui_menu_draw(void (*commands)(void), i32 x, i32 y) {
 		ui_menu_nested    = true;
 		ui_menu_keep_open = true;
 	}
-	ui_menu_show = true;
-	gc_unroot(ui_menu_commands);
+	ui_menu_show     = true;
 	ui_menu_commands = commands;
-	gc_root(ui_menu_commands);
-	ui_menu_x = x > -1 ? x : math_floor(mouse_x + 1);
-	ui_menu_y = y > -1 ? y : math_floor(mouse_y + 1);
-	ui_menu_h = 0;
+	ui_menu_x        = x > -1 ? x : math_floor(mouse_x + 1);
+	ui_menu_y        = y > -1 ? y : math_floor(mouse_y + 1);
+	ui_menu_h        = 0;
 }
 
 void ui_menu_separator() {
@@ -123,7 +120,7 @@ bool ui_menu_button(char *text, char *label, icon_t icon) {
 	}
 	i32  _x_left = g_ui->_x;
 	i32  _y_top  = g_ui->_y;
-	bool result  = ui_button(string("%s%s", config_button_spacing, text), config_button_align, label);
+	bool result  = ui_button(string_tmp("%s%s", config_button_spacing, text), config_button_align, label);
 	if (string_equals(label, ">") && result) {
 		ui_menu_keep_open = true;
 	}
@@ -156,14 +153,14 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 	i32 _y_top  = g_ui->_y;
 	i32 _w      = g_ui->_w;
 	if (!string_equals(text, "")) {
-		text = align == UI_ALIGN_LEFT ? string("        %s", text) : string("      %s", text);
+		text = align == UI_ALIGN_LEFT ? string_tmp("        %s", text) : string_tmp("      %s", text);
 	}
 
 	char *tooltip = "";
 	i32   textw   = draw_string_width(g_font, g_ui->font_size, text);
 	f32   wmax    = g_config->touch_ui ? 0.9 : 0.8;
 	if (textw > _w * wmax) {
-		tooltip = string_copy(text);
+		tooltip = text;
 		text    = "";
 		textw   = 0;
 	}
@@ -205,19 +202,16 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 	return result;
 }
 
-bool ui_menu_sub_button(ui_handle_t *handle, char *text) {
+bool ui_menu_sub_button(char *text) {
 	g_ui->is_hovered = false;
 	ui_menu_button(text, ">", ICON_NONE);
 	if (g_ui->is_hovered) {
-		gc_unroot(ui_menu_sub_handle);
-		ui_menu_sub_handle = handle;
-		gc_root(ui_menu_sub_handle);
+		snprintf(ui_menu_sub_text, sizeof(ui_menu_sub_text), "%s", text);
 	}
 	else if (math_abs(g_ui->input_dy) > g_ui->input_dx && g_ui->input_x < g_ui->_x + g_ui->_w) {
-		gc_unroot(ui_menu_sub_handle);
-		ui_menu_sub_handle = NULL;
+		ui_menu_sub_text[0] = '\0';
 	}
-	return ui_menu_sub_handle == handle;
+	return string_equals(ui_menu_sub_text, text);
 }
 
 void ui_menu_label(char *text, char *shortcut) {
@@ -234,7 +228,7 @@ void ui_menu_label(char *text, char *shortcut) {
 
 void ui_menu_align() {
 	if (!g_config->touch_ui) {
-		f32_array_t *row = f32_array_create_from_raw(
+		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
 		        12 / 100.0,
 		        88 / 100.0,

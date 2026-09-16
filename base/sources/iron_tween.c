@@ -1,20 +1,19 @@
 #include "iron_tween.h"
 
+#include "iron_alloc.h"
 #include "iron_array.h"
-#include "iron_gc.h"
 #include <math.h>
 #include <stdbool.h>
 
 static any_array_t *_tween_anims      = NULL;
 static bool         _tween_registered = false;
 
-f32  sys_delta(void);
+f64  sys_delta(void);
 void sys_notify_on_update(void (*f)(void *data), void *data);
 
 static void _tween_register(void) {
 	_tween_registered = true;
 	_tween_anims      = any_array_create(0);
-	gc_root(_tween_anims);
 	sys_notify_on_update(tween_update, NULL);
 }
 
@@ -30,7 +29,7 @@ tween_anim_t *tween_to(tween_anim_t *anim) {
 }
 
 tween_anim_t *tween_timer(f32 delay, void (*done)(void *data), void *data) {
-	tween_anim_t *a = gc_alloc(sizeof(tween_anim_t));
+	tween_anim_t *a = calloc(1, sizeof(tween_anim_t));
 	a->target       = NULL;
 	a->to           = 0.0f;
 	a->duration     = 0.0f;
@@ -49,9 +48,7 @@ void tween_stop(tween_anim_t *anim) {
 }
 
 void tween_reset(void) {
-	gc_unroot(_tween_anims);
 	_tween_anims = any_array_create(0);
-	gc_root(_tween_anims);
 }
 
 static f32 _tween_ease_linear(f32 k) {

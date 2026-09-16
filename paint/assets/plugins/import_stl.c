@@ -79,7 +79,6 @@ void on_delete() {
 
 void main() {
 	plugin = plugin_create();
-	gc_root(plugin);
 	plugin_notify_on_delete(plugin, on_delete);
 	plugin_register_mesh("stl", import_stl);
 }

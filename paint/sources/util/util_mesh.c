@@ -12,21 +12,24 @@ void util_mesh_remove_merged() {
 	}
 }
 
+static bool _util_mesh_is_representative(i32 i) {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	if (!paint_objects->buffer[i]->base->visible) {
+		return false;
+	}
+	for (i32 j = 0; j < i; ++j) {
+		if (paint_objects->buffer[j]->base->visible && paint_objects->buffer[j]->data == paint_objects->buffer[i]->data) {
+			return false;
+		}
+	}
+	return true;
+}
+
 mesh_object_t_array_t *util_mesh_get_unique() {
 	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
 
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		if (!g_project->_->paint_objects->buffer[i]->base->visible) {
-			continue;
-		}
-		bool found = false;
-		for (i32 j = 0; j < i; ++j) {
-			if (g_project->_->paint_objects->buffer[i]->data == g_project->_->paint_objects->buffer[j]->data) {
-				found = true;
-				break;
-			}
-		}
-		if (!found) {
+		if (_util_mesh_is_representative(i)) {
 			any_array_push(ar, g_project->_->paint_objects->buffer[i]);
 		}
 	}
@@ -45,8 +48,254 @@ mesh_object_t_array_t *util_mesh_get_visible() {
 	return ar;
 }
 
+mesh_object_t_array_t *util_mesh_dedup_data(mesh_object_t_array_t *objects) {
+	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *p    = objects->buffer[i];
+		bool           seen = false;
+		for (i32 j = 0; j < ar->length && !seen; ++j) {
+			seen = ar->buffer[j]->data == p->data;
+		}
+		if (!seen) {
+			any_array_push(ar, p);
+		}
+	}
+	return ar;
+}
+
+mesh_object_t_array_t *util_mesh_get_unique_data() {
+	return util_mesh_dedup_data(g_project->_->paint_objects);
+}
+
+i32 util_mesh_data_owner(mesh_data_t *data) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (g_project->_->paint_objects->buffer[i]->data == data) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool util_mesh_data_is_shared(mesh_data_t *data) {
+	i32 users = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (g_project->_->paint_objects->buffer[i]->data == data) {
+			users++;
+		}
+	}
+	return users > 1;
+}
+
+void util_mesh_sync_scale_world(mesh_data_t *data) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p->data == data && p->base->transform->scale_world != data->scale_pos) {
+			p->base->transform->scale_world = data->scale_pos;
+			transform_build_matrix(p->base->transform);
+		}
+	}
+}
+
+void util_mesh_unshare_data(mesh_object_t *o) {
+	if (!util_mesh_data_is_shared(o->data)) {
+		return;
+	}
+	mesh_object_set_data(o, util_mesh_data_duplicate(o->data));
+	o->data->name = string_copy(o->base->name);
+}
+
+char *util_mesh_link_name(i32 source_index, char *object_name) {
+	return string("%s@%d", object_name, source_index);
+}
+
+bool util_mesh_link_parse(char *name, i32 *source_index, char **object_name) {
+	if (name == NULL) {
+		return false;
+	}
+	i32 sep = string_last_index_of(name, "@");
+	if (sep < 0) {
+		return false;
+	}
+	i32 len = string_length(name);
+	if (sep + 1 == len) {
+		return false;
+	}
+	for (i32 i = sep + 1; i < len; ++i) {
+		if (name[i] < '0' || name[i] > '9') {
+			return false;
+		}
+	}
+	*source_index = parse_int(substring(name, sep + 1, len));
+	*object_name  = substring(name, 0, sep);
+	return true;
+}
+
+#define ATLAS_MAX_STRIDE 8
+#define ATLAS_MAX_SLOTS  (ATLAS_MAX_STRIDE * ATLAS_MAX_STRIDE)
+
+static i32 _util_mesh_atlas_stride_for(i32 count) {
+	i32 stride = 1;
+	while (stride * stride < count && stride < ATLAS_MAX_STRIDE) {
+		stride++;
+	}
+	return stride;
+}
+
+static i32          util_mesh_atlas_stride_merged = 1;
+static mesh_data_t *util_mesh_atlas_slot_data[ATLAS_MAX_SLOTS];
+static i32          util_mesh_atlas_slot_count  = 0;
+static bool         util_mesh_atlas_slots_spent = false;
+static i32          util_mesh_udim_tiles[ATLAS_MAX_SLOTS]; // Sorted tile ids, one atlas slot per tile
+static i32          util_mesh_udim_tile_count  = 0;
+static bool         util_mesh_udim_tiles_spent = false;
+
+// Tile id from the ".1001" name suffix given by udim import, -1 if none
+i32 util_mesh_udim_tile(char *name) {
+	if (name == NULL) {
+		return -1;
+	}
+	i32 len = string_length(name);
+	if (len < 5 || name[len - 5] != '.' || name[len - 4] != '1') {
+		return -1;
+	}
+	i32 id = 0;
+	for (i32 i = len - 4; i < len; ++i) {
+		if (name[i] < '0' || name[i] > '9') {
+			return -1;
+		}
+		id = id * 10 + (name[i] - '0');
+	}
+	return id > 1000 ? id : -1;
+}
+
+static void _util_mesh_udim_build_tiles() {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	util_mesh_udim_tile_count            = 0;
+	util_mesh_udim_tiles_spent           = false;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		i32 id = util_mesh_udim_tile(paint_objects->buffer[i]->base->name);
+		if (id < 0) {
+			continue;
+		}
+		i32 pos = 0;
+		while (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] < id) {
+			pos++;
+		}
+		if (pos < util_mesh_udim_tile_count && util_mesh_udim_tiles[pos] == id) {
+			continue;
+		}
+		if (util_mesh_udim_tile_count == ATLAS_MAX_SLOTS) {
+			util_mesh_udim_tiles_spent = true;
+			continue;
+		}
+		for (i32 j = util_mesh_udim_tile_count; j > pos; --j) {
+			util_mesh_udim_tiles[j] = util_mesh_udim_tiles[j - 1];
+		}
+		util_mesh_udim_tiles[pos] = id;
+		util_mesh_udim_tile_count++;
+	}
+}
+
+// Shared layers of a mesh split by udim tile keep every tile in its own atlas slot
+bool util_mesh_udim_active() {
+	return util_mesh_udim_tile_count > 1;
+}
+
+i32 util_mesh_udim_slot(i32 tile) {
+	for (i32 i = 0; i < util_mesh_udim_tile_count; ++i) {
+		if (util_mesh_udim_tiles[i] == tile) {
+			return i;
+		}
+	}
+	return util_mesh_udim_tiles_spent ? ATLAS_MAX_SLOTS - 1 : 0;
+}
+
+bool util_mesh_udim_layer(slot_layer_t *l) {
+	if (!util_mesh_udim_active() || l == NULL || l->uv_map == 1) {
+		return false;
+	}
+	i32 mask = slot_layer_get_object_mask(l);
+	return mask == 0 || mask > g_project->_->paint_objects->length;
+}
+
+static i32 _util_mesh_atlas_slot_for_data(mesh_data_t *data) {
+	for (i32 i = 0; i < util_mesh_atlas_slot_count; ++i) {
+		if (util_mesh_atlas_slot_data[i] == data) {
+			return i;
+		}
+	}
+	return util_mesh_atlas_slots_spent ? ATLAS_MAX_SLOTS - 1 : 0;
+}
+
+static i32 _util_mesh_atlas_slot_for_object(mesh_object_t *o) {
+	if (util_mesh_udim_active()) {
+		return util_mesh_udim_slot(util_mesh_udim_tile(o->base->name));
+	}
+	return _util_mesh_atlas_slot_for_data(o->data);
+}
+
+static void _util_mesh_atlas_build_slots() {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	i32                    unique        = 0;
+	util_mesh_atlas_slot_count           = 0;
+	util_mesh_atlas_slots_spent          = false;
+
+	_util_mesh_udim_build_tiles();
+	if (util_mesh_udim_active()) {
+		util_mesh_atlas_stride_merged = _util_mesh_atlas_stride_for(util_mesh_udim_tile_count);
+		return;
+	}
+	if (!config_is_raytrace_multi()) {
+		util_mesh_atlas_stride_merged = 1;
+		return;
+	}
+
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		mesh_data_t *data = paint_objects->buffer[i]->data;
+		bool         seen = false;
+		for (i32 j = 0; j < i && !seen; ++j) {
+			seen = paint_objects->buffer[j]->data == data;
+		}
+		if (seen) {
+			continue;
+		}
+		unique++;
+		if (util_mesh_atlas_slot_count < ATLAS_MAX_SLOTS) {
+			util_mesh_atlas_slot_data[util_mesh_atlas_slot_count++] = data;
+		}
+	}
+
+	util_mesh_atlas_slots_spent   = unique > ATLAS_MAX_SLOTS;
+	util_mesh_atlas_stride_merged = _util_mesh_atlas_stride_for(unique);
+}
+
+i32 util_mesh_atlas_stride() {
+	return util_mesh_atlas_stride_merged;
+}
+
+i32 util_mesh_atlas_slot(object_t *object) {
+	mesh_object_t_array_t *paint_objects = g_project->_->paint_objects;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		if (paint_objects->buffer[i]->base == object) {
+			return _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
+		}
+	}
+	return -1; // Merged object or 2d plane, uvs already in atlas space
+}
+
+void util_mesh_delete_data_uncache(void *data) {
+	mesh_data_t *md = (mesh_data_t *)data;
+	if (md->_->handle != NULL) {
+		mesh_data_t *cached = any_map_get(data_cached_meshes, md->_->handle);
+		if (cached == md) {
+			map_delete(data_cached_meshes, md->_->handle);
+		}
+	}
+	mesh_data_delete(md);
+}
+
 mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
-	mesh_data_t *raw = gc_alloc(sizeof(mesh_data_t));
+	mesh_data_t *raw = calloc(1, sizeof(mesh_data_t));
 	raw->name        = string_copy(source->name);
 	raw->scale_pos   = source->scale_pos;
 	raw->scale_tex   = source->scale_tex;
@@ -55,14 +304,18 @@ mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 	for (i32 i = 0; i < source->vertex_arrays->length; ++i) {
 		vertex_array_t *src = source->vertex_arrays->buffer[i];
 		vertex_array_t *va =
-		    GC_ALLOC_INIT(vertex_array_t,
-		                  {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
+		    ALLOC_INIT(vertex_array_t,
+		               {.attrib = string_copy(src->attrib), .data = string_copy(src->data), .values = i16_array_create_from_array(src->values)});
 		any_array_push(raw->vertex_arrays, va);
 	}
 
 	raw->index_array = u32_array_create_from_array(source->index_array);
 
-	return mesh_data_create(raw);
+	mesh_data_t *md    = mesh_data_create(raw);
+	md->_->owns_arrays = true;
+	md->_->skin_blob   = source->_->skin_blob;
+	md->_->skin_frames = source->_->skin_frames;
+	return md;
 }
 
 static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_objects, char *name) {
@@ -86,6 +339,9 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	i32          coli   = vatex1 != NULL ? 4 : 3;
 	u32_array_t *ia     = u32_array_create(ilen);
 
+	_util_mesh_atlas_build_slots();
+	i32 atlas_stride = util_mesh_atlas_stride_merged;
+
 	i32 voff = 0;
 	i32 ioff = 0;
 	for (i32 i = 0; i < paint_objects->length; ++i) {
@@ -106,7 +362,8 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		// }
 
 		// Re-scale
-		for (i32 j = voff; j < math_floor(va0->length / 4.0); ++j) {
+		i32 vend = voff + (i32)math_floor(vas->buffer[0]->values->length / 4.0);
+		for (i32 j = voff; j < vend; ++j) {
 			va0->buffer[j * 4]     = math_floor((va0->buffer[j * 4] * scale) / (float)max_scale);
 			va0->buffer[j * 4 + 1] = math_floor((va0->buffer[j * 4 + 1] * scale) / (float)max_scale);
 			va0->buffer[j * 4 + 2] = math_floor((va0->buffer[j * 4 + 2] * scale) / (float)max_scale);
@@ -117,8 +374,13 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 			va1->buffer[j + voff * 2] = vas->buffer[1]->values->buffer[j];
 		}
 		// Tex
-		for (i32 j = 0; j < vas->buffer[2]->values->length; ++j) {
-			va2->buffer[j + voff * 2] = vas->buffer[2]->values->buffer[j];
+		i32 slot      = _util_mesh_atlas_slot_for_object(paint_objects->buffer[i]);
+		f32 tile_step = 32767.0f / atlas_stride;
+		f32 tile_x    = atlas_stride > 1 ? (slot % atlas_stride) * tile_step : 0.0f;
+		f32 tile_y    = atlas_stride > 1 ? (slot / atlas_stride) * tile_step : 0.0f;
+		for (i32 j = 0; j < vas->buffer[2]->values->length / 2; ++j) {
+			va2->buffer[j * 2 + voff * 2]     = vas->buffer[2]->values->buffer[j * 2] / (float)atlas_stride + tile_x;
+			va2->buffer[j * 2 + 1 + voff * 2] = vas->buffer[2]->values->buffer[j * 2 + 1] / (float)atlas_stride + tile_y;
 		}
 		// Tex1
 		if (vatex1 != NULL) {
@@ -140,23 +402,23 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		voff += math_floor(vas->buffer[0]->values->length / 4.0);
 		ioff += math_floor(ias->length);
 	}
-	mesh_data_t *raw = GC_ALLOC_INIT(mesh_data_t, {.name          = name,
-	                                               .vertex_arrays = any_array_create_from_raw(
-	                                                   (void *[]){
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
-	                                                   },
-	                                                   3),
-	                                               .index_array = ia,
-	                                               .scale_pos   = max_scale,
-	                                               .scale_tex   = 1.0});
+	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = name,
+	                                            .vertex_arrays = any_array_create_from_raw(
+	                                                (void *[]){
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
+	                                                },
+	                                                3),
+	                                            .index_array = ia,
+	                                            .scale_pos   = max_scale,
+	                                            .scale_tex   = 1.0});
 	if (vatex1 != NULL) {
-		vertex_array_t *va = GC_ALLOC_INIT(vertex_array_t, {.values = vatex1, .attrib = "tex1", .data = "short2norm"});
+		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = vatex1, .attrib = "tex1", .data = "short2norm"});
 		any_array_push(raw->vertex_arrays, va);
 	}
 	if (vacol != NULL) {
-		vertex_array_t *va = GC_ALLOC_INIT(vertex_array_t, {.values = vacol, .attrib = "col", .data = "short4norm"});
+		vertex_array_t *va = ALLOC_INIT(vertex_array_t, {.values = vacol, .attrib = "col", .data = "short4norm"});
 		any_array_push(raw->vertex_arrays, va);
 	}
 	return raw;
@@ -164,27 +426,110 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 
 void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	if (paint_objects == NULL) {
-		// if (g_context->tool == TOOL_TYPE_CURSOR) {
-		// 	paint_objects = util_mesh_get_unique();
-		// }
-		// else {
-		paint_objects = g_project->_->paint_objects;
-		// }
+		if (config_is_raytrace_multi()) {
+			paint_objects = util_mesh_get_unique();
+		}
+		else {
+			paint_objects = g_project->_->paint_objects;
+		}
+	}
+	else if (config_is_raytrace_multi()) {
+		paint_objects = util_mesh_dedup_data(paint_objects);
 	}
 	if (paint_objects->length == 0) {
 		return;
 	}
 	g_context->merged_object_is_atlas = paint_objects->length < g_project->_->paint_objects->length;
 
-	mesh_data_t *raw = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
+	bool         merged_visible = g_context->merged_object == NULL || g_context->merged_object->base->visible;
+	mesh_data_t *raw            = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name);
 	util_mesh_remove_merged();
-	mesh_data_t     *md                     = mesh_data_create(raw);
-	material_data_t *paint_material         = g_project->_->materials->buffer[0]->data;
+	mesh_data_t *md                         = mesh_data_create(raw);
+	md->_->owns_arrays                      = true;
+	shader_data_t *paint_material           = g_project->_->materials->buffer[0]->data;
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
 	g_context->merged_object->force_context = "paint";
+	g_context->merged_object->base->visible = merged_visible;
 	object_set_parent(g_context->merged_object->base, context_main_object()->base);
 	render_path_raytrace_ready = false;
+}
+
+bool util_mesh_merge_reskin() {
+	// Skinning only moves vertices that already exist
+	if (g_context->merged_object == NULL) {
+		return false;
+	}
+	bool                   owns_list     = config_is_raytrace_multi();
+	mesh_object_t_array_t *paint_objects = owns_list ? util_mesh_get_unique() : g_project->_->paint_objects;
+	bool                   ok            = paint_objects->length > 0;
+
+	mesh_data_t *md = g_context->merged_object->data;
+	ok              = ok && md->vertex_arrays->length >= 2;
+	if (!ok) {
+		if (owns_list) {
+			array_free(paint_objects);
+			free(paint_objects);
+		}
+		return false;
+	}
+	i16_array_t *va0 = md->vertex_arrays->buffer[0]->values;
+	i16_array_t *va1 = md->vertex_arrays->buffer[1]->values;
+
+	i32 vlen      = 0;
+	f32 max_scale = 0.0;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		vlen += paint_objects->buffer[i]->data->vertex_arrays->buffer[0]->values->length;
+		if (paint_objects->buffer[i]->data->scale_pos > max_scale) {
+			max_scale = paint_objects->buffer[i]->data->scale_pos;
+		}
+	}
+	vlen = math_floor(vlen / 4.0);
+	if (vlen * 4 != va0->length || vlen * 2 != va1->length) {
+		if (owns_list) { // Vertex count changed
+			array_free(paint_objects);
+			free(paint_objects);
+		}
+		return false;
+	}
+
+	i32 voff = 0;
+	for (i32 i = 0; i < paint_objects->length; ++i) {
+		vertex_array_t_array_t *vas   = paint_objects->buffer[i]->data->vertex_arrays;
+		f32                     scale = paint_objects->buffer[i]->data->scale_pos;
+		i16_array_t            *pos   = vas->buffer[0]->values;
+		i16_array_t            *nor   = vas->buffer[1]->values;
+		i32                     count = math_floor(pos->length / 4.0);
+
+		for (i32 j = 0; j < count; ++j) {
+			va0->buffer[(voff + j) * 4]     = math_floor((pos->buffer[j * 4] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 1] = math_floor((pos->buffer[j * 4 + 1] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 2] = math_floor((pos->buffer[j * 4 + 2] * scale) / (float)max_scale);
+			va0->buffer[(voff + j) * 4 + 3] = pos->buffer[j * 4 + 3];
+		}
+		for (i32 j = 0; j < nor->length; ++j) {
+			va1->buffer[j + voff * 2] = nor->buffer[j];
+		}
+
+		voff += count;
+	}
+
+	md->scale_pos = max_scale;
+	mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
+
+	if (owns_list) {
+		array_free(paint_objects);
+		free(paint_objects);
+	}
+	return true;
+}
+
+void util_mesh_visibility_changed() {
+	util_mesh_merge(config_is_raytrace_multi() ? NULL : util_mesh_get_visible());
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_dilatemap_cached   = false;
+	g_context->ddirty          = 2;
 }
 
 static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {
@@ -224,15 +569,13 @@ static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {
 	o->data->scale_pos = max_scale;
 }
 
-void util_mesh_merge_geometry() {
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
-	if (objects->length < 2) {
-		return;
-	}
-
+static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 	// Keep the first object and join the geometry of the rest into it
 	mesh_object_t *main_object = objects->buffer[0];
 	mat4_t         inv_world   = mat4_inv(main_object->base->transform->world);
+	for (i32 i = 0; i < objects->length; ++i) {
+		util_mesh_unshare_data(objects->buffer[i]);
+	}
 	for (i32 i = 0; i < objects->length; ++i) {
 		util_mesh_bake_transform(objects->buffer[i], inv_world);
 	}
@@ -240,33 +583,16 @@ void util_mesh_merge_geometry() {
 	mesh_data_t *raw = util_mesh_build_merged_data(objects, main_object->data->name);
 	util_mesh_remove_merged();
 
-	for (i32 i = 1; i < objects->length; ++i) {
-		mesh_object_t *o = objects->buffer[i];
-		object_set_parent(o->base, NULL);
-		data_delete_mesh(o->data->_->handle);
-		mesh_object_remove(o);
-	}
-
-	mesh_data_t *md = mesh_data_create(raw);
-	sys_notify_on_next_frame(&mesh_data_delete, main_object->data);
+	mesh_data_t *md    = mesh_data_create(raw);
+	md->_->owns_arrays = true;
+	sys_notify_on_next_frame(&util_mesh_delete_data_uncache, main_object->data);
 	mesh_object_set_data(main_object, md);
+	transform_build_matrix(main_object->base->transform);
 	md->_->handle = string_copy(raw->name);
 	any_map_set(data_cached_meshes, md->_->handle, md);
+}
 
-	g_project->_->paint_objects = any_array_create_from_raw(
-	    (void *[]){
-	        main_object,
-	    },
-	    1);
-	context_select_paint_object(main_object);
-
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		g_project->_->layers->buffer[i]->object_mask = 0;
-	}
-	g_context->layer_filter = 0;
-	tab_stages_prune();
-	tab_meshes_reset_preview_map();
-
+static void util_mesh_geometry_joined() {
 	util_mesh_merge(NULL);
 	util_uv_uvmap_cached                              = false;
 	util_uv_trianglemap_cached                        = false;
@@ -275,8 +601,91 @@ void util_mesh_merge_geometry() {
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
 
-void util_mesh_swap_axis(i32 a, i32 b) {
+void util_mesh_merge_geometry() {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects->length < 2) {
+		return;
+	}
+
+	mesh_object_t *main_object = objects->buffer[0];
+	util_mesh_join_geometry(objects);
+
+	string_array_t *merged_names = string_array_create(0);
+	for (i32 i = 1; i < objects->length; ++i) {
+		mesh_object_t *o = objects->buffer[i];
+		string_array_push(merged_names, string_copy(o->base->name));
+		object_set_parent(o->base, NULL);
+		data_delete_mesh(o->data->_->handle);
+		mesh_object_remove(o);
+	}
+
+	g_project->_->paint_objects = any_array_create_from_raw(
+	    (void *[]){
+	        main_object,
+	    },
+	    1);
+	context_select_paint_object(main_object);
+
+	for (i32 i = 0; i < merged_names->length; ++i) {
+		tab_timeline_on_mesh_deleted(merged_names->buffer[i]);
+	}
+
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		g_project->_->layers->buffer[i]->object_mask = 0;
+	}
+	g_context->layer_filter = 0;
+	tab_stages_prune();
+	tab_meshes_reset_preview_map();
+	util_mesh_geometry_joined();
+}
+
+void util_mesh_merge_geometry_down(mesh_object_t *main_object, mesh_object_t *below) {
+	mesh_object_t_array_t *objects    = g_project->_->paint_objects;
+	i32                    main_index = array_index_of(objects, main_object);
+	i32                    index      = array_index_of(objects, below);
+	if (main_index < 0 || index < 0 || main_index == index) {
+		return;
+	}
+
+	util_mesh_join_geometry(any_array_create_from_raw_tmp((void *[]){main_object, below}, 2));
+
+	while (below->base->children->length > 0) {
+		object_t *child  = below->base->children->buffer[0];
+		mat4_t    world  = child->transform->world;
+		object_t *parent = child == main_object->base ? below->base->parent : main_object->base;
+		object_set_parent(child, parent);
+		mat4_t parent_world = child->parent != NULL ? child->parent->transform->world : mat4_identity();
+		transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
+	}
+
+	char *merged_name = string_copy(below->base->name);
+	array_splice(objects, index, 1);
+	if (g_project->atlas_objects != NULL && index < g_project->atlas_objects->length) {
+		i32_array_splice(g_project->atlas_objects, index, 1);
+	}
+	object_set_parent(below->base, NULL);
+	util_mesh_delete_data_uncache(below->data);
+	mesh_object_remove(below);
+
+	i32 merged_mask = index + 1;
+	i32 new_mask    = (main_index < index ? main_index : main_index - 1) + 1;
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		l->object_mask  = l->object_mask == merged_mask ? new_mask : l->object_mask > merged_mask ? l->object_mask - 1 : l->object_mask;
+	}
+	g_context->layer_filter = g_context->layer_filter == merged_mask  ? new_mask
+	                          : g_context->layer_filter > merged_mask ? g_context->layer_filter - 1
+	                                                                  : g_context->layer_filter;
+
+	tab_meshes_sort_hierarchy();
+	context_select_paint_object(main_object);
+	tab_timeline_on_mesh_deleted(merged_name);
+	tab_stages_prune();
+	util_mesh_geometry_joined();
+}
+
+void util_mesh_swap_axis(i32 a, i32 b) {
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t *o = objects->buffer[i];
 		// Remapping vertices, buckle up
@@ -300,12 +709,11 @@ void util_mesh_swap_axis(i32 a, i32 b) {
 		mesh_data_t *g = o->data;
 		mesh_data_build_vertices(g->_->vertex_buffer, vas);
 	}
-	util_mesh_remove_merged();
 	util_mesh_merge(NULL);
 }
 
 void util_mesh_flip_normals() {
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t          *o   = objects->buffer[i];
 		vertex_array_t_array_t *vas = o->data->vertex_arrays;
@@ -340,7 +748,7 @@ void util_mesh_calc_normals(bool smooth) {
 	vec4_t                 vc      = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	vec4_t                 cb      = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	vec4_t                 ab      = (vec4_t){0.0, 0.0, 0.0, 1.0};
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t *o           = objects->buffer[i];
 		mesh_data_t   *g           = o->data;
@@ -357,9 +765,7 @@ void util_mesh_calc_normals(bool smooth) {
 			for (i32 j = 0; j < num_verts; ++j) {
 				i32_array_push(indices, j);
 			}
-			gc_unroot(util_mesh_va0);
 			util_mesh_va0 = va0;
-			gc_root(util_mesh_va0);
 			i32_array_sort(indices, &util_mesh_calc_normals_sort);
 			if (indices->length > 0) {
 				i32 unique_id                        = indices->buffer[0];
@@ -450,11 +856,12 @@ void util_mesh_calc_normals(bool smooth) {
 }
 
 void util_mesh_to_origin() {
-	f32 dx = 0.0;
-	f32 dy = 0.0;
-	f32 dz = 0.0;
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o    = g_project->_->paint_objects->buffer[i];
+	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
+	f32                    dx      = 0.0;
+	f32                    dy      = 0.0;
+	f32                    dz      = 0.0;
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *o    = objects->buffer[i];
 		i32            l    = 4;
 		f32            sc   = o->data->scale_pos / 32767.0;
 		i16_array_t   *va   = o->data->vertex_arrays->buffer[0]->values;
@@ -488,12 +895,12 @@ void util_mesh_to_origin() {
 		dy += (miny + maxy) / 2.0 * sc;
 		dz += (minz + maxz) / 2.0 * sc;
 	}
-	dx /= g_project->_->paint_objects->length;
-	dy /= g_project->_->paint_objects->length;
-	dz /= g_project->_->paint_objects->length;
+	dx /= objects->length;
+	dy /= objects->length;
+	dz /= objects->length;
 
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o         = g_project->_->paint_objects->buffer[i];
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *o         = objects->buffer[i];
 		mesh_data_t   *g         = o->data;
 		f32            sc        = o->data->scale_pos / 32767.0;
 		i16_array_t   *va        = o->data->vertex_arrays->buffer[0]->values;
@@ -511,6 +918,7 @@ void util_mesh_to_origin() {
 		}
 		o->base->transform->scale_world = o->data->scale_pos = o->data->scale_pos = max_scale;
 		transform_build_matrix(o->base->transform);
+		util_mesh_sync_scale_world(o->data);
 
 		for (i32 i = 0; i < math_floor(va->length / 4.0); ++i) {
 			va->buffer[i * 4]     = math_floor((va->buffer[i * 4] * sc - dx) / (float)max_scale * 32767);
@@ -601,9 +1009,7 @@ void util_mesh_decimate(f32 strength) {
 	if (cell_size < 1)
 		cell_size = 1;
 
-	gc_unroot(util_mesh_quantized);
-	util_mesh_quantized = i32_array_create(num_verts * 3);
-	gc_root(util_mesh_quantized);
+	util_mesh_quantized  = i32_array_create(num_verts * 3);
 	i32_array_t *indices = i32_array_create_from_raw((i32[]){}, 0);
 
 	for (i32 i = 0; i < num_verts; ++i) {
@@ -673,43 +1079,28 @@ void util_mesh_decimate(f32 strength) {
 		}
 	}
 
-	mesh_data_t *raw = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_decimated", o->base->name),
-	                                               .vertex_arrays = any_array_create_from_raw(
-	                                                   (void *[]){
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-	                                                       GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-	                                                   },
-	                                                   3),
-	                                               .index_array = u32_array_create_from_array(new_inda),
-	                                               .scale_pos   = o->data->scale_pos,
-	                                               .scale_tex   = 1.0});
+	mesh_data_t *raw = ALLOC_INIT(mesh_data_t, {.name          = string("%s_decimated", o->base->name),
+	                                            .vertex_arrays = any_array_create_from_raw(
+	                                                (void *[]){
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+	                                                    ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+	                                                },
+	                                                3),
+	                                            .index_array = u32_array_create_from_array(new_inda),
+	                                            .scale_pos   = o->data->scale_pos,
+	                                            .scale_tex   = 1.0});
 
-	mesh_data_t *new_data = mesh_data_create(raw);
-	o->data               = new_data;
+	mesh_data_t *new_data    = mesh_data_create(raw);
+	new_data->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();
 #endif
-}
-
-i32 _util_mesh_unique_data_count() {
-	return util_mesh_get_unique()->length;
-}
-
-void util_mesh_pack_uvs(i16_array_t *texa) {
-	// Scale tex coords into global atlas
-	i32 atlas_w      = config_get_scene_atlas_res();
-	i32 item_i       = _util_mesh_unique_data_count() - 1; // Add the one being imported
-	i32 item_w       = config_get_layer_res();
-	i32 atlas_stride = atlas_w / (float)item_w;
-	i32 atlas_step   = 32767 / (float)atlas_stride;
-	i32 item_x       = (item_i % atlas_stride) * atlas_step;
-	i32 item_y       = math_floor(item_i / (float)atlas_stride) * atlas_step;
-	for (i32 i = 0; i < texa->length / 2.0; ++i) {
-		texa->buffer[i * 2]     = texa->buffer[i * 2] / (float)atlas_stride + item_x;
-		texa->buffer[i * 2 + 1] = texa->buffer[i * 2 + 1] / (float)atlas_stride + item_y;
-	}
 }
 
 static i32 *_cc_he_vlo;
@@ -736,9 +1127,7 @@ void util_mesh_smooth() {
 	i32_array_t *weld_sort = i32_array_create(overts);
 	for (i32 i = 0; i < overts; ++i)
 		weld_sort->buffer[i] = i;
-	gc_unroot(util_mesh_va0);
 	util_mesh_va0 = va0;
-	gc_root(util_mesh_va0);
 	i32_array_sort(weld_sort, &util_mesh_calc_normals_sort);
 
 	i32_array_t *weld_id = i32_array_create(overts);
@@ -909,9 +1298,7 @@ void util_mesh_bevel(f32 amount) {
 	i32_array_t *weld_sort = i32_array_create(num_verts);
 	for (i32 i = 0; i < num_verts; ++i)
 		weld_sort->buffer[i] = i;
-	gc_unroot(util_mesh_va0);
 	util_mesh_va0 = va0;
-	gc_root(util_mesh_va0);
 	i32_array_sort(weld_sort, &util_mesh_calc_normals_sort);
 
 	i32_array_t *weld_id = i32_array_create(num_verts);
@@ -1096,19 +1483,23 @@ void util_mesh_bevel(f32 amount) {
 		i = j;
 	}
 
-	mesh_data_t *raw      = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
+	mesh_data_t *raw         = ALLOC_INIT(mesh_data_t, {.name          = string("%s_beveled", o->base->name),
 	                                                    .vertex_arrays = any_array_create_from_raw(
-                                                       (void *[]){
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                       },
-                                                       3),
+                                                    (void *[]){
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                    },
+                                                    3),
 	                                                    .index_array = new_inda,
 	                                                    .scale_pos   = o->data->scale_pos,
 	                                                    .scale_tex   = 1.0});
-	mesh_data_t *new_data = mesh_data_create(raw);
-	o->data               = new_data;
+	mesh_data_t *new_data    = mesh_data_create(raw);
+	new_data->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();
@@ -1222,21 +1613,96 @@ void util_mesh_subdivide() {
 		new_inda->buffer[b + 11] = e2;
 	}
 
-	mesh_data_t *raw       = GC_ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
+	mesh_data_t *raw          = ALLOC_INIT(mesh_data_t, {.name          = string("%s_subdivided", o->base->name),
 	                                                     .vertex_arrays = any_array_create_from_raw(
-                                                       (void *[]){
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
-                                                           GC_ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
-                                                       },
-                                                       3),
+                                                    (void *[]){
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va0, .attrib = "pos", .data = "short4norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va1, .attrib = "nor", .data = "short2norm"}),
+                                                        ALLOC_INIT(vertex_array_t, {.values = new_va2, .attrib = "tex", .data = "short2norm"}),
+                                                    },
+                                                    3),
 	                                                     .index_array = new_inda,
 	                                                     .scale_pos   = o->data->scale_pos,
 	                                                     .scale_tex   = 1.0});
-	mesh_data_t *new_data2 = mesh_data_create(raw);
-	o->data                = new_data2;
+	mesh_data_t *new_data2    = mesh_data_create(raw);
+	new_data2->_->owns_arrays = true;
+	if (!util_mesh_data_is_shared(o->data)) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, o->data);
+	}
+	o->data = new_data2;
 	util_mesh_calc_normals(true);
 #ifdef WITH_PLUGINS
 	plugin_uv_unwrap_button();
 #endif
+}
+
+static void _util_mesh_shift_object_masks(i32 from) {
+	if (g_project->_->layers != NULL) {
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (l->object_mask >= from) {
+				++l->object_mask;
+			}
+		}
+	}
+	if (g_context->layer_filter >= from) {
+		++g_context->layer_filter;
+	}
+}
+
+mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
+	// Mesh
+	if (so == NULL) {
+		return NULL;
+	}
+
+	mesh_data_t   *data = so->data;
+	mesh_object_t *dup  = scene_add_mesh_object(data, so->material, so->base->parent);
+	transform_set_matrix(dup->base->transform, so->base->transform->local);
+
+	// Insert below the original
+	i32 index = array_index_of(g_project->_->paint_objects, so);
+	i32 at    = index < 0 ? g_project->_->paint_objects->length : index + 1;
+	array_insert((any_array_t *)g_project->_->paint_objects, at, dup);
+	_util_mesh_shift_object_masks(at + 1);
+
+	// Ensure unique name
+	dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
+	tab_stages_add_object(dup->base->name);
+
+	// Material override
+	i32 mat_index = tab_meshes_get_override(so);
+	if (mat_index >= 0) {
+		tab_meshes_set_override_data(dup, mat_index, so->material);
+		g_project->mesh_materials = i32_array_create(0);
+	}
+
+	// Physics
+	i32 shape = util_physics_get_shape(so->base);
+	if (shape >= 0) {
+		util_physics_set(dup->base, shape, util_physics_get_mass(so->base));
+	}
+
+	tab_meshes_sort_hierarchy();
+	tab_timeline_sync();
+
+	return dup;
+}
+
+void util_mesh_duplicate() {
+	mesh_object_t *dup = util_mesh_duplicate_object(g_context->paint_object);
+	if (dup != NULL) {
+		g_context->paint_object                           = dup;
+		ui_header_handle->redraws                         = 2;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+	util_mesh_merge(NULL);
+	g_context->ddirty = 2;
+}
+
+void util_mesh_delete() {
+	if (g_project->_->paint_objects->length < 2) {
+		return;
+	}
+	tab_meshes_draw_context_menu_delete(g_context->paint_object);
 }

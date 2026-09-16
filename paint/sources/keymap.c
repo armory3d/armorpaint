@@ -2,9 +2,7 @@
 #include "global.h"
 
 void keymap_load() {
-	gc_unroot(g_keymap);
 	g_keymap = keymap_get_default();
-	gc_root(g_keymap);
 	if (!string_equals(g_config->keymap, "default.json")) {
 		buffer_t       *blob       = data_get_blob(string("keymap_presets/%s", g_config->keymap));
 		any_map_t      *new_keymap = json_parse_to_map(sys_buffer_to_string(blob));
@@ -13,6 +11,9 @@ void keymap_load() {
 			char *key = keys->buffer[i];
 			any_map_set(g_keymap, key, any_map_get(new_keymap, key));
 		}
+		array_free(keys);
+		free(keys);
+		map_free(new_keymap);
 	}
 }
 
@@ -21,8 +22,12 @@ void keymap_save() {
 		return;
 	}
 	char     *path   = string("%skeymap_presets/%s", data_path(), g_config->keymap);
-	buffer_t *buffer = sys_string_to_buffer(keymap_to_json(g_keymap));
+	char     *json   = keymap_to_json(g_keymap);
+	buffer_t *buffer = sys_string_to_buffer(json);
 	iron_file_save_bytes(path, buffer, 0);
+	array_free(buffer);
+	free(buffer);
+	free(json);
 }
 
 char *keymap_to_json(any_map_t *keymap) {
@@ -81,7 +86,7 @@ any_map_t *keymap_get_default() {
 	any_map_set(keymap, "toggle_browser", "`");
 	any_map_set(keymap, "node_overview", "z");
 	any_map_set(keymap, "node_search", "space");
-	any_map_set(keymap, "operator_search", "space");
+	any_map_set(keymap, "keymap_search", "space");
 	any_map_set(keymap, "decal_mask", "ctrl");
 	any_map_set(keymap, "brush_camera_align", "z");
 	any_map_set(keymap, "grid_snap", "x");
@@ -104,4 +109,48 @@ any_map_t *keymap_get_default() {
 	any_map_set(keymap, "tool_material", "");
 	any_map_set(keymap, "swap_brush_eraser", "");
 	return keymap;
+}
+
+bool keymap_shortcut(char *s, shortcut_type_t type) {
+	if (string_equals(s, "") || g_config->workspace == WORKSPACE_PLAYER) {
+		return false;
+	}
+	bool shift = string_index_of(s, "shift") >= 0;
+	bool ctrl  = string_index_of(s, "ctrl") >= 0;
+	bool alt   = string_index_of(s, "alt") >= 0;
+	bool flag  = shift == keyboard_down("shift") && ctrl == keyboard_down("control") && alt == keyboard_down("alt");
+
+	if (string_index_of(s, "+") > 0) {
+		s = s + string_last_index_of(s, "+") + 1;
+		if (string_equals(s, "number")) {
+			return flag;
+		}
+	}
+	else if (shift || ctrl || alt) {
+		return flag;
+	}
+
+	bool key = false;
+	if (string_equals(s, "left") || string_equals(s, "right") || string_equals(s, "middle")) {
+		if (type == SHORTCUT_TYPE_DOWN) {
+			key = mouse_down(s);
+		}
+		else {
+			key = mouse_started(s);
+		}
+	}
+	else if (type == SHORTCUT_TYPE_REPEAT) {
+		key = keyboard_repeat(s);
+	}
+	else if (type == SHORTCUT_TYPE_DOWN) {
+		key = keyboard_down(s);
+	}
+	else if (type == SHORTCUT_TYPE_RELEASED) {
+		key = keyboard_released(s);
+	}
+	else {
+		key = keyboard_started(s);
+	}
+
+	return flag && key;
 }

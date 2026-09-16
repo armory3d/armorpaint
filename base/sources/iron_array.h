@@ -58,7 +58,8 @@ typedef struct string_array {
 
 typedef u8_array_t buffer_t;
 
-void array_free(void *a);
+void array_free(void *a);   // Releases the buffer, keeps the struct
+void array_delete(void *a); // Releases the buffer and the struct, not the elements
 void i8_array_push(i8_array_t *a, int8_t e);
 void u8_array_push(u8_array_t *a, uint8_t e);
 void i16_array_push(i16_array_t *a, int16_t e);
@@ -123,6 +124,7 @@ f32_array_t    *f32_array_create(uint32_t length);
 f32_array_t    *f32_array_create_from_buffer(buffer_t *b);
 f32_array_t    *f32_array_create_from_array(f32_array_t *from);
 f32_array_t    *f32_array_create_from_raw(float *raw, uint32_t length);
+f32_array_t    *f32_array_create_from_raw_tmp(float *raw, uint32_t length);
 f32_array_t    *f32_array_create_x(float x);
 f32_array_t    *f32_array_create_xy(float x, float y);
 f32_array_t    *f32_array_create_xyz(float x, float y, float z);
@@ -148,6 +150,7 @@ i8_array_t     *i8_array_create(uint32_t length);
 i8_array_t     *i8_array_create_from_raw(int8_t *raw, uint32_t length);
 any_array_t    *any_array_create(uint32_t length);
 any_array_t    *any_array_create_from_raw(void **raw, uint32_t length);
+any_array_t    *any_array_create_from_raw_tmp(void **raw, uint32_t length);
 string_array_t *string_array_create(uint32_t length);
 uint16_t        float_to_half_fast(float value);
 uint8_t         half_to_u8_fast(uint16_t h);

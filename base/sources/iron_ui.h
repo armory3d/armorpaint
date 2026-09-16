@@ -10,10 +10,6 @@
 
 #define UI_TEXT_MAX 8192
 
-// #define UI_HANDLE(name)                                                                       \
-// 	ui_handle_t  _##name##_h = {.redraws = 2, .color = 0xffffffff, .text = "", .init = true}; \
-// 	ui_handle_t *name        = &_##name##_h
-
 typedef enum {
 	UI_LAYOUT_VERTICAL,
 	UI_LAYOUT_HORIZONTAL
@@ -74,46 +70,48 @@ typedef struct ui_options {
 	gpu_texture_t *black_white_gradient;
 } ui_options_t;
 
-typedef struct ui_handle_array {
-	struct ui_handle **buffer;
-	int                length;
-	int                capacity;
-} ui_handle_array_t;
+typedef struct ui_tab_state {
+	uintptr_t            id;
+	int                 *value;   // Selection of the group, identifies it for ui_tab_changed()
+	bool                 changed; // Set on selection, cleared when the group renders again
+	float                scroll[16];
+	struct ui_tab_state *next;
+} ui_tab_state_t;
 
-typedef struct ui_handle {
-	union {
-		float f;
-		int   i;
-		bool  b;
-	};
-	union {
-		struct { // window
-			int   layout;
-			int   drag_x;
-			int   drag_y;
-			float last_max_x;
-			float last_max_y;
-			float scroll_offset;
-		};
-		struct { // color_wheel
-			float hue;
-			float sat;
-			float val;
-			float red;
-			float green;
-			float blue;
-		};
-	};
-	uint32_t           color;
-	int                redraws;
-	char              *text;
-	bool               scroll_enabled;
-	bool               drag_enabled;
-	bool               changed;
-	bool               init;
-	gpu_texture_t      texture;
-	ui_handle_array_t *children;
-} ui_handle_t;
+typedef struct ui_window {
+	int             layout;
+	float           drag_x, drag_y;
+	float           last_max_x, last_max_y;
+	float           scroll_offset;
+	int             redraws;
+	char           *text;
+	bool            scroll_enabled, drag_enabled;
+	gpu_texture_t   texture;
+	ui_tab_state_t *tabs;
+} ui_window_t;
+
+typedef struct ui_window_array {
+	ui_window_t **buffer;
+	int           length, capacity;
+} ui_window_array_t;
+
+typedef uintptr_t ui_id_t;
+
+typedef struct ui_color_state {
+	float hue, sat, val;
+	float red, green, blue;
+	float alpha;
+	int   mode;
+} ui_color_state_t;
+
+typedef enum {
+	UI_ID_TEXT = 1,
+	UI_ID_SLIDER,
+	UI_ID_COMBO,
+	UI_ID_COLOR,
+	UI_ID_FLOAT_INPUT,
+	UI_ID_TAB
+} ui_id_kind_t;
 
 typedef struct ui_text_extract {
 	char colored[1024];
@@ -146,6 +144,10 @@ typedef struct ui {
 	bool                is_pushed;
 	bool                is_hovered;
 	bool                is_released;
+	bool                item_changed; // Most recently submitted control
+	ui_id_t             id_stack[32];
+	int                 id_depth;
+	ui_id_t             next_id;
 	bool                changed; // Global elements change check
 	bool                scroll_enabled;
 	bool                always_redraw;       // Hurts performance
@@ -232,26 +234,35 @@ typedef struct ui {
 	float        _window_y;
 	float        _window_w;
 	float        _window_h;
-	ui_handle_t *current_window;
+	ui_window_t *current_window;
 	bool         window_ended;
-	ui_handle_t *scroll_handle;   // Window or slider being scrolled
-	ui_handle_t *drag_handle;     // Window being dragged
-	ui_handle_t *drag_tab_handle; // Tab being dragged
+	ui_window_t *scroll_handle; // Window being scrolled
+	ui_id_t      color_wheel_id;
+	ui_id_t      color_gradient_id;
+	ui_id_t      slider_id;
+	float        slider_value;
+	ui_window_t *drag_handle;     // Window being dragged
+	int         *drag_tab_handle; // Tab being dragged
 	int          drag_tab_position;
 	float        window_header_w;
 	float        window_header_h;
 	float        restore_x;
 	float        restore_y;
 
-	ui_handle_t    *text_selected_handle;
+	ui_id_t         text_selected_id;
 	char            text_selected[UI_TEXT_MAX];
-	ui_handle_t    *submit_text_handle;
+	char            text_original[UI_TEXT_MAX];
+	char           *combo_search;
+	ui_id_t         submit_text_id;
 	char            text_to_submit[UI_TEXT_MAX];
 	bool            tab_pressed;
-	ui_handle_t    *tab_pressed_handle;
-	ui_handle_t    *combo_selected_handle;
-	ui_handle_t    *combo_selected_window;
+	ui_id_t         tab_pressed_id;
+	ui_id_t         combo_selected_id;
+	ui_window_t    *combo_selected_window;
 	int             combo_selected_align;
+	string_array_t  combo_texts;
+	char            combo_label[256];
+	bool            combo_first;
 	string_array_t *combo_selected_texts;
 	any_array_t    *combo_selected_images;
 	char           *combo_selected_label;
@@ -260,7 +271,7 @@ typedef struct ui {
 	int             combo_selected_w;
 	int             combo_selected_texts_filtered;
 	bool            combo_search_bar;
-	ui_handle_t    *submit_combo_handle;
+	ui_id_t         submit_combo_id;
 	int             combo_to_submit;
 	int             combo_initial_value;
 	char            tooltip_text[512];
@@ -275,7 +286,9 @@ typedef struct ui {
 	uint32_t        tab_colors[16];
 	bool            tab_enabled[16];
 	int             tab_count; // Number of tab calls since window begin
-	ui_handle_t    *tab_handle;
+	int            *tab_handle;
+	ui_tab_state_t *tab_state;
+	bool            tab_scroll_pending;
 	float           tab_scroll;
 	bool            tab_vertical;
 	bool            tab_align_right;
@@ -296,18 +309,20 @@ void  ui_begin_sticky();
 void  ui_end_sticky();
 void  ui_begin_region(ui_t *ui, int x, int y, int w);
 void  ui_end_region();
-bool  ui_window(ui_handle_t *handle, int x, int y, int w, int h, bool drag); // Returns true if redraw is needed
+bool  ui_window(ui_window_t *handle, int x, int y, int w, int h, bool drag); // Returns true if redraw is needed
 bool  ui_button(char *text, int align, char *label);
 int   ui_text(char *text, int align, int bg);
-bool  ui_tab(ui_handle_t *handle, char *text, bool vertical, uint32_t color, bool align_right);
-bool  ui_panel(ui_handle_t *handle, char *text, bool is_tree, bool filled, bool align_right);
+bool  ui_tab(int *value, char *text, bool vertical, uint32_t color, bool align_right);
+bool  ui_tab_changed(ui_window_t *window, int *value);
+bool  ui_panel(bool *value, char *text, bool is_tree, bool filled, bool align_right);
 int   ui_sub_image(gpu_texture_t *image, uint32_t tint, int h, int sx, int sy, int sw, int sh);
 int   ui_image(gpu_texture_t *image, uint32_t tint, int h);
-char *ui_text_input(ui_handle_t *handle, char *label, int align, bool editable, bool live_update);
-bool  ui_check(ui_handle_t *handle, char *text, char *label);
-bool  ui_radio(ui_handle_t *handle, int position, char *text, char *label);
-int   ui_combo(ui_handle_t *handle, string_array_t *texts, char *label, bool show_label, int align, bool search_bar);
-float ui_slider(ui_handle_t *handle, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
+char *ui_text_input(char **value, char *label, int align, bool editable, bool live_update);
+bool  ui_check(bool *value, char *text, char *label);
+bool  ui_radio(int *value, int position, char *text, char *label);
+int   ui_combo(int *value, string_array_t *texts, char *label, bool show_label, int align, bool search_bar);
+float ui_parse_float(char *text);
+float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
 void  ui_row(f32_array_t *ratios);
 void  ui_row2();
 void  ui_row3();
@@ -343,9 +358,16 @@ void         ui_paste(char *s);
 void         ui_theme_default(ui_theme_t *t);
 ui_t        *ui_get_current();
 void         ui_set_current(ui_t *current);
-ui_handle_t *ui_handle_create();
-ui_handle_t *ui_nest(ui_handle_t *handle, int pos);
-void         ui_set_scale(float factor);
+ui_id_t      ui_widget_id(const void *value, int kind);
+void         ui_push_id(ui_id_t id);
+void         ui_pop_id(void);
+void         ui_set_next_id(ui_id_t id);
+bool         ui_item_changed(void);
+void         ui_record_change(void);
+ui_window_t *ui_window_create(void);
+void         ui_window_destroy(ui_window_t *window);
+
+void ui_set_scale(float factor);
 
 bool  ui_get_hover(float elem_h);
 bool  ui_get_released(float elem_h);
@@ -365,7 +387,8 @@ void  ui_draw_string(char *text, float x_offset, float y_offset, int align, bool
 void  ui_draw_shadow(float x, float y, float w, float h);
 void  ui_draw_rect(bool fill, bool shadows, float x, float y, float w, float h);
 void  ui_draw_round_bottom(float x, float y, float w);
-void  ui_start_text_edit(ui_handle_t *handle, int align);
+void  ui_start_text_edit(char **value, int align);
+void  ui_deselect_text(ui_t *ui);
 void  ui_remove_char_at(char *str, int at);
 void  ui_remove_chars_at(char *str, int at, int count);
 void  ui_insert_char_at(char *str, int at, char c);
@@ -394,16 +417,18 @@ extern bool  ui_is_copy;
 extern bool  ui_is_paste;
 extern char  ui_text_to_paste[UI_TEXT_MAX];
 extern char  ui_text_to_copy[UI_TEXT_MAX];
-extern void (*ui_on_border_hover)(ui_handle_t *, int);
-extern void (*ui_on_tab_drop)(ui_handle_t *, int, ui_handle_t *, int);
+extern void (*ui_on_border_hover)(ui_window_t *, int);
+extern void (*ui_on_tab_drop)(int *, int, int *, int);
 extern bool (*ui_picker_button)(void);
 extern const char *ui_theme_keys[];
 extern int         ui_theme_keys_count;
 
-float ui_float_input(ui_handle_t *handle, char *label, int align, float precision);
-int   ui_inline_radio(ui_handle_t *handle, string_array_t *texts, int align);
-int   ui_color_wheel(ui_handle_t *handle, bool alpha, float w, float h, bool color_preview, void (*picker)(void *), void *data);
-char *ui_text_area(ui_handle_t *handle, int align, bool editable, char *label, bool word_wrap);
+float ui_float_input(float *value, char *label, int align, float precision);
+int   ui_slider_int(int *value, char *text, float from, float to, bool filled, bool display_value, int align, bool text_edit);
+int   ui_inline_radio(int *value, string_array_t *texts, int align);
+int   ui_color_wheel(uint32_t *value, ui_color_state_t *state, bool alpha, float w, float h, bool color_preview, void (*picker)(void *), void *data);
+char *ui_text_area(char **value, int *line_index, int align, bool editable, char *label, bool word_wrap);
+void  ui_text_area_clear_selection();
 void  ui_begin_menu();
 void  ui_end_menu();
 bool  ui_menubar_button(char *text);
@@ -419,6 +444,7 @@ uint32_t ui_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 extern bool                ui_text_area_line_numbers;
 extern bool                ui_text_area_scroll_past_end;
 extern ui_text_coloring_t *ui_text_area_coloring;
+extern char               *ui_text_area_search;
 
 typedef struct ui_canvas_control {
 	float pan_x;
@@ -520,24 +546,24 @@ typedef struct ui_nodes {
 	int          uih;
 	bool         _input_started;
 	void (*color_picker_callback)(uint32_t);
-	void        *color_picker_callback_data;
-	float        scale_factor;
-	float        ELEMENT_H;
-	bool         dragged;
-	ui_node_t   *move_on_top;
-	int          link_drag_id;
-	bool         is_new_link;
-	int          snap_from_id;
-	int          snap_to_id;
-	int          snap_socket;
-	float        snap_x;
-	float        snap_y;
-	ui_handle_t *handle;
+	void            *color_picker_callback_data;
+	float            scale_factor;
+	float            ELEMENT_H;
+	bool             dragged;
+	ui_node_t       *move_on_top;
+	int              link_drag_id;
+	bool             is_new_link;
+	int              snap_from_id;
+	int              snap_to_id;
+	int              snap_socket;
+	float            snap_x;
+	float            snap_y;
+	struct any_imap *color_states; // Color wheel state per node id
 } ui_nodes_t;
 
 void ui_nodes_init(ui_nodes_t *nodes);
 void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas);
-void ui_nodes_rgba_popup(ui_handle_t *nhandle, float *val, int x, int y);
+void ui_nodes_rgba_popup(ui_color_state_t *state, float *val, int x, int y);
 
 void ui_remove_node(ui_node_t *n, ui_node_canvas_t *canvas);
 

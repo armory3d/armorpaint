@@ -1,17 +1,49 @@
 
 #include "../global.h"
 
-static vec4_t gizmo_v  = (vec4_t){0.0, 0.0, 0.0, 1.0};
-static vec4_t gizmo_v0 = (vec4_t){0.0, 0.0, 0.0, 1.0};
-static quat_t gizmo_q  = (quat_t){0.0, 0.0, 0.0, 1.0};
-static quat_t gizmo_q0 = (quat_t){0.0, 0.0, 0.0, 1.0};
+static vec4_t gizmo_undo_loc;
+static quat_t gizmo_undo_rot;
+static vec4_t gizmo_undo_scale;
+static bool   gizmo_undo_stored = false;
+
+static bool gizmo_quat_equals(quat_t a, quat_t b) {
+	return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
+}
+
+static vec4_t gizmo_v        = (vec4_t){0.0, 0.0, 0.0, 1.0};
+static vec4_t gizmo_v0       = (vec4_t){0.0, 0.0, 0.0, 1.0};
+static quat_t gizmo_q        = (quat_t){0.0, 0.0, 0.0, 1.0};
+static quat_t gizmo_q0       = (quat_t){0.0, 0.0, 0.0, 1.0};
+static f32    gizmo_drag_raw = 0.0;
+
+static vec4_t gizmo_world_axis_to_parent(object_t *o, vec4_t axis) {
+	if (o->parent == NULL) {
+		return axis;
+	}
+	axis.w = 0.0;
+	axis   = vec4_apply_mat4(axis, mat4_inv(o->parent->transform->world));
+	return vec4_norm(axis);
+}
+
+static void gizmo_rotate_world(object_t *o, vec4_t axis, f32 angle) {
+	quat_t q          = quat_from_axis_angle(gizmo_world_axis_to_parent(o, axis), angle);
+	o->transform->rot = quat_norm(quat_mult(q, o->transform->rot));
+}
+
+static void gizmo_scale_world(object_t *o, vec4_t axis, f32 delta) {
+	vec4_t a = gizmo_world_axis_to_parent(o, axis);
+	a        = vec4_apply_quat(a, quat_inv(o->transform->rot));
+	o->transform->scale.x += delta * a.x * a.x;
+	o->transform->scale.y += delta * a.y * a.y;
+	o->transform->scale.z += delta * a.z * a.z;
+}
 
 void render_gizmo_update() {
 	bool is_object = g_context->tool == TOOL_TYPE_CURSOR;
 	bool is_decal  = base_is_decal_layer();
 
 	object_t *gizmo = g_context->gizmo;
-	bool      hide  = operator_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN);
+	bool      hide  = keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN);
 	gizmo->visible  = (is_object || is_decal) && !hide && g_config->workspace != WORKSPACE_PLAYER;
 	if (!gizmo->visible) {
 		return;
@@ -65,33 +97,36 @@ void render_gizmo_update() {
 				paint_object->transform->loc = (vec4_t){v.x, v.y, v.z, 1.0};
 			}
 			else if (g_context->scale_x) {
-				paint_object->transform->scale.x += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_x_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->scale_y) {
-				paint_object->transform->scale.y += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_y_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->scale_z) {
-				paint_object->transform->scale.z += g_context->gizmo_drag - g_context->gizmo_drag_last;
+				gizmo_scale_world(paint_object, vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			else if (g_context->rotate_x) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_x_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_x_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
 			}
 			else if (g_context->rotate_y) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_y_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_y_axis(), -(g_context->gizmo_drag - g_context->gizmo_drag_last));
 			}
 			else if (g_context->rotate_z) {
-				gizmo_q0                     = quat_from_axis_angle(vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
-				paint_object->transform->rot = quat_mult(paint_object->transform->rot, gizmo_q0);
+				gizmo_rotate_world(paint_object, vec4_z_axis(), g_context->gizmo_drag - g_context->gizmo_drag_last);
 			}
 			g_context->gizmo_drag_last = g_context->gizmo_drag;
 
 			transform_build_matrix(paint_object->transform);
+			ui_header_handle->redraws = 2;
+			g_context->ddirty         = 2;
 
-			asim_body_t *pb = paint_object->_->body;
+			if (config_is_raytrace_multi()) {
+				render_path_raytrace_ready = false;
+			}
+
+			physics_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {
-				asim_body_sync_transform(pb);
+				physics_body_sync_transform(pb);
 			}
 		}
 	}
@@ -237,20 +272,44 @@ void render_gizmo_update() {
 		}
 	}
 	else if (mouse_released("left")) {
+		g_context->pick_object_id = false;
 		g_context->translate_x = g_context->translate_y = g_context->translate_z = false;
 		g_context->scale_x = g_context->scale_y = g_context->scale_z = false;
 		g_context->rotate_x = g_context->rotate_y = g_context->rotate_z = false;
+
+		if (gizmo_undo_stored) {
+			gizmo_undo_stored = false;
+			transform_t *t    = paint_object->transform;
+			if (!vec4_equals(t->loc, gizmo_undo_loc) || !gizmo_quat_equals(t->rot, gizmo_undo_rot) || !vec4_equals(t->scale, gizmo_undo_scale)) {
+				history_object_transform(g_context->paint_object, gizmo_undo_loc, gizmo_undo_rot, gizmo_undo_scale);
+			}
+		}
+	}
+
+	if (g_context->gizmo_started) {
+		g_context->pick_object_id = false;
+	}
+
+	if (is_object && g_context->gizmo_started) {
+		transform_t *t    = paint_object->transform;
+		gizmo_undo_loc    = t->loc;
+		gizmo_undo_rot    = t->rot;
+		gizmo_undo_scale  = t->scale;
+		gizmo_undo_stored = true;
 	}
 
 	if (g_context->translate_x || g_context->translate_y || g_context->translate_z || g_context->scale_x || g_context->scale_y || g_context->scale_z ||
 	    g_context->rotate_x || g_context->rotate_y || g_context->rotate_z) {
-		g_context->rdirty = 2;
 		if (is_object) {
 			transform_t *t = paint_object->transform;
 			gizmo_v        = (vec4_t){transform_world_x(t), transform_world_y(t), transform_world_z(t), 1.0};
 		}
 		else if (is_decal) {
 			gizmo_v = (vec4_t){g_context->layer->decal_mat.m30, g_context->layer->decal_mat.m31, g_context->layer->decal_mat.m32, 1.0};
+		}
+
+		if (!g_context->gizmo_started) {
+			g_context->gizmo_drag = gizmo_drag_raw;
 		}
 
 		// Project the world axis into screen space and map per-frame mouse delta onto it
@@ -333,6 +392,14 @@ void render_gizmo_update() {
 				}
 				g_context->gizmo_drag = math_atan2(v, u) - g_context->gizmo_offset;
 			}
+		}
+
+		gizmo_drag_raw = g_context->gizmo_drag;
+		if (keymap_shortcut(any_map_get(g_keymap, "grid_snap"), SHORTCUT_TYPE_DOWN) || g_config->grid_snap) {
+			bool is_rotate             = g_context->rotate_x || g_context->rotate_y || g_context->rotate_z;
+			f32  step                  = is_rotate ? IRON_PI / 4.0 : 0.5; // 45 degrees / 0.5 units
+			g_context->gizmo_drag      = math_round(g_context->gizmo_drag / step) * step;
+			g_context->gizmo_drag_last = math_round(g_context->gizmo_drag_last / step) * step;
 		}
 
 		if (g_context->gizmo_started) {

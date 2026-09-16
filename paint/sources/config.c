@@ -23,6 +23,7 @@ void config_load() {
 		blob = data_get_blob(path);
 		if (blob == NULL) {
 			path_is_protected_linux = true;
+			free(path);
 			config_load();
 			return;
 		}
@@ -33,11 +34,11 @@ void config_load() {
 		char *config_string = sys_buffer_to_string(blob);
 		if (starts_with(config_string, "{\"version\":")) { // Ensure valid config
 			config_loaded = true;
-			gc_unroot(g_config);
-			g_config = json_parse(config_string);
-			gc_root(g_config);
+			g_config      = json_parse(config_string);
 		}
+		free(config_string);
 	}
+	free(path);
 }
 
 void config_save() {
@@ -71,7 +72,7 @@ void config_save() {
 	json_encode_i32("window_frequency", g_config->window_frequency);
 	json_encode_f32("window_scale", g_config->window_scale);
 	json_encode_f32("rp_supersample", g_config->rp_supersample);
-	json_encode_bool("rp_ssao", g_config->rp_ssao);
+	json_encode_f32("rp_ssao", g_config->rp_ssao);
 	json_encode_f32("rp_bloom", g_config->rp_bloom);
 	json_encode_f32("rp_vignette", g_config->rp_vignette);
 	json_encode_f32("rp_grain", g_config->rp_grain);
@@ -112,6 +113,7 @@ void config_save() {
 	json_encode_string("server", g_config->server);
 	json_encode_i32("viewport_mode", g_config->viewport_mode);
 	json_encode_i32("pathtrace_mode", g_config->pathtrace_mode);
+	json_encode_i32("pathtrace_frames", g_config->pathtrace_frames);
 	json_encode_bool("pressure_radius", g_config->pressure_radius);
 	json_encode_f32("pressure_sensitivity", g_config->pressure_sensitivity);
 	json_encode_i32("layer_res", g_config->layer_res);
@@ -126,7 +128,6 @@ void config_save() {
 	json_encode_f32("brush_alpha_discard", g_config->brush_alpha_discard);
 	json_encode_i32("dilate_radius", g_config->dilate_radius);
 	json_encode_string("blender", g_config->blender);
-	json_encode_i32("scene_atlas_res", g_config->scene_atlas_res);
 	json_encode_bool("grid_snap", g_config->grid_snap);
 	json_encode_bool("experimental", g_config->experimental);
 	json_encode_i32("neural_res", g_config->neural_res);
@@ -141,13 +142,14 @@ void config_save() {
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
 	iron_file_save_bytes(path, buffer, 0);
+	array_free(buffer);
+	free(buffer);
+	free(config_json);
 }
 
 void config_init() {
 	if (!config_loaded || g_config == NULL) {
-		gc_unroot(g_config);
-		g_config = GC_ALLOC_INIT(config_t, {0});
-		gc_root(g_config);
+		g_config                     = ALLOC_INIT(config_t, {0});
 		g_config->version            = string_copy(manifest_version_config);
 		g_config->sha                = string_copy(config_get_sha());
 		g_config->locale             = "en"; // "system";
@@ -187,12 +189,8 @@ void config_init() {
 		g_config->rp_gamma         = 1.0;
 		g_config->lut_path         = "";
 		g_config->texture_filter   = true;
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->rp_ssao = false;
-#else
-		g_config->rp_ssao = true;
-#endif
-		g_config->rp_supersample = 1.0;
+		g_config->rp_ssao          = 1.0;
+		g_config->rp_supersample   = 1.0;
 #ifdef IRON_ANDROID
 		if (sys_display_width() >= 3200 && sys_display_height() >= 2136) {
 			g_config->window_scale   = 2.5;
@@ -255,8 +253,8 @@ void config_init() {
 		g_config->show_asset_names    = false;
 		g_config->dilate_radius       = 2;
 		g_config->blender             = "";
-		g_config->scene_atlas_res     = TEXTURE_RES_RES8192;
 		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;
+		g_config->pathtrace_frames    = 8;
 		g_config->grid_snap           = false;
 		g_config->view2d_grid_show    = false;
 		g_config->view2d_grid_cell    = 64;
@@ -264,13 +262,9 @@ void config_init() {
 		g_config->experimental        = false;
 		g_config->neural_res          = 512;
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->render_mode = RENDER_MODE_FORWARD;
-#else
-		g_config->render_mode = RENDER_MODE_DEFERRED;
-#endif
-		g_config->workspace = WORKSPACE_PAINT_3D;
-		g_config->workflow  = WORKFLOW_PBR;
+		g_config->render_mode         = RENDER_MODE_DEFERRED;
+		g_config->workspace           = WORKSPACE_PAINT_3D;
+		g_config->workflow            = WORKFLOW_PBR;
 	}
 	else {
 		// Discard old config
@@ -288,7 +282,7 @@ void config_init() {
 		ui_touch_speed = 0.5;
 	}
 #endif
-	base_res_handle->i = g_config->layer_res;
+	base_res = g_config->layer_res;
 	config_set_texture_res(g_config->layer_res);
 	keymap_load();
 }
@@ -363,22 +357,19 @@ iron_window_options_t *config_get_options() {
 		features |= IRON_WINDOW_FEATURES_MINIMIZABLE;
 	}
 	char                  *title = string("untitled - %s", manifest_title);
-	iron_window_options_t *ops   = GC_ALLOC_INIT(iron_window_options_t, {.title     = title,
-	                                                                     .width     = g_config->window_w,
-	                                                                     .height    = g_config->window_h,
-	                                                                     .x         = g_config->window_x,
-	                                                                     .y         = g_config->window_y,
-	                                                                     .mode      = window_mode,
-	                                                                     .features  = features,
-	                                                                     .vsync     = g_config->window_vsync,
-	                                                                     .frequency = g_config->window_frequency});
+	iron_window_options_t *ops   = ALLOC_INIT(iron_window_options_t, {.title     = title,
+	                                                                  .width     = g_config->window_w,
+	                                                                  .height    = g_config->window_h,
+	                                                                  .x         = g_config->window_x,
+	                                                                  .y         = g_config->window_y,
+	                                                                  .mode      = window_mode,
+	                                                                  .features  = features,
+	                                                                  .vsync     = g_config->window_vsync,
+	                                                                  .frequency = g_config->window_frequency});
 	return ops;
 }
 
 void config_restore() {
-	gc_unroot(ui_children);
-	ui_children = any_map_create(); // Reset ui handles
-	gc_root(ui_children);
 	config_loaded        = false;
 	i32_array_t *_layout = g_config->layout;
 	config_init();
@@ -390,16 +381,11 @@ void config_restore() {
 }
 
 void config_import_from(config_t *from) {
-	char *_sha     = g_config->sha;
-	char *_version = g_config->version;
-	gc_unroot(g_config);
-	g_config = from;
-	gc_root(g_config);
+	char *_sha        = g_config->sha;
+	char *_version    = g_config->version;
+	g_config          = from;
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
-	gc_unroot(ui_children);
-	ui_children = any_map_create(); // Reset ui handles
-	gc_root(ui_children);
 	keymap_load();
 	config_init_layout();
 	translator_load_translations(g_config->locale);
@@ -436,25 +422,20 @@ i32 config_get_layer_res() {
 	return config_texture_res_size(res);
 }
 
-i32 config_get_scene_atlas_res() {
-	i32 res = g_config->scene_atlas_res;
-	return config_texture_res_size(res);
-}
-
 void config_set_texture_res(i32 pos) {
 	if (pos != TEXTURE_RES_CUSTOM) {
-		f32 res              = (f32)config_texture_res_size(pos);
-		base_res_x_handle->f = res;
-		base_res_y_handle->f = res;
+		f32 res    = (f32)config_texture_res_size(pos);
+		base_res_x = res;
+		base_res_y = res;
 	}
 }
 
 i32 config_get_texture_res_x() {
-	return (i32)base_res_x_handle->f;
+	return (i32)base_res_x;
 }
 
 i32 config_get_texture_res_y() {
-	return (i32)base_res_y_handle->f;
+	return (i32)base_res_y;
 }
 
 i32 config_get_texture_res_pos(i32 i) {
@@ -466,16 +447,12 @@ i32 config_get_texture_res_pos(i32 i) {
 }
 
 void config_load_theme(char *theme, bool tag_redraw) {
-	gc_unroot(g_theme);
 	g_theme = ui_theme_create();
-	gc_root(g_theme);
 
 	if (!string_equals(theme, "default.json")) {
 		buffer_t   *b      = data_get_blob(string("themes/%s", theme));
 		ui_theme_t *parsed = json_parse(sys_buffer_to_string(b));
-		gc_unroot(g_theme);
-		g_theme = parsed;
-		gc_root(g_theme);
+		g_theme            = parsed;
 	}
 
 	if (tag_redraw) {
@@ -517,3 +494,16 @@ bool config_is_iphone() {
 	return sys_display_ppi() > 330;
 }
 #endif
+
+bool config_is_raytrace_fast() {
+	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST;
+}
+
+bool config_is_raytrace_multi() {
+	bool multi = g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_QUALITY;
+	return multi && g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE;
+}
+
+void config_apply_raytrace_multi() {
+	gpu_raytrace_multi = config_is_raytrace_multi();
+}
