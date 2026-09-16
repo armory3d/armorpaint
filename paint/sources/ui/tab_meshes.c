@@ -94,7 +94,7 @@ static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	i32                    length  = objects->length;
 	mesh_object_t        **sorted  = calloc(length, sizeof(mesh_object_t *));
-	i32             count  = 0;
+	i32                    count   = 0;
 	tab_meshes_collect_children(objects, sorted, &count, NULL);
 
 	// Meshes parented outside of the list

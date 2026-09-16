@@ -179,7 +179,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		texture_count++;
 		node_shader_add_texture(kong, "texcolorid", "_texcolorid");
 		node_shader_write_frag(kong, "output[0] = float4(n.xy, 1.0, pack_f32_i16(0.0, uint(0)));");
-		node_shader_write_frag(kong, string_tmp("var idcol: float3 = pow3(sample_lod(texcolorid, sampler_linear, %s, 0.0).rgb, float3(2.2, 2.2, 2.2));", tex_coord_layer));
+		node_shader_write_frag(kong, string_tmp("var idcol: float3 = pow3(sample_lod(texcolorid, sampler_linear, %s, 0.0).rgb, float3(2.2, 2.2, 2.2));",
+		                                        tex_coord_layer));
 		node_shader_write_frag(kong, "output[1] = float4(idcol.rgb, 1.0);"); // occ
 	}
 	else {
@@ -635,7 +636,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		         (slot_layer_get_masks(g_context->layer, true) != NULL || slot_layer_is_mask(g_context->layer))) {
 			if (slot_layer_is_mask(g_context->layer)) {
 				i32 id = g_context->layer->id;
-				node_shader_write_frag(kong, string_tmp("var mask_view: float = sample_lod(texpaint%s, sampler_linear, %s, 0.0).r;", i32_to_string(id), tex_coord_layer));
+				node_shader_write_frag(kong, string_tmp("var mask_view: float = sample_lod(texpaint%s, sampler_linear, %s, 0.0).r;", i32_to_string(id),
+				                                        tex_coord_layer));
 			}
 			else {
 				node_shader_write_frag(kong, "var mask_view: float = 1.0;");
