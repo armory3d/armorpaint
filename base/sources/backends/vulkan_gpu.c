@@ -393,6 +393,16 @@ static void gpu_cleanup_internal() {
 	}
 }
 
+static void queue_buffer_destroy(VkBuffer buf, VkDeviceMemory mem) {
+	if (buffers_to_destroy_count >= 512) {
+		gpu_execute_and_wait();
+		gpu_cleanup_internal();
+	}
+	buffers_to_destroy[buffers_to_destroy_count]         = buf;
+	buffer_memories_to_destroy[buffers_to_destroy_count] = mem;
+	buffers_to_destroy_count++;
+}
+
 void gpu_render_target_init2(gpu_texture_t *target, uint32_t width, uint32_t height, gpu_texture_format_t format, int framebuffer_index) {
 	target->width     = width;
 	target->height    = height;
@@ -1787,10 +1797,7 @@ void gpu_render_target_init(gpu_texture_t *target, uint32_t width, uint32_t heig
 
 void _gpu_buffer_init(VkBuffer *buf, VkDeviceMemory *mem, uint32_t size, uint32_t usage, uint32_t memory_requirements) {
 	if (buf != NULL && *buf != NULL) {
-		assert(buffers_to_destroy_count < 512);
-		buffers_to_destroy[buffers_to_destroy_count]         = *buf;
-		buffer_memories_to_destroy[buffers_to_destroy_count] = *mem;
-		buffers_to_destroy_count++;
+		queue_buffer_destroy(*buf, *mem);
 	}
 
 	VkBufferCreateInfo buf_info = {
@@ -1903,10 +1910,7 @@ void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	_gpu_buffer_copy(buffer->impl.buf, buffer->impl.cpu_buf, buffer->count * buffer->stride);
 
 	if (!buffer->cpu_write) {
-		assert(buffers_to_destroy_count < 512);
-		buffers_to_destroy[buffers_to_destroy_count]         = buffer->impl.cpu_buf;
-		buffer_memories_to_destroy[buffers_to_destroy_count] = buffer->impl.cpu_mem;
-		buffers_to_destroy_count++;
+		queue_buffer_destroy(buffer->impl.cpu_buf, buffer->impl.cpu_mem);
 		buffer->impl.cpu_buf = NULL;
 		buffer->impl.cpu_mem = VK_NULL_HANDLE;
 	}

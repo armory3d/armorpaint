@@ -462,6 +462,23 @@ void gpu_end_internal() {
 	current_render_targets_count = 0;
 }
 
+static void release_resources_to_destroy() {
+	while (resources_to_destroy_count > 0) {
+		resources_to_destroy_count--;
+		ID3D12Resource *r = resources_to_destroy[resources_to_destroy_count];
+		r->lpVtbl->Release(r);
+	}
+}
+
+static void queue_resource_destroy(ID3D12Resource *resource) {
+	if (resources_to_destroy_count >= 512) {
+		gpu_execute_and_wait();
+		release_resources_to_destroy();
+	}
+	resources_to_destroy[resources_to_destroy_count] = resource;
+	resources_to_destroy_count++;
+}
+
 void gpu_execute_and_wait() {
 	command_list->lpVtbl->Close(command_list);
 	ID3D12CommandList *command_lists[] = {(ID3D12CommandList *)command_list};
@@ -517,11 +534,7 @@ void gpu_present_internal() {
 		resized = false;
 	}
 
-	while (resources_to_destroy_count > 0) {
-		resources_to_destroy_count--;
-		ID3D12Resource *r = resources_to_destroy[resources_to_destroy_count];
-		r->lpVtbl->Release(r);
-	}
+	release_resources_to_destroy();
 }
 
 void gpu_resize_internal(int width, int height) {
@@ -1046,9 +1059,7 @@ void gpu_render_target_init(gpu_texture_t *target, uint32_t width, uint32_t heig
 
 void _gpu_buffer_init(ID3D12Resource **buffer, uint32_t size, D3D12_HEAP_TYPE heap_type) {
 	if (*buffer != NULL) {
-		assert(resources_to_destroy_count < 512);
-		resources_to_destroy[resources_to_destroy_count] = *buffer;
-		resources_to_destroy_count++;
+		queue_resource_destroy(*buffer);
 	}
 	D3D12_HEAP_PROPERTIES heap_properties = {
 	    .Type                 = heap_type,
@@ -1130,9 +1141,7 @@ void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->impl.vertex_buffer_view.BufferLocation = buffer->impl.buffer->lpVtbl->GetGPUVirtualAddress(buffer->impl.buffer);
 
 	if (!buffer->cpu_write) {
-		assert(resources_to_destroy_count < 512);
-		resources_to_destroy[resources_to_destroy_count] = buffer->impl.cpu_buffer;
-		resources_to_destroy_count++;
+		queue_resource_destroy(buffer->impl.cpu_buffer);
 		buffer->impl.cpu_buffer = NULL;
 	}
 }
@@ -1773,8 +1782,7 @@ void gpu_raytrace_set_target(gpu_texture_t *output) {
 	if (!output->gpu_write) {
 		output->gpu_write = true;
 		// gpu_texture_destroy(output);
-		resources_to_destroy[resources_to_destroy_count] = output->impl.image;
-		resources_to_destroy_count++;
+		queue_resource_destroy(output->impl.image);
 
 		D3D12_HEAP_PROPERTIES heap_properties = {
 		    .Type             = D3D12_HEAP_TYPE_DEFAULT,
