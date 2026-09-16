@@ -150,7 +150,7 @@ void export_arm_run_project(char *path) {
 
 	workflow_t _workflow = g_config->workflow;
 	g_config->workflow   = WORKFLOW_PBR;
-	base_update_workflow();
+	base_update_workflow_nodes();
 
 	ui_node_canvas_t_array_t *mnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -164,7 +164,7 @@ void export_arm_run_project(char *path) {
 	}
 
 	g_config->workflow = _workflow;
-	base_update_workflow();
+	base_update_workflow_nodes();
 
 	ui_node_canvas_t_array_t *bnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
