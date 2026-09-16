@@ -30,7 +30,7 @@ void project_open() {
 }
 
 void project_save_on_next_frame(void *_) {
-	export_arm_run_project();
+	export_arm_run_project(g_project->_->filepath);
 	if (_project_save_and_quit) {
 		iron_stop();
 	}

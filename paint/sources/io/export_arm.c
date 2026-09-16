@@ -143,7 +143,7 @@ static void export_arm_free_buffer(buffer_t *b) {
 	}
 }
 
-void export_arm_run_project() {
+void export_arm_run_project(char *path) {
 
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
@@ -219,11 +219,11 @@ void export_arm_run_project() {
 		any_array_push(md, source >= 0 && source < i ? export_arm_linked_mesh_data(p, source) : export_arm_named_mesh_data(p));
 	}
 
-	string_array_t *texture_files = export_arm_assets_to_files(g_project->_->filepath, g_project->_->assets);
-
-	string_array_t *font_files  = export_arm_fonts_to_files(g_project->_->filepath, g_project->_->fonts);
-	string_array_t *sound_files = export_arm_sounds_to_files(g_project->_->filepath, g_project->_->sounds);
-	string_array_t *mesh_files  = export_arm_meshes_to_files(g_project->_->filepath);
+	char *relative_to = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
+	string_array_t *texture_files = export_arm_assets_to_files(relative_to, g_project->_->assets);
+	string_array_t *font_files  = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
+	string_array_t *sound_files = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
+	string_array_t *mesh_files  = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
 	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
@@ -276,7 +276,7 @@ void export_arm_run_project() {
 #ifdef IRON_IOS
 	bool same_drive = false;
 #else
-	bool same_drive = g_project->envmap != NULL ? char_at(g_project->_->filepath, 0)[0] == char_at(g_project->envmap, 0)[0] : true;
+	bool same_drive = g_project->envmap != NULL ? char_at(relative_to, 0)[0] == char_at(g_project->envmap, 0)[0] : true;
 #endif
 
 	g_project->version         = string_copy(manifest_version_project);
@@ -285,7 +285,7 @@ void export_arm_run_project() {
 	g_project->assets          = texture_files;
 	g_project->packed_assets   = packed_assets;
 	g_project->swatches        = g_project->swatches;
-	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(g_project->_->filepath, g_project->envmap) : g_project->envmap) : NULL;
+	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
 	g_project->envmap_strength = scene_world->strength;
 	g_project->envmap_angle    = g_context->envmap_angle;
 	g_project->envmap_blur     = g_context->show_envmap_blur;
@@ -385,7 +385,7 @@ void export_arm_run_project() {
 	for (i32 i = 0; i < 256 * 256 * 4; ++i) {
 		u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
 	}
-	iron_write_png(string("%s_icon.png", substring(g_project->_->filepath, 0, string_length(g_project->_->filepath) - 4)), mesh_icon_pixels, 256, 256, 0);
+	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
 	gpu_delete_texture(mesh_icon);
 #endif
 
@@ -395,7 +395,7 @@ void export_arm_run_project() {
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
-	iron_file_save_bytes(g_project->_->filepath, buffer, buffer->length + 1);
+	iron_file_save_bytes(path, buffer, buffer->length + 1);
 	array_free(buffer);
 	free(buffer);
 
@@ -415,12 +415,17 @@ void export_arm_run_project() {
 	free(ld);
 	g_project->layer_datas = NULL;
 	tab_timeline_export_free(g_project);
+	tab_timeline_finish_save();
+
+	if (!string_equals(path, g_project->_->filepath)) {
+		return;
+	}
 
 	// Save to recent
 #ifdef IRON_IOS
-	char *recent_path = substring(g_project->_->filepath, string_last_index_of(g_project->_->filepath, "/") + 1, string_length(g_project->_->filepath));
+	char *recent_path = substring(path, string_last_index_of(path, "/") + 1, string_length(path));
 #else
-	char *recent_path = g_project->_->filepath;
+	char *recent_path = path;
 #endif
 
 #ifdef IRON_WINDOWS
@@ -430,8 +435,6 @@ void export_arm_run_project() {
 	string_array_remove(recent, recent_path);
 	array_insert(recent, 0, recent_path);
 	config_save();
-
-	tab_timeline_finish_save();
 
 	console_info(tr("Project saved"));
 }

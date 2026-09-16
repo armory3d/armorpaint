@@ -983,7 +983,7 @@ void base_run_in_player() {
 		console_error(tr("Save project first"));
 		return;
 	}
-	export_arm_run_project();
+	export_arm_run_project(g_project->_->filepath);
 	char *bin = iron_get_arg(0);
 	iron_sys_command(string("\"%s\" \"%s\" --player", bin, g_project->_->filepath));
 }

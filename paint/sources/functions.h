@@ -301,7 +301,7 @@ i32                       ui_toolbar_w(bool screen_size_request);
 i32                       ui_toolbar_x();
 void                      ui_toolbar_render_ui();
 void                      export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects);
-void                      export_arm_run_project();
+void                      export_arm_run_project(char *path);
 void                      export_arm_run_material(char *path);
 void                      export_arm_run_brush(char *path);
 void                      export_arm_pack_assets(project_t *raw, asset_t_array_t *assets);
