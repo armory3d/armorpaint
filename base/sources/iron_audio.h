@@ -57,6 +57,7 @@ void                    iron_a1_channel_set_volume(iron_a1_channel_t *channel, f
 void                    iron_a1_channel_set_pitch(iron_a1_channel_t *channel, float pitch);
 void                    iron_a1_mix(iron_a2_buffer_t *buffer, uint32_t samples);
 iron_a1_sound_t        *iron_a1_sound_create(const char *filename);
+iron_a1_sound_t        *iron_a1_sound_create_from_bytes(uint8_t *filedata, int filedata_size, const char *format);
 void                    iron_a1_sound_destroy(iron_a1_sound_t *sound);
 float                   iron_a1_sound_volume(iron_a1_sound_t *sound);
 void                    iron_a1_sound_set_volume(iron_a1_sound_t *sound, float value);

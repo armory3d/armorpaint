@@ -889,6 +889,15 @@ void *iron_load_sound(char *file) {
 	return NULL;
 }
 
+void *iron_load_sound_from_bytes(buffer_t *data, char *format) {
+#ifdef IRON_AUDIO
+	iron_a1_init();
+	iron_a1_sound_t *sound = iron_a1_sound_create_from_bytes(data->buffer, data->length, format);
+	return sound;
+#endif
+	return NULL;
+}
+
 buffer_t *iron_load_blob(char *file) {
 #ifdef WITH_EMBED
 	buffer_t *b = embed_get(file);

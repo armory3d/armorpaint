@@ -343,57 +343,36 @@ static iron_a1_sound_t *find_sound(void) {
 	return NULL;
 }
 
-iron_a1_sound_t *iron_a1_sound_create(const char *filename) {
+iron_a1_sound_t *iron_a1_sound_create_from_bytes(uint8_t *filedata, int filedata_size, const char *format) {
 	iron_a1_sound_t *sound = find_sound();
 	assert(sound != NULL);
-	sound->in_use           = true;
-	sound->volume           = 1.0f;
-	sound->size             = 0;
-	sound->left             = NULL;
-	sound->right            = NULL;
-	size_t   filenameLength = strlen(filename);
-	uint8_t *data           = NULL;
+	sound->in_use = true;
+	sound->volume = 1.0f;
+	sound->size   = 0;
+	sound->left   = NULL;
+	sound->right  = NULL;
+	uint8_t *data = NULL;
 
-	if (strncmp(&filename[filenameLength - 4], ".ogg", 4) == 0) {
-		iron_file_reader_t file;
-		if (!iron_file_reader_open(&file, filename, IRON_FILE_TYPE_ASSET)) {
-			sound->in_use = false;
-			return NULL;
-		}
-		uint8_t *filedata = (uint8_t *)malloc(iron_file_reader_size(&file));
-		iron_file_reader_read(&file, filedata, iron_file_reader_size(&file));
-		iron_file_reader_close(&file);
-
+	if (strncmp(format, ".ogg", 4) == 0) {
 		int channels, sample_rate;
-		int samples               = stb_vorbis_decode_memory(filedata, (int)iron_file_reader_size(&file), &channels, &sample_rate, (short **)&data);
+		int samples               = stb_vorbis_decode_memory(filedata, (int)filedata_size, &channels, &sample_rate, (short **)&data);
 		sound->channel_count      = (uint8_t)channels;
 		sound->samples_per_second = (uint32_t)sample_rate;
 		sound->size               = samples * 2 * sound->channel_count;
 		sound->bits_per_sample    = 16;
-		free(filedata);
 	}
-	else if (strncmp(&filename[filenameLength - 4], ".wav", 4) == 0) {
+	else if (strncmp(format, ".wav", 4) == 0) {
 		struct WaveData wave = {0};
 		{
-			iron_file_reader_t file;
-			if (!iron_file_reader_open(&file, filename, IRON_FILE_TYPE_ASSET)) {
-				sound->in_use = false;
-				return NULL;
-			}
-			uint8_t *filedata = (uint8_t *)malloc(iron_file_reader_size(&file));
-			iron_file_reader_read(&file, filedata, iron_file_reader_size(&file));
-			iron_file_reader_close(&file);
-			uint8_t *data = filedata;
+			uint8_t *pos = filedata;
 
-			checkFOURCC(&data, "RIFF");
-			uint32_t filesize = iron_read_u32le(data);
-			data += 4;
-			checkFOURCC(&data, "WAVE");
-			while (data + 8 - filedata < (intptr_t)filesize) {
-				readChunk(&data, &wave);
+			checkFOURCC(&pos, "RIFF");
+			uint32_t filesize = iron_read_u32le(pos);
+			pos += 4;
+			checkFOURCC(&pos, "WAVE");
+			while (pos + 8 - filedata < (intptr_t)filesize) {
+				readChunk(&pos, &wave);
 			}
-
-			free(filedata);
 		}
 
 		sound->bits_per_sample    = (uint8_t)wave.bitsPerSample;
@@ -403,7 +382,8 @@ iron_a1_sound_t *iron_a1_sound_create(const char *filename) {
 		sound->size               = wave.dataSize;
 	}
 	else {
-		assert(false);
+		sound->in_use = false;
+		return NULL;
 	}
 
 	if (sound->channel_count == 1) {
@@ -437,6 +417,22 @@ iron_a1_sound_t *iron_a1_sound_create(const char *filename) {
 	sound->sample_rate_pos = 44100 / (float)sound->samples_per_second;
 	free(data);
 
+	return sound;
+}
+
+iron_a1_sound_t *iron_a1_sound_create(const char *filename) {
+	iron_file_reader_t file;
+	if (!iron_file_reader_open(&file, filename, IRON_FILE_TYPE_ASSET)) {
+		return NULL;
+	}
+	int      filedata_size = (int)iron_file_reader_size(&file);
+	uint8_t *filedata      = (uint8_t *)malloc(filedata_size);
+	iron_file_reader_read(&file, filedata, filedata_size);
+	iron_file_reader_close(&file);
+
+	size_t           filename_length = strlen(filename);
+	iron_a1_sound_t *sound           = iron_a1_sound_create_from_bytes(filedata, filedata_size, &filename[filename_length - 4]);
+	free(filedata);
 	return sound;
 }
 
