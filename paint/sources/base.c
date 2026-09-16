@@ -968,11 +968,14 @@ void base_update_workflow() {
 		}
 	}
 	else {
+		i32 selected_id = g_context->layer != NULL ? g_context->layer->id : -1;
 		for (i32 i = g_project->_->layers->length - 1; i >= 0; --i) {
 			slot_layer_t *l = g_project->_->layers->buffer[i];
-			if (l->texpaint_sculpt == NULL && slot_layer_is_layer(l)) {
-				context_set_layer(l);
-				break;
+			if (l->texpaint_sculpt == NULL) {
+				if (selected_id == l->id || (selected_id < 0 && slot_layer_is_layer(l))) {
+					context_set_layer(l);
+					break;
+				}
 			}
 		}
 	}
