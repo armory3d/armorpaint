@@ -1003,25 +1003,10 @@ static void tab_timeline_apply_stage_on_next_frame(void *stage) {
 	tab_stages_apply(stage);
 }
 
-static void tab_timeline_init_stages() {
-	if (g_project->stages == NULL) {
-		g_project->stages = any_array_create_from_raw((void *[]){}, 0);
-		stage_t *s        = tab_stages_create_stage("Stage 1");
-		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-			string_array_push(s->objects, g_project->_->paint_objects->buffer[i]->base->name);
-		}
-		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-			string_array_push(s->layers, g_project->_->layers->buffer[i]->name);
-		}
-		any_array_push(g_project->stages, s);
-	}
-}
-
 static void tab_timeline_open_mesh_on_next_frame(void *mesh_ptr) {
 	mesh_object_t *mesh = mesh_ptr;
 	if (array_index_of(g_project->_->paint_objects, mesh) < 0)
 		return;
-	tab_timeline_init_stages();
 	stage_t *clip = NULL;
 	for (i32 i = 0; i < g_project->stages->length; ++i) {
 		stage_t *s = g_project->stages->buffer[i];
@@ -1682,7 +1667,7 @@ void tab_timeline_draw_stage_menu() {
 		sys_notify_on_next_frame(&tab_timeline_apply_stage_on_next_frame, s);
 	}
 
-	g_ui->enabled = g_project->stages != NULL && g_project->stages->length > 1;
+	g_ui->enabled = g_project->stages->length > 1;
 	if (ui_menu_button(tr("Remove"), "", ICON_DELETE)) {
 		array_splice(g_project->stages, tab_stages_selected, 1);
 		if (tab_stages_selected >= g_project->stages->length) {
@@ -1723,13 +1708,9 @@ void tab_timeline_draw(i32 *htab) {
 		ui_row(row);
 
 		// Stage
-		tab_timeline_init_stages();
-
 		string_array_t *stage_names = string_array_create(0);
-		if (g_project->stages != NULL) {
-			for (i32 i = 0; i < g_project->stages->length; ++i) {
-				string_array_push(stage_names, g_project->stages->buffer[i]->name);
-			}
+		for (i32 i = 0; i < g_project->stages->length; ++i) {
+			string_array_push(stage_names, g_project->stages->buffer[i]->name);
 		}
 
 		if (ui_button(tr("Stage"), UI_ALIGN_CENTER, "")) {
@@ -1737,7 +1718,7 @@ void tab_timeline_draw(i32 *htab) {
 		}
 
 		ui_combo(&tab_stages_selected, stage_names, tr("Stage"), false, UI_ALIGN_LEFT, true);
-		if (ui_item_changed() && g_project->stages != NULL && tab_stages_selected < g_project->stages->length) {
+		if (ui_item_changed() && tab_stages_selected < g_project->stages->length) {
 			sys_notify_on_next_frame(&tab_timeline_apply_stage_on_next_frame, g_project->stages->buffer[tab_stages_selected]);
 		}
 

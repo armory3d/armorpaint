@@ -12,6 +12,28 @@ stage_t *tab_stages_create_stage(char *name) {
 	return s;
 }
 
+void tab_stages_init() {
+	if (g_project->stages != NULL && g_project->stages->length > 0) {
+		return;
+	}
+	stage_t *s = tab_stages_create_stage("Stage 1");
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		string_array_push(s->objects, o->base->name);
+		if (!o->base->visible) {
+			string_array_push(s->hidden, o->base->name);
+		}
+	}
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		string_array_push(s->layers, g_project->_->layers->buffer[i]->name);
+	}
+	if (g_project->stages == NULL) {
+		g_project->stages = any_array_create_from_raw((void *[]){}, 0);
+	}
+	any_array_push(g_project->stages, s);
+	tab_stages_selected = 0;
+}
+
 bool tab_stages_is_hidden(stage_t *stage, char *name) {
 	return stage->hidden != NULL && string_array_index_of(stage->hidden, name) >= 0;
 }

@@ -706,10 +706,10 @@ void import_arm_run_project(char *path) {
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = mesh_names->buffer[0];
 	g_project->_->paint_objects         = any_array_create_from_raw(
-        (void *[]){
-            g_context->paint_object,
-        },
-        1);
+	    (void *[]){
+	        g_context->paint_object,
+	    },
+	    1);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
@@ -734,14 +734,8 @@ void import_arm_run_project(char *path) {
 		    1);
 	}
 
-	// No mask by default
-	if (g_context->merged_object == NULL) {
-		util_mesh_merge(NULL);
-	}
-
 	context_select_paint_object(context_main_object());
-	g_context->paint_object->skip_context   = "paint";
-	g_context->merged_object->base->visible = true;
+	g_context->paint_object->skip_context = "paint";
 
 	gpu_texture_t *tex = g_project->_->layers->buffer[0]->texpaint;
 	if (tex->width != config_get_texture_res_x() || tex->height != config_get_texture_res_y()) {
@@ -888,7 +882,13 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
-	context_set_layer(g_project->_->layers->buffer[0]);
+	// Layer
+	g_context->layer        = g_project->_->layers->buffer[0];
+	ui_view2d_hwnd->redraws = 2;
+	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
+		layers_set_object_mask();
+	}
+	make_material_parse_mesh_material();
 
 	// Materials
 	shader_data_t *m0       = data_get_shader("Scene", "Material");
@@ -924,12 +924,16 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
+	bool make_previews = g_config->workspace != WORKSPACE_PLAYER;
+
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-		slot_material_t *m  = g_project->_->materials->buffer[i];
-		g_context->material = m;
-		make_material_parse_paint_material(true);
-		util_render_make_material_preview();
+		g_context->material = g_project->_->materials->buffer[i];
+		if (make_previews) {
+			make_material_bake_node_previews();
+			util_render_make_material_preview();
+		}
 	}
+	make_material_parse_paint_material(!make_previews);
 
 	g_project->_->brushes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->brush_nodes->length; ++i) {
@@ -939,7 +943,9 @@ void import_arm_run_project(char *path) {
 		any_array_push(g_project->_->brushes, g_context->brush);
 		make_material_parse_brush();
 		brush_output_node_parse_inputs();
-		util_render_make_brush_preview();
+		if (make_previews) {
+			util_render_make_brush_preview();
+		}
 	}
 
 	// Fill layers and path layers materials
@@ -962,12 +968,22 @@ void import_arm_run_project(char *path) {
 	}
 
 	if (g_project->mesh_materials != NULL) {
+		i32             mat_count = g_project->_->materials->length;
+		shader_data_t **mat_cache = calloc(mat_count, sizeof(shader_data_t *));
+		shader_compile_batch_begin();
 		for (i32 i = 0; i < g_project->_->paint_objects->length && i < g_project->mesh_materials->length; ++i) {
 			i32 mat_index = g_project->mesh_materials->buffer[i];
 			if (mat_index >= 0) {
-				tab_meshes_set_override(g_project->_->paint_objects->buffer[i], mat_index);
+				mesh_object_t *o      = g_project->_->paint_objects->buffer[i];
+				bool           cached = mat_index < mat_count;
+				tab_meshes_set_override_data(o, mat_index, cached ? mat_cache[mat_index] : NULL);
+				if (cached) {
+					mat_cache[mat_index] = o->material;
+				}
 			}
 		}
+		shader_compile_batch_end();
+		free(mat_cache);
 	}
 
 	if (g_project->mesh_parents != NULL) {
@@ -992,15 +1008,22 @@ void import_arm_run_project(char *path) {
 
 	tab_meshes_sort_hierarchy();
 
+	tab_stages_init();
 	tab_timeline_import(g_project);
 
 	// Select the first stage
-	if (g_project->stages != NULL && g_project->stages->length > 0) {
-		tab_stages_selected = 0;
-		tab_stages_apply(g_project->stages->buffer[0]);
+	tab_stages_selected = 0;
+	tab_stages_apply(g_project->stages->buffer[0]);
+
+	if (g_context->merged_object == NULL) {
+		util_mesh_merge(NULL);
+	}
+	if (slot_layer_get_object_mask(g_context->layer) > 0 || g_context->layer_filter > 0) {
+		layers_set_object_mask();
 	}
 	else {
-		util_physics_apply_stage(NULL);
+		context_select_paint_object(context_main_object());
+		g_context->merged_object->base->visible = true;
 	}
 
 	sys_notify_on_next_frame(&import_arm_run_project_on_next_frame, NULL);

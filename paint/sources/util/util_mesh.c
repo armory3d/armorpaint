@@ -362,7 +362,8 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 		// }
 
 		// Re-scale
-		for (i32 j = voff; j < math_floor(va0->length / 4.0); ++j) {
+		i32 vend = voff + (i32)math_floor(vas->buffer[0]->values->length / 4.0);
+		for (i32 j = voff; j < vend; ++j) {
 			va0->buffer[j * 4]     = math_floor((va0->buffer[j * 4] * scale) / (float)max_scale);
 			va0->buffer[j * 4 + 1] = math_floor((va0->buffer[j * 4 + 1] * scale) / (float)max_scale);
 			va0->buffer[j * 4 + 2] = math_floor((va0->buffer[j * 4 + 2] * scale) / (float)max_scale);

@@ -106,6 +106,11 @@ void project_cleanup() {
 		data_delete_texture(a->file);
 	}
 
+	ui_view2d_stop_sound();
+	for (i32 i = 0; i < g_project->_->sounds->length; ++i) {
+		data_delete_sound(g_project->_->sounds->buffer[i]->file);
+	}
+
 	util_physics_clear();
 }
 
@@ -128,6 +133,7 @@ void project_new(bool reset_layers) {
 		project_cleanup();
 		g_project->_->filepath = "";
 	}
+	g_project->stages = NULL;
 
 	if (g_project->_->layers->length == 0) {
 		any_array_push(g_project->_->layers, slot_layer_create("", LAYER_SLOT_TYPE_LAYER, NULL));
@@ -199,6 +205,7 @@ void project_new(bool reset_layers) {
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = "Tessellated";
+	g_context->paint_object->base->visible = true;
 
 	while (g_project->_->materials->length > 0) {
 		slot_material_unload(array_pop(g_project->_->materials));
@@ -223,6 +230,8 @@ void project_new(bool reset_layers) {
 	    },
 	    1);
 	g_context->font = g_project->_->fonts->buffer[0];
+	g_project->_->sounds = any_array_create_from_raw((void *[]){}, 0);
+	g_context->sound    = NULL;
 	project_set_default_swatches();
 	g_context->swatch                = g_project->swatches->buffer[0];
 	g_context->picked_color          = project_make_swatch(0xffffffff);
@@ -258,6 +267,7 @@ void project_new(bool reset_layers) {
 	if (in_use)
 		draw_begin(current, false, 0);
 
+	tab_stages_init();
 	tab_meshes_reset_preview_map();
 	base_update_workflow();
 	project_set_default_envmap();
