@@ -21,7 +21,6 @@ void     iron_a2_init(void);
 void     iron_a2_set_callback(void (*iron_a2_audio_callback)(iron_a2_buffer_t *buffer, uint32_t samples, void *userdata), void *userdata);
 uint32_t iron_a2_samples_per_second(void);
 void     iron_a2_set_sample_rate_callback(void (*iron_a2_sample_rate_callback)(void *userdata), void *userdata);
-void     iron_a2_internal_sample_rate_callback(void);
 
 struct iron_a1_channel {
 	iron_a1_sound_t *sound;

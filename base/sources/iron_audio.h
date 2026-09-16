@@ -76,6 +76,7 @@ void                    iron_a1_sound_stream_set_volume(iron_a1_sound_stream_t *
 void                    iron_a2_internal_init(void);
 void                    iron_a2_shutdown(void);
 bool                    iron_a2_internal_callback(iron_a2_buffer_t *buffer, int samples);
+void                    iron_a2_internal_sample_rate_callback(void);
 
 // struct iron_internal_video_channel;
 // typedef struct iron_internal_video_channel iron_internal_video_channel_t;
