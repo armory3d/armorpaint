@@ -2,6 +2,9 @@
 #include <assert.h>
 #include <backends/windows_system.h>
 #include <d3d12.h>
+#ifdef WITH_D3DCOMPILER
+#include <D3Dcompiler.h>
+#endif
 #include <dxgi.h>
 #include <dxgi1_6.h>
 #include <iron_global.h>
@@ -249,7 +252,7 @@ void gpu_render_target_init2(gpu_texture_t *render_target, uint32_t width, uint3
 	else {
 		HRESULT result =
 		    device->lpVtbl->CreateCommittedResource(device, &heap_properties, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
-		                                            &clear_value, &IID_ID3D12Resource, &render_target->impl.image);
+			                                        &clear_value, &IID_ID3D12Resource, &render_target->impl.image);
 		if (result != S_OK && gpu_cleanup_pending()) {
 			gpu_execute_and_wait();
 			gpu_cleanup();
@@ -294,12 +297,12 @@ void create_root_signature(bool linear_sampling) {
 	ID3DBlob              *error_blob    = NULL;
 	D3D12_ROOT_PARAMETER   parameters[3] = {0};
 	D3D12_DESCRIPTOR_RANGE range         = {
-	            .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
-	            .NumDescriptors                    = (UINT)GPU_MAX_TEXTURES,
-	            .BaseShaderRegister                = 0,
-	            .RegisterSpace                     = 0,
-	            .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
-    };
+	    .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+	    .NumDescriptors                    = (UINT)GPU_MAX_TEXTURES,
+	    .BaseShaderRegister                = 0,
+	    .RegisterSpace                     = 0,
+	    .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
+	};
 	parameters[0].ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	parameters[0].ShaderVisibility                    = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[0].DescriptorTable.NumDescriptorRanges = 1;
@@ -309,12 +312,12 @@ void create_root_signature(bool linear_sampling) {
 	parameters[1].Descriptor.ShaderRegister           = 0;
 	parameters[1].Descriptor.RegisterSpace            = 0;
 	D3D12_DESCRIPTOR_RANGE sampler_range              = {
-	                 .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
-	                 .NumDescriptors                    = 1,
-	                 .BaseShaderRegister                = 0,
-	                 .RegisterSpace                     = 0,
-	                 .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
-    };
+	    .RangeType                         = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER,
+	    .NumDescriptors                    = 1,
+	    .BaseShaderRegister                = 0,
+	    .RegisterSpace                     = 0,
+	    .OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND,
+	};
 	parameters[2].ParameterType                       = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	parameters[2].ShaderVisibility                    = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[2].DescriptorTable.NumDescriptorRanges = 1;
@@ -771,7 +774,51 @@ void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipe) {
 	}
 }
 
+#ifdef WITH_D3DCOMPILER
+// hlsl to bytecode
+void gpu_shader_compile(gpu_shader_t *shader, bool vertex) {
+	if (!shader->impl.is_source) {
+		return;
+	}
+	shader->impl.is_source  = false;
+	ID3DBlob *error_message = NULL;
+	ID3DBlob *shader_buffer = NULL;
+	UINT      flags         = D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_SKIP_VALIDATION;
+	HRESULT   hr =
+	    D3DCompile(shader->impl.data, shader->impl.length, NULL, NULL, NULL, "main", vertex ? "vs_5_0" : "ps_5_0", flags, 0, &shader_buffer, &error_message);
+	if (error_message != NULL) {
+		if (hr != S_OK) {
+			iron_log("%s", (char *)error_message->lpVtbl->GetBufferPointer(error_message));
+		}
+		error_message->lpVtbl->Release(error_message);
+	}
+	free(shader->impl.data);
+	shader->impl.data   = NULL;
+	shader->impl.length = 0;
+	if (hr != S_OK) {
+		return;
+	}
+	shader->impl.length = (int)shader_buffer->lpVtbl->GetBufferSize(shader_buffer);
+	shader->impl.data   = (uint8_t *)malloc(shader->impl.length);
+	memcpy(shader->impl.data, shader_buffer->lpVtbl->GetBufferPointer(shader_buffer), shader->impl.length);
+	shader_buffer->lpVtbl->Release(shader_buffer);
+}
+#endif
+
 void gpu_pipeline_compile(gpu_pipeline_t *pipe) {
+#ifdef WITH_D3DCOMPILER
+	// No op when already compiled
+	gpu_shader_compile(pipe->vertex_shader, true);
+	gpu_shader_compile(pipe->fragment_shader, false);
+#endif
+	if (pipe->vertex_shader->impl.length == 0 || pipe->fragment_shader->impl.length == 0) {
+		return;
+	}
+	const void *vs_bytecode = pipe->vertex_shader->impl.data;
+	int         vs_length   = pipe->vertex_shader->impl.length;
+	const void *fs_bytecode = pipe->fragment_shader->impl.data;
+	int         fs_length   = pipe->fragment_shader->impl.length;
+
 	int                       vertex_attribute_count = pipe->input_layout->size;
 	D3D12_INPUT_ELEMENT_DESC *vertex_desc            = (D3D12_INPUT_ELEMENT_DESC *)alloca(sizeof(D3D12_INPUT_ELEMENT_DESC) * vertex_attribute_count);
 	ZeroMemory(vertex_desc, sizeof(D3D12_INPUT_ELEMENT_DESC) * vertex_attribute_count);
@@ -810,10 +857,10 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipe) {
 	const D3D12_DEPTH_STENCILOP_DESC default_stencil_op = {D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_NEVER};
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {
-	    .VS.BytecodeLength                     = pipe->vertex_shader->impl.length,
-	    .VS.pShaderBytecode                    = pipe->vertex_shader->impl.data,
-	    .PS.BytecodeLength                     = pipe->fragment_shader->impl.length,
-	    .PS.pShaderBytecode                    = pipe->fragment_shader->impl.data,
+	    .VS.BytecodeLength                     = vs_length,
+	    .VS.pShaderBytecode                    = vs_bytecode,
+	    .PS.BytecodeLength                     = fs_length,
+	    .PS.pShaderBytecode                    = fs_bytecode,
 	    .pRootSignature                        = root_signature,
 	    .NumRenderTargets                      = pipe->color_attachment_count,
 	    .InputLayout.NumElements               = vertex_attribute_count,
@@ -851,8 +898,8 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipe) {
 
 	psoDesc.BlendState.IndependentBlendEnable = true;
 	for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; ++i) {
-		psoDesc.BlendState.RenderTarget[i].BlendEnable = pipe->blend_source != GPU_BLEND_ONE || pipe->blend_destination != GPU_BLEND_ZERO ||
-		                                                 pipe->alpha_blend_source != GPU_BLEND_ONE || pipe->alpha_blend_destination != GPU_BLEND_ZERO;
+		psoDesc.BlendState.RenderTarget[i].BlendEnable    = pipe->blend_source != GPU_BLEND_ONE || pipe->blend_destination != GPU_BLEND_ZERO ||
+		                                                    pipe->alpha_blend_source != GPU_BLEND_ONE || pipe->alpha_blend_destination != GPU_BLEND_ZERO;
 		psoDesc.BlendState.RenderTarget[i].SrcBlend       = convert_blend_factor(pipe->blend_source);
 		psoDesc.BlendState.RenderTarget[i].DestBlend      = convert_blend_factor(pipe->blend_destination);
 		psoDesc.BlendState.RenderTarget[i].BlendOp        = D3D12_BLEND_OP_ADD;
@@ -861,7 +908,7 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipe) {
 		psoDesc.BlendState.RenderTarget[i].BlendOpAlpha   = D3D12_BLEND_OP_ADD;
 		psoDesc.BlendState.RenderTarget[i].RenderTargetWriteMask =
 		    (((pipe->color_write_mask_red[i] ? D3D12_COLOR_WRITE_ENABLE_RED : 0) | (pipe->color_write_mask_green[i] ? D3D12_COLOR_WRITE_ENABLE_GREEN : 0)) |
-		     (pipe->color_write_mask_blue[i] ? D3D12_COLOR_WRITE_ENABLE_BLUE : 0)) |
+			 (pipe->color_write_mask_blue[i] ? D3D12_COLOR_WRITE_ENABLE_BLUE : 0)) |
 		    (pipe->color_write_mask_alpha[i] ? D3D12_COLOR_WRITE_ENABLE_ALPHA : 0);
 	}
 
@@ -869,9 +916,10 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipe) {
 }
 
 void gpu_shader_init(gpu_shader_t *shader, const void *_data, size_t length, gpu_shader_type_t type) {
-	uint8_t *data       = (uint8_t *)_data;
-	shader->impl.length = (int)length;
-	shader->impl.data   = (uint8_t *)malloc(shader->impl.length);
+	uint8_t *data          = (uint8_t *)_data;
+	shader->impl.length    = (int)length;
+	shader->impl.is_source = false;
+	shader->impl.data      = (uint8_t *)malloc(shader->impl.length);
 	memcpy(shader->impl.data, data, shader->impl.length);
 }
 
@@ -1085,8 +1133,8 @@ void _gpu_buffer_init(ID3D12Resource **buffer, uint32_t size, D3D12_HEAP_TYPE he
 
 	HRESULT result =
 	    device->lpVtbl->CreateCommittedResource(device, &heap_properties, D3D12_HEAP_FLAG_NONE, &resource_desc,
-	                                            heap_type == D3D12_HEAP_TYPE_UPLOAD ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON, NULL,
-	                                            &IID_ID3D12Resource, buffer);
+		                                        heap_type == D3D12_HEAP_TYPE_UPLOAD ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON, NULL,
+		                                        &IID_ID3D12Resource, buffer);
 
 	if (result != S_OK && gpu_cleanup_pending()) {
 		gpu_execute_and_wait();
@@ -1195,9 +1243,9 @@ void gpu_constant_buffer_lock(gpu_buffer_t *buffer, uint32_t start, uint32_t cou
 	buffer->impl.last_start = start;
 	buffer->impl.last_count = count;
 	D3D12_RANGE range       = {
-	          .Begin = start,
-	          .End   = start + count,
-    };
+	    .Begin = start,
+	    .End   = start + count,
+	};
 	uint8_t *p;
 	buffer->impl.buffer->lpVtbl->Map(buffer->impl.buffer, 0, &range, (void **)&p);
 	buffer->data = &p[start];
@@ -1565,12 +1613,12 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 
 			D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO bottom_level_prebuild_info = {0};
 			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS  inputs                     = {
-			                         .DescsLayout    = D3D12_ELEMENTS_LAYOUT_ARRAY,
-			                         .NumDescs       = 1,
-			                         .Type           = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
-			                         .pGeometryDescs = &geometry_descs[i],
-			                         .Flags          = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
-            };
+			    .DescsLayout    = D3D12_ELEMENTS_LAYOUT_ARRAY,
+			    .NumDescs       = 1,
+			    .Type           = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL,
+			    .pGeometryDescs = &geometry_descs[i],
+			    .Flags          = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE,
+			};
 			dxr_device->lpVtbl->GetRaytracingAccelerationStructurePrebuildInfo(dxr_device, &inputs, &bottom_level_prebuild_info);
 			bottom_level_inputs[i] = inputs;
 

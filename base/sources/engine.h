@@ -418,6 +418,8 @@ void                 shader_context_compile(shader_context_t *raw);
 i32                  shader_context_type_size(char *t);
 i32                  shader_context_type_pad(i32 offset, i32 size);
 void                 shader_context_finish_compile(shader_context_t *raw);
+void                 shader_compile_batch_begin(void);
+void                 shader_compile_batch_end(void);
 gpu_vertex_data_t    shader_context_parse_data(char *data);
 void                 shader_context_parse_vertex_struct(shader_context_t *raw);
 void                 shader_context_delete(shader_context_t *raw);
