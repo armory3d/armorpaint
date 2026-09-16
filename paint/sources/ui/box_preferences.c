@@ -103,8 +103,11 @@ void box_preferences_interface_tab() {
 	bool scale_changed = ui_item_changed();
 	if (g_context->hscale_was_changed && !g_ui->input_down) {
 		g_context->hscale_was_changed = false;
-		if (box_preferences_scale == 0.0) {
+		if (box_preferences_scale < 1.0) {
 			box_preferences_scale = 1.0;
+		}
+		if (box_preferences_scale > 4.0) {
+			box_preferences_scale = 4.0;
 		}
 		g_config->window_scale = box_preferences_scale;
 		box_preferences_set_scale();
