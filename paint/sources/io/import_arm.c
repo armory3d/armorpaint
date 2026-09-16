@@ -339,7 +339,7 @@ void import_arm_init_nodes(ui_node_t_array_t *nodes) {
 	}
 }
 
-void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool copy) {
+static packed_asset_t *import_arm_take_packed_asset(project_t *project, char *abs, char *file, bool copy) {
 	if (g_project->packed_assets == NULL) {
 		g_project->packed_assets = any_array_create_from_raw((void *[]){}, 0);
 	}
@@ -369,11 +369,31 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool cop
 
 				any_array_push(g_project->packed_assets, pa);
 			}
-			gpu_texture_t *image = gpu_create_texture_from_encoded_bytes(pa->bytes, ends_with(pa->name, ".jpg") ? ".jpg" : ".png");
-			any_map_set(data_cached_textures, abs, image);
-			break;
+			return pa;
 		}
 	}
+	return NULL;
+}
+
+void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool copy) {
+	packed_asset_t *pa = import_arm_take_packed_asset(project, abs, file, copy);
+	if (pa == NULL) {
+		return;
+	}
+	gpu_texture_t *image = gpu_create_texture_from_encoded_bytes(pa->bytes, ends_with(pa->name, ".jpg") ? ".jpg" : ".png");
+	any_map_set(data_cached_textures, abs, image);
+}
+
+void import_arm_unpack_sound(project_t *project, char *abs, char *file, bool copy) {
+	packed_asset_t *pa = import_arm_take_packed_asset(project, abs, file, copy);
+	if (pa == NULL) {
+		return;
+	}
+	sound_t *sound = iron_load_sound_from_bytes(pa->bytes, ends_with(pa->name, ".wav") ? ".wav" : ".ogg");
+	if (data_cached_sounds == NULL) {
+		data_cached_sounds = any_map_create();
+	}
+	any_map_set(data_cached_sounds, abs, sound);
 }
 
 static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
@@ -666,7 +686,11 @@ void import_arm_run_project(char *path) {
 #endif
 			// Convert sound path from relative to absolute
 			char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
-			if (iron_file_exists(abs)) {
+			if (g_project->packed_assets != NULL) {
+				abs = string_copy(path_normalize(abs));
+				import_arm_unpack_sound(g_project, abs, file, false);
+			}
+			if (iron_file_exists(abs) || (data_cached_sounds != NULL && any_map_get(data_cached_sounds, abs) != NULL)) {
 				import_sound_run(abs);
 			}
 		}

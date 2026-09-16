@@ -389,8 +389,9 @@ void export_arm_run_project() {
 	gpu_delete_texture(mesh_icon);
 #endif
 
-	if (g_context->pack_assets_on_save) { // Pack textures
+	if (g_context->pack_assets_on_save) { // Pack textures and sounds
 		export_arm_pack_assets(g_project, g_project->_->assets);
+		export_arm_pack_sounds(g_project, g_project->_->sounds);
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
@@ -625,6 +626,24 @@ void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
 	for (i32 i = 0; i < temp_images->length; ++i) {
 		gpu_texture_t *image = temp_images->buffer[i];
 		gpu_delete_texture(image);
+	}
+}
+
+void export_arm_pack_sounds(project_t *raw, slot_sound_t_array_t *sounds) {
+	if (raw->packed_assets == NULL) {
+		raw->packed_assets = any_array_create_from_raw((void *[]){}, 0);
+	}
+	for (i32 i = 0; i < sounds->length; ++i) {
+		slot_sound_t *s = sounds->buffer[i];
+		if (project_packed_asset_exists(raw->packed_assets, s->file)) {
+			continue;
+		}
+		buffer_t *bytes = iron_load_blob(s->file);
+		if (bytes == NULL) {
+			continue;
+		}
+		packed_asset_t *pa = ALLOC_INIT(packed_asset_t, {.name = s->file, .bytes = bytes});
+		any_array_push(raw->packed_assets, pa);
 	}
 }
 
