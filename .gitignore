@@ -1,5 +1,5 @@
 **/build*/
-**/.gradle/
+
 paint/plugins/external
 .vscode
 *.DS_Store
