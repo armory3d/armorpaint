@@ -476,6 +476,18 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			uv_first  = &uv_temp;
 		}
 	}
+
+	if (uv_indices.length > 0 && uv_indices.length < pos_indices.length) {
+		int missing = pos_indices.length - uv_indices.length;
+		int length  = uv_indices.length;
+		for (int i = 0; i < missing; ++i) {
+			i32_array_push(&uv_indices, 0);
+		}
+		memmove(uv_indices.buffer + missing, uv_indices.buffer, length * sizeof(int32_t));
+		memset(uv_indices.buffer, 0, missing * sizeof(int32_t));
+		console_info("Warning: Mesh is not fully UV unwrapped");
+	}
+
 	vind_off += (int)(pos_temp.length / 3); // Assumes separate vertex data per object
 	tind_off += (int)(uv_temp.length / 2);
 	nind_off += (int)(nor_temp.length / 3);
