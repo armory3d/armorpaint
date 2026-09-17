@@ -960,7 +960,7 @@ static any_map_t      *custom_mesh_importers    = NULL;
 static any_map_t      *custom_text_importers    = NULL;
 static string_array_t *custom_text_formats      = NULL;
 
-gpu_texture_t *plugin_import_custom_texture(char *path) {
+gpu_texture_t *script_import_custom_texture(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_texture_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -968,7 +968,7 @@ gpu_texture_t *plugin_import_custom_texture(char *path) {
 	return r.p;
 }
 
-raw_mesh_t *plugin_import_custom_mesh(char *path) {
+raw_mesh_t *script_import_custom_mesh(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_mesh_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -976,15 +976,15 @@ raw_mesh_t *plugin_import_custom_mesh(char *path) {
 	return r.p;
 }
 
-void plugin_import_custom_text(char *path) {
+void script_import_custom_text(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_text_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_call_fn(fn, args, 1);
 }
 
-void plugin_register_text(char *format, void *fn) {
-	any_map_set(import_text_importers, format, plugin_import_custom_text);
+void script_register_text(char *format, void *fn) {
+	any_map_set(import_text_importers, format, script_import_custom_text);
 
 	if (custom_text_formats == NULL) {
 		custom_text_formats = string_array_create(0);
@@ -1000,7 +1000,7 @@ void plugin_register_text(char *format, void *fn) {
 	any_map_set(custom_text_importers, format, fn);
 }
 
-void plugin_unregister_text(char *format) {
+void script_unregister_text(char *format) {
 	map_delete(import_text_importers, format);
 	map_delete(custom_text_importers, format);
 
@@ -1011,8 +1011,8 @@ void plugin_unregister_text(char *format) {
 	}
 }
 
-void plugin_register_texture(char *format, void *fn) {
-	any_map_set(import_texture_importers, format, plugin_import_custom_texture);
+void script_register_texture(char *format, void *fn) {
+	any_map_set(import_texture_importers, format, script_import_custom_texture);
 	any_array_push((any_array_t *)_path_texture_formats, format);
 
 	if (custom_texture_importers == NULL) {
@@ -1021,13 +1021,13 @@ void plugin_register_texture(char *format, void *fn) {
 	any_map_set(custom_texture_importers, format, fn);
 }
 
-void plugin_unregister_texture(char *format) {
+void script_unregister_texture(char *format) {
 	map_delete(import_texture_importers, format);
 	array_splice((any_array_t *)_path_texture_formats, string_array_index_of(_path_texture_formats, format), 1);
 }
 
-void plugin_register_mesh(char *format, void *fn) {
-	any_map_set(import_mesh_importers, format, plugin_import_custom_mesh);
+void script_register_mesh(char *format, void *fn) {
+	any_map_set(import_mesh_importers, format, script_import_custom_mesh);
 	any_array_push((any_array_t *)_path_mesh_formats, format);
 
 	if (custom_mesh_importers == NULL) {
@@ -1036,12 +1036,12 @@ void plugin_register_mesh(char *format, void *fn) {
 	any_map_set(custom_mesh_importers, format, fn);
 }
 
-void plugin_unregister_mesh(char *format) {
+void script_unregister_mesh(char *format) {
 	map_delete(import_mesh_importers, format);
 	array_splice((any_array_t *)_path_mesh_formats, string_array_index_of(_path_mesh_formats, format), 1);
 }
 
-raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
+raw_mesh_t *script_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
 	raw_mesh_t *mesh = calloc(1, sizeof(raw_mesh_t));
 	memset(mesh, 0, sizeof(raw_mesh_t));
 	mesh->name         = name;
@@ -1055,47 +1055,47 @@ raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nor
 	return mesh;
 }
 
-void plugin_material_category_add(char *category_name, any_array_t *node_list) {
+void script_material_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_material_categories, category_name);
 	nodes_material_init();
 	any_array_push(nodes_material_list, node_list);
 }
 
-void plugin_brush_category_add(char *category_name, any_array_t *node_list) {
+void script_brush_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_brush_categories, category_name);
 	nodes_brush_init();
 	any_array_push(nodes_brush_list, node_list);
 }
 
-void plugin_material_category_remove(char *category_name) {
+void script_material_category_remove(char *category_name) {
 	int i = array_index_of(nodes_material_categories, category_name);
 	array_splice(nodes_material_list, i, 1);
 	array_splice(nodes_material_categories, i, 1);
 }
 
-void plugin_brush_category_remove(char *category_name) {
+void script_brush_category_remove(char *category_name) {
 	int i = array_index_of(nodes_brush_categories, category_name);
 	array_splice(nodes_brush_list, i, 1);
 	array_splice(nodes_brush_categories, i, 1);
 }
 
-void plugin_material_custom_nodes_set(char *node_type, void *fn) {
+void script_material_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_material_custom_nodes, node_type, fn);
 }
 
-void plugin_brush_custom_nodes_set(char *node_type, void *fn) {
+void script_brush_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_logic_custom_nodes, node_type, fn);
 }
 
-void plugin_material_custom_nodes_remove(char *node_type) {
+void script_material_custom_nodes_remove(char *node_type) {
 	map_delete(parser_material_custom_nodes, node_type);
 }
 
-void plugin_brush_custom_nodes_remove(char *node_type) {
+void script_brush_custom_nodes_remove(char *node_type) {
 	map_delete(parser_logic_custom_nodes, node_type);
 }
 
-void *plugin_material_kong_get() {
+void *script_material_kong_get() {
 	return parser_material_kong;
 }
 

@@ -6,7 +6,7 @@ char *node_name = "Hello World";
 char *node_type = "HELLO_WORLD";
 
 char *custom_node(ui_node_t *node, char *socket_name) {
-	void *kong = plugin_material_kong_get();
+	void *kong = script_material_kong_get();
 	char *scale = parser_material_parse_value_input(node->inputs->buffer[0], false);
 	char *my_out = "my_out";
 
@@ -23,8 +23,8 @@ char *custom_node(ui_node_t *node, char *socket_name) {
 }
 
 void on_delete() {
-	plugin_material_custom_nodes_remove(node_type);
-	plugin_material_category_remove(category_name);
+	script_material_custom_nodes_remove(node_type);
+	script_material_category_remove(category_name);
 }
 
 void main() {
@@ -87,10 +87,10 @@ void main() {
 	n->width = 0;
 	n->flags = 0;
 
-	plugin_material_category_add(category_name, node_list);
+	script_material_category_add(category_name, node_list);
 
 	// Node shader
-	plugin_material_custom_nodes_set(node_type, custom_node);
+	script_material_custom_nodes_set(node_type, custom_node);
 
 	// Cleanup
 	plugin_notify_on_delete(plugin, on_delete);
