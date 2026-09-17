@@ -878,15 +878,6 @@ void tab_meshes_draw_new() {
 	}
 }
 
-void tab_meshes_draw_import() {
-	if (ui_menu_button(tr("Replace Existing"), any_map_get(g_keymap, "file_import_assets"), ICON_NONE)) {
-		project_import_mesh(true, NULL);
-	}
-	if (ui_menu_button(tr("Append"), "", ICON_NONE)) {
-		project_append_mesh();
-	}
-}
-
 static vec4_t aabb_center(mesh_data_t *raw) {
 	vec4_t aabb_min;
 	vec4_t aabb_max;
@@ -1278,7 +1269,7 @@ void tab_meshes_draw(i32 *htab) {
 			ui_menu_draw(&tab_meshes_draw_new, -1, -1);
 		}
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
-			ui_menu_draw(&tab_meshes_draw_import, -1, -1);
+			project_import_mesh(true, NULL);
 		}
 		if (g_ui->is_hovered)
 			ui_tooltip(tr("Import mesh file"));

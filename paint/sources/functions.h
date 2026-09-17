@@ -560,7 +560,6 @@ void                      project_import_material();
 ui_node_link_t           *project_create_node_link(ui_node_link_t_array_t *links, i32 from_id, i32 from_socket, i32 to_id, i32 to_socket);
 void                      project_import_brush();
 void                      project_import_mesh(bool replace_existing, void (*done)(void));
-void                      project_append_mesh();
 void                      project_import_mesh_box(char *path, bool replace_existing, bool clear_layers, bool keep_camera, void (*done)(void));
 void                      project_reimport_mesh();
 i32                       project_skin_frames();

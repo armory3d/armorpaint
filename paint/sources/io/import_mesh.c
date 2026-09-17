@@ -83,10 +83,12 @@ void import_mesh_finish_import(void *_) {
 
 	context_select_paint_object(context_main_object());
 
-	// No mask by default
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->base->visible = true;
+	if (!import_mesh_append) {
+		// No mask by default
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			p->base->visible = true;
+		}
 	}
 
 	// Keep appended objects at scene root
@@ -121,7 +123,7 @@ void import_mesh_finish_import(void *_) {
 	}
 	import_mesh_appended = NULL;
 
-	if (!import_mesh_no_scale) {
+	if (!import_mesh_no_scale && !import_mesh_append) {
 		viewport_scale_to_bounds(2.0);
 	}
 	import_mesh_no_scale = false;

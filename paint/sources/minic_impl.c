@@ -400,6 +400,17 @@ void script_import_asset(char *path, bool hdr_as_envmap) {
 	g_context->ddirty = 2;
 }
 
+extern bool import_mesh_clear_layers;
+extern bool import_mesh_no_reset;
+extern bool import_mesh_append;
+
+static void script_append_mesh_finish(i32 first) {
+	if (g_project->_->paint_objects->length > first) {
+		import_mesh_finish_import(NULL);
+	}
+	import_mesh_append = false;
+}
+
 void script_append_mesh(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
@@ -407,14 +418,12 @@ void script_append_mesh(char *path) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
+	i32 first = g_project->_->paint_objects->length;
 	import_mesh_run(path, false, false, true);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }
-
-extern bool import_mesh_clear_layers;
-extern bool import_mesh_no_reset;
-extern bool import_mesh_append;
 
 void script_append_mesh_obj(char *data) {
 	if (data == NULL || data[0] == '\0') {
@@ -429,9 +438,11 @@ void script_append_mesh_obj(char *data) {
 	g_context->layer_filter  = 0;
 	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
 	obj_parse_y_to_z_up      = false;
+	i32 first                = g_project->_->paint_objects->length;
 	import_obj_parse(b, false);
 	obj_parse_y_to_z_up = true;
 	free(b);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }

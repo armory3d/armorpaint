@@ -371,10 +371,6 @@ void project_import_mesh(bool replace_existing, void (*done)(void)) {
 	ui_files_show(formats, false, false, &project_import_mesh_on_file_picked);
 }
 
-void project_append_mesh() {
-	project_import_mesh(false, import_mesh_finish_import);
-}
-
 void project_reimport_mesh() {
 	if (g_project->mesh_assets != NULL && g_project->mesh_assets->length > 0 && iron_file_exists(g_project->mesh_assets->buffer[0])) {
 		project_import_mesh_box(g_project->mesh_assets->buffer[0], true, false, true, NULL);
