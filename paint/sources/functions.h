@@ -507,6 +507,7 @@ void                      script_tween_to(object_t *o, vec4_t to, f32 speed);
 void                      script_timer(f32 delay, void *fn);
 void                      script_notify_on_update(void *fn);
 void                      script_notify_on_next_frame(void *fn);
+bool                      script_is_running(void);
 context_t                *script_get_context();
 config_t                 *script_get_config();
 project_t                *script_get_project();

@@ -127,11 +127,17 @@ void script_notify_on_update(void *fn) {
 
 void *script_next_frame_fn = NULL;
 void  script_on_next_frame(void *_) {
-    minic_call_fn(script_next_frame_fn, NULL, 0);
+    void *fn             = script_next_frame_fn;
+    script_next_frame_fn = NULL;
+    minic_call_fn(fn, NULL, 0);
 }
 void script_notify_on_next_frame(void *fn) {
 	sys_notify_on_next_frame(script_on_next_frame, NULL);
 	script_next_frame_fn = fn;
+}
+
+bool script_is_running(void) {
+	return script_update_fn != NULL || script_next_frame_fn != NULL;
 }
 
 void *_ui_files_done;

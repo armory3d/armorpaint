@@ -110,8 +110,16 @@ void args_run_api(void *_) {
 	iron_stop();
 }
 
-void args_run_script_stop(void *_) {
+static void args_run_script_quit(void *_) {
 	iron_stop();
+}
+
+void args_run_script_stop(void *_) {
+	if (script_is_running()) {
+		sys_notify_on_next_frame(&args_run_script_stop, NULL);
+		return;
+	}
+	sys_notify_on_next_frame(&args_run_script_quit, NULL);
 }
 
 void args_run_script(void *_) {
