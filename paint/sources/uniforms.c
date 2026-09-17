@@ -226,7 +226,7 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 		return v;
 	}
 	else if (string_equals(link, "_atlas_transform")) {
-		if (!config_is_raytrace_multi() && !util_mesh_udim_active()) {
+		if (!util_mesh_udim_active() || render_path_raytrace_override_pass) {
 			return (vec4_t){0.0, 0.0, 1.0, 1.0};
 		}
 		i32 stride = util_mesh_atlas_stride();

@@ -1249,7 +1249,9 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		}
 	}
 
-	layers_draw_mesh_materials();
+	if (util_mesh_udim_active()) {
+		layers_draw_mesh_materials();
+	}
 
 	slot_layer_t *l0 = ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
 

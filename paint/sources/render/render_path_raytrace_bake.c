@@ -95,6 +95,9 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 	if (render_path_raytrace_last_envmap != saved_envmap || render_path_raytrace_bake_last_layer != g_context->layer->texpaint ||
 	    render_path_raytrace_bake_last_bake_type2 != g_context->bake_type || g_context->rtdirty > 0) {
 
+		if (g_context->rtdirty > 0) {
+			render_path_raytrace_draw_overrides(true);
+		}
 		g_context->rtdirty = 0;
 
 		render_path_raytrace_last_envmap          = saved_envmap;

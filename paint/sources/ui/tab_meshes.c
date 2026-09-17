@@ -513,6 +513,7 @@ void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 		history_object_transform(o, prev_loc, t->rot, t->scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -534,6 +535,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 		t->rot = quat_from_euler(rot.x, rot.y, rot.z);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -552,6 +554,7 @@ void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 		history_object_transform(o, t->loc, t->rot, prev_scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -624,6 +627,7 @@ void tab_meshes_draw_context_menu() {
 	if (changed) {
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 

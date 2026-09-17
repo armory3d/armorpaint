@@ -617,10 +617,16 @@ static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
 	return memcmp(&before, &t->world_unpack, sizeof(mat4_t)) != 0;
 }
 
+static bool tab_timeline_mesh_refresh_pending = false;
+
 static void tab_timeline_mesh_moved() {
-	if (config_is_raytrace_multi()) {
-		render_path_raytrace_ready = false;
+	if (tab_timeline_playing) {
+		tab_timeline_mesh_refresh_pending = true;
+		render_path_raytrace_ready        = false;
+		return;
 	}
+	tab_timeline_mesh_refresh_pending = false;
+	util_mesh_transform_changed();
 }
 
 static void tab_timeline_load_mesh_origins() {
@@ -1481,6 +1487,10 @@ void tab_timeline_update() {
 	tab_timeline_init();
 	tab_timeline_sync();
 	if (!tab_timeline_playing) {
+		if (tab_timeline_mesh_refresh_pending) {
+			tab_timeline_mesh_refresh_pending = false;
+			util_mesh_transform_changed();
+		}
 		return;
 	}
 	iron_delay_idle_sleep();

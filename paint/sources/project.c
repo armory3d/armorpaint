@@ -420,8 +420,11 @@ bool project_reskin_mesh(int frame) {
 	}
 
 	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
-		if (!util_mesh_merge_reskin()) {
+		if (!util_mesh_merge_refresh()) {
 			util_mesh_merge(NULL);
+		}
+		if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+			sculpt_bake_to_mesh();
 		}
 	}
 	g_context->ddirty          = 4;

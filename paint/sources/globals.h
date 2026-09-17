@@ -163,6 +163,7 @@ char                     *tab_scripts_text    = "";
 i32                       tab_scripts_line; // Active line of the script text area
 bool                      tab_scripts_minimap_dirty = true;
 extern int                tab_stages_selected;
+extern bool               tab_timeline_playing;
 any_map_t                *import_mesh_importers;
 i32                       ui_menubar_default_w = 406;
 ui_window_t              *ui_menubar_hwnd;
@@ -326,8 +327,10 @@ bool            render_path_raytrace_ready       = false;
 bool            render_path_raytrace_init_shader = true;
 f32_array_t    *render_path_raytrace_f32a;
 mat4_t          render_path_raytrace_help_mat;
-gpu_texture_t  *render_path_raytrace_last_envmap = NULL;
-bool            render_path_raytrace_is_bake     = false;
+gpu_texture_t  *render_path_raytrace_last_envmap   = NULL;
+bool            render_path_raytrace_is_bake       = false;
+bool            render_path_raytrace_override_pass = false;
+bool            render_path_raytrace_moving        = false;
 
 bool  sculpt_push_undo                          = false;
 i32   ui_statusbar_default_h                    = 33;
