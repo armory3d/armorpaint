@@ -15,8 +15,6 @@ struct RayGenConstantBuffer {
 
 RWTexture2D<half4> render_target : register(u0);
 RaytracingAccelerationStructure scene : register(t0);
-ByteAddressBuffer indices : register(t1);
-StructuredBuffer<Vertex> vertices : register(t2);
 ConstantBuffer<RayGenConstantBuffer> constant_buffer : register(b0);
 
 Texture2D<float4> mytexture0 : register(t3);

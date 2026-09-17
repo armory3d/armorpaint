@@ -17,7 +17,7 @@ uint32_t        constant_buffer_index              = 0;
 uint32_t        draw_calls                         = 0;
 uint32_t        draw_calls_last                    = 0;
 bool            gpu_in_use                         = false;
-bool            gpu_raytrace_multi                 = false;
+uint32_t        gpu_buffer_versions                = 0;
 gpu_texture_t  *current_textures[GPU_MAX_TEXTURES] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 gpu_texture_t  *current_render_targets[8]          = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 uint32_t        current_render_targets_count       = 0;
@@ -366,12 +366,12 @@ void _gpu_raytrace_as_init() {
 	gpu_raytrace_acceleration_structure_init(&rt_accel);
 }
 
-void _gpu_raytrace_as_add(struct gpu_buffer *vb, gpu_buffer_t *ib, mat4_t transform) {
-	gpu_raytrace_acceleration_structure_add(&rt_accel, vb, ib, transform);
+void _gpu_raytrace_as_add(struct gpu_buffer *vb, gpu_buffer_t *ib, mat4_t transform, gpu_texture_t **textures) {
+	gpu_raytrace_acceleration_structure_add(&rt_accel, vb, ib, transform, textures);
 }
 
-void _gpu_raytrace_as_build(struct gpu_buffer *vb_full, gpu_buffer_t *ib_full) {
-	gpu_raytrace_acceleration_structure_build(&rt_accel, vb_full, ib_full);
+void _gpu_raytrace_as_build() {
+	gpu_raytrace_acceleration_structure_build(&rt_accel);
 }
 
 void _gpu_raytrace_dispatch_rays(gpu_texture_t *render_target, buffer_t *buffer) {

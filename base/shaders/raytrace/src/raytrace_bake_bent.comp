@@ -6,10 +6,6 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(binding = 10, set = 0, rgba16f) uniform image2D render_target;
 layout(binding = 0, set = 0) uniform accelerationStructureEXT scene;
-layout(binding = 1, set = 0) readonly buffer IndicesBuffer { uint indices[]; };
-layout(binding = 2, set = 0) readonly buffer VerticesBuffer {
-    uint vertex_data[];
-};
 
 layout(binding = 11, set = 0) uniform RayGenConstantBuffer {
     vec4 v0; // frame, strength, radius, offset
@@ -91,15 +87,6 @@ vec3 cos_weighted_hemisphere_direction(vec3 n, uint sample_idx, uint seed_val, i
     return normalize(n + vec3(x, y, z));
 }
 
-Vertex get_vertex(uint index) {
-    uint base = index * 4u;
-    Vertex v;
-    v.posxy = vertex_data[base + 0u];
-    v.poszw = vertex_data[base + 1u];
-    v.nor = vertex_data[base + 2u];
-    v.tex = vertex_data[base + 3u];
-    return v;
-}
 ////
 
 void main() {
