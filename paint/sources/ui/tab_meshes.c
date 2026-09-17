@@ -595,12 +595,10 @@ void tab_meshes_draw_context_menu() {
 		return;
 	}
 
-#ifdef WITH_PLUGINS
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		plugin_uv_unwrap_per_object_button(o);
+		util_mesh_uv_unwrap_per_object(o);
 		return;
 	}
-#endif
 
 	transform_t *t = o->base->transform;
 
@@ -718,11 +716,9 @@ void tab_meshes_draw_context_menu() {
 
 void tab_meshes_draw_edit() {
 
-#ifdef WITH_PLUGINS
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		plugin_uv_unwrap_button();
+		util_mesh_uv_unwrap();
 	}
-#endif
 
 	if (ui_menu_button(tr("Edit UV Map"), "", ICON_NONE)) {
 		ui_base_show_2d_view(VIEW_2D_TYPE_UVMAP);

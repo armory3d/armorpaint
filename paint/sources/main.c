@@ -206,6 +206,7 @@
 #include "util/util_touch.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
+#include "util/util_uv_unwrap.c"
 
 #include "args.c"
 #include "base.c"
@@ -325,7 +326,6 @@ void _kickstart() {
 	parser_material_node_values  = any_map_create();
 	parser_material_node_vectors = any_map_create();
 	parser_material_custom_nodes = any_map_create();
-	util_mesh_unwrappers         = any_map_create();
 	ui_header_h                  = ui_header_default_h;
 	ui_header_handle             = ui_window_create();
 	g_plugins                    = any_map_create();

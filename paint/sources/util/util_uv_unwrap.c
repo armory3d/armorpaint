@@ -1,6 +1,5 @@
 
-#include "uv_unwrap.h"
-#include "iron_system.h"
+#include "../global.h"
 #include <float.h>
 #include <math.h>
 #include <stdint.h>
@@ -676,7 +675,7 @@ static int uv_split_folded(const uint32_t *indices, const float *pa, const float
 	return chart_count;
 }
 
-void proc_uv_unwrap(raw_mesh_t *mesh) {
+void util_uv_unwrap_run(raw_mesh_t *mesh) {
 	double t = iron_time();
 
 	// Decode input mesh data

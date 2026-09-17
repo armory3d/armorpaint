@@ -436,13 +436,6 @@ bool project_reskin_mesh(int frame) {
 #endif
 }
 
-void project_unwrap_mesh(raw_mesh_t *mesh, void (*done)(raw_mesh_t *)) {
-	char *f                = "uv_unwrap";
-	void (*cb)(void *mesh) = any_map_get(util_mesh_unwrappers, f);
-	cb(mesh);
-	done(mesh);
-}
-
 void project_unwrap_mesh_box_draw() {
 	ui_end_element();
 	ui_row2();
@@ -456,9 +449,7 @@ void project_unwrap_mesh_box_draw() {
 		console_toast(tr("Unwrapping mesh"));
 #endif
 
-#ifdef WITH_PLUGINS
-		plugin_uv_unwrap_button();
-#endif
+		util_mesh_uv_unwrap();
 	}
 }
 

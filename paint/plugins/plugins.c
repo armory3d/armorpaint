@@ -17,7 +17,6 @@ void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame)
 int   io_gltf_frame_count();
 void *io_fbx_parse(char *buf, size_t size);
 void *io_fbx_parse_skinned(char *buf, size_t size, int frame);
-void  proc_uv_unwrap(void *mesh);
 
 typedef struct asset {
 	i32   id;
@@ -31,7 +30,6 @@ string_array_t        *path_mesh_formats(void);
 extern any_map_t      *import_texture_importers;
 extern string_array_t *_path_texture_formats;
 string_array_t        *path_texture_formats(void);
-extern any_map_t      *util_mesh_unwrappers;
 extern any_map_t      *data_cached_textures;
 void                   import_texture_run(char *path, bool hdr_as_envmap);
 any_array_t           *project_get_assets(void);
@@ -172,8 +170,6 @@ void plugins_init() {
 	any_array_push(_path_mesh_formats, "glb");
 	any_map_set(import_mesh_importers, "fbx", import_fbx);
 	any_array_push(_path_mesh_formats, "fbx");
-
-	any_map_set(util_mesh_unwrappers, "uv_unwrap", proc_uv_unwrap);
 
 #ifdef WITH_EXTERNAL
 	external_init();
