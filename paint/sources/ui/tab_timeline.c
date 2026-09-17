@@ -776,12 +776,7 @@ static void tab_timeline_play_on_next_frame(void *_) {
 	tab_timeline_last_skin_frame = -1;
 }
 
-static void tab_timeline_add_keyframe_on_next_frame(void *_) {
-	i32 fr                        = tab_timeline_pending_kf_frame;
-	i32 li                        = tab_timeline_pending_kf_layer;
-	tab_timeline_pending_kf_frame = -1;
-	tab_timeline_pending_kf_layer = -1;
-
+static void tab_timeline_add_keyframe(i32 fr, i32 li) {
 	if (fr < 0 || li < 0 || li >= g_project->_->layers->length) {
 		return;
 	}
@@ -817,6 +812,14 @@ static void tab_timeline_add_keyframe_on_next_frame(void *_) {
 	tab_timeline_copy_path_points_from_layer(l, &kf->path_points, &kf->path_points_world, &kf->path_points_camera, &kf->path_points_parent);
 }
 
+static void tab_timeline_add_keyframe_on_next_frame(void *_) {
+	i32 fr                        = tab_timeline_pending_kf_frame;
+	i32 li                        = tab_timeline_pending_kf_layer;
+	tab_timeline_pending_kf_frame = -1;
+	tab_timeline_pending_kf_layer = -1;
+	tab_timeline_add_keyframe(fr, li);
+}
+
 static void tab_timeline_remove_keyframe_on_next_frame(void *_) {
 	i32 fr                        = tab_timeline_pending_rm_frame;
 	i32 li                        = tab_timeline_pending_rm_layer;
@@ -833,12 +836,7 @@ static void tab_timeline_remove_keyframe_on_next_frame(void *_) {
 	}
 }
 
-static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
-	i32 fr                              = tab_timeline_pending_mesh_add_frame;
-	i32 mi                              = tab_timeline_pending_mesh_add_index;
-	tab_timeline_pending_mesh_add_frame = -1;
-	tab_timeline_pending_mesh_add_index = -1;
-
+static void tab_timeline_add_mesh_keyframe(i32 fr, i32 mi) {
 	if (fr < 0 || mi < TAB_TIMELINE_CAMERA || mi >= g_project->_->paint_objects->length || !tab_timeline_mesh_in_edit(mi)) {
 		return;
 	}
@@ -853,6 +851,7 @@ static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
 		kf->frame      = fr;
 		kf->mesh_index = mi;
 		kf->stage      = tab_timeline_key_stage(mi);
+		kf->tween      = true;
 		kf->mesh       = mi == TAB_TIMELINE_CAMERA ? NULL : g_project->_->paint_objects->buffer[mi];
 		any_array_push(tab_timeline_mesh_keyframes, kf);
 	}
@@ -860,6 +859,14 @@ static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
 		kf = tab_timeline_mesh_keyframes->buffer[kfi];
 	}
 	kf->transform = tab_timeline_capture_mesh(mi);
+}
+
+static void tab_timeline_add_mesh_keyframe_on_next_frame(void *_) {
+	i32 fr                              = tab_timeline_pending_mesh_add_frame;
+	i32 mi                              = tab_timeline_pending_mesh_add_index;
+	tab_timeline_pending_mesh_add_frame = -1;
+	tab_timeline_pending_mesh_add_index = -1;
+	tab_timeline_add_mesh_keyframe(fr, mi);
 }
 
 static void tab_timeline_remove_mesh_keyframe_on_next_frame(void *_) {
@@ -1400,6 +1407,39 @@ static void tab_timeline_run_frame_scripts(i32 frame) {
 			minic_ctx_free(minic_eval(string("void main() {\n%s\n}", g_project->script_datas->buffer[i])));
 		}
 	}
+}
+
+typedef struct {
+	char *name;
+	i32   frame;
+} tab_timeline_script_key_t;
+
+static void tab_timeline_add_named_keyframe_on_next_frame(void *data) {
+	tab_timeline_script_key_t *key = data;
+	for (i32 row = 0; row < tab_timeline_row_count(); ++row) {
+		if (!string_equals(tab_timeline_row_name(row), key->name)) {
+			continue;
+		}
+		if (row < g_project->_->layers->length) {
+			tab_timeline_add_keyframe(key->frame, row);
+		}
+		else {
+			tab_timeline_add_mesh_keyframe(key->frame, tab_timeline_row_to_mesh(row));
+		}
+		if (g_config->workspace != WORKSPACE_PLAYER) {
+			ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+		}
+		return;
+	}
+}
+
+void tab_timeline_add_named_keyframe(char *name, i32 frame) {
+	tab_timeline_init();
+	if (name == NULL || frame < 0 || frame >= tab_timeline_max_frames) {
+		return;
+	}
+	tab_timeline_script_key_t *key = ALLOC_INIT(tab_timeline_script_key_t, {.name = string_copy(name), .frame = frame});
+	sys_notify_on_next_frame(&tab_timeline_add_named_keyframe_on_next_frame, key);
 }
 
 void tab_timeline_play() {

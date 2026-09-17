@@ -1191,6 +1191,10 @@ void script_timeline_set_frame(i32 frame) {
 	tab_timeline_set_frame(frame);
 }
 
+void script_timeline_add_keyframe(char *name, i32 frame) {
+	tab_timeline_add_named_keyframe(name, frame);
+}
+
 typedef struct particle {
 	float frame;
 	float x;
