@@ -238,6 +238,31 @@ void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
 	tab_meshes_set_override_data(o, mat_index, NULL);
 }
 
+void tab_meshes_reset_overrides() {
+	shader_data_t *def = g_project->_->materials->buffer[0]->data;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o   = g_project->_->paint_objects->buffer[i];
+		shader_data_t *old = o->material;
+		o->material        = def;
+		if (old != def) {
+			tab_meshes_delete_override_material(old);
+		}
+	}
+
+	if (tab_meshes_override_map == NULL) {
+		return;
+	}
+	any_array_t *keys = map_keys(tab_meshes_override_map);
+	for (i32 i = 0; i < keys->length; ++i) {
+		free(any_map_get(tab_meshes_override_map, keys->buffer[i]));
+		free(keys->buffer[i]);
+	}
+	array_free(keys);
+	free(keys);
+	map_free(tab_meshes_override_map);
+	tab_meshes_override_map = NULL;
+}
+
 i32 tab_meshes_get_override(mesh_object_t *o) {
 	if (tab_meshes_override_map == NULL) {
 		return -1;

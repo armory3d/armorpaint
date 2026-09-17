@@ -86,6 +86,10 @@ void project_cleanup() {
 	}
 
 	if (g_project->_->paint_objects != NULL) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			object_set_parent(p->base, NULL);
+		}
 		for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 			if (p == g_context->paint_object) {
@@ -211,6 +215,7 @@ void project_new(bool reset_layers) {
 		slot_material_unload(array_pop(g_project->_->materials));
 	}
 	any_array_push(g_project->_->materials, slot_material_create(m, NULL));
+	tab_meshes_reset_overrides();
 
 	g_context->picker_paint_mask    = false;
 	g_context->picker_viewport_mask = false;

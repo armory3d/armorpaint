@@ -849,6 +849,7 @@ i32                       tab_meshes_get_override(mesh_object_t *o);
 i32                       tab_meshes_get_linked_override(mesh_object_t *o);
 void                      tab_meshes_set_linked_override(mesh_object_t *o, i32 mat_index);
 void                      tab_meshes_refresh_overrides(slot_material_t *material);
+void                      tab_meshes_reset_overrides();
 void                      tab_meshes_on_material_deleted(i32 deleted_index);
 void                      tab_meshes_on_material_reordered(i32 old_index, i32 new_index);
 void                      tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns);
