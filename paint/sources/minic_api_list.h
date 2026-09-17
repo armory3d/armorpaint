@@ -477,19 +477,12 @@ X1(script_append_mesh, "v(p:char path)", v, p)
 X1(script_append_mesh_obj, "v(p:char data)", v, p)
 X1(script_export_mesh, "v(p:char path)", v, p)
 X1(script_export_material, "v(p:char path)", v, p)
-// util_mesh.c's mesh-editing operators, previously bound to menu buttons only. Each operates on
-// g_project->_->paint_objects->buffer[0] or g_context->paint_object unconditionally, so none of
-// them depend on GUI selection state and all are safe to call from a script as-is.
 X1(util_mesh_decimate, "v(f strength)", v, f)
 X0(util_mesh_smooth, "v()", v)
 X1(util_mesh_bevel, "v(f amount)", v, f)
 X0(util_mesh_subdivide, "v()", v)
 X0(util_mesh_merge_geometry, "v()", v)
 X0(util_mesh_duplicate, "v()", v)
-// util_mesh_merge_geometry_down(mesh_object_t *main_object, mesh_object_t *below) is not registered:
-// it takes two p:mesh_object_t args, and while context_main_object() (below) can supply "main_object",
-// nothing registered can supply an arbitrary second "below" object -- that lookup (tab_meshes_slot_below())
-// is GUI-only.
 X0(project_filepath_get, "p:char()", p)
 X0(project_basepath_get, "p:char()", p)
 X1(project_filepath_set, "v(p:char s)", v, p)
@@ -552,10 +545,6 @@ X2(plugin_register_texture, "v(p:char format,p fn)", v, p, p)
 X1(plugin_unregister_texture, "v(p:char format)", v, p)
 X2(plugin_register_mesh, "v(p:char format,p fn)", v, p, p)
 X1(plugin_unregister_mesh, "v(p:char format)", v, p)
-// plugin_uv_unwrap_button() (tab_plugins.c) doesn't route through the plugin-loading system despite
-// the name -- it calls proc_uv_unwrap() (paint/plugins/uv_unwrap/uv_unwrap.c) directly, a built-in
-// algorithm compiled into this binary whenever WITH_PLUGINS is defined. Parameterless, no GUI-selection
-// dependency, same reasoning as the util_mesh functions above.
 X0(plugin_uv_unwrap_button, "v()", v)
 X2(plugin_register_text, "v(p:char format,p fn)", v, p, p)
 X1(plugin_unregister_text, "v(p:char format)", v, p)
