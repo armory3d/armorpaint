@@ -512,6 +512,8 @@ config_t                 *script_get_config();
 project_t                *script_get_project();
 object_t                 *script_get_object(char *s);
 slot_material_t          *script_get_material(char *s);
+sound_t                  *script_get_sound(char *s);
+gpu_texture_t            *script_get_texture(char *s);
 string_array_t           *script_shape_list(void);
 object_t                 *script_shape_add(char *name);
 object_t                 *script_object_duplicate(object_t *o);

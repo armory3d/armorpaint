@@ -145,12 +145,20 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 }
 
 char *project_filepath_get() {
+#ifdef IRON_WINDOWS
+	return string_replace_all(g_project->_->filepath, "\\", "/");
+#else
 	return g_project->_->filepath;
+#endif
 }
 char *project_basepath_get() {
-	return substring(g_project->_->filepath, 0, string_last_index_of(g_project->_->filepath, PATH_SEP));
+	char *path = project_filepath_get();
+	return substring(path, 0, string_last_index_of(path, "/"));
 }
 void project_filepath_set(char *s) {
+#ifdef IRON_WINDOWS
+	s = string_replace_all(s, "/", "\\");
+#endif
 	g_project->_->filepath = string_copy(s);
 }
 context_t *script_get_context() {
@@ -176,6 +184,24 @@ slot_material_t *script_get_material(char *s) {
 	for (int i = 0; i < g_project->_->materials->length; ++i) {
 		if (string_equals(g_project->_->materials->buffer[i]->canvas->name, s)) {
 			return g_project->_->materials->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+sound_t *script_get_sound(char *s) {
+	for (int i = 0; i < g_project->_->sounds->length; ++i) {
+		if (string_equals(g_project->_->sounds->buffer[i]->name, s)) {
+			return g_project->_->sounds->buffer[i]->sound;
+		}
+	}
+	return NULL;
+}
+
+gpu_texture_t *script_get_texture(char *s) {
+	for (int i = 0; i < g_project->_->assets->length; ++i) {
+		if (string_equals(g_project->_->assets->buffer[i]->name, s)) {
+			return g_project->_->assets->buffer[i]->image;
 		}
 	}
 	return NULL;
