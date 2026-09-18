@@ -15,7 +15,7 @@ X1(sin, "f(f x)", f, f)
 // object
 // X1(object_create, "p:object_t(i is_empty)", p, i)
 X2(object_set_parent, "v(p:object_t raw,p:object_t parent_object)", v, p, p)
-X1(object_remove, "v(p:object_t raw)", v, p)
+// X1(object_remove, "v(p:object_t raw)", v, p)
 X2(object_get_child, "p:object_t(p:object_t raw,p:char name)", p, p, p)
 
 // transform
@@ -66,7 +66,7 @@ X1(mesh_data_delete, "v(p:mesh_data_t raw)", v, p)
 // mesh_object
 // X2(mesh_object_create, "p:mesh_object_t(p:mesh_data_t data,p:shader_data_t material)", p, p, p)
 X2(mesh_object_set_data, "v(p:mesh_object_t raw,p:mesh_data_t data)", v, p, p)
-X1(mesh_object_remove, "v(p:mesh_object_t raw)", v, p)
+// X1(mesh_object_remove, "v(p:mesh_object_t raw)", v, p)
 X3(mesh_object_render, "v(p:mesh_object_t raw,p:char context,p:string_array_t bind_params)", v, p, p, p)
 
 // data
@@ -497,6 +497,7 @@ X0(script_shape_list, "p:string_array_t()", p)
 X1(script_shape_add, "p:object_t(p:char name)", p, p)
 X1(script_object_duplicate, "p:object_t(p:object_t o)", p, p)
 X1(script_object_clone, "p:object_t(p:char name)", p, p)
+X1(script_object_remove, "v(p:object_t o)", v, p)
 X2(script_object_set_name, "v(p:object_t object,p:char name)", v, p, p)
 X2(script_add_trait, "v(p:char object,p:char trait)", v, p, p)
 X3(trait_point_and_click_controller_walk_to, "v(f x,f y,p on_arrive)", v, f, f, p)

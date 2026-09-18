@@ -805,6 +805,27 @@ object_t *script_object_clone(char *name) {
 	return script_object_duplicate(script_get_object(name));
 }
 
+void script_object_remove(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return;
+	}
+	if (g_project->_->paint_objects->length < 2 || array_index_of(g_project->_->paint_objects, o->ext) < 0) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	tab_meshes_draw_context_menu_delete(o->ext);
+	script_gpu_end(current, in_use);
+
+	tab_meshes_reset_preview_map();
+	g_context->ddirty = 2;
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+}
+
 void script_object_set_name(object_t *o, char *name) {
 	if (o == NULL || name == NULL) {
 		return;
