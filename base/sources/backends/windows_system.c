@@ -608,6 +608,12 @@ LRESULT WINAPI IronWindowsMessageProcedure(HWND hWnd, UINT msg, WPARAM wParam, L
 
 		InvalidateRect(hWnd, NULL, FALSE);
 	} break;
+	case WM_KILLFOCUS:
+		// release all keys on focus lost, because Windows doesn't send key up events for keys that are held down when the window loses focus
+		for (int i = 0; i < 256; i++) {
+			keyPressed[i] = false;
+		}
+		break;
 	case WM_KEYDOWN:
 	case WM_SYSKEYDOWN:
 		if (!keyPressed[wParam]) {
