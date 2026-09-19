@@ -69,7 +69,7 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		if (g_config->pressure_opacity && (pen_down("tip") || pen_released("tip")) && !slot_layer_is_path(g_context->layer)) {
 			val *= pen_pressure * g_config->pressure_sensitivity;
 		}
-		return val;
+		return fminf(fmaxf(val, 0.0), 1.0);
 	}
 	else if (string_equals(link, "_brush_hardness")) {
 		bool decal_mask = context_is_decal_mask_paint_pass();
