@@ -1,3 +1,5 @@
+If compilation fails with `make: clang: No such file or directory`, clang is not installed. Install it using the packages below.
+
 For the compilation to succeed you might need to install some additional packages.
 
 For Debian/Ubuntu based distributions:
