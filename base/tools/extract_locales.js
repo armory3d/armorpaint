@@ -28,10 +28,17 @@ function unescape_char(c) {
 
 let source_paths = [ "paint/sources", "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/io", "paint/sources/render", "paint/sources/slots", "paint/sources/traits", "paint/sources/ui", "paint/sources/util" ];
 
+// The paths above are relative to the current working directory, so running this
+// script from anywhere but the repository root skips every source file. Without
+// this guard the script extracts nothing and still exits successfully, and the
+// relative output path below usually means no file is written either.
+let found = false;
+
 for (let path of source_paths) {
 	if (!fs_exists(path)) {
 		continue;
 	}
+	found = true;
 
 	let files = fs_readdir(path);
 	for (let file of files) {
@@ -78,6 +85,11 @@ for (let path of source_paths) {
 			}
 		}
 	}
+}
+
+if (!found) {
+	console.log("No source paths found - run this script from the repository root.");
+	std.exit(1);
 }
 
 fs_writefile(locale_path, JSON.stringify(out, Object.keys(out).sort(), 4));
