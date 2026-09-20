@@ -38,10 +38,6 @@ sh install.sh --uninstall           # remove app, launcher, icon and .desktop en
 User variables: `ARMORPAINT_VERSION` (release tag, default `latest`),
 `ARMORPAINT_DIR`, `ARMORPAINT_BIN_DIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`.
 
-> The URL above points at `main`; until changes are merged there, use the same
-> file from the `feat/build-linux-docs` branch:
-> `https://raw.githubusercontent.com/dionarley/armorpaint/feat/build-linux-docs/scripts/install.sh`
-
 ### Publishing a release
 
 Build + package the binary and checksum, then upload (see `make_package.sh`):
@@ -151,7 +147,7 @@ Feature switches on the Linux build (from `paint/project.js`):
 
 | Field        | Value                                            |
 | ------------ | ------------------------------------------------ |
-| Commit       | branch `feat/build-linux-docs` (upstream sha `5feb5f7` + WM_CLASS fix) |
+| Commit       | `main` merge `788238ba` (upstream sha `5feb5f7` + WM_CLASS fix) |
 | Host         | Ubuntu 26.04 LTS (x86_64)                        |
 | make         | GNU Make 4.4.1                                   |
 | clang        | Ubuntu clang 21.1.8 (6ubuntu1)                   |
