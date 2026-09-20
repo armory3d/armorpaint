@@ -1,0 +1,28 @@
+digraph main_loop {
+	rankdir = TB;
+	node [shape = box, style = "rounded,filled", fillcolor = "#eef4ff", fontname = "Helvetica", fontsize = 10];
+	edge [fontname = "Helvetica", fontsize = 9];
+
+	start [label = "main.c  ->  _kickstart()"];
+	cfg   [label = "config_load / config_init\ncontext_init"];
+	sys   [label = "sys_start(options)\ncreate window + GPU device", fillcolor = "#fff3d6"];
+	scene [label = "scene_set_active(\"Scene\")\nload startup .arm scene", fillcolor = "#fff3d6"];
+	rpinit [label = "render_path_base_init\n+ deferred_init (gbuffer)\n+ forward_init (optional)\n+ plugins_init + base_init", fillcolor = "#fff3d6"];
+	loop  [label = "iron_start() -> main loop\nwhile (running)", shape = doublecircle, fillcolor = "#ffe0e0"];
+	wrap  [label = "iron_internal_frame()"];
+	sysr  [label = "sys_render()", fillcolor = "#e2f0e2"];
+	subg  [label = "scene_render_frame()\nrender_path_render_frame()\nrender_path_commands()\n(deferred | forward | paint)", fillcolor = "#e2f0e2"];
+	upd   [label = "on_update callbacks\n(base update, tools, undo,\nparticles, playback)", fillcolor = "#e2f0e2"];
+	endf  [label = "on_end_frame callbacks\n+ input_end_frame"];
+	present [label = "present / swap buffers"];
+	done  [label = "shutdown\non_shutdown callbacks"];
+
+	start -> cfg -> sys -> scene -> rpinit -> loop;
+	loop -> wrap -> sysr;
+	sysr -> subg;
+	sysr -> upd;
+	sysr -> endf;
+	endf -> present;
+	present -> loop [label = "next frame"];
+	loop -> done [label = "window closed"];
+}

@@ -1,0 +1,17 @@
+digraph painting_pipeline {
+	rankdir = LR;
+	node [shape = box, style = "rounded,filled", fillcolor = "#eef4ff", fontname = "Helvetica", fontsize = 10];
+	edge [fontname = "Helvetica", fontsize = 9];
+
+	input   [label = "input\naction_paint (mouse / pen / touch)", fillcolor = "#fff3d6"];
+	ctx     [label = "context\ntool (Brush, Eraser, Clone...)\ncursor position, pressure", fillcolor = "#fff3d6"];
+	mat     [label = "slot_material + make_paint\nmaterial from node graph\n(parser_material / minic)", fillcolor = "#e2f0e2"];
+	rpath   [label = "render_path_paint_begin\n+ make_brush / make_clone", fillcolor = "#e2f0e2"];
+	pass    [label = "paint passes\nlayer_view, layer_merge,\nmask_*, layer_tween", fillcolor = "#e2f0e2"];
+	layer   [label = "slot_layer\nupload to layer texture\nRGBA + nor + pack", fillcolor = "#e2f0e2"];
+	undo    [label = "history\nundo/redo diff\n(base_init_undo_layers)", fillcolor = "#ffe0e0"];
+	res     [label = "viewport / gbuffer\ndeferred light", fillcolor = "#e2f0e2"];
+
+	input -> ctx -> mat -> rpath -> pass -> layer -> undo;
+	layer -> res;
+}
