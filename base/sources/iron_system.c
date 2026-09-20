@@ -41,8 +41,18 @@ void iron_log_args(iron_log_level_t level, const char *format, va_list args) {
 	iron_microsoft_format(format, args, buffer);
 	wcscat(buffer, L"\r\n");
 	OutputDebugStringW(buffer);
-	DWORD written;
-	WriteConsoleW(GetStdHandle(level == IRON_LOG_LEVEL_INFO ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE), buffer, (DWORD)wcslen(buffer), &written, NULL);
+	HANDLE out = GetStdHandle(level == IRON_LOG_LEVEL_INFO ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
+	DWORD  written;
+	if (GetFileType(out) == FILE_TYPE_CHAR) {
+		WriteConsoleW(out, buffer, (DWORD)wcslen(buffer), &written, NULL);
+	}
+	else {
+		char utf8[4096 * 3];
+		int  len = WideCharToMultiByte(CP_UTF8, 0, buffer, (int)wcslen(buffer), utf8, sizeof(utf8), NULL, NULL);
+		if (len > 0) {
+			WriteFile(out, utf8, (DWORD)len, &written, NULL);
+		}
+	}
 #else
 	char buffer[4096];
 	vsnprintf(buffer, 4090, format, args);

@@ -130,6 +130,15 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 		if (g_context->layer->uv_map == 1) {
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex1 * %s;", scale));
 		}
+		else if (!is_atlas && util_mesh_udim_layer(g_context->layer)) {
+			// Materials repeat per tile, bake reads layer textures in atlas space
+			char *uv = "atlas_uv";
+			if (g_context->tool != TOOL_TYPE_BAKE) {
+				node_shader_add_constant(kong, "atlas_stride: float", "_atlas_stride");
+				uv = "(atlas_uv * constants.atlas_stride)";
+			}
+			node_shader_write_vert(kong, string_tmp("output.tex_coord = %s * %s;", uv, scale));
+		}
 		else {
 			node_shader_write_vert(kong, string_tmp("output.tex_coord = input.tex * %s;", scale));
 		}

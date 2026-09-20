@@ -1064,6 +1064,63 @@ void layers_draw_mesh_materials() {
 	render_path_draw_meshes("atlas");
 }
 
+static gpu_texture_t *layers_udim_a    = NULL;
+static gpu_texture_t *layers_udim_b    = NULL;
+static gpu_texture_t *layers_udim_c    = NULL;
+static gpu_texture_t *layers_udim_mask = NULL;
+
+static gpu_texture_t *_layers_udim_target(gpu_texture_t **t, gpu_texture_t *like) {
+	if (*t != NULL && ((*t)->width != like->width || (*t)->height != like->height || (*t)->format != like->format)) {
+		gpu_delete_texture(*t);
+		*t = NULL;
+	}
+	if (*t == NULL) {
+		*t = gpu_create_render_target(like->width, like->height, like->format);
+	}
+	return *t;
+}
+
+static gpu_texture_t *_layers_udim_copy(gpu_texture_t **target, gpu_texture_t *src, i32 slot, bool to_tile) {
+	gpu_texture_t *dst    = _layers_udim_target(target, src);
+	i32            stride = util_mesh_atlas_stride();
+	f32            cx     = (slot % stride) / (f32)stride;
+	f32            cy     = (slot / stride) / (f32)stride;
+	draw_begin(dst, true, 0x00000000);
+	draw_set_pipeline(pipes_copy);
+	if (to_tile) {
+		draw_scaled_sub_image(src, cx * src->width, cy * src->height, src->width / (f32)stride, src->height / (f32)stride, 0, 0, dst->width, dst->height);
+	}
+	else {
+		draw_scaled_image(src, cx * dst->width, cy * dst->height, dst->width / (f32)stride, dst->height / (f32)stride);
+	}
+	draw_set_pipeline(NULL);
+	draw_end();
+	return dst;
+}
+
+// Remap layer textures between the shared udim atlas and a single tile, mask is remapped in place when set
+slot_layer_t *layers_udim_remap(slot_layer_t *l, gpu_texture_t **mask, i32 slot, bool to_tile) {
+	static slot_layer_t remapped;
+	remapped               = *l;
+	remapped.texpaint      = _layers_udim_copy(&layers_udim_a, l->texpaint, slot, to_tile);
+	remapped.texpaint_nor  = _layers_udim_copy(&layers_udim_b, l->texpaint_nor, slot, to_tile);
+	remapped.texpaint_pack = _layers_udim_copy(&layers_udim_c, l->texpaint_pack, slot, to_tile);
+	if (mask != NULL) {
+		*mask = _layers_udim_copy(&layers_udim_mask, *mask, slot, to_tile);
+	}
+	return &remapped;
+}
+
+// Atlas slot of a layer assigned to a single udim tile object, -1 otherwise
+i32 layers_udim_tile_slot(slot_layer_t *l) {
+	i32 mask = slot_layer_get_object_mask(l);
+	if (!util_mesh_udim_active() || l->uv_map == 1 || mask <= 0 || mask > g_project->_->paint_objects->length) {
+		return -1;
+	}
+	i32 tile = util_mesh_udim_tile(g_project->_->paint_objects->buffer[mask - 1]->base->name);
+	return tile < 0 ? -1 : util_mesh_udim_slot(tile);
+}
+
 slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers) {
 	if (layers == NULL) {
 		layers = g_project->_->layers;
@@ -1105,6 +1162,12 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 				layers_merge_layer(l1, l1masks->buffer[i], false);
 			}
 			mask = pipes_temp_mask_image;
+		}
+
+		// Flattened layers are in shared atlas space
+		i32 tile_slot = layers_udim_tile_slot(l1);
+		if (tile_slot >= 0) {
+			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, tile_slot, false);
 		}
 
 		if (l1->paint_base) {
@@ -1186,7 +1249,9 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		}
 	}
 
-	layers_draw_mesh_materials();
+	if (util_mesh_udim_active()) {
+		layers_draw_mesh_materials();
+	}
 
 	slot_layer_t *l0 = ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
 
@@ -1257,23 +1322,17 @@ void tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *point
 	}
 }
 
-i32_map_t *tab_layers_init_layer_map() {
-	i32_map_t *res = any_map_create();
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		i32_map_set(res, g_project->_->layers->buffer[i], i);
-	}
-	return res;
+slot_layer_t_array_t *tab_layers_init_layer_map() {
+	return array_slice(g_project->_->layers, 0, g_project->_->layers->length);
 }
 
-i32_imap_t *tab_layers_fill_layer_map(i32_map_t *map) {
-	i32_imap_t     *res  = any_map_create();
-	string_array_t *keys = map_keys(map);
-	for (i32 i = 0; i < keys->length; ++i) {
-		char *l = keys->buffer[i];
-		i32_imap_set(res, i32_map_get(map, l), array_index_of(g_project->_->layers, l) > -1 ? array_index_of(g_project->_->layers, l) : 9999);
+i32_imap_t *tab_layers_fill_layer_map(slot_layer_t_array_t *old_layers) {
+	// Old index -> new index, 9999 for removed layers
+	i32_imap_t *res = any_imap_create();
+	for (i32 i = 0; i < old_layers->length; ++i) {
+		i32 new_index = array_index_of(g_project->_->layers, old_layers->buffer[i]);
+		i32_imap_set(res, i, new_index > -1 ? new_index : 9999);
 	}
-	array_free(keys);
-	free(keys);
 	return res;
 }
 

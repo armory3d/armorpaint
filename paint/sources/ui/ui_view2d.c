@@ -48,6 +48,75 @@ ui_node_t *ui_view2d_get_selected_node() {
 	return ui_get_node(c->nodes, nodes->nodes_selected_id->buffer[0]);
 }
 
+void ui_view2d_play_sound() {
+	ui_view2d_stop_sound();
+	if (g_context->sound == NULL || g_context->sound->sound == NULL) {
+		return;
+	}
+#ifdef IRON_AUDIO
+	audio_play(g_context->sound->sound, false);
+#endif
+	ui_view2d_sound_playing = g_context->sound->sound;
+}
+
+void ui_view2d_stop_sound() {
+	if (ui_view2d_sound_playing == NULL) {
+		return;
+	}
+#ifdef IRON_AUDIO
+	audio_stop(ui_view2d_sound_playing);
+#endif
+	ui_view2d_sound_playing = NULL;
+}
+
+bool ui_view2d_sound_is_playing() {
+#ifdef IRON_AUDIO
+	if (ui_view2d_sound_playing != NULL && !audio_is_playing(ui_view2d_sound_playing)) {
+		ui_view2d_sound_playing = NULL;
+	}
+#endif
+	return ui_view2d_sound_playing != NULL;
+}
+
+#ifdef IRON_AUDIO
+void ui_view2d_draw_waveform(iron_a1_sound_t *sound, i32 x, i32 y, i32 w, i32 h) {
+	draw_set_color(g_theme->WINDOW_BG_COL);
+	draw_filled_rect(x, y, w, h);
+	f32 mid = y + h / 2.0;
+	draw_set_color(g_theme->BUTTON_COL);
+	draw_filled_rect(x, math_floor(mid), w, 1);
+
+	if (sound != NULL && sound->size > 0 && w > 0) {
+		i32 px0 = x < 0 ? -x : 0;
+		i32 px1 = x + w > ui_view2d_ww ? ui_view2d_ww - x : w;
+		draw_set_color(g_theme->HIGHLIGHT_COL);
+		for (i32 px = px0; px < px1; ++px) {
+			i32 s0 = (i64)px * sound->size / w;
+			i32 s1 = (i64)(px + 1) * sound->size / w;
+			if (s1 <= s0) {
+				s1 = s0 + 1;
+			}
+			i32 step = (s1 - s0) / 128 + 1;
+			i32 lo   = 0;
+			i32 hi   = 0;
+			for (i32 s = s0; s < s1; s += step) {
+				i32 v = (sound->left[s] + sound->right[s]) / 2;
+				if (v < lo) {
+					lo = v;
+				}
+				if (v > hi) {
+					hi = v;
+				}
+			}
+			f32 top = mid - hi / 32768.0 * h / 2.0;
+			f32 bot = mid - lo / 32768.0 * h / 2.0;
+			draw_filled_rect(x + px, top, 1, bot - top < 1 ? 1 : bot - top);
+		}
+	}
+	draw_set_color(0xffffffff);
+}
+#endif
+
 void ui_view2d_draw_edit() {
 	if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 		ui_check(&ui_view2d_uvmap_show, tr("UV Map"), "");
@@ -57,36 +126,38 @@ void ui_view2d_draw_edit() {
 		}
 	}
 
-	ui_check(&ui_view2d_tiled_show, tr("Tiled"), "");
-	if (ui_item_changed()) {
-		ui_view2d_hwnd->redraws = 2;
-		ui_menu_keep_open       = true;
-	}
+	if (ui_view2d_type != VIEW_2D_TYPE_SOUND) {
+		ui_check(&ui_view2d_tiled_show, tr("Tiled"), "");
+		if (ui_item_changed()) {
+			ui_view2d_hwnd->redraws = 2;
+			ui_menu_keep_open       = true;
+		}
 
-	ui_menu_separator();
+		ui_menu_separator();
 
-	ui_check(&g_config->view2d_grid_snap, tr("Grid Snap"), any_map_get(g_keymap, "grid_snap"));
-	if (ui_item_changed()) {
-		ui_menu_keep_open = true;
-	}
+		ui_check(&g_config->view2d_grid_snap, tr("Grid Snap"), any_map_get(g_keymap, "grid_snap"));
+		if (ui_item_changed()) {
+			ui_menu_keep_open = true;
+		}
 
-	ui_check(&g_config->view2d_grid_show, tr("Show Grid"), "");
-	if (ui_item_changed()) {
-		ui_view2d_hwnd->redraws = 2;
-		ui_menu_keep_open       = true;
-	}
+		ui_check(&g_config->view2d_grid_show, tr("Show Grid"), "");
+		if (ui_item_changed()) {
+			ui_view2d_hwnd->redraws = 2;
+			ui_menu_keep_open       = true;
+		}
 
-	ui_slider_int(&g_config->view2d_grid_cell, tr("Grid Cell"), 1.0, 256.0, true, true, UI_ALIGN_RIGHT, true);
-	bool cell_changed = ui_item_changed();
-	if (g_ui->is_hovered) {
-		ui_tooltip(tr("Cell size in pixels"));
-	}
-	if (cell_changed) {
-		ui_view2d_hwnd->redraws = 2;
-		ui_menu_keep_open       = true;
-	}
+		ui_slider_int(&g_config->view2d_grid_cell, tr("Grid Cell"), 1.0, 256.0, true, true, UI_ALIGN_RIGHT, true);
+		bool cell_changed = ui_item_changed();
+		if (g_ui->is_hovered) {
+			ui_tooltip(tr("Cell size in pixels"));
+		}
+		if (cell_changed) {
+			ui_view2d_hwnd->redraws = 2;
+			ui_menu_keep_open       = true;
+		}
 
-	ui_menu_separator();
+		ui_menu_separator();
+	}
 
 	if (ui_menu_button(tr("Zoom to Fit"), "", ICON_NONE)) {
 		ui_view2d_pan_x         = 0.0;
@@ -95,11 +166,24 @@ void ui_view2d_draw_edit() {
 		ui_view2d_hwnd->redraws = 2;
 	}
 
-	g_ui->enabled = ui_view2d_tex != NULL;
-	if (ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
-		sys_notify_on_next_frame(&ui_view2d_capture_output, NULL);
+	if (ui_view2d_type != VIEW_2D_TYPE_SOUND) {
+		g_ui->enabled = ui_view2d_tex != NULL;
+		if (ui_menu_button(tr("Capture Output"), "", ICON_PHOTO)) {
+			sys_notify_on_next_frame(&ui_view2d_capture_output, NULL);
+		}
+		g_ui->enabled = true;
 	}
-	g_ui->enabled = true;
+
+#ifdef IRON_AUDIO
+	if (ui_view2d_type == VIEW_2D_TYPE_SOUND && g_context->sound != NULL && g_context->sound->sound != NULL) {
+		iron_a1_sound_t *sound = g_context->sound->sound;
+		ui_menu_separator();
+		g_ui->enabled = false;
+		ui_text(string_tmp("%.2fs", sound->size / (float)sound->samples_per_second), UI_ALIGN_LEFT, 0x00000000);
+		ui_text(string_tmp("%d Hz, %d ch, %d bit", (int)sound->samples_per_second, sound->channel_count, sound->bits_per_sample), UI_ALIGN_LEFT, 0x00000000);
+		g_ui->enabled = true;
+	}
+#endif
 
 	if (ui_view2d_tex != NULL) {
 		ui_menu_separator();
@@ -119,6 +203,7 @@ void ui_view2d_draw_edit() {
 	                  : ui_view2d_type == VIEW_2D_TYPE_NODE  ? tr("Node")
 	                  : ui_view2d_type == VIEW_2D_TYPE_FONT  ? tr("Font")
 	                  : ui_view2d_type == VIEW_2D_TYPE_UVMAP ? tr("UVMap")
+	                  : ui_view2d_type == VIEW_2D_TYPE_SOUND ? tr("Sound")
 	                                                         : tr("Layer");
 
 	if (ui_view2d_type == VIEW_2D_TYPE_NODE) {
@@ -172,6 +257,35 @@ void ui_view2d_update(void *_) {
 
 	g_context->paint2d = false;
 
+	ui_view2d_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
+	ui_view2d_wx = math_floor(sys_w()) + ui_toolbar_w(true);
+	ui_view2d_wy = 0;
+
+	if (!ui_base_show) {
+		ui_view2d_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
+		ui_view2d_wx -= ui_toolbar_w(true);
+	}
+	if (!base_view3d_show) {
+		ui_view2d_ww += base_view3d_w();
+	}
+
+	ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
+
+	if (ui_nodes_show) {
+		ui_view2d_wh -= g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
+		if (g_config->touch_ui) {
+			ui_view2d_wh += ui_header_h;
+		}
+	}
+
+	if (!base_view3d_show && ui_nodes_show) {
+		ui_view2d_wx = 0;
+		ui_view2d_ww = base_view3d_w();
+		ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
+	}
+
+	ui_nodes_wrap_mouse(ui_view2d_controls_down, ui_view2d_wx, ui_view2d_wy, ui_view2d_ww, ui_view2d_wh);
+
 	if (!base_ui_enabled || !ui_view2d_show || mouse_x < ui_view2d_wx || mouse_x > ui_view2d_wx + ui_view2d_ww || mouse_y < ui_view2d_wy + headerh ||
 	    mouse_y > ui_view2d_wy + ui_view2d_wh) {
 		if (ui_view2d_controls_down) {
@@ -200,8 +314,8 @@ void ui_view2d_update(void *_) {
 
 			if (ui_touch_control) {
 				// Zoom to finger location
-				ui_view2d_pan_x -= (g_ui->input_x - g_ui->_window_x - g_ui->_window_w / 2.0) * control->zoom;
-				ui_view2d_pan_y -= (g_ui->input_y - g_ui->_window_y - g_ui->_window_h / 2.0) * control->zoom;
+				ui_view2d_pan_x -= (g_ui->input_x - ui_view2d_wx - ui_view2d_ww / 2.0) * control->zoom;
+				ui_view2d_pan_y -= (g_ui->input_y - ui_view2d_wy - ui_view2d_wh / 2.0) * control->zoom;
 			}
 			ui_view2d_grid_redraw = true;
 		}
@@ -297,24 +411,15 @@ void ui_view2d_update(void *_) {
 	}
 
 	// Render
-	ui_view2d_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-	ui_view2d_wx = math_floor(sys_w()) + ui_toolbar_w(true);
-	ui_view2d_wy = 0;
-
-	if (!ui_base_show) {
-		ui_view2d_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
-		ui_view2d_wx -= ui_toolbar_w(true);
-	}
-	if (!base_view3d_show) {
-		ui_view2d_ww += base_view3d_w();
-	}
-
 	if (!ui_view2d_show) {
 		return;
 	}
 
 	if (g_context->pdirty >= 0) {
 		ui_view2d_hwnd->redraws = 2; // Paint was active
+	}
+	if (ui_view2d_type == VIEW_2D_TYPE_SOUND && ui_view2d_sound_playing != NULL) {
+		ui_view2d_hwnd->redraws = 2;
 	}
 
 	// Cache grid
@@ -344,20 +449,6 @@ void ui_view2d_update(void *_) {
 	i32 apph = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
 	if (!base_view3d_show) {
 		apph = base_h();
-	}
-	ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
-
-	if (ui_nodes_show) {
-		ui_view2d_wh -= g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
-		if (g_config->touch_ui) {
-			ui_view2d_wh += ui_header_h;
-		}
-	}
-
-	if (!base_view3d_show && ui_nodes_show) {
-		ui_view2d_wx = 0;
-		ui_view2d_ww = base_view3d_w();
-		ui_view2d_wh = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
 	}
 
 	if (ui_window(ui_view2d_hwnd, ui_view2d_wx, ui_view2d_wy, ui_view2d_ww, ui_view2d_wh, false)) {
@@ -452,6 +543,13 @@ void ui_view2d_update(void *_) {
 		else if (ui_view2d_type == VIEW_2D_TYPE_FONT) {
 			tex = g_context->font->image;
 		}
+#ifdef IRON_AUDIO
+		else if (ui_view2d_type == VIEW_2D_TYPE_SOUND && g_context->sound != NULL) {
+			i32 sw = ui_view2d_ww * 0.9 * ui_view2d_pan_scale;
+			i32 sh = wm * 0.5;
+			ui_view2d_draw_waveform(g_context->sound->sound, ui_view2d_ww / 2.0 - sw / 2.0 + ui_view2d_pan_x, apph / 2.0 - sh / 2.0 + ui_view2d_pan_y, sw, sh);
+		}
+#endif
 
 		i32 th = tw;
 		if (tex != NULL) {
@@ -562,6 +660,9 @@ void ui_view2d_update(void *_) {
 			else if (ui_view2d_type == VIEW_2D_TYPE_FONT) {
 				text = g_context->font->name;
 			}
+			else if (ui_view2d_type == VIEW_2D_TYPE_SOUND && g_context->sound != NULL) {
+				text = g_context->sound->name;
+			}
 
 			g_ui->_w = math_floor(math_min(draw_string_width(g_font, g_ui->font_size, text) + 15 * UI_SCALE(), 100 * UI_SCALE()));
 
@@ -604,6 +705,10 @@ void ui_view2d_update(void *_) {
 			}
 			else if (ui_view2d_type == VIEW_2D_TYPE_FONT) {
 				ui_text_input(&g_context->font->name, "", UI_ALIGN_LEFT, true, false);
+				name_changed = ui_item_changed();
+			}
+			else if (ui_view2d_type == VIEW_2D_TYPE_SOUND && g_context->sound != NULL) {
+				ui_text_input(&g_context->sound->name, "", UI_ALIGN_LEFT, true, false);
 				name_changed = ui_item_changed();
 			}
 
@@ -652,6 +757,24 @@ void ui_view2d_update(void *_) {
 				g_ui->_x += ew + 3;
 				g_ui->_y = 2 + start_y;
 			}
+		}
+
+		if (ui_view2d_type == VIEW_2D_TYPE_SOUND) {
+			g_ui->_w = math_floor(ew * 0.7 + 3);
+			if (ui_view2d_sound_is_playing()) {
+				if (ui_icon_button(tr("Stop"), ICON_STOP, UI_ALIGN_CENTER)) {
+					ui_view2d_stop_sound();
+				}
+			}
+			else {
+				g_ui->enabled = g_context->sound != NULL && g_context->sound->sound != NULL;
+				if (ui_icon_button(tr("Play"), ICON_PLAY, UI_ALIGN_CENTER)) {
+					ui_view2d_play_sound();
+				}
+				g_ui->enabled = true;
+			}
+			g_ui->_x += ew * 0.7 + 3;
+			g_ui->_y = 2 + start_y;
 		}
 
 		// Zoom slider

@@ -103,8 +103,11 @@ void box_preferences_interface_tab() {
 	bool scale_changed = ui_item_changed();
 	if (g_context->hscale_was_changed && !g_ui->input_down) {
 		g_context->hscale_was_changed = false;
-		if (box_preferences_scale == 0.0) {
+		if (box_preferences_scale < 1.0) {
 			box_preferences_scale = 1.0;
+		}
+		if (box_preferences_scale > 4.0) {
+			box_preferences_scale = 4.0;
 		}
 		g_config->window_scale = box_preferences_scale;
 		box_preferences_set_scale();
@@ -579,16 +582,13 @@ void box_preferences_viewport_tab() {
 	    (void *[]){
 	        tr("Fast"),
 	        tr("Quality"),
-	        tr("Multi Fast"),
-	        tr("Multi Quality"),
 	    },
-	    4);
+	    2);
 	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Quality"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		render_path_raytrace_ready       = false;
 		render_path_raytrace_init_shader = true;
 		g_context->ddirty                = 2;
-		util_mesh_merge(NULL);
 	}
 
 	ui_slider_int(&g_config->pathtrace_frames, tr("Frames"), 1, 128, false, true, UI_ALIGN_RIGHT, true);

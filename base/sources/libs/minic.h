@@ -6,7 +6,7 @@
 
 #define MINIC_MEM_SIZE          (8 * 1024 * 1024)
 #define MINIC_MAX_PARAMS        20
-#define MINIC_MAX_ARGS          64 // Call argc, including variadic natives such as sprintf
+#define MINIC_MAX_ARGS          64  // Call argc, including variadic natives such as sprintf
 #define MINIC_MAX_VARS          256 // locals per scope
 #define MINIC_MAX_EXTFUNS       1024
 #define MINIC_MAX_SIG           64
@@ -20,13 +20,13 @@
 typedef unsigned char minic_u8;
 
 typedef enum {
-	MINIC_T_INT   = 0,
-	MINIC_T_FLOAT = 1,
-	MINIC_T_PTR   = 2, // void *, always holds a real host pointer
-	MINIC_T_BOOL  = 3, // used in extern-call ABI, stored as INT in vals
-	MINIC_T_CHAR  = 4, // used in extern-call ABI, stored as INT in vals
-	MINIC_T_VOID  = 5, // void return only; stored as INT/0 in vals
-	MINIC_T_EMBED = 6, // struct storage; expression values carry its address
+	MINIC_T_INT    = 0,
+	MINIC_T_FLOAT  = 1,
+	MINIC_T_PTR    = 2, // void *, always holds a real host pointer
+	MINIC_T_BOOL   = 3, // used in extern-call ABI, stored as INT in vals
+	MINIC_T_CHAR   = 4, // used in extern-call ABI, stored as INT in vals
+	MINIC_T_VOID   = 5, // void return only; stored as INT/0 in vals
+	MINIC_T_EMBED  = 6, // struct storage; expression values carry its address
 	MINIC_T_DOUBLE = 7,
 } minic_type_t;
 
@@ -34,10 +34,10 @@ typedef struct {
 	minic_type_t type;
 	minic_type_t deref_type; // pointed-to type (for MINIC_T_PTR)
 	union {
-		int   i; // MINIC_T_INT
-		float f; // MINIC_T_FLOAT
+		int    i; // MINIC_T_INT
+		float  f; // MINIC_T_FLOAT
 		double d; // MINIC_T_DOUBLE
-		void *p; // MINIC_T_PTR
+		void  *p; // MINIC_T_PTR
 	};
 } minic_val_t;
 
@@ -49,10 +49,10 @@ typedef struct {
 	int          layout_state; // 0 = unresolved, 1 = resolving, 2 = complete
 	int          field_count;
 	char         fields[MINIC_MAX_STRUCT_FIELDS][MINIC_MAX_NAME];
-	int          offsets[MINIC_MAX_STRUCT_FIELDS];                       // byte offset in the native C struct
-	minic_type_t types[MINIC_MAX_STRUCT_FIELDS];                         // storage type of each field
+	int          offsets[MINIC_MAX_STRUCT_FIELDS]; // byte offset in the native C struct
+	minic_type_t types[MINIC_MAX_STRUCT_FIELDS];   // storage type of each field
 	int          pointer_depths[MINIC_MAX_STRUCT_FIELDS];
-	int          counts[MINIC_MAX_STRUCT_FIELDS]; // 0 for a scalar, otherwise fixed array length
+	int          counts[MINIC_MAX_STRUCT_FIELDS];                        // 0 for a scalar, otherwise fixed array length
 	minic_type_t deref_types[MINIC_MAX_STRUCT_FIELDS];                   // pointed-to type for PTR fields
 	char         field_structs[MINIC_MAX_STRUCT_FIELDS][MINIC_MAX_NAME]; // struct type name for struct-typed fields, or ""
 } minic_struct_t;
@@ -78,7 +78,7 @@ minic_val_t  minic_ctx_call_fn(minic_ctx_t *ctx, void *fn_ptr, minic_val_t *args
 // Call a minic function from native C. fn_ptr is a minic func passed from a script,
 // valid as long as the owning minic_ctx_t has not been freed
 minic_val_t minic_call_fn(void *fn_ptr, minic_val_t *args, int argc);
-void       *minic_alloc(int size);   // allocate in the active context's arena
+void       *minic_alloc(int size); // allocate in the active context's arena
 
 // Host api registration (idempotent, safe to re-run)
 void minic_register(const char *name, const char *sig, minic_native_fn_t fn); // sig like "f(p,i)" using i/f/p/b/c/v
@@ -116,7 +116,13 @@ bool              minic_global_get(const char *name, minic_val_t *out); // false
 
 // Native struct registration helpers:
 //   MINIC_STRUCT(my_t); MINIC_I(count); MINIC_S(name); MINIC_O(child, other_t); MINIC_END();
-#define MINIC_ALIGNOF(T) offsetof(struct { char pad; T value; }, value)
+#define MINIC_ALIGNOF(T) \
+	offsetof(            \
+	    struct {         \
+		    char pad;    \
+		    T    value;  \
+	    },               \
+	    value)
 #define MINIC_STRUCT(T)       \
 	{                         \
 		typedef T minic_st_t; \
@@ -157,9 +163,9 @@ static inline minic_val_t minic_val_float(float v) {
 
 static inline minic_val_t minic_val_double(double v) {
 	minic_val_t r = {0};
-	r.type = MINIC_T_DOUBLE;
-	r.deref_type = MINIC_T_DOUBLE;
-	r.d = v;
+	r.type        = MINIC_T_DOUBLE;
+	r.deref_type  = MINIC_T_DOUBLE;
+	r.d           = v;
 	return r;
 }
 

@@ -22,17 +22,91 @@ gpu_shader_t   *gpu_create_shader_from_source(char *source, int source_size, gpu
 void            gpu_delete_shader(gpu_shader_t *shader);
 gpu_pipeline_t *gpu_create_pipeline();
 
+#define SHADER_COMPILE_MAX_THREADS 16
+
 typedef struct {
-	char             *source;
-	int               source_size;
-	gpu_shader_type_t shader_type;
-	gpu_shader_t     *result;
-} shader_compile_job_t;
+	shader_context_t **items;
+	int                count;
+	int                next;
+	iron_mutex_t       mutex;
+} shader_compile_jobs_t;
 
 static void shader_compile_worker(void *param) {
-	shader_compile_job_t *job = (shader_compile_job_t *)param;
-	job->result               = gpu_create_shader_from_source(job->source, job->source_size, job->shader_type);
+	shader_compile_jobs_t *p = param;
+	while (true) {
+		iron_mutex_lock(&p->mutex);
+		int i = p->next++;
+		iron_mutex_unlock(&p->mutex);
+		if (i >= p->count) {
+			return;
+		}
+		gpu_pipeline_compile(p->items[i]->_->pipe);
+	}
 }
+
+static void shader_compile_parallel(shader_context_t **items, int count) {
+	if (count <= 0) {
+		return;
+	}
+	int threads = iron_hardware_threads();
+	if (threads > count) {
+		threads = count;
+	}
+	if (threads > SHADER_COMPILE_MAX_THREADS) {
+		threads = SHADER_COMPILE_MAX_THREADS;
+	}
+
+	shader_compile_jobs_t p = {.items = items, .count = count};
+	iron_mutex_init(&p.mutex);
+	iron_thread_t workers[SHADER_COMPILE_MAX_THREADS];
+	for (int i = 1; i < threads; ++i) {
+		iron_thread_init(&workers[i], shader_compile_worker, &p);
+	}
+	shader_compile_worker(&p);
+	for (int i = 1; i < threads; ++i) {
+		iron_thread_wait_and_destroy(&workers[i]);
+	}
+	iron_mutex_destroy(&p.mutex);
+}
+
+#ifdef WITH_D3DCOMPILER
+static void shader_compile_vertex_worker(void *shader) {
+	gpu_shader_compile(shader, true);
+}
+#endif
+
+static void shader_context_bind_constants(shader_context_t *raw);
+
+static bool               shader_batch_active   = false;
+static shader_context_t **shader_batch_items    = NULL;
+static int                shader_batch_count    = 0;
+static int                shader_batch_capacity = 0;
+
+void shader_compile_batch_begin(void) {
+	shader_batch_active = true;
+	shader_batch_count  = 0;
+}
+
+static void shader_batch_push(shader_context_t *raw) {
+	if (shader_batch_count == shader_batch_capacity) {
+		shader_batch_capacity = shader_batch_capacity == 0 ? 32 : shader_batch_capacity * 2;
+		shader_batch_items    = realloc(shader_batch_items, shader_batch_capacity * sizeof(shader_context_t *));
+	}
+	shader_batch_items[shader_batch_count++] = raw;
+}
+
+void shader_compile_batch_end(void) {
+	if (!shader_batch_active) {
+		return;
+	}
+	shader_batch_active = false;
+	shader_compile_parallel(shader_batch_items, shader_batch_count);
+	for (int i = 0; i < shader_batch_count; ++i) {
+		shader_context_bind_constants(shader_batch_items[i]);
+	}
+	shader_batch_count = 0;
+}
+
 void gpu_delete_pipeline(gpu_pipeline_t *pipeline);
 #ifdef arm_embed
 gpu_shader_t *sys_get_shader(char *name);
@@ -549,20 +623,8 @@ void shader_context_compile(shader_context_t *raw) {
 	}
 
 	if (raw->shader_from_source) {
-
-#ifdef IRON_WASM
 		raw->_->pipe->vertex_shader   = gpu_create_shader_from_source(raw->vertex_shader, raw->_->vertex_shader_size, GPU_SHADER_TYPE_VERTEX);
 		raw->_->pipe->fragment_shader = gpu_create_shader_from_source(raw->fragment_shader, raw->_->fragment_shader_size, GPU_SHADER_TYPE_FRAGMENT);
-#else
-		shader_compile_job_t vs_job = {raw->vertex_shader, raw->_->vertex_shader_size, GPU_SHADER_TYPE_VERTEX, NULL};
-		shader_compile_job_t fs_job = {raw->fragment_shader, raw->_->fragment_shader_size, GPU_SHADER_TYPE_FRAGMENT, NULL};
-		iron_thread_t        vs_thread;
-		iron_thread_init(&vs_thread, shader_compile_worker, &vs_job);
-		shader_compile_worker(&fs_job);
-		iron_thread_wait_and_destroy(&vs_thread);
-		raw->_->pipe->vertex_shader   = vs_job.result;
-		raw->_->pipe->fragment_shader = fs_job.result;
-#endif
 
 #ifdef IRON_WASM
 		free(raw->vertex_shader);
@@ -586,6 +648,21 @@ void shader_context_compile(shader_context_t *raw) {
 		raw->_->pipe->fragment_shader = gpu_create_shader(fs_buffer, GPU_SHADER_TYPE_FRAGMENT);
 #endif
 	}
+
+	if (shader_batch_active) {
+		shader_batch_push(raw);
+		return;
+	}
+
+#ifdef WITH_D3DCOMPILER
+	// No batch - compile the two stages side by side
+	if (raw->shader_from_source) {
+		iron_thread_t vs_thread;
+		iron_thread_init(&vs_thread, shader_compile_vertex_worker, raw->_->pipe->vertex_shader);
+		gpu_shader_compile(raw->_->pipe->fragment_shader, false);
+		iron_thread_wait_and_destroy(&vs_thread);
+	}
+#endif
 
 	shader_context_finish_compile(raw);
 }
@@ -635,6 +712,10 @@ i32 shader_context_type_pad(i32 offset, i32 size) {
 
 void shader_context_finish_compile(shader_context_t *raw) {
 	gpu_pipeline_compile(raw->_->pipe);
+	shader_context_bind_constants(raw);
+}
+
+static void shader_context_bind_constants(shader_context_t *raw) {
 	if (raw->constants != NULL) {
 		i32 offset = 0;
 		for (i32 i = 0; i < raw->constants->length; ++i) {
@@ -810,16 +891,27 @@ void mesh_data_build_vertices(gpu_buffer_t *vertex_buffer, any_array_t *vertex_a
 	int16_t        *vertices  = gpu_vertex_buffer_lock(vertex_buffer);
 	i32             size      = mesh_data_get_vertex_size(va0->data);
 	i32             num_verts = va0->values->length / size;
-	i32             di        = -1;
+	i32             count     = vertex_arrays->length;
+
+	i32      sizes[GPU_MAX_VERTEX_ELEMENTS];
+	int16_t *srcs[GPU_MAX_VERTEX_ELEMENTS];
+	for (i32 va = 0; va < count; ++va) {
+		vertex_array_t *v = (vertex_array_t *)vertex_arrays->buffer[va];
+		sizes[va]         = mesh_data_get_vertex_size(v->data);
+		srcs[va]          = v->values->buffer;
+	}
+
+	i32 di = 0;
 	for (i32 i = 0; i < num_verts; ++i) {
-		for (i32 va = 0; va < vertex_arrays->length; ++va) {
-			vertex_array_t *v = (vertex_array_t *)vertex_arrays->buffer[va];
-			i32             l = mesh_data_get_vertex_size(v->data);
+		for (i32 va = 0; va < count; ++va) {
+			i32            l = sizes[va];
+			const int16_t *s = srcs[va] + i * l;
 			for (i32 o = 0; o < l; ++o) {
-				vertices[++di] = v->values->buffer[i * l + o];
+				vertices[di++] = s[o];
 			}
 		}
 	}
+
 	gpu_vertex_buffer_unlock(vertex_buffer);
 }
 
@@ -964,7 +1056,7 @@ bool mesh_object_cull_material(mesh_object_t *raw, char *context) {
 bool mesh_object_cull_mesh(mesh_object_t *raw, char *context, camera_object_t *camera) {
 	if (camera->data->frustum_culling && raw->frustum_culling) {
 		f32 radius_scale = 1.0;
-		if (!camera_object_sphere_in_frustum(&camera->frustum_planes, raw->base->transform, radius_scale, 0.0, 0.0, 0.0)) {
+		if (!camera_object_sphere_in_frustum(camera->frustum_planes, raw->base->transform, radius_scale, 0.0, 0.0, 0.0)) {
 			raw->base->culled = true;
 			return true;
 		}

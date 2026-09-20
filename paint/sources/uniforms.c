@@ -91,6 +91,9 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		f32  val  = (fill ? g_context->layer->scale : g_context->brush_scale) * g_context->brush_nodes_scale;
 		return val;
 	}
+	else if (string_equals(link, "_atlas_stride")) {
+		return util_mesh_udim_active() ? util_mesh_atlas_stride() : 1.0;
+	}
 	else if (string_equals(link, "_object_id")) {
 		return array_index_of(g_project->_->paint_objects, object->ext);
 	}
@@ -223,11 +226,14 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 		return v;
 	}
 	else if (string_equals(link, "_atlas_transform")) {
-		if (!config_is_raytrace_multi()) {
+		if (!util_mesh_udim_active() || render_path_raytrace_override_pass) {
 			return (vec4_t){0.0, 0.0, 1.0, 1.0};
 		}
 		i32 stride = util_mesh_atlas_stride();
 		i32 slot   = util_mesh_atlas_slot(object);
+		if (slot < 0) {
+			return (vec4_t){0.0, 0.0, 1.0, 1.0};
+		}
 		return (vec4_t){(slot % stride) / (f32)stride, (slot / stride) / (f32)stride, 1.0 / stride, 1.0};
 	}
 	else if (string_equals(link, "_decal_layer_loc")) {

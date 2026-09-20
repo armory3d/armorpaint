@@ -1216,7 +1216,6 @@ void sculpt_bake_to_mesh() {
 	render_path_raytrace_ready = false;
 
 	array_delete(pos);
-	free(layer_pixels);
 	array_delete(sculpt_layers);
 }
 

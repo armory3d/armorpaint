@@ -393,6 +393,11 @@ bool context_in_fonts() {
 	return string_equals(tab, tr("Fonts"));
 }
 
+bool context_in_sounds() {
+	char *tab = ui_hovered_tab_name();
+	return string_equals(tab, tr("Sounds"));
+}
+
 bool context_in_textures() {
 	char *tab = ui_hovered_tab_name();
 	return string_equals(tab, tr("Textures"));
@@ -422,8 +427,7 @@ bool context_is_decal_mask() {
 
 bool context_is_brush_camera_align() {
 	bool brush = g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER;
-	return (context_is_decal() || brush) &&
-	       (g_context->brush_camera_align || keymap_shortcut(any_map_get(g_keymap, "brush_camera_align"), SHORTCUT_TYPE_DOWN));
+	return (context_is_decal() || brush) && (g_context->brush_camera_align || keymap_shortcut(any_map_get(g_keymap, "brush_camera_align"), SHORTCUT_TYPE_DOWN));
 }
 
 bool context_is_decal_mask_paint() {

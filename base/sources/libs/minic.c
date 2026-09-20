@@ -17,30 +17,31 @@
 //    ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║
 //    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
 
-#define MINIC_TOK_LIST                                                                                                                                     \
-	X(TOK_INT, "'int'")                                                                                                                                    \
-	X(TOK_FLOAT, "'float'")                                                                                                                                \
-	X(TOK_CHAR, "'char'")                                                                                                                                  \
-	X(TOK_DOUBLE, "'double'")                                                                                                                              \
-	X(TOK_BOOL, "'bool'")                                                                                                                                  \
-	X(TOK_RETURN, "'return'")                                                                                                                              \
-	X(TOK_IF, "'if'")                                                                                                                                      \
-	X(TOK_ELSE, "'else'")                                                                                                                                  \
-	X(TOK_WHILE, "'while'")                                                                                                                                \
-	X(TOK_FOR, "'for'")                                                                                                                                    \
-	X(TOK_BREAK, "'break'")                                                                                                                                \
-	X(TOK_CONTINUE, "'continue'")                                                                                                                          \
-	X(TOK_STRUCT, "'struct'")                                                                                                                              \
-	X(TOK_TYPEDEF, "'typedef'")                                                                                                                            \
-	X(TOK_ENUM, "'enum'") X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") X(TOK_NUMBER, "number") X(TOK_CHAR_LIT, "char literal")                         \
-	    X(TOK_STR_LIT, "string literal") X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['")        \
-	        X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") \
-	            X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='")        \
-	                X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'")     \
-	                    X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'")      \
-	                        X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'")            \
-	                            X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'")     \
-	                                X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_EOF, "end of file")
+#define MINIC_TOK_LIST                                                                                                                                        \
+	X(TOK_INT, "'int'")                                                                                                                                       \
+	X(TOK_FLOAT, "'float'")                                                                                                                                   \
+	X(TOK_CHAR, "'char'")                                                                                                                                     \
+	X(TOK_DOUBLE, "'double'")                                                                                                                                 \
+	X(TOK_BOOL, "'bool'")                                                                                                                                     \
+	X(TOK_RETURN, "'return'")                                                                                                                                 \
+	X(TOK_IF, "'if'")                                                                                                                                         \
+	X(TOK_ELSE, "'else'")                                                                                                                                     \
+	X(TOK_WHILE, "'while'")                                                                                                                                   \
+	X(TOK_FOR, "'for'")                                                                                                                                       \
+	X(TOK_BREAK, "'break'")                                                                                                                                   \
+	X(TOK_CONTINUE, "'continue'")                                                                                                                             \
+	X(TOK_STRUCT, "'struct'")                                                                                                                                 \
+	X(TOK_TYPEDEF, "'typedef'")                                                                                                                               \
+	X(TOK_ENUM, "'enum'")                                                                                                                                     \
+	X(TOK_VOID, "'void'") X(TOK_IDENT, "identifier") X(TOK_NUMBER, "number") X(TOK_CHAR_LIT, "char literal") X(TOK_STR_LIT, "string literal")                 \
+	    X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'")                     \
+	        X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") \
+	            X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='")           \
+	                X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'")                 \
+	                    X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'")       \
+	                        X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'")            \
+	                            X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'")            \
+	                                X(TOK_ARROW, "'->'") X(TOK_QUESTION, "'?'") X(TOK_COLON, "':'") X(TOK_EOF, "end of file")
 
 typedef enum {
 #define X(t, s) t,
@@ -129,7 +130,7 @@ static const struct {
     {'^', 0, TOK_XOR},          {'~', 0, TOK_BITNOT},        {'<', 0, TOK_LT},           {'>', 0, TOK_GT},
     {'(', 0, TOK_LPAREN},       {')', 0, TOK_RPAREN},        {'{', 0, TOK_LBRACE},       {'}', 0, TOK_RBRACE},
     {'[', 0, TOK_LBRACKET},     {']', 0, TOK_RBRACKET},      {';', 0, TOK_SEMICOLON},    {',', 0, TOK_COMMA},
-    {'.', 0, TOK_DOT},
+    {'.', 0, TOK_DOT},          {'?', 0, TOK_QUESTION},      {':', 0, TOK_COLON},
 };
 
 static int minic_escape(char c) {
@@ -1406,8 +1407,61 @@ static minic_expr_t minic_parse_binary(minic_env_t *e, int level) {
 	return r;
 }
 
+static void minic_skip_ternary_operand(minic_env_t *e) {
+	int depth  = 0; // Open (, [ and {
+	int nested = 0; // Unmatched '?' of inner ternaries
+	while (e->lex.cur.type != TOK_EOF) {
+		minic_tok_type_t t = e->lex.cur.type;
+		if (t == TOK_LPAREN || t == TOK_LBRACKET || t == TOK_LBRACE) {
+			depth++;
+		}
+		else if (t == TOK_RPAREN || t == TOK_RBRACKET || t == TOK_RBRACE) {
+			if (depth == 0) {
+				return;
+			}
+			depth--;
+		}
+		else if (depth == 0) {
+			if (t == TOK_SEMICOLON || t == TOK_COMMA) {
+				return;
+			}
+			if (t == TOK_QUESTION) {
+				nested++;
+			}
+			else if (t == TOK_COLON) {
+				if (nested == 0) {
+					return;
+				}
+				nested--;
+			}
+		}
+		minic_lex_next(&e->lex);
+	}
+}
+
+static minic_expr_t minic_parse_ternary(minic_env_t *e) {
+	minic_expr_t r = minic_parse_binary(e, 1);
+	if (e->error || e->lex.cur.type != TOK_QUESTION) {
+		return r;
+	}
+	bool taken = minic_val_is_true(minic_load(r));
+	minic_lex_next(&e->lex); // Consume '?'
+	minic_val_t v = minic_val_int(0);
+	if (taken) {
+		v = minic_load(minic_parse_assignment(e));
+		minic_expect(e, TOK_COLON);
+		minic_skip_ternary_operand(e);
+	}
+	else {
+		minic_skip_ternary_operand(e);
+		minic_expect(e, TOK_COLON);
+		v = minic_load(minic_parse_ternary(e));
+	}
+	return minic_value(v);
+}
+
 static minic_expr_t minic_parse_assignment(minic_env_t *e) {
-	minic_expr_t     target = minic_parse_binary(e, 1);
+	minic_expr_t     target = minic_parse_ternary(e);
 	minic_tok_type_t op     = e->lex.cur.type;
 	if (!e->error && (op == TOK_ASSIGN || minic_is_compound_assign(op))) {
 		minic_lex_next(&e->lex);

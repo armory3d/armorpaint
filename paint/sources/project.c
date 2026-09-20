@@ -30,7 +30,7 @@ void project_open() {
 }
 
 void project_save_on_next_frame(void *_) {
-	export_arm_run_project();
+	export_arm_run_project(g_project->_->filepath);
 	if (_project_save_and_quit) {
 		iron_stop();
 	}
@@ -86,6 +86,10 @@ void project_cleanup() {
 	}
 
 	if (g_project->_->paint_objects != NULL) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			object_set_parent(p->base, NULL);
+		}
 		for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 			if (p == g_context->paint_object) {
@@ -106,7 +110,12 @@ void project_cleanup() {
 		data_delete_texture(a->file);
 	}
 
-	sim_physics_clear();
+	ui_view2d_stop_sound();
+	for (i32 i = 0; i < g_project->_->sounds->length; ++i) {
+		data_delete_sound(g_project->_->sounds->buffer[i]->file);
+	}
+
+	util_physics_clear();
 }
 
 void project_new_on_next_frame(void *_) {
@@ -128,6 +137,7 @@ void project_new(bool reset_layers) {
 		project_cleanup();
 		g_project->_->filepath = "";
 	}
+	g_project->stages = NULL;
 
 	if (g_project->_->layers->length == 0) {
 		any_array_push(g_project->_->layers, slot_layer_create("", LAYER_SLOT_TYPE_LAYER, NULL));
@@ -199,11 +209,13 @@ void project_new(bool reset_layers) {
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = "Tessellated";
+	g_context->paint_object->base->visible = true;
 
 	while (g_project->_->materials->length > 0) {
 		slot_material_unload(array_pop(g_project->_->materials));
 	}
 	any_array_push(g_project->_->materials, slot_material_create(m, NULL));
+	tab_meshes_reset_overrides();
 
 	g_context->picker_paint_mask    = false;
 	g_context->picker_viewport_mask = false;
@@ -223,6 +235,8 @@ void project_new(bool reset_layers) {
 	    },
 	    1);
 	g_context->font = g_project->_->fonts->buffer[0];
+	g_project->_->sounds = any_array_create_from_raw((void *[]){}, 0);
+	g_context->sound    = NULL;
 	project_set_default_swatches();
 	g_context->swatch                = g_project->swatches->buffer[0];
 	g_context->picked_color          = project_make_swatch(0xffffffff);
@@ -258,6 +272,7 @@ void project_new(bool reset_layers) {
 	if (in_use)
 		draw_begin(current, false, 0);
 
+	tab_stages_init();
 	tab_meshes_reset_preview_map();
 	base_update_workflow();
 	project_set_default_envmap();
@@ -361,10 +376,6 @@ void project_import_mesh(bool replace_existing, void (*done)(void)) {
 	ui_files_show(formats, false, false, &project_import_mesh_on_file_picked);
 }
 
-void project_append_mesh() {
-	project_import_mesh(false, import_mesh_finish_import);
-}
-
 void project_reimport_mesh() {
 	if (g_project->mesh_assets != NULL && g_project->mesh_assets->length > 0 && iron_file_exists(g_project->mesh_assets->buffer[0])) {
 		project_import_mesh_box(g_project->mesh_assets->buffer[0], true, false, true, NULL);
@@ -414,8 +425,11 @@ bool project_reskin_mesh(int frame) {
 	}
 
 	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
-		if (!util_mesh_merge_reskin()) {
+		if (!util_mesh_merge_refresh()) {
 			util_mesh_merge(NULL);
+		}
+		if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+			sculpt_bake_to_mesh();
 		}
 	}
 	g_context->ddirty          = 4;
@@ -424,13 +438,6 @@ bool project_reskin_mesh(int frame) {
 #else
 	return false;
 #endif
-}
-
-void project_unwrap_mesh(raw_mesh_t *mesh, void (*done)(raw_mesh_t *)) {
-	char *f                = "uv_unwrap";
-	void (*cb)(void *mesh) = any_map_get(util_mesh_unwrappers, f);
-	cb(mesh);
-	done(mesh);
 }
 
 void project_unwrap_mesh_box_draw() {
@@ -446,9 +453,7 @@ void project_unwrap_mesh_box_draw() {
 		console_toast(tr("Unwrapping mesh"));
 #endif
 
-#ifdef WITH_PLUGINS
-		plugin_uv_unwrap_button();
-#endif
+		util_mesh_uv_unwrap();
 	}
 }
 

@@ -27,13 +27,8 @@ struct RayGenConstantBuffer {
 
 RWTexture2D<half4> render_target : register(u0);
 RaytracingAccelerationStructure scene : register(t0);
-ByteAddressBuffer indices : register(t1);
-StructuredBuffer<Vertex> vertices : register(t2);
 ConstantBuffer<RayGenConstantBuffer> constant_buffer : register(b0);
 
-Texture2D<float4> mytexture0 : register(t3);
-Texture2D<float4> mytexture1 : register(t4);
-Texture2D<float4> mytexture2 : register(t5);
 Texture2D<float4> mytexture_env : register(t6);
 Texture2D<float4> mytexture_sobol : register(t7);
 Texture2D<float4> mytexture_scramble : register(t8);
@@ -42,6 +37,17 @@ Texture2D<float4> mytexture_rank : register(t9);
 Texture2D<float4> mytexture_env_cdf : register(t10);
 #endif
 SamplerState sampler_linear : register(s0);
+
+struct Instance {
+	uint geometry;
+	uint stride; // Vertex size in bytes
+};
+StructuredBuffer<Instance> instances : register(t11);
+ByteAddressBuffer geometry_vertices[64] : register(t0, space1);
+ByteAddressBuffer geometry_indices[64] : register(t0, space2);
+Texture2D<float4> mytexture0[64] : register(t0, space3);
+Texture2D<float4> mytexture1[64] : register(t0, space4);
+Texture2D<float4> mytexture2[64] : register(t0, space5);
 
 #ifdef _FULL
 static const int SAMPLES = 64;
@@ -98,6 +104,16 @@ float2 s16_to_f32(uint val) {
 	int a = (int)(val << 16) >> 16;
 	int b = (int)(val & 0xffff0000) >> 16;
 	return float2(a, b) / 32767.0f;
+}
+
+Vertex load_vertex(uint geometry, uint offset) {
+	ByteAddressBuffer vb = geometry_vertices[NonUniformResourceIndex(geometry)];
+	Vertex v;
+	v.posxy = vb.Load(offset);
+	v.poszw = vb.Load(offset + 4);
+	v.nor = vb.Load(offset + 8);
+	v.tex = vb.Load(offset + 12);
+	return v;
 }
 
 float3 hit_attribute(float3 vertex_attribute[3], BuiltInTriangleIntersectionAttributes attr) {
@@ -393,9 +409,6 @@ void main(uint3 id : SV_DispatchThreadID) {
 	int frame = int(constant_buffer.eye.w);
 	init_sampler(id.xy, frame);
 
-	uint2 sz;
-	mytexture0.GetDimensions(sz.x, sz.y);
-
 	float3 accum = 0;
 	for (int j = 0; j < SAMPLES; ++j) {
 		int sample_index = frame * SAMPLES + j;
@@ -449,23 +462,24 @@ void main(uint3 id : SV_DispatchThreadID) {
 			}
 
 			uint base = q.CommittedPrimitiveIndex() * 12;
-			#ifdef _MULTI
-			base += q.CommittedInstanceID(); // Offset to index buffer of this instance
-			#endif
-			uint3 idx = indices.Load3(base);
+			Instance inst = instances[q.CommittedInstanceID()];
+			uint3 idx = geometry_indices[NonUniformResourceIndex(inst.geometry)].Load3(base);
 
 			BuiltInTriangleIntersectionAttributes attr;
 			attr.barycentrics = q.CommittedTriangleBarycentrics();
 
-			Vertex a0 = vertices[idx[0]];
-			Vertex a1 = vertices[idx[1]];
-			Vertex a2 = vertices[idx[2]];
+			Vertex a0 = load_vertex(inst.geometry, idx[0] * inst.stride);
+			Vertex a1 = load_vertex(inst.geometry, idx[1] * inst.stride);
+			Vertex a2 = load_vertex(inst.geometry, idx[2] * inst.stride);
 
 			float2 uv[3] = {s16_to_f32(a0.tex), s16_to_f32(a1.tex), s16_to_f32(a2.tex)};
 			float2 tc = hit_attribute2d(uv, attr) * constant_buffer.params.z;
 
+			uint g = inst.geometry;
+			uint2 sz;
+			mytexture0[NonUniformResourceIndex(g)].GetDimensions(sz.x, sz.y);
 			uint3 texel = uint3((tc - uint2(tc)) * sz, 0);
-			float4 tex0 = mytexture0.Load(texel);
+			float4 tex0 = mytexture0[NonUniformResourceIndex(g)].Load(texel);
 
 			float ray_t = q.CommittedRayT();
 			float3 hit = ray.Origin + ray.Direction * ray_t;
@@ -491,12 +505,10 @@ void main(uint3 id : SV_DispatchThreadID) {
 
 			float3 n_object = n;
 
-			#ifdef _MULTI
 			float3x4 objToWorld = q.CommittedObjectToWorld3x4();
 			float3x3 obj_to_world = float3x3(objToWorld[0].xyz, objToWorld[1].xyz, objToWorld[2].xyz);
 			n = normalize(mul(obj_to_world, n));
 			ng = normalize(mul(obj_to_world, ng));
-			#endif
 
 			bool back_face = dot(ng, ray.Direction) > 0.0;
 			if (back_face) {
@@ -512,7 +524,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 
 			float4 tex1 = 0;
 			if (normal_map) {
-				tex1 = mytexture1.Load(texel);
+				tex1 = mytexture1[NonUniformResourceIndex(g)].Load(texel);
 			}
 
 			float3 texcolor = srgb_to_linear(tex0.rgb);
@@ -530,7 +542,7 @@ void main(uint3 id : SV_DispatchThreadID) {
 			}
 			#endif
 
-			float4 tex2 = mytexture2.Load(texel);
+			float4 tex2 = mytexture2[NonUniformResourceIndex(g)].Load(texel);
 
 			float f = rnd(id.xy, sample_index, dim_base + DIM_SELECT);
 
@@ -552,12 +564,10 @@ void main(uint3 id : SV_DispatchThreadID) {
 			if (normal_map) {
 				create_uv_basis(vp[0], vp[1], vp[2], uv[0], uv[1], uv[2], n_object, tangent, binormal);
 
-				#ifdef _MULTI
 				tangent = mul(obj_to_world, tangent);
 				binormal = mul(obj_to_world, binormal);
 				tangent = normalize(tangent - n * dot(n, tangent));
 				binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
-				#endif
 
 				if (back_face) {
 					binormal = -binormal;

@@ -4,10 +4,11 @@
 static i32 text_to_text_node_backend = CONSOLE_MODEL_QWEN;
 
 static char *text_to_text_node_guide = "Reply with C code only wrapped in a ```c markdown fence. "
-									   "Place the code inside 'void main()' function. "
+                                       "Place the code inside 'void main()' function. "
                                        "Do not use preprocessor. "
-									   "Do not use multi-dimensional arrays. "
-									   "Do not use double pointers.\n";
+                                       "Do not use multi-dimensional arrays. "
+                                       "Do not use double pointers. "
+                                       "Use 'char *string(fmt, ...)' to format strings.\n";
 
 static char *text_to_text_node_grok_dir(void) {
 #ifndef NDEBUG

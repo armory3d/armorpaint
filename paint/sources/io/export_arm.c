@@ -143,14 +143,14 @@ static void export_arm_free_buffer(buffer_t *b) {
 	}
 }
 
-void export_arm_run_project() {
+void export_arm_run_project(char *path) {
 
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
 
 	workflow_t _workflow = g_config->workflow;
 	g_config->workflow   = WORKFLOW_PBR;
-	base_update_workflow();
+	base_update_workflow_nodes();
 
 	ui_node_canvas_t_array_t *mnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -164,7 +164,7 @@ void export_arm_run_project() {
 	}
 
 	g_config->workflow = _workflow;
-	base_update_workflow();
+	base_update_workflow_nodes();
 
 	ui_node_canvas_t_array_t *bnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
@@ -219,11 +219,11 @@ void export_arm_run_project() {
 		any_array_push(md, source >= 0 && source < i ? export_arm_linked_mesh_data(p, source) : export_arm_named_mesh_data(p));
 	}
 
-	string_array_t *texture_files = export_arm_assets_to_files(g_project->_->filepath, g_project->_->assets);
-
-	string_array_t *font_files  = export_arm_fonts_to_files(g_project->_->filepath, g_project->_->fonts);
-	string_array_t *sound_files = export_arm_sounds_to_files(g_project->_->filepath, g_project->_->sounds);
-	string_array_t *mesh_files  = export_arm_meshes_to_files(g_project->_->filepath);
+	char *relative_to = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
+	string_array_t *texture_files = export_arm_assets_to_files(relative_to, g_project->_->assets);
+	string_array_t *font_files  = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
+	string_array_t *sound_files = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
+	string_array_t *mesh_files  = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
 	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
@@ -276,7 +276,7 @@ void export_arm_run_project() {
 #ifdef IRON_IOS
 	bool same_drive = false;
 #else
-	bool same_drive = g_project->envmap != NULL ? char_at(g_project->_->filepath, 0)[0] == char_at(g_project->envmap, 0)[0] : true;
+	bool same_drive = g_project->envmap != NULL ? char_at(relative_to, 0)[0] == char_at(g_project->envmap, 0)[0] : true;
 #endif
 
 	g_project->version         = string_copy(manifest_version_project);
@@ -285,7 +285,7 @@ void export_arm_run_project() {
 	g_project->assets          = texture_files;
 	g_project->packed_assets   = packed_assets;
 	g_project->swatches        = g_project->swatches;
-	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(g_project->_->filepath, g_project->envmap) : g_project->envmap) : NULL;
+	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
 	g_project->envmap_strength = scene_world->strength;
 	g_project->envmap_angle    = g_context->envmap_angle;
 	g_project->envmap_blur     = g_context->show_envmap_blur;
@@ -351,8 +351,8 @@ void export_arm_run_project() {
 		g_project->mesh_physics_masses = f32_array_create(g_project->_->paint_objects->length);
 		for (i32 i = 0; i < g_project->mesh_physics_shapes->length; ++i) {
 			object_t *o                               = g_project->_->paint_objects->buffer[i]->base;
-			g_project->mesh_physics_shapes->buffer[i] = sim_physics_get_shape(o); // -1 = no physics
-			g_project->mesh_physics_masses->buffer[i] = sim_physics_get_mass(o);
+			g_project->mesh_physics_shapes->buffer[i] = util_physics_get_shape(o); // -1 = no physics
+			g_project->mesh_physics_masses->buffer[i] = util_physics_get_mass(o);
 		}
 	}
 
@@ -385,16 +385,17 @@ void export_arm_run_project() {
 	for (i32 i = 0; i < 256 * 256 * 4; ++i) {
 		u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
 	}
-	iron_write_png(string("%s_icon.png", substring(g_project->_->filepath, 0, string_length(g_project->_->filepath) - 4)), mesh_icon_pixels, 256, 256, 0);
+	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
 	gpu_delete_texture(mesh_icon);
 #endif
 
-	if (g_context->pack_assets_on_save) { // Pack textures
+	if (g_context->pack_assets_on_save) { // Pack textures and sounds
 		export_arm_pack_assets(g_project, g_project->_->assets);
+		export_arm_pack_sounds(g_project, g_project->_->sounds);
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
-	iron_file_save_bytes(g_project->_->filepath, buffer, buffer->length + 1);
+	iron_file_save_bytes(path, buffer, buffer->length + 1);
 	array_free(buffer);
 	free(buffer);
 
@@ -414,12 +415,17 @@ void export_arm_run_project() {
 	free(ld);
 	g_project->layer_datas = NULL;
 	tab_timeline_export_free(g_project);
+	tab_timeline_finish_save();
+
+	if (!string_equals(path, g_project->_->filepath)) {
+		return;
+	}
 
 	// Save to recent
 #ifdef IRON_IOS
-	char *recent_path = substring(g_project->_->filepath, string_last_index_of(g_project->_->filepath, "/") + 1, string_length(g_project->_->filepath));
+	char *recent_path = substring(path, string_last_index_of(path, "/") + 1, string_length(path));
 #else
-	char *recent_path = g_project->_->filepath;
+	char *recent_path = path;
 #endif
 
 #ifdef IRON_WINDOWS
@@ -429,8 +435,6 @@ void export_arm_run_project() {
 	string_array_remove(recent, recent_path);
 	array_insert(recent, 0, recent_path);
 	config_save();
-
-	tab_timeline_finish_save();
 
 	console_info(tr("Project saved"));
 }
@@ -625,6 +629,24 @@ void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
 	for (i32 i = 0; i < temp_images->length; ++i) {
 		gpu_texture_t *image = temp_images->buffer[i];
 		gpu_delete_texture(image);
+	}
+}
+
+void export_arm_pack_sounds(project_t *raw, slot_sound_t_array_t *sounds) {
+	if (raw->packed_assets == NULL) {
+		raw->packed_assets = any_array_create_from_raw((void *[]){}, 0);
+	}
+	for (i32 i = 0; i < sounds->length; ++i) {
+		slot_sound_t *s = sounds->buffer[i];
+		if (project_packed_asset_exists(raw->packed_assets, s->file)) {
+			continue;
+		}
+		buffer_t *bytes = iron_load_blob(s->file);
+		if (bytes == NULL) {
+			continue;
+		}
+		packed_asset_t *pa = ALLOC_INIT(packed_asset_t, {.name = s->file, .bytes = bytes});
+		any_array_push(raw->packed_assets, pa);
 	}
 }
 

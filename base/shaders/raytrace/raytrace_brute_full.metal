@@ -23,11 +23,20 @@ struct Vertex {
 	uint tex;
 };
 
-#ifdef _MULTI
+struct Instance {
+	constant uint *vertex_buffer;
+	constant uint *index_buffer;
+	uint stride; // Vertex size in bytes
+	uint geometry; // Index into the geometry textures
+};
+
+struct GeometryTextures {
+	texture2d<float, access::read> texpaint0;
+	texture2d<float, access::read> texpaint1;
+	texture2d<float, access::read> texpaint2;
+};
+
 typedef intersector<triangle_data, instancing, world_space_data> intersector_t;
-#else
-typedef intersector<triangle_data, instancing> intersector_t;
-#endif
 
 struct RayGenConstantBuffer {
 	float4 eye; // xyz, frame
@@ -378,6 +387,16 @@ bool occluded(float3 origin, float3 dir, instance_acceleration_structure scene) 
 }
 #endif
 
+Vertex load_vertex(constant uint *vb, uint offset) {
+	uint base = offset / 4;
+	Vertex v;
+	v.posxy = vb[base];
+	v.poszw = vb[base + 1];
+	v.nor = vb[base + 2];
+	v.tex = vb[base + 3];
+	return v;
+}
+
 uint2 texel_coord(float2 tex_coord, float2 tex_size) {
 	return uint2(fract(tex_coord) * tex_size);
 }
@@ -386,9 +405,6 @@ kernel void raytracingKernel(
 	uint2 tid [[thread_position_in_grid]],
 	constant RayGenConstantBuffer &constant_buffer [[buffer(0)]],
 	texture2d<float, access::read_write> render_target [[texture(0)]],
-	texture2d<float, access::read> mytexture0 [[texture(1)]],
-	texture2d<float, access::read> mytexture1 [[texture(2)]],
-	texture2d<float, access::read> mytexture2 [[texture(3)]],
 	texture2d<float, access::sample> mytexture_env [[texture(4)]],
 	texture2d<float, access::read> mytexture_sobol [[texture(5)]],
 	texture2d<float, access::read> mytexture_scramble [[texture(6)]],
@@ -398,8 +414,8 @@ kernel void raytracingKernel(
 #endif
 	sampler linear_sampler [[sampler(0)]],
 	instance_acceleration_structure scene [[buffer(1)]],
-	device void *indices [[buffer(2)]],
-	device void *vertices [[buffer(3)]]
+	constant Instance *instances [[buffer(2)]],
+	constant GeometryTextures *geometry_textures [[buffer(3)]]
 ) {
 	uint2 dim = uint2(render_target.get_width(), render_target.get_height());
 	if (tid.x >= dim.x || tid.y >= dim.y) {
@@ -410,7 +426,6 @@ kernel void raytracingKernel(
 	uint2 scramble_cache = init_scramble(tid, frame, mytexture_scramble);
 	uint4 rank_cache = init_rank(tid, frame, mytexture_rank);
 
-	float2 tex_size = float2(mytexture0.get_width(), mytexture0.get_height());
 	float3 accum = float3(0, 0, 0);
 
 	for (int j = 0; j < SAMPLES; ++j) {
@@ -475,23 +490,17 @@ kernel void raytracingKernel(
 				break;
 			}
 
-			device uint32_t *inda = (device uint32_t *)(indices);
 			uint base_index = intersection.primitive_id * 3;
 
-			#ifdef _MULTI
-			base_index += intersection.user_instance_id;
-			#endif
-
+			constant Instance &inst = instances[intersection.user_instance_id];
 			uint3 indices_sample = uint3(
-				inda[base_index],
-				inda[base_index + 1],
-				inda[base_index + 2]
+				inst.index_buffer[base_index],
+				inst.index_buffer[base_index + 1],
+				inst.index_buffer[base_index + 2]
 			);
-
-			device Vertex *verta = (device Vertex *)(vertices);
-			Vertex a0 = verta[indices_sample[0]];
-			Vertex a1 = verta[indices_sample[1]];
-			Vertex a2 = verta[indices_sample[2]];
+			Vertex a0 = load_vertex(inst.vertex_buffer, indices_sample[0] * inst.stride);
+			Vertex a1 = load_vertex(inst.vertex_buffer, indices_sample[1] * inst.stride);
+			Vertex a2 = load_vertex(inst.vertex_buffer, indices_sample[2] * inst.stride);
 
 			float2 vertex_uvs[3] = {
 				s16_to_f32(a0.tex),
@@ -502,8 +511,10 @@ kernel void raytracingKernel(
 			float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics) * constant_buffer.params.z;
 
 			float3 hit = hit_world_position(ray, intersection);
+			constant GeometryTextures &textures = geometry_textures[inst.geometry];
+			float2 tex_size = float2(textures.texpaint0.get_width(), textures.texpaint0.get_height());
 			uint2 texel = texel_coord(tex_coord, tex_size);
-			float4 texpaint0 = mytexture0.read(texel, 0);
+			float4 texpaint0 = textures.texpaint0.read(texel, 0);
 
 			float2 zw0 = s16_to_f32(a0.poszw);
 			float2 zw1 = s16_to_f32(a1.poszw);
@@ -526,12 +537,10 @@ kernel void raytracingKernel(
 
 			float3 n_object = n;
 
-			#ifdef _MULTI
 			float4x3 o2w = intersection.object_to_world_transform;
 			float3x3 obj_to_world = float3x3(o2w[0], o2w[1], o2w[2]);
 			n = normalize(obj_to_world * n);
 			ng = normalize(obj_to_world * ng);
-			#endif
 
 			bool back_face = dot(ng, ray.direction) > 0.0;
 			if (back_face) {
@@ -547,7 +556,7 @@ kernel void raytracingKernel(
 
 			float4 texpaint1 = float4(0.0);
 			if (normal_map) {
-				texpaint1 = mytexture1.read(texel, 0);
+				texpaint1 = textures.texpaint1.read(texel, 0);
 			}
 			float3 texcolor = srgb_to_linear(texpaint0.rgb);
 
@@ -565,7 +574,7 @@ kernel void raytracingKernel(
 			}
 			#endif
 
-			float4 texpaint2 = mytexture2.read(texel, 0);
+			float4 texpaint2 = textures.texpaint2.read(texel, 0);
 
 			float f = rand(tid.x, tid.y, sample_index, dim_base + DIM_SELECT, frame, scramble_cache, rank_cache, mytexture_sobol, mytexture_rank);
 
@@ -593,12 +602,10 @@ kernel void raytracingKernel(
 				create_uv_basis(vertex_positions[0], vertex_positions[1], vertex_positions[2],
 					vertex_uvs[0], vertex_uvs[1], vertex_uvs[2], n_object, tangent, binormal);
 
-				#ifdef _MULTI
 				tangent = obj_to_world * tangent;
 				binormal = obj_to_world * binormal;
 				tangent = normalize(tangent - n * dot(n, tangent));
 				binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
-				#endif
 
 				if (back_face) {
 					binormal = -binormal;

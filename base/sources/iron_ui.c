@@ -956,7 +956,7 @@ void ui_draw_combo() {
 			}
 			break;
 		}
-		if (current->combo_selected_images != NULL && current->combo_selected_images->length > i) {
+		if (current->combo_selected_images != NULL && current->combo_selected_images->length > i && current->combo_selected_images->buffer[i] != NULL) {
 			draw_scaled_image(current->combo_selected_images->buffer[i], current->_x - UI_ELEMENT_H(), current->_y - UI_ELEMENT_H() + 1, UI_ELEMENT_H(),
 			                  UI_ELEMENT_H());
 		}
@@ -2451,6 +2451,32 @@ int ui_combo(int *value, string_array_t *texts, char *label, bool show_label, in
 	return (*value);
 }
 
+static void ui_decimal_comma_to_dot(char *text) {
+	if (strchr(text, '(') != NULL) {
+		return;
+	}
+	// 1,1 -> 1.1
+	for (char *c = text; *c != '\0'; ++c) {
+		if (*c == ',' && (c == text || isdigit((unsigned char)c[-1])) && isdigit((unsigned char)c[1])) {
+			*c = '.';
+		}
+	}
+}
+
+float ui_parse_float(char *text) {
+	ui_decimal_comma_to_dot(text);
+#ifdef WITH_EVAL
+	char expression[UI_TEXT_MAX + 64];
+	snprintf(expression, sizeof(expression), "float main() { return %s%s; }", text[0] == '.' ? "0" : "", text);
+	minic_ctx_t *ctx    = minic_eval(expression);
+	float        result = minic_ctx_result(ctx);
+	minic_ctx_free(ctx);
+	return result;
+#else
+	return atof(text);
+#endif
+}
+
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit) {
 	current->item_changed = false;
 	ui_id_t     id        = ui_widget_id(value, UI_ID_SLIDER);
@@ -2512,16 +2538,7 @@ float ui_slider(float *value, char *text, float from, float to, bool filled, flo
 		ui_update_text_edit(lalign, true);
 	}
 	if (current->submit_text_id == id) {
-		char *text = current->text_to_submit;
-#ifdef WITH_EVAL
-		char expression[UI_TEXT_MAX + 64];
-		snprintf(expression, sizeof(expression), "float main() { return %s%s; }", text[0] == '.' ? "0" : "", text);
-		minic_ctx_t *_ctx = minic_eval(expression);
-		(*value)          = minic_ctx_result(_ctx);
-		minic_ctx_free(_ctx);
-#else
-		(*value) = atof(text);
-#endif
+		(*value) = ui_parse_float(current->text_to_submit);
 		ui_finish_text_edit();
 		current->item_changed = current->changed = true;
 	}

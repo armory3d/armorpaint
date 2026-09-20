@@ -10,6 +10,7 @@
 #include "iron_string.h"
 #include "iron_system.h"
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -522,12 +523,11 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 
 			int value = ((float *)but->default_value->buffer)[0];
 
-			bool  combo_select      = current->combo_selected_id == 0 && ui_get_released(UI_ELEMENT_H());
-			char *label             = combo_select ? temp_label : enum_label;
-			char (*texts_data)[256] = combo_select ? temp_texts_data : enum_texts_data;
-			char          **texts   = combo_select ? temp_texts : enum_texts;
-			string_array_t *ar      = combo_select ? &temp_ar : &enum_ar;
-			any_array_t    *images  = NULL;
+			bool  combo_select     = current->combo_selected_id == 0 && ui_get_released(UI_ELEMENT_H());
+			char *label            = combo_select ? temp_label : enum_label;
+			char (*texts_data)[64] = combo_select ? temp_texts_data : enum_texts_data;
+			char          **texts  = combo_select ? temp_texts : enum_texts;
+			string_array_t *ar     = combo_select ? &temp_ar : &enum_ar;
 
 			int  texts_count  = 0;
 			bool has_but_data = but->data != NULL && but->data->length > 1;
@@ -549,11 +549,16 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 						wi = 0;
 						continue;
 					}
-					texts_data[texts_count][wi] = c;
-					wi++;
+					if (wi < 63) {
+						texts_data[texts_count][wi] = c;
+						wi++;
+					}
 				}
 				for (int i = 0; i < texts_count; ++i) {
-					strcpy(texts_data[i], ui_tr(texts_data[i]));
+					char *translated = ui_tr(texts_data[i]);
+					if (translated != texts_data[i]) {
+						snprintf(texts_data[i], sizeof(texts_data[i]), "%s", translated);
+					}
 					texts[i] = texts_data[i];
 				}
 
@@ -564,7 +569,7 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 				ar = (*ui_nodes_enum_texts)(node->type);
 			}
 
-			strcpy(label, ui_tr(but->name));
+			snprintf(label, sizeof(enum_label), "%s", ui_tr(but->name));
 
 			ui_nodes_next_id(node, buti * 4);
 			ui_id_t combo_id                         = ui_widget_id(&value, UI_ID_COMBO);

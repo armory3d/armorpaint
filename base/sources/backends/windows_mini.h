@@ -24,7 +24,8 @@ typedef const CHAR  *LPCSTR;
 typedef wchar_t      WCHAR;
 typedef const WCHAR *LPCWSTR;
 typedef CONST CHAR  *LPCCH, *PCCH;
-#define CP_UTF8 65001
+#define CP_UTF8        65001
+#define FILE_TYPE_CHAR 0x0002
 typedef wchar_t     WCHAR;
 typedef WCHAR      *LPWSTR;
 typedef void       *PVOID;
@@ -77,6 +78,9 @@ WINBASEAPI VOID WINAPI   OutputDebugStringA(LPCSTR lpOutputString);
 WINBASEAPI VOID WINAPI   OutputDebugStringW(LPCWSTR lpOutputString);
 WINBASEAPI HANDLE WINAPI GetStdHandle(DWORD nStdHandle);
 int WINAPI               MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCCH lpMultiByteStr, int cbMultiByte, LPWSTR lpWideCharStr, int cchWideChar);
+int WINAPI               WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, CHAR *lpMultiByteStr, int cbMultiByte,
+                                             LPCCH lpDefaultChar, BOOL *lpUsedDefaultChar);
+WINBASEAPI DWORD WINAPI  GetFileType(HANDLE hFile);
 WINBASEAPI HANDLE WINAPI CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes,
                                      DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
 WINBASEAPI DWORD WINAPI  GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);

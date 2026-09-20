@@ -85,7 +85,7 @@ float ui_float_input(float *value, char *label, int align, float precision) {
 	ui_set_next_id(1);
 	ui_text_input(&text, label, align, true, false);
 	if (ui_item_changed())
-		*value = atof(text);
+		*value = ui_parse_float(text);
 	if (text != buffer)
 		free(text);
 	ui_pop_id();

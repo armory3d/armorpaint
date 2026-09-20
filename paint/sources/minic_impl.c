@@ -127,11 +127,17 @@ void script_notify_on_update(void *fn) {
 
 void *script_next_frame_fn = NULL;
 void  script_on_next_frame(void *_) {
-    minic_call_fn(script_next_frame_fn, NULL, 0);
+    void *fn             = script_next_frame_fn;
+    script_next_frame_fn = NULL;
+    minic_call_fn(fn, NULL, 0);
 }
 void script_notify_on_next_frame(void *fn) {
 	sys_notify_on_next_frame(script_on_next_frame, NULL);
 	script_next_frame_fn = fn;
+}
+
+bool script_is_running(void) {
+	return script_update_fn != NULL || script_next_frame_fn != NULL;
 }
 
 void *_ui_files_done;
@@ -145,12 +151,20 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 }
 
 char *project_filepath_get() {
+#ifdef IRON_WINDOWS
+	return string_replace_all(g_project->_->filepath, "\\", "/");
+#else
 	return g_project->_->filepath;
+#endif
 }
 char *project_basepath_get() {
-	return substring(g_project->_->filepath, 0, string_last_index_of(g_project->_->filepath, PATH_SEP));
+	char *path = project_filepath_get();
+	return substring(path, 0, string_last_index_of(path, "/"));
 }
 void project_filepath_set(char *s) {
+#ifdef IRON_WINDOWS
+	s = string_replace_all(s, "/", "\\");
+#endif
 	g_project->_->filepath = string_copy(s);
 }
 context_t *script_get_context() {
@@ -176,6 +190,24 @@ slot_material_t *script_get_material(char *s) {
 	for (int i = 0; i < g_project->_->materials->length; ++i) {
 		if (string_equals(g_project->_->materials->buffer[i]->canvas->name, s)) {
 			return g_project->_->materials->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+sound_t *script_get_sound(char *s) {
+	for (int i = 0; i < g_project->_->sounds->length; ++i) {
+		if (string_equals(g_project->_->sounds->buffer[i]->name, s)) {
+			return g_project->_->sounds->buffer[i]->sound;
+		}
+	}
+	return NULL;
+}
+
+gpu_texture_t *script_get_texture(char *s) {
+	for (int i = 0; i < g_project->_->assets->length; ++i) {
+		if (string_equals(g_project->_->assets->buffer[i]->name, s)) {
+			return g_project->_->assets->buffer[i]->image;
 		}
 	}
 	return NULL;
@@ -374,6 +406,17 @@ void script_import_asset(char *path, bool hdr_as_envmap) {
 	g_context->ddirty = 2;
 }
 
+extern bool import_mesh_clear_layers;
+extern bool import_mesh_no_reset;
+extern bool import_mesh_append;
+
+static void script_append_mesh_finish(i32 first) {
+	if (g_project->_->paint_objects->length > first) {
+		import_mesh_finish_import(NULL);
+	}
+	import_mesh_append = false;
+}
+
 void script_append_mesh(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
@@ -381,7 +424,9 @@ void script_append_mesh(char *path) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
+	i32 first = g_project->_->paint_objects->length;
 	import_mesh_run(path, false, false, true);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }
@@ -393,7 +438,17 @@ void script_append_mesh_obj(char *data) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
-	import_mesh_run_obj(data);
+	import_mesh_clear_layers = false;
+	import_mesh_no_reset     = true;
+	import_mesh_append       = true;
+	g_context->layer_filter  = 0;
+	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
+	obj_parse_y_to_z_up      = false;
+	i32 first                = g_project->_->paint_objects->length;
+	import_obj_parse(b, false);
+	obj_parse_y_to_z_up = true;
+	free(b);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }
@@ -738,7 +793,7 @@ object_t *script_object_duplicate(object_t *o) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
-	mesh_object_t *dup = sim_duplicate_object(o->ext);
+	mesh_object_t *dup = util_mesh_duplicate_object(o->ext);
 	script_gpu_end(current, in_use);
 
 	g_context->ddirty                                 = 2;
@@ -748,6 +803,27 @@ object_t *script_object_duplicate(object_t *o) {
 
 object_t *script_object_clone(char *name) {
 	return script_object_duplicate(script_get_object(name));
+}
+
+void script_object_remove(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return;
+	}
+	if (g_project->_->paint_objects->length < 2 || array_index_of(g_project->_->paint_objects, o->ext) < 0) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	tab_meshes_draw_context_menu_delete(o->ext);
+	script_gpu_end(current, in_use);
+
+	tab_meshes_reset_preview_map();
+	g_context->ddirty = 2;
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
 }
 
 void script_object_set_name(object_t *o, char *name) {
@@ -781,7 +857,7 @@ void script_physics_set_shape(object_t *o, i32 shape) {
 	}
 
 	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
-	sim_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
+	util_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 	g_project->mesh_physics_shapes = i32_array_create(0);
 }
 
@@ -789,7 +865,7 @@ void script_physics_set_mass(object_t *o, f32 mass) {
 	if (o == NULL) {
 		return;
 	}
-	sim_physics_set_mass(o, mass);
+	util_physics_set_mass(o, mass);
 	g_project->mesh_physics_shapes = i32_array_create(0);
 }
 
@@ -911,7 +987,7 @@ static any_map_t      *custom_mesh_importers    = NULL;
 static any_map_t      *custom_text_importers    = NULL;
 static string_array_t *custom_text_formats      = NULL;
 
-gpu_texture_t *plugin_import_custom_texture(char *path) {
+gpu_texture_t *script_import_custom_texture(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_texture_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -919,7 +995,7 @@ gpu_texture_t *plugin_import_custom_texture(char *path) {
 	return r.p;
 }
 
-raw_mesh_t *plugin_import_custom_mesh(char *path) {
+raw_mesh_t *script_import_custom_mesh(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_mesh_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -927,15 +1003,15 @@ raw_mesh_t *plugin_import_custom_mesh(char *path) {
 	return r.p;
 }
 
-void plugin_import_custom_text(char *path) {
+void script_import_custom_text(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_text_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_call_fn(fn, args, 1);
 }
 
-void plugin_register_text(char *format, void *fn) {
-	any_map_set(import_text_importers, format, plugin_import_custom_text);
+void script_register_text(char *format, void *fn) {
+	any_map_set(import_text_importers, format, script_import_custom_text);
 
 	if (custom_text_formats == NULL) {
 		custom_text_formats = string_array_create(0);
@@ -951,7 +1027,7 @@ void plugin_register_text(char *format, void *fn) {
 	any_map_set(custom_text_importers, format, fn);
 }
 
-void plugin_unregister_text(char *format) {
+void script_unregister_text(char *format) {
 	map_delete(import_text_importers, format);
 	map_delete(custom_text_importers, format);
 
@@ -962,8 +1038,8 @@ void plugin_unregister_text(char *format) {
 	}
 }
 
-void plugin_register_texture(char *format, void *fn) {
-	any_map_set(import_texture_importers, format, plugin_import_custom_texture);
+void script_register_texture(char *format, void *fn) {
+	any_map_set(import_texture_importers, format, script_import_custom_texture);
 	any_array_push((any_array_t *)_path_texture_formats, format);
 
 	if (custom_texture_importers == NULL) {
@@ -972,13 +1048,13 @@ void plugin_register_texture(char *format, void *fn) {
 	any_map_set(custom_texture_importers, format, fn);
 }
 
-void plugin_unregister_texture(char *format) {
+void script_unregister_texture(char *format) {
 	map_delete(import_texture_importers, format);
 	array_splice((any_array_t *)_path_texture_formats, string_array_index_of(_path_texture_formats, format), 1);
 }
 
-void plugin_register_mesh(char *format, void *fn) {
-	any_map_set(import_mesh_importers, format, plugin_import_custom_mesh);
+void script_register_mesh(char *format, void *fn) {
+	any_map_set(import_mesh_importers, format, script_import_custom_mesh);
 	any_array_push((any_array_t *)_path_mesh_formats, format);
 
 	if (custom_mesh_importers == NULL) {
@@ -987,12 +1063,12 @@ void plugin_register_mesh(char *format, void *fn) {
 	any_map_set(custom_mesh_importers, format, fn);
 }
 
-void plugin_unregister_mesh(char *format) {
+void script_unregister_mesh(char *format) {
 	map_delete(import_mesh_importers, format);
 	array_splice((any_array_t *)_path_mesh_formats, string_array_index_of(_path_mesh_formats, format), 1);
 }
 
-raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
+raw_mesh_t *script_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
 	raw_mesh_t *mesh = calloc(1, sizeof(raw_mesh_t));
 	memset(mesh, 0, sizeof(raw_mesh_t));
 	mesh->name         = name;
@@ -1006,47 +1082,47 @@ raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nor
 	return mesh;
 }
 
-void plugin_material_category_add(char *category_name, any_array_t *node_list) {
+void script_material_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_material_categories, category_name);
 	nodes_material_init();
 	any_array_push(nodes_material_list, node_list);
 }
 
-void plugin_brush_category_add(char *category_name, any_array_t *node_list) {
+void script_brush_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_brush_categories, category_name);
 	nodes_brush_init();
 	any_array_push(nodes_brush_list, node_list);
 }
 
-void plugin_material_category_remove(char *category_name) {
+void script_material_category_remove(char *category_name) {
 	int i = array_index_of(nodes_material_categories, category_name);
 	array_splice(nodes_material_list, i, 1);
 	array_splice(nodes_material_categories, i, 1);
 }
 
-void plugin_brush_category_remove(char *category_name) {
+void script_brush_category_remove(char *category_name) {
 	int i = array_index_of(nodes_brush_categories, category_name);
 	array_splice(nodes_brush_list, i, 1);
 	array_splice(nodes_brush_categories, i, 1);
 }
 
-void plugin_material_custom_nodes_set(char *node_type, void *fn) {
+void script_material_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_material_custom_nodes, node_type, fn);
 }
 
-void plugin_brush_custom_nodes_set(char *node_type, void *fn) {
+void script_brush_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_logic_custom_nodes, node_type, fn);
 }
 
-void plugin_material_custom_nodes_remove(char *node_type) {
+void script_material_custom_nodes_remove(char *node_type) {
 	map_delete(parser_material_custom_nodes, node_type);
 }
 
-void plugin_brush_custom_nodes_remove(char *node_type) {
+void script_brush_custom_nodes_remove(char *node_type) {
 	map_delete(parser_logic_custom_nodes, node_type);
 }
 
-void *plugin_material_kong_get() {
+void *script_material_kong_get() {
 	return parser_material_kong;
 }
 
@@ -1128,6 +1204,22 @@ void script_fade_to_stage(char *stage) {
 
 	// Fade to black, set the stage, then fade back in
 	tween_to(ALLOC_INIT(tween_anim_t, {.target = &_script_fade_opacity, .to = 1.0f, .duration = 1.0f, .ease = EASE_LINEAR, .done = script_fade_out_done}));
+}
+
+void script_timeline_resume(void) {
+	tab_timeline_resume();
+}
+
+void script_timeline_pause(void) {
+	tab_timeline_pause();
+}
+
+void script_timeline_set_frame(i32 frame) {
+	tab_timeline_set_frame(frame);
+}
+
+void script_timeline_add_keyframe(char *name, i32 frame) {
+	tab_timeline_add_named_keyframe(name, frame);
 }
 
 typedef struct particle {

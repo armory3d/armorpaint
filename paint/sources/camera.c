@@ -337,12 +337,12 @@ void camera_update(void *_) {
 		camera_rotate_action(modif, default_keymap, ruler);
 	}
 
-	if (controls == CAMERA_CONTROLS_ROTATE || controls == CAMERA_CONTROLS_ORBIT) {
+	if (controls == CAMERA_CONTROLS_FLY && mouse_down("right")) {
+		camera_fly_action(modif_key);
+	}
+	else {
 		camera_pan_action(modif, default_keymap);
 		camera_zoom_action(modif_key);
-	}
-	else if (controls == CAMERA_CONTROLS_FLY && mouse_down("right")) {
-		camera_fly_action(modif_key);
 	}
 
 	if (keymap_shortcut(any_map_get(g_keymap, "view_pivot_center"), SHORTCUT_TYPE_STARTED)) {

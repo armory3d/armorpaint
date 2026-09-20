@@ -1,5 +1,5 @@
 
-#include "global.h"
+#include "../global.h"
 
 bool slot_layer_defer_alloc = false;
 
@@ -828,11 +828,11 @@ void slot_layer_move(slot_layer_t *raw, i32 to) {
 		return;
 	}
 
-	i32_map_t    *pointers  = tab_layers_init_layer_map();
-	i32           old_index = array_index_of(g_project->_->layers, raw);
-	i32           delta     = to - old_index;
-	slot_layer_t *new_upper_layer =
-	    delta > 0 ? (to < g_project->_->layers->length - 1 ? g_project->_->layers->buffer[to + 1] : NULL) : g_project->_->layers->buffer[to];
+	slot_layer_t_array_t *pointers  = tab_layers_init_layer_map();
+	i32                   old_index = array_index_of(g_project->_->layers, raw);
+	i32                   delta     = to - old_index;
+	slot_layer_t         *new_upper_layer =
+        delta > 0 ? (to < g_project->_->layers->length - 1 ? g_project->_->layers->buffer[to + 1] : NULL) : g_project->_->layers->buffer[to];
 
 	// Group or layer is collapsed so we check below and update the upper layer
 	if (new_upper_layer != NULL && !new_upper_layer->show_panel) {

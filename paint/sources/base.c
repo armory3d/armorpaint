@@ -150,6 +150,11 @@ gpu_texture_t *base_get_drag_image() {
 	if (base_drag_font != NULL) {
 		return base_drag_font->image;
 	}
+	if (base_drag_sound != NULL) {
+		gpu_texture_t *icons = resource_get("icons.k");
+		base_drag_rect       = resource_tile50(icons, ICON_MUSIC);
+		return icons;
+	}
 	if (base_drag_layer != NULL && slot_layer_is_group(base_drag_layer)) {
 		gpu_texture_t *icons         = resource_get("icons.k");
 		rect_t        *folder_closed = resource_tile50(icons, ICON_FOLDER_FULL);
@@ -205,7 +210,7 @@ void base_update(void *_) {
 	}
 
 	bool has_drag = base_drag_asset != NULL || base_drag_material != NULL || base_drag_layer != NULL || base_drag_file != NULL || base_drag_swatch != NULL ||
-	                base_drag_brush != NULL || base_drag_font != NULL || base_drag_mesh != NULL;
+	                base_drag_brush != NULL || base_drag_font != NULL || base_drag_sound != NULL || base_drag_mesh != NULL;
 
 	if (g_config->touch_ui) {
 		// Touch and hold to activate dragging
@@ -233,6 +238,7 @@ void base_update(void *_) {
 			base_drag_mesh      = NULL;
 			base_drag_brush     = NULL;
 			base_drag_font      = NULL;
+			base_drag_sound     = NULL;
 		}
 		// Disable touch scrolling while dragging is active
 		ui_touch_control = !base_is_dragging;
@@ -330,6 +336,12 @@ void base_update(void *_) {
 			}
 			base_drag_font = NULL;
 		}
+		else if (base_drag_sound != NULL) {
+			if (context_in_sounds()) {
+				tab_sounds_accept_sound_drop(base_drag_sound);
+			}
+			base_drag_sound = NULL;
+		}
 
 		iron_mouse_set_cursor(IRON_CURSOR_ARROW);
 		base_is_dragging = false;
@@ -343,10 +355,10 @@ void base_update(void *_) {
 
 	if (g_context->tool == TOOL_TYPE_CURSOR && context_in_3d_view()) {
 		if (keyboard_down("control") && keyboard_started("d")) {
-			sim_duplicate();
+			util_mesh_duplicate();
 		}
 		if (keyboard_started("delete")) {
-			sim_delete();
+			util_mesh_delete();
 		}
 	}
 
@@ -382,17 +394,18 @@ void base_update(void *_) {
 	camera_update(NULL);
 
 	if (g_config->workspace == WORKSPACE_PLAYER) {
-		sim_init();
-		if (!sim_running) {
-			sim_play();
-		}
-		sim_update();
+		player_running             = true;
+		render_path_raytrace_ready = false;
+		trait_update();
+		physics_world_update();
+		iron_delay_idle_sleep();
 	}
-	else if (sim_running) {
-		sim_stop();
+	else if (player_running) {
+		player_running = false;
+		trait_stop();
 	}
 
-	if (sim_running || tab_timeline_playing) {
+	if (player_running || tab_timeline_playing) {
 		if (g_context->ddirty < 0) {
 			g_context->ddirty = 0;
 		}
@@ -970,10 +983,9 @@ void base_run_in_player() {
 		console_error(tr("Save project first"));
 		return;
 	}
-	export_arm_run_project();
+	export_arm_run_project(g_project->_->filepath);
 	char *bin = iron_get_arg(0);
-	iron_sys_command(string("%s %s --player", bin, g_project->_->filepath));
-	// iron_exec_async()
+	iron_sys_command(string("\"%s\" \"%s\" --player", bin, g_project->_->filepath));
 }
 
 uint32_t base_darker(uint32_t x, uint32_t y) {

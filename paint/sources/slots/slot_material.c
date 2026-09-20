@@ -1,5 +1,5 @@
 
-#include "global.h"
+#include "../global.h"
 
 buffer_t *slot_material_default_canvas = NULL;
 

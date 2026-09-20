@@ -141,6 +141,12 @@
 #include "render/render_path_raytrace_bake.c"
 #include "render/render_pathsphere.c"
 
+#include "slots/slot_brush.c"
+#include "slots/slot_font.c"
+#include "slots/slot_layer.c"
+#include "slots/slot_material.c"
+#include "slots/slot_sound.c"
+
 #include "traits/trait_point_and_click_controller.c"
 #include "traits/trait_third_person_controller.c"
 
@@ -188,6 +194,7 @@
 #include "util/util_nodes.c"
 #include "util/util_particle.c"
 #include "util/util_path.c"
+#include "util/util_physics.c"
 #include "util/util_raycast.c"
 #include "util/util_render.c"
 #include "util/util_resize.c"
@@ -199,6 +206,7 @@
 #include "util/util_touch.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
+#include "util/util_uv_unwrap.c"
 
 #include "args.c"
 #include "base.c"
@@ -220,12 +228,6 @@
 #include "plugin.c"
 #include "project.c"
 #include "resource.c"
-#include "sim.c"
-#include "slot_brush.c"
-#include "slot_font.c"
-#include "slot_layer.c"
-#include "slot_material.c"
-#include "slot_sound.c"
 #include "strings.c"
 #include "trait.c"
 #include "translator.c"
@@ -324,7 +326,6 @@ void _kickstart() {
 	parser_material_node_values  = any_map_create();
 	parser_material_node_vectors = any_map_create();
 	parser_material_custom_nodes = any_map_create();
-	util_mesh_unwrappers         = any_map_create();
 	ui_header_h                  = ui_header_default_h;
 	ui_header_handle             = ui_window_create();
 	g_plugins                    = any_map_create();

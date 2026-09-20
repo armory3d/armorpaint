@@ -89,8 +89,6 @@ int  last_window_width  = 0;
 int  last_window_height = 0;
 #endif
 char temp_string[1024 * 128];
-char temp_string_vs[1024 * 128];
-char temp_string_fs[1024 * 128];
 #ifdef IRON_WINDOWS
 wchar_t        temp_wstring[1024 * 32];
 struct HWND__ *iron_windows_window_handle();
@@ -726,31 +724,16 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 #endif
 
 gpu_shader_t *gpu_create_shader_from_source(char *source, int source_size, gpu_shader_type_t shader_type) {
-	gpu_shader_t *shader        = (gpu_shader_t *)malloc(sizeof(gpu_shader_t));
-	char         *temp_string_s = shader_type == GPU_SHADER_TYPE_VERTEX ? temp_string_vs : temp_string_fs;
+	gpu_shader_t *shader = (gpu_shader_t *)malloc(sizeof(gpu_shader_t));
 
 #ifdef WITH_D3DCOMPILER
 
-	strcpy(temp_string_s, source);
-
-	ID3DBlob *error_message = NULL;
-	ID3DBlob *shader_buffer = NULL;
-	UINT      flags         = D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_SKIP_VALIDATION;
-	HRESULT hr = D3DCompile(temp_string_s, strlen(source) + 1, NULL, NULL, NULL, "main", shader_type == GPU_SHADER_TYPE_VERTEX ? "vs_5_0" : "ps_5_0", flags, 0,
-	                        &shader_buffer, &error_message);
-	if (hr != S_OK) {
-		iron_log("%s", (char *)error_message->lpVtbl->GetBufferPointer(error_message));
-		return NULL;
-	}
-
-	int size = shader_buffer->lpVtbl->GetBufferSize(shader_buffer);
-	gpu_shader_init(shader, (char *)shader_buffer->lpVtbl->GetBufferPointer(shader_buffer), size, shader_type);
-	shader_buffer->lpVtbl->Release(shader_buffer);
+	gpu_shader_init(shader, source, strlen(source) + 1, shader_type);
+	shader->impl.is_source = true;
 
 #elif defined(IRON_METAL)
 
-	strcpy(temp_string_s, source);
-	gpu_shader_init(shader, temp_string_s, strlen(temp_string_s), shader_type);
+	gpu_shader_init(shader, source, strlen(source), shader_type);
 
 #elif defined(IRON_VULKAN)
 
@@ -758,8 +741,7 @@ gpu_shader_t *gpu_create_shader_from_source(char *source, int source_size, gpu_s
 
 #elif defined(IRON_WASM)
 
-	strcpy(temp_string_s, source);
-	gpu_shader_init(shader, temp_string_s, strlen(temp_string_s), shader_type);
+	gpu_shader_init(shader, source, strlen(source), shader_type);
 
 #endif
 
@@ -894,6 +876,15 @@ void *iron_load_sound(char *file) {
 #ifdef IRON_AUDIO
 	iron_a1_init();
 	iron_a1_sound_t *sound = iron_a1_sound_create(file);
+	return sound;
+#endif
+	return NULL;
+}
+
+void *iron_load_sound_from_bytes(buffer_t *data, char *format) {
+#ifdef IRON_AUDIO
+	iron_a1_init();
+	iron_a1_sound_t *sound = iron_a1_sound_create_from_bytes(data->buffer, data->length, format);
 	return sound;
 #endif
 	return NULL;

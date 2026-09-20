@@ -7,7 +7,7 @@
 
 char *manifest_title           = "ArmorPaint";
 char *manifest_version         = "1.1alpha";
-char *manifest_version_project = "15";
+char *manifest_version_project = "16";
 char *manifest_version_config  = "1";
 char *manifest_url             = "https://armorpaint.org";
 char *manifest_url_android     = "https://play.google.com/store/apps/details?id=org.armorpaint";
@@ -163,6 +163,7 @@ char                     *tab_scripts_text    = "";
 i32                       tab_scripts_line; // Active line of the script text area
 bool                      tab_scripts_minimap_dirty = true;
 extern int                tab_stages_selected;
+extern bool               tab_timeline_playing;
 any_map_t                *import_mesh_importers;
 i32                       ui_menubar_default_w = 406;
 ui_window_t              *ui_menubar_hwnd;
@@ -197,7 +198,8 @@ f32                       ui_view2d_pan_scale   = 1.0;
 bool                      ui_view2d_tiled_show  = false;
 bool                      ui_view2d_grid_redraw = true;
 i32                       ui_view2d_tab;
-bool                      sim_running                = false;
+sound_t                  *ui_view2d_sound_playing    = NULL;
+bool                      player_running             = false;
 bool                      viewport_recording         = false;
 bool                      node_shader_dump_to_script = false;
 node_shader_context_t    *parser_material_con;
@@ -240,7 +242,6 @@ bool                      tab_browser_refresh               = false;
 extern i32                ui_files_selected;
 extern i32                path_point_dragging;
 extern i32                path_layer_last_active;
-any_map_t                *util_mesh_unwrappers;
 i32                       ui_header_default_h = 30;
 i32                       ui_header_h;
 ui_window_t              *ui_header_handle;
@@ -326,8 +327,10 @@ bool            render_path_raytrace_ready       = false;
 bool            render_path_raytrace_init_shader = true;
 f32_array_t    *render_path_raytrace_f32a;
 mat4_t          render_path_raytrace_help_mat;
-gpu_texture_t  *render_path_raytrace_last_envmap = NULL;
-bool            render_path_raytrace_is_bake     = false;
+gpu_texture_t  *render_path_raytrace_last_envmap   = NULL;
+bool            render_path_raytrace_is_bake       = false;
+bool            render_path_raytrace_override_pass = false;
+bool            render_path_raytrace_moving        = false;
 
 bool  sculpt_push_undo                          = false;
 i32   ui_statusbar_default_h                    = 33;

@@ -9,6 +9,19 @@ struct Vertex {
 	uint tex;
 };
 
+struct Instance {
+	constant uint *vertex_buffer;
+	constant uint *index_buffer;
+	uint stride; // Vertex size in bytes
+	uint geometry; // Index into the geometry textures
+};
+
+struct GeometryTextures {
+	texture2d<float, access::read> texpaint0;
+	texture2d<float, access::read> texpaint1;
+	texture2d<float, access::read> texpaint2;
+};
+
 struct RayGenConstantBuffer {
 	float4 v0; // frame, strength, radius, offset
 	float4 v1;
@@ -103,8 +116,8 @@ kernel void raytracingKernel(
 	texture2d<float, access::read> mytexture_scramble [[texture(6)]],
 	texture2d<float, access::read> mytexture_rank [[texture(7)]],
 	instance_acceleration_structure scene [[buffer(1)]],
-	device void *indices [[buffer(2)]],
-	device void *vertices [[buffer(3)]]
+	constant Instance *instances [[buffer(2)]],
+	constant GeometryTextures *geometry_textures [[buffer(3)]]
 ) {
 	uint seed = 0;
 
@@ -143,31 +156,25 @@ kernel void raytracingKernel(
 			payload.color = float4(texenv.rgb, -1);
 		}
 		else {
-			device uint32_t *inda = (device uint32_t *)(indices);
+			constant Instance &inst = instances[intersection.user_instance_id];
 			uint3 indices_sample = uint3(
-				inda[intersection.primitive_id * 3],
-				inda[intersection.primitive_id * 3 + 1],
-				inda[intersection.primitive_id * 3 + 2]
+				inst.index_buffer[intersection.primitive_id * 3],
+				inst.index_buffer[intersection.primitive_id * 3 + 1],
+				inst.index_buffer[intersection.primitive_id * 3 + 2]
 			);
 
-			device Vertex *verta = (device Vertex *)(vertices);
-			float3 vertex_normals[3] = {
-				float3(s16_to_f32(verta[indices_sample[0]].nor), s16_to_f32(verta[indices_sample[0]].poszw).y),
-				float3(s16_to_f32(verta[indices_sample[1]].nor), s16_to_f32(verta[indices_sample[1]].poszw).y),
-				float3(s16_to_f32(verta[indices_sample[2]].nor), s16_to_f32(verta[indices_sample[2]].poszw).y)
-			};
+			// Texture coordinates are the last 4 bytes of the base vertex layout
 			float2 barycentrics = intersection.triangle_barycentric_coord;
-			float3 n = normalize(hit_attribute(vertex_normals, barycentrics));
-
 			float2 vertex_uvs[3] = {
-				s16_to_f32(verta[indices_sample[0]].tex),
-				s16_to_f32(verta[indices_sample[1]].tex),
-				s16_to_f32(verta[indices_sample[2]].tex)
+				s16_to_f32(inst.vertex_buffer[(indices_sample[0] * inst.stride + 12) / 4]),
+				s16_to_f32(inst.vertex_buffer[(indices_sample[1] * inst.stride + 12) / 4]),
+				s16_to_f32(inst.vertex_buffer[(indices_sample[2] * inst.stride + 12) / 4])
 			};
 			float2 tex_coord = hit_attribute2d(vertex_uvs, barycentrics);
 
-			uint2 size = uint2(mytexture2.get_width(), mytexture2.get_height());
-			float3 texpaint2 = pow(mytexture2.read(uint2(tex_coord * float2(size)), 0).rgb, 2.2); // layer base
+			texture2d<float, access::read> hit_texture2 = geometry_textures[inst.geometry].texpaint2;
+			uint2 size = uint2(hit_texture2.get_width(), hit_texture2.get_height());
+			float3 texpaint2 = pow(hit_texture2.read(uint2(tex_coord * float2(size)), 0).rgb, 2.2); // layer base
 			payload.color.rgb = texpaint2.rgb;
 		}
 

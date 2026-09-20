@@ -218,6 +218,9 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 		parser_material_warp_passthrough = false;
 	}
 	else if (string_equals(node->type, "BAKE_CURVATURE")) {
+		if (g_context->merged_object == NULL) {
+			layers_set_object_mask();
+		}
 		char          *id    = parser_material_node_name(node, parents);
 		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
 		any_array_push(g_context->node_previews_used, id);

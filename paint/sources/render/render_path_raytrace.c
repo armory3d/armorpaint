@@ -1,10 +1,18 @@
 
 #include "../global.h"
 
-f32           render_path_raytrace_uv_scale = 1.0;
-mat4_t        render_path_raytrace_transform;
-gpu_buffer_t *render_path_raytrace_vb;
-gpu_buffer_t *render_path_raytrace_ib;
+f32 render_path_raytrace_uv_scale = 1.0;
+
+#define OVERRIDE_MAX 64
+
+static mesh_data_t *render_path_raytrace_override_data[OVERRIDE_MAX];
+static i32          render_path_raytrace_override_material[OVERRIDE_MAX];
+static bool         render_path_raytrace_override_dirty[OVERRIDE_MAX];
+static i32          render_path_raytrace_override_count     = 0;
+static i32          render_path_raytrace_override_allocated = 0;
+static char        *render_path_raytrace_override_format    = NULL;
+static i32          render_path_raytrace_override_width     = 0;
+static i32          render_path_raytrace_override_height    = 0;
 
 #define ENV_CDF_W 256
 #define ENV_CDF_H 128
@@ -209,19 +217,203 @@ static void render_path_raytrace_build_env_cdf(char *file) {
 
 void render_path_raytrace_init() {}
 
+static bool render_path_raytrace_sculpt_visible() {
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (l->texpaint_sculpt != NULL && slot_layer_is_visible(l)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static i32 render_path_raytrace_override_slot(mesh_data_t *data) {
+	for (i32 i = 0; i < render_path_raytrace_override_count; ++i) {
+		if (render_path_raytrace_override_data[i] == data) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static char *render_path_raytrace_override_target(i32 slot, char channel) {
+	return string_tmp("raytrace_override%d_%c", slot, channel);
+}
+
+static bool render_path_raytrace_override_targets(i32 count) {
+	if (count == 0) {
+		return false;
+	}
+	char *format    = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	i32   width     = config_get_texture_res_x();
+	i32   height    = config_get_texture_res_y();
+	bool  recreated = false;
+	if (render_path_raytrace_override_format != NULL && (!string_equals(render_path_raytrace_override_format, format) ||
+	                                                     render_path_raytrace_override_width != width || render_path_raytrace_override_height != height)) {
+		for (i32 i = 0; i < render_path_raytrace_override_allocated; ++i) {
+			for (char *c = "abc"; *c != '\0'; ++c) {
+				char            *name = render_path_raytrace_override_target(i, *c);
+				render_target_t *rt   = any_map_get(render_path_render_targets, name);
+				gpu_delete_texture(rt->_image);
+				map_delete(render_path_render_targets, name);
+			}
+		}
+		render_target_t *mask = any_map_get(render_path_render_targets, "raytrace_override_mask");
+		if (mask != NULL) {
+			gpu_delete_texture(mask->_image);
+			map_delete(render_path_render_targets, "raytrace_override_mask");
+		}
+		render_path_raytrace_override_allocated = 0;
+		recreated                               = true;
+	}
+	render_path_raytrace_override_format = format;
+	render_path_raytrace_override_width  = width;
+	render_path_raytrace_override_height = height;
+
+	if (any_map_get(render_path_render_targets, "raytrace_override_mask") == NULL) {
+		render_target_t *t = render_target_create();
+		t->name            = "raytrace_override_mask";
+		t->width           = width;
+		t->height          = height;
+		t->format          = "R8";
+		render_path_create_render_target(t);
+	}
+	while (render_path_raytrace_override_allocated < count) {
+		for (char *c = "abc"; *c != '\0'; ++c) {
+			render_target_t *t = render_target_create();
+			t->name            = string_copy(render_path_raytrace_override_target(render_path_raytrace_override_allocated, *c));
+			t->width           = width;
+			t->height          = height;
+			t->format          = format;
+			render_path_create_render_target(t);
+		}
+		render_path_raytrace_override_allocated++;
+	}
+	return recreated;
+}
+
+static gpu_texture_t *render_path_raytrace_override_texture(i32 slot, char channel) {
+	render_target_t *rt = any_map_get(render_path_render_targets, render_path_raytrace_override_target(slot, channel));
+	return rt->_image;
+}
+
+static void render_path_raytrace_draw_override(i32 slot) {
+	mesh_data_t           *data    = render_path_raytrace_override_data[slot];
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	u8_array_t            *visible = u8_array_create(objects->length);
+	u8_array_t            *culling = u8_array_create(objects->length);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *p   = objects->buffer[i];
+		visible->buffer[i] = p->base->visible;
+		culling->buffer[i] = p->frustum_culling;
+		p->base->visible   = p->data == data;
+		p->frustum_culling = false;
+	}
+
+	string_array_t *additional = any_array_create_from_raw(
+	    (void *[]){
+	        render_path_raytrace_override_target(slot, 'b'),
+	        render_path_raytrace_override_target(slot, 'c'),
+	        "raytrace_override_mask",
+	    },
+	    3);
+	render_path_raytrace_override_pass = true;
+	render_path_set_target(render_path_raytrace_override_target(slot, 'a'), additional, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	render_path_bind_target("main", "gbufferD");
+	render_path_bind_target("texpaint_blend1", "paintmask");
+	render_path_draw_meshes("atlas");
+	render_path_raytrace_override_pass = false;
+
+	for (i32 i = 0; i < objects->length; ++i) {
+		objects->buffer[i]->base->visible   = visible->buffer[i];
+		objects->buffer[i]->frustum_culling = culling->buffer[i];
+	}
+	array_delete(visible);
+	array_delete(culling);
+	array_delete(additional);
+	render_path_raytrace_override_dirty[slot] = false;
+}
+
+void render_path_raytrace_draw_overrides(bool all) {
+	for (i32 i = 0; i < render_path_raytrace_override_count; ++i) {
+		if (all || render_path_raytrace_override_dirty[i]) {
+			render_path_raytrace_draw_override(i);
+		}
+	}
+}
+
+static void render_path_raytrace_update_overrides() {
+	mesh_data_t *data[OVERRIDE_MAX];
+	i32          material[OVERRIDE_MAX];
+	i32          count = 0;
+	for (i32 i = 0; i < g_project->_->paint_objects->length && count < OVERRIDE_MAX; ++i) {
+		mesh_object_t *po  = g_project->_->paint_objects->buffer[i];
+		i32            mat = tab_meshes_get_linked_override(po);
+		if (!po->base->visible || mat < 0) {
+			continue;
+		}
+		bool seen = false;
+		for (i32 j = 0; j < count && !seen; ++j) {
+			seen = data[j] == po->data;
+		}
+		if (!seen) {
+			data[count]     = po->data;
+			material[count] = mat;
+			count++;
+		}
+	}
+	i32  allocated = render_path_raytrace_override_allocated;
+	bool recreated = render_path_raytrace_override_targets(count);
+	for (i32 i = 0; i < count; ++i) {
+		bool changed = recreated || i >= allocated || i >= render_path_raytrace_override_count || render_path_raytrace_override_data[i] != data[i] ||
+		               render_path_raytrace_override_material[i] != material[i];
+		render_path_raytrace_override_data[i]     = data[i];
+		render_path_raytrace_override_material[i] = material[i];
+		render_path_raytrace_override_dirty[i]    = changed;
+	}
+	render_path_raytrace_override_count = count;
+}
+
+static bool render_path_raytrace_overrides_visible() {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
+		if (po->base->visible && tab_meshes_get_linked_override(po) >= 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool render_path_raytrace_overrides_changed() {
+	if (render_path_raytrace_sculpt_visible()) {
+		return false;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
+		if (!po->base->visible) {
+			continue;
+		}
+		i32 mat  = tab_meshes_get_linked_override(po);
+		i32 slot = render_path_raytrace_override_slot(po->data);
+		if (mat < 0 ? slot >= 0 : (slot < 0 || render_path_raytrace_override_material[slot] != mat)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void render_path_raytrace_commands(bool use_live_layer) {
+	if (render_path_raytrace_ready && !render_path_raytrace_is_bake && render_path_raytrace_overrides_changed()) {
+		render_path_raytrace_ready = false;
+	}
 	if (!render_path_raytrace_ready || render_path_raytrace_is_bake) {
 		render_path_raytrace_ready = true;
 		if (render_path_raytrace_is_bake) {
 			render_path_raytrace_is_bake     = false;
 			render_path_raytrace_init_shader = true;
 		}
-		char *ext = "";
-		if (config_is_raytrace_multi()) {
-			ext = "multi_";
-		}
 		char *mode = config_is_raytrace_fast() ? "core" : "full";
-		render_path_raytrace_raytrace_init(string("raytrace_brute_%s%s%s", ext, mode, render_path_raytrace_ext), true);
+		render_path_raytrace_raytrace_init(string("raytrace_brute_%s%s", mode, render_path_raytrace_ext), true);
 		render_path_raytrace_last_envmap = NULL;
 	}
 
@@ -270,18 +462,21 @@ void render_path_raytrace_commands(bool use_live_layer) {
 			layer->texpaint_nor  = _texpaint_nor;
 			layer->texpaint_pack = _texpaint_pack;
 		}
+		if (g_context->rtdirty > 0) {
+			render_path_raytrace_draw_overrides(true);
+		}
 		g_context->rtdirty = 0;
 	}
 
-	camera_object_t *cam                 = scene_camera;
-	transform_t     *ct                  = cam->base->transform;
-	render_path_raytrace_help_mat        = cam->v;
-	render_path_raytrace_help_mat        = mat4_mult_mat(render_path_raytrace_help_mat, cam->p);
-	render_path_raytrace_help_mat        = mat4_inv(render_path_raytrace_help_mat);
-	render_path_raytrace_f32a->buffer[0] = transform_world_x(ct);
-	render_path_raytrace_f32a->buffer[1] = transform_world_y(ct);
-	render_path_raytrace_f32a->buffer[2] = transform_world_z(ct);
-	render_path_raytrace_f32a->buffer[3] = render_path_raytrace_frame;
+	camera_object_t *cam                  = scene_camera;
+	transform_t     *ct                   = cam->base->transform;
+	render_path_raytrace_help_mat         = cam->v;
+	render_path_raytrace_help_mat         = mat4_mult_mat(render_path_raytrace_help_mat, cam->p);
+	render_path_raytrace_help_mat         = mat4_inv(render_path_raytrace_help_mat);
+	render_path_raytrace_f32a->buffer[0]  = transform_world_x(ct);
+	render_path_raytrace_f32a->buffer[1]  = transform_world_y(ct);
+	render_path_raytrace_f32a->buffer[2]  = transform_world_z(ct);
+	render_path_raytrace_f32a->buffer[3]  = render_path_raytrace_frame;
 	render_path_raytrace_f32a->buffer[4]  = render_path_raytrace_help_mat.m00;
 	render_path_raytrace_f32a->buffer[5]  = render_path_raytrace_help_mat.m01;
 	render_path_raytrace_f32a->buffer[6]  = render_path_raytrace_help_mat.m02;
@@ -320,30 +515,6 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	g_context->pdirty--;
 }
 
-void render_path_raytrace_build_data() {
-	if (g_context->merged_object == NULL) {
-		util_mesh_merge(NULL);
-	}
-
-	mesh_object_t *mo = !context_layer_filter_used() ? g_context->merged_object : g_context->paint_object;
-
-	if (config_is_raytrace_multi()) {
-		render_path_raytrace_transform = mo->base->transform->world_unpack;
-	}
-	else {
-		render_path_raytrace_transform = mat4_identity();
-	}
-
-	f32 sc = mo->base->transform->scale.x * mo->data->scale_pos;
-	if (mo->base->parent != NULL) {
-		sc *= mo->base->parent->transform->scale.x;
-	}
-	render_path_raytrace_transform = mat4_scale(render_path_raytrace_transform, (vec4_t){sc, sc, sc, 1.0});
-
-	render_path_raytrace_vb = mo->data->_->vertex_buffer;
-	render_path_raytrace_ib = mo->data->_->index_buffer;
-}
-
 void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 	if (render_path_raytrace_init_shader) {
 		render_path_raytrace_init_shader = false;
@@ -351,32 +522,51 @@ void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 		_gpu_raytrace_init(shader);
 	}
 
-	if (build) {
-		render_path_raytrace_build_data();
+	if (build && g_context->merged_object == NULL) {
+		util_mesh_merge(NULL);
 	}
 
-	{
-		config_apply_raytrace_multi();
-		_gpu_raytrace_as_init();
+	_gpu_raytrace_as_init();
 
-		if (config_is_raytrace_multi()) {
-			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-				mesh_object_t *po = g_project->_->paint_objects->buffer[i];
-				if (!po->base->visible) {
-					continue;
-				}
-				_gpu_raytrace_as_add(po->data->_->vertex_buffer, po->data->_->index_buffer, po->base->transform->world_unpack);
+	mesh_object_t *merged = g_context->merged_object;
+	bool           moving = render_path_raytrace_moving || tab_timeline_playing;
+	if (merged != NULL && (render_path_raytrace_sculpt_visible() || (!render_path_raytrace_overrides_visible() && !moving))) {
+		render_path_raytrace_override_count = 0;
+		transform_t *t                      = merged->base->transform;
+		t->scale_world                      = merged->data->scale_pos;
+		transform_build_matrix(t);
+		_gpu_raytrace_as_add(merged->data->_->vertex_buffer, merged->data->_->index_buffer, t->world_unpack, NULL);
+	}
+	else {
+		render_path_raytrace_update_overrides();
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *po = g_project->_->paint_objects->buffer[i];
+			if (!po->base->visible) {
+				continue;
 			}
+			i32 slot = render_path_raytrace_override_slot(po->data);
+			if (slot < 0) {
+				_gpu_raytrace_as_add(po->data->_->vertex_buffer, po->data->_->index_buffer, po->base->transform->world_unpack, NULL);
+				continue;
+			}
+			gpu_texture_t *a = render_path_raytrace_override_texture(slot, 'a');
+			gpu_texture_t *textures[3];
+			if (render_path_raytrace_is_bake) {
+				textures[0] = NULL;
+				textures[1] = NULL;
+				textures[2] = a;
+			}
+			else {
+				textures[0] = a;
+				textures[1] = render_path_raytrace_override_texture(slot, 'b');
+				textures[2] = render_path_raytrace_override_texture(slot, 'c');
+			}
+			_gpu_raytrace_as_add(po->data->_->vertex_buffer, po->data->_->index_buffer, po->base->transform->world_unpack, textures);
 		}
-		else {
-			_gpu_raytrace_as_add(render_path_raytrace_vb, render_path_raytrace_ib, render_path_raytrace_transform);
-		}
-
-		gpu_buffer_t *vb_full = g_context->merged_object->data->_->vertex_buffer;
-		gpu_buffer_t *ib_full = g_context->merged_object->data->_->index_buffer;
-
-		_gpu_raytrace_as_build(vb_full, ib_full);
 	}
+
+	_gpu_raytrace_as_build();
+	render_path_raytrace_draw_overrides(false);
 }
 
 void render_path_raytrace_draw(bool use_live_layer) {

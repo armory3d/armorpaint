@@ -25,7 +25,8 @@ void util_uv_cache_uv_map() {
 	i32            mask  = slot_layer_get_object_mask(g_context->layer);
 	mesh_object_t *merged =
 	    (mask > 0 && mask <= g_project->_->paint_objects->length) ? g_project->_->paint_objects->buffer[mask - 1] : g_context->merged_object;
-	mesh_data_t *mesh = (g_context->layer_filter == 0 && merged != NULL) ? merged->data : g_context->paint_object->data;
+	bool         use_merged = merged != NULL && (g_context->layer_filter == 0 || util_mesh_udim_layer(g_context->layer));
+	mesh_data_t *mesh       = use_merged ? merged->data : g_context->paint_object->data;
 
 	i16_array_t *texa = mesh->vertex_arrays->buffer[2]->values;
 	u32_array_t *inda = mesh->index_array;
@@ -121,7 +122,8 @@ void util_uv_cache_dilate_map() {
 	if (context_layer_filter_used()) {
 		mask = g_context->layer_filter;
 	}
-	mesh_data_t *geom = mask == 0 && g_context->merged_object != NULL ? g_context->merged_object->data : g_context->paint_object->data;
+	bool         use_merged = g_context->merged_object != NULL && (mask == 0 || util_mesh_udim_layer(g_context->layer));
+	mesh_data_t *geom       = use_merged ? g_context->merged_object->data : g_context->paint_object->data;
 	_gpu_begin(util_uv_dilatemap, NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
 	gpu_set_pipeline(util_uv_pipe_dilate);
 	gpu_set_vertex_buffer(geom->_->vertex_buffer);

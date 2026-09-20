@@ -258,13 +258,13 @@ void util_shortcut_viewport() {
 			}
 			else if (decal_mask) {
 				if (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "brush_radius_decrease")),
-				                      SHORTCUT_TYPE_REPEAT)) {
+				                    SHORTCUT_TYPE_REPEAT)) {
 					g_context->brush_decal_mask_radius -= ui_base_get_radius_increment();
 					g_context->brush_decal_mask_radius = math_max(math_round(g_context->brush_decal_mask_radius * 100) / 100.0, 0.01);
 					ui_header_handle->redraws          = 2;
 				}
 				else if (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "decal_mask"), any_map_get(g_keymap, "brush_radius_increase")),
-				                           SHORTCUT_TYPE_REPEAT)) {
+				                         SHORTCUT_TYPE_REPEAT)) {
 					g_context->brush_decal_mask_radius += ui_base_get_radius_increment();
 					g_context->brush_decal_mask_radius = math_round(g_context->brush_decal_mask_radius * 100) / 100.0;
 					ui_header_handle->redraws          = 2;

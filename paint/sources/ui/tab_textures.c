@@ -213,7 +213,60 @@ void tab_textures_delete_unused() {
 	array_delete(unused);
 }
 
+static void tab_textures_apply_node_indices(ui_node_t_array_t *nodes, i32_array_t *new_indices) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		if (string_equals(n->type, "TEX_IMAGE")) {
+			i32 idx = n->buttons->buffer[0]->default_value->buffer[0];
+			if (idx >= 0 && idx < new_indices->length) {
+				n->buttons->buffer[0]->default_value->buffer[0] = new_indices->buffer[idx];
+			}
+		}
+	}
+}
+
+static int tab_textures_sort_by_name_compare(const void *pa, const void *pb) {
+	asset_t *a = *(asset_t **)pa;
+	asset_t *b = *(asset_t **)pb;
+	return strcmp(a->name, b->name);
+}
+
+static void tab_textures_sort_by_name() {
+	asset_t_array_t *assets = g_project->_->assets;
+	if (assets->length < 2) {
+		return;
+	}
+	asset_t_array_t *old_order = (asset_t_array_t *)array_slice((any_array_t *)assets, 0, assets->length);
+	array_sort((any_array_t *)assets, &tab_textures_sort_by_name_compare);
+
+	// Old asset index -> new asset index
+	i32_array_t *new_indices = i32_array_create(assets->length);
+	for (i32 i = 0; i < old_order->length; ++i) {
+		new_indices->buffer[i] = array_index_of(assets, old_order->buffer[i]);
+	}
+
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, new_indices);
+	}
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, new_indices);
+	}
+	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
+		tab_textures_apply_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, new_indices);
+	}
+	if (g_context->colorid >= 0 && g_context->colorid < new_indices->length) {
+		g_context->colorid = new_indices->buffer[g_context->colorid];
+	}
+
+	array_delete(new_indices);
+	array_delete(old_order);
+	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+}
+
 void tab_textures_draw_edit() {
+	if (ui_menu_button(tr("Sort"), "", ICON_NONE)) {
+		tab_textures_sort_by_name();
+	}
 	if (ui_menu_button(tr("Delete Unused"), "", ICON_DELETE)) {
 		tab_textures_delete_unused();
 	}
@@ -490,6 +543,9 @@ void tab_textures_accept_asset_drop(asset_t *asset) {
 
 		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 			tab_textures_remap_node_indices(g_project->_->materials->buffer[i]->canvas->nodes, asset_pos, new_pos);
+		}
+		for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+			tab_textures_remap_node_indices(g_project->_->material_groups->buffer[i]->canvas->nodes, asset_pos, new_pos);
 		}
 		for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 			tab_textures_remap_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, asset_pos, new_pos);

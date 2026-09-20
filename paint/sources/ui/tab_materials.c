@@ -30,11 +30,33 @@ void tab_materials_update_material() {
 	base_update_workflow_nodes();
 }
 
+static bool tab_materials_is_unique_name(char *s) {
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m = g_project->_->materials->buffer[i];
+		if (string_equals(m->canvas->name, s)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static char *tab_materials_unique_name(char *name) {
+	char *base;
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
+	while (!tab_materials_is_unique_name(res)) {
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
+	}
+	return res;
+}
+
 void tab_materials_draw_slots_duplicate(void *_) {
-	i32 i               = _tab_materials_draw_slots;
+	i32   i             = _tab_materials_draw_slots;
+	char *name          = tab_materials_unique_name(g_project->_->materials->buffer[i]->canvas->name);
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	any_array_push(g_project->_->materials, g_context->material);
 	ui_node_canvas_t *cloned    = util_clone_canvas(g_project->_->materials->buffer[i]->canvas);
+	cloned->name                = string_copy(name);
 	g_context->material->canvas = cloned;
 	tab_materials_update_material();
 	history_duplicate_material();

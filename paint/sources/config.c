@@ -496,14 +496,5 @@ bool config_is_iphone() {
 #endif
 
 bool config_is_raytrace_fast() {
-	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST;
-}
-
-bool config_is_raytrace_multi() {
-	bool multi = g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_QUALITY;
-	return multi && g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE;
-}
-
-void config_apply_raytrace_multi() {
-	gpu_raytrace_multi = config_is_raytrace_multi();
+	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST;
 }

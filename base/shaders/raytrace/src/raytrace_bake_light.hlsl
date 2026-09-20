@@ -15,8 +15,6 @@ struct RayGenConstantBuffer {
 
 RWTexture2D<half4> render_target : register(u0);
 RaytracingAccelerationStructure scene : register(t0);
-ByteAddressBuffer indices : register(t1);
-StructuredBuffer<Vertex> vertices : register(t2);
 ConstantBuffer<RayGenConstantBuffer> constant_buffer : register(b0);
 
 Texture2D<float4> mytexture0 : register(t3);
@@ -26,6 +24,15 @@ Texture2D<float4> mytexture_env : register(t6);
 Texture2D<float4> mytexture_sobol : register(t7);
 Texture2D<float4> mytexture_scramble : register(t8);
 Texture2D<float4> mytexture_rank : register(t9);
+
+struct Instance {
+	uint geometry;
+	uint stride; // Vertex size in bytes
+};
+StructuredBuffer<Instance> instances : register(t11);
+ByteAddressBuffer geometry_vertices[64] : register(t0, space1);
+ByteAddressBuffer geometry_indices[64] : register(t0, space2);
+Texture2D<float4> geometry_texture2[64] : register(t0, space5); // Base color
 
 static const int SAMPLES = 64;
 static uint seed = 0;
@@ -132,29 +139,26 @@ void main(uint3 id : SV_DispatchThreadID) {
 		float3 sample_color;
 
 		if (q.CommittedStatus() == COMMITTED_TRIANGLE_HIT) {
+			Instance inst = instances[q.CommittedInstanceID()];
 			uint base_index = q.CommittedPrimitiveIndex() * 12;
-			uint3 indices_sample = indices.Load3(base_index);
+			uint3 indices_sample = geometry_indices[NonUniformResourceIndex(inst.geometry)].Load3(base_index);
 
 			BuiltInTriangleIntersectionAttributes attr;
 			attr.barycentrics = q.CommittedTriangleBarycentrics();
 
-			float3 vertex_normals[3] = {
-				float3(s16_to_f32(vertices[indices_sample[0]].nor), s16_to_f32(vertices[indices_sample[0]].poszw).y),
-				float3(s16_to_f32(vertices[indices_sample[1]].nor), s16_to_f32(vertices[indices_sample[1]].poszw).y),
-				float3(s16_to_f32(vertices[indices_sample[2]].nor), s16_to_f32(vertices[indices_sample[2]].poszw).y)
-			};
-			float3 n = normalize(hit_attribute(vertex_normals, attr));
-
+			// Texture coordinates are the last 4 bytes of the base vertex layout
+			ByteAddressBuffer vb = geometry_vertices[NonUniformResourceIndex(inst.geometry)];
 			float2 vertex_uvs[3] = {
-				s16_to_f32(vertices[indices_sample[0]].tex),
-				s16_to_f32(vertices[indices_sample[1]].tex),
-				s16_to_f32(vertices[indices_sample[2]].tex)
+				s16_to_f32(vb.Load(indices_sample[0] * inst.stride + 12)),
+				s16_to_f32(vb.Load(indices_sample[1] * inst.stride + 12)),
+				s16_to_f32(vb.Load(indices_sample[2] * inst.stride + 12))
 			};
 			float2 tex_coord = hit_attribute2d(vertex_uvs, attr);
 
 			uint2 size;
-			mytexture2.GetDimensions(size.x, size.y);
-			sample_color = pow(mytexture2.Load(uint3(tex_coord * size, 0)).rgb, 2.2);
+			Texture2D<float4> hit_texture2 = geometry_texture2[NonUniformResourceIndex(inst.geometry)];
+			hit_texture2.GetDimensions(size.x, size.y);
+			sample_color = pow(hit_texture2.Load(uint3(tex_coord * size, 0)).rgb, 2.2);
 		}
 		else {
 			float2 tex_coord = equirect(ray.Direction, constant_buffer.v1.z);

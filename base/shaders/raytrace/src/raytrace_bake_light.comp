@@ -1,15 +1,23 @@
 #version 460
 #extension GL_EXT_ray_query : require
 #extension GL_EXT_shader_explicit_arithmetic_types : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_buffer_reference_uvec2 : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(binding = 10, set = 0, rgba16f) uniform image2D render_target;
 layout(binding = 0, set = 0) uniform accelerationStructureEXT scene;
-layout(binding = 1, set = 0) readonly buffer IndicesBuffer { uint indices[]; };
-layout(binding = 2, set = 0) readonly buffer VerticesBuffer {
-    uint vertex_data[];
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer UintData { uint values[]; };
+struct Instance {
+    uvec2 vertex_buffer; // Device address
+    uvec2 index_buffer;
+    uint stride; // Vertex size in bytes
+    uint geometry; // Index into the geometry texture arrays
 };
+layout(binding = 14, set = 0) readonly buffer InstancesBuffer { Instance instances[]; };
+layout(binding = 17, set = 0) uniform texture2D geometry_texture2[64]; // Base color
 
 layout(binding = 11, set = 0) uniform RayGenConstantBuffer {
     vec4 v0; // frame, strength, radius, offset
@@ -117,13 +125,14 @@ vec2 hit_attribute2d(vec2 vertex_data[3], vec2 bary) {
            vertex_data[2] * barycentrics.z;
 }
 
-Vertex get_vertex(uint index) {
-    uint base = index * 4u;
+Vertex get_vertex(Instance inst, uint index) {
+    UintData vb = UintData(inst.vertex_buffer);
+    uint base = (index * inst.stride) / 4u;
     Vertex v;
-    v.posxy = vertex_data[base + 0u];
-    v.poszw = vertex_data[base + 1u];
-    v.nor = vertex_data[base + 2u];
-    v.tex = vertex_data[base + 3u];
+    v.posxy = vb.values[base + 0u];
+    v.poszw = vb.values[base + 1u];
+    v.nor = vb.values[base + 2u];
+    v.tex = vb.values[base + 3u];
     return v;
 }
 ////
@@ -132,23 +141,19 @@ void process_hit(rayQueryEXT query, inout RayPayload payload) {
     uint triangle_index = rayQueryGetIntersectionPrimitiveIndexEXT(query, true);
 
     uint base_index = triangle_index * 3u;
+    Instance inst = instances[rayQueryGetIntersectionInstanceCustomIndexEXT(query, true)];
+    UintData ib = UintData(inst.index_buffer);
     uvec3 indices_sample = uvec3(
-        indices[base_index + 0u],
-        indices[base_index + 1u],
-        indices[base_index + 2u]
+        ib.values[base_index + 0u],
+        ib.values[base_index + 1u],
+        ib.values[base_index + 2u]
     );
 
     vec2 bary = rayQueryGetIntersectionBarycentricsEXT(query, true);
 
-    Vertex v0 = get_vertex(indices_sample[0]);
-    Vertex v1 = get_vertex(indices_sample[1]);
-    Vertex v2 = get_vertex(indices_sample[2]);
-
-    vec3 vertex_normals[3];
-    vertex_normals[0] = unpack_normal(v0.nor, v0.poszw);
-    vertex_normals[1] = unpack_normal(v1.nor, v1.poszw);
-    vertex_normals[2] = unpack_normal(v2.nor, v2.poszw);
-    vec3 n = normalize(hit_attribute(vertex_normals, bary));
+    Vertex v0 = get_vertex(inst, indices_sample[0]);
+    Vertex v1 = get_vertex(inst, indices_sample[1]);
+    Vertex v2 = get_vertex(inst, indices_sample[2]);
 
     vec2 vertex_uvs[3];
     vertex_uvs[0] = s16_to_f32(v0.tex);
@@ -157,9 +162,10 @@ void process_hit(rayQueryEXT query, inout RayPayload payload) {
 
     vec2 tex_coord = hit_attribute2d(vertex_uvs, bary);
 
-    ivec2 size = textureSize(sampler2D(mytexture2, sampler_linear), 0);
+    uint g = inst.geometry;
+    ivec2 size = textureSize(sampler2D(geometry_texture2[nonuniformEXT(g)], sampler_linear), 0);
     ivec2 utex_coord = ivec2(tex_coord * vec2(size));
-    vec3 texpaint2 = texelFetch(sampler2D(mytexture2, sampler_linear), utex_coord, 0).rgb;
+    vec3 texpaint2 = texelFetch(sampler2D(geometry_texture2[nonuniformEXT(g)], sampler_linear), utex_coord, 0).rgb;
     texpaint2 = pow(texpaint2, vec3(2.2));
 
     payload.color.rgb = texpaint2;

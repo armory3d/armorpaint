@@ -68,17 +68,6 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 #endif
 }
 
-void import_mesh_run_obj(char *data) {
-	import_mesh_clear_layers = false;
-	import_mesh_no_reset     = true;
-	import_mesh_append       = true;
-	g_context->layer_filter  = 0;
-
-	buffer_t *b = buffer_create_from_raw((u8 *)data, strlen(data));
-	import_obj_parse(b, false);
-	free(b);
-}
-
 i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 	mesh_object_t *a = *(pa);
 	mesh_object_t *b = *(pb);
@@ -94,10 +83,12 @@ void import_mesh_finish_import(void *_) {
 
 	context_select_paint_object(context_main_object());
 
-	// No mask by default
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->base->visible = true;
+	if (!import_mesh_append) {
+		// No mask by default
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			p->base->visible = true;
+		}
 	}
 
 	// Keep appended objects at scene root
@@ -132,7 +123,7 @@ void import_mesh_finish_import(void *_) {
 	}
 	import_mesh_appended = NULL;
 
-	if (!import_mesh_no_scale) {
+	if (!import_mesh_no_scale && !import_mesh_append) {
 		viewport_scale_to_bounds(2.0);
 	}
 	import_mesh_no_scale = false;
@@ -171,40 +162,13 @@ bool _import_mesh_is_unique_name(char *s) {
 	return true;
 }
 
-char *_import_mesh_number_ext(i32 i) {
-	if (i < 10) {
-		return string_tmp(".00%s", i32_to_string(i));
-	}
-	if (i < 100) {
-		return string_tmp(".0%s", i32_to_string(i));
-	}
-	return string_tmp(".%s", i32_to_string(i));
-}
-
-static i32 _import_mesh_split_number_ext(char *name, char **base) {
-	*base   = name;
-	i32 dot = string_last_index_of(name, ".");
-	i32 len = string_length(name);
-	if (dot <= 0 || len - dot - 1 < 3) {
-		return 0;
-	}
-	for (i32 i = dot + 1; i < len; ++i) {
-		i32 c = char_code_at(name, i);
-		if (c < '0' || c > '9') {
-			return 0;
-		}
-	}
-	*base = string_tmp("%.*s", dot, name);
-	return parse_int(name + dot + 1);
-}
-
 char *_import_mesh_unique_name(char *name) {
 	// Returns the name or the next free .00X variant
 	char *base;
-	i32   i   = _import_mesh_split_number_ext(name, &base);
-	char *res = i == 0 ? base : string_tmp("%s%s", base, _import_mesh_number_ext(i));
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = i == 0 ? base : string_tmp("%s%s", base, strings_number_ext(i));
 	while (!_import_mesh_is_unique_name(res)) {
-		res = string_tmp("%s%s", base, _import_mesh_number_ext(++i));
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
 	}
 	return res;
 }
@@ -285,6 +249,8 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 	}
 
 	g_project->stages = NULL;
+	g_context->paint_object->base->visible = true;
+	tab_stages_init();
 
 	// Wait for add_mesh calls to finish
 	sys_notify_on_next_frame(&import_mesh_finish_import, NULL);

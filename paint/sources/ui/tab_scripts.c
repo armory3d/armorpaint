@@ -724,7 +724,10 @@ void tab_scripts_draw(i32 *htab) {
 
 ui_text_coloring_t *tab_scripts_get_text_coloring() {
 	if (tab_scripts_text_coloring == NULL) {
-		buffer_t *blob            = data_get_blob("text_coloring.json");
+		buffer_t *blob = data_get_blob("text_coloring.json");
+		if (blob == NULL) {
+			return NULL;
+		}
 		tab_scripts_text_coloring = json_parse(sys_buffer_to_string(blob));
 	}
 	return tab_scripts_text_coloring;

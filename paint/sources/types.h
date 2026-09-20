@@ -538,6 +538,7 @@ typedef struct {
 	string_array_t *objects;
 	string_array_t *layers;
 	string_array_t *hidden;
+	char           *nested_mesh;
 } stage_t;
 
 typedef struct {
@@ -674,6 +675,7 @@ typedef struct timeline_layer_keyframe_data {
 } timeline_layer_keyframe_data_t;
 
 typedef struct timeline_mesh_keyframe_data {
+	i32               stage_index;
 	i32               frame;
 	i32               mesh_index;
 	struct f32_array *transform;

@@ -76,9 +76,7 @@ kernel void raytracingKernel(
 	texture2d<float, access::read> mytexture_sobol [[texture(5)]],
 	texture2d<float, access::read> mytexture_scramble [[texture(6)]],
 	texture2d<float, access::read> mytexture_rank [[texture(7)]],
-	instance_acceleration_structure scene [[buffer(1)]],
-	device void *indices [[buffer(2)]],
-	device void *vertices [[buffer(3)]]
+	instance_acceleration_structure scene [[buffer(1)]]
 ) {
 	uint seed = 0;
 

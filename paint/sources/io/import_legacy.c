@@ -157,7 +157,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 		project->material_datas = any_array_create_from_raw((void *[]){}, 0);
 		for (i32 i = 0; i < mds->length; ++i) {
 			any_map_t        *old = mds->buffer[i];
-			material_data2_t *md  = ALLOC_INIT(layer_data_t, {0});
+			material_data2_t *md  = ALLOC_INIT(material_data2_t, {0});
 			md->paint_base        = armpack_map_get_i32(old, "paint_base") > 0;
 			md->paint_opac        = armpack_map_get_i32(old, "paint_opac") > 0;
 			md->paint_occ         = armpack_map_get_i32(old, "paint_occ") > 0;
@@ -289,6 +289,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			timeline_mesh_keyframe_data_t *d   = ALLOC_INIT(timeline_mesh_keyframe_data_t, {0});
 			d->frame                           = armpack_map_get_i32(old, "frame");
 			d->mesh_index                      = armpack_map_get_i32(old, "mesh_index");
+			d->stage_index                     = armpack_map_get_i32(old, "stage_index");
 			d->transform                       = any_map_get(old, "transform");
 			d->tween                           = armpack_map_get_i32(old, "tween") > 0;
 			any_array_push(project->timeline_meshes, d);
@@ -305,11 +306,29 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			d->objects     = any_map_get(old, "objects");
 			d->layers      = any_map_get(old, "layers");
 			d->hidden      = any_map_get(old, "hidden");
+			d->nested_mesh = any_map_get(old, "nested_mesh");
 			any_array_push(project->stages, d);
 		}
 	}
 
 	return project;
+}
+
+project_t *import_arm_from_version_15(any_map_t *old) {
+	any_array_t *stages = any_map_get(old, "stages");
+	any_array_t *tms    = any_map_get(old, "timeline_meshes");
+	if (tms != NULL) {
+		for (i32 i = 0; i < tms->length; ++i) {
+			bool camera = armpack_map_get_i32(tms->buffer[i], "mesh_index") == -1 && stages != NULL && stages->length > 0;
+			armpack_map_set_i32(tms->buffer[i], "stage_index", camera ? 1 : 0);
+		}
+	}
+	if (stages != NULL) {
+		for (i32 i = 0; i < stages->length; ++i) {
+			any_map_set(stages->buffer[i], "nested_mesh", NULL);
+		}
+	}
+	return import_arm_from_map_to_arm(old);
 }
 
 project_t *import_arm_from_version_14(any_map_t *old) {
@@ -319,7 +338,7 @@ project_t *import_arm_from_version_14(any_map_t *old) {
 			any_map_set(stages->buffer[i], "hidden", NULL);
 		}
 	}
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_15(old);
 }
 
 project_t *import_arm_from_version_13(any_map_t *old) {
@@ -464,10 +483,10 @@ project_t *import_arm_from_version_0(any_map_t *old) {
 project_t *import_arm_from_old(buffer_t *b) {
 	any_map_t *old                   = armpack_decode_to_map(b);
 	project_t *(*fns[])(any_map_t *) = {
-	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,  import_arm_from_version_4,
-	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
-	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13,
-	    import_arm_from_version_14,
+	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,
+	    import_arm_from_version_4,  import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,
+	    import_arm_from_version_8,  import_arm_from_version_9,  import_arm_from_version_10, import_arm_from_version_11,
+	    import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14, import_arm_from_version_15,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

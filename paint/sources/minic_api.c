@@ -862,6 +862,7 @@ void minic_register_builtins() {
 	MINIC_P(layer_datas);
 	MINIC_P(mesh_datas);
 	MINIC_O(script_datas, string_array_t);
+	MINIC_O(script_names, string_array_t);
 	MINIC_END();
 
 	// iron_math wrappers

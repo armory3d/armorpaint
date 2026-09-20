@@ -2,22 +2,25 @@
 #include "global.h"
 
 void viewport_scale_to_bounds(f32 bounds) {
-	mesh_object_t *po          = g_context->merged_object == NULL ? context_main_object() : g_context->merged_object;
-	mesh_data_t   *md          = po->data;
-	vec4_t         aabb        = mesh_data_calculate_aabb(md);
-	f32            r           = math_sqrt(aabb.x * aabb.x + aabb.y * aabb.y + aabb.z * aabb.z);
-	po                         = context_main_object();
+	mesh_object_t *po = context_main_object();
+	for (i32 i = 0; i < po->base->children->length; ++i) {
+		object_t *c       = po->base->children->buffer[i];
+		c->transform->loc = (vec4_t){0, 0, 0, 1.0};
+		transform_build_matrix(c->transform);
+	}
+	if (g_context->merged_object != NULL) {
+		util_mesh_transform_changed();
+	}
+
+	mesh_data_t *md            = g_context->merged_object == NULL ? po->data : g_context->merged_object->data;
+	vec4_t       aabb          = mesh_data_calculate_aabb(md);
+	f32          r             = math_sqrt(aabb.x * aabb.x + aabb.y * aabb.y + aabb.z * aabb.z);
 	po->base->transform->dim.x = aabb.x;
 	po->base->transform->dim.y = aabb.y;
 	po->base->transform->dim.z = aabb.z;
 	po->base->transform->scale = (vec4_t){bounds / (float)r, bounds / (float)r, bounds / (float)r, 1.0};
 	po->base->transform->loc   = (vec4_t){0, 0, 0, 1.0};
 	transform_build_matrix(po->base->transform);
-	for (i32 i = 0; i < po->base->children->length; ++i) {
-		object_t *c       = po->base->children->buffer[i];
-		c->transform->loc = (vec4_t){0, 0, 0, 1.0};
-		transform_build_matrix(c->transform);
-	}
 }
 
 void viewport_reset() {
@@ -33,7 +36,10 @@ void viewport_reset() {
 			camera_object_build_proj(cam, -1.0);
 			g_context->ddirty = 2;
 			camera_reset(-1);
-			transform_reset(context_main_object()->base->transform);
+			transform_t *t = context_main_object()->base->transform;
+			transform_reset(t);
+			transform_build_matrix(t);
+			render_path_raytrace_ready = false;
 			break;
 		}
 	}
@@ -114,6 +120,10 @@ void viewport_save_texture(gpu_texture_t *screenshot) {
 	any_array_push(g_project->packed_assets, pa);
 	any_map_set(data_cached_textures, abs, screenshot);
 	import_texture_run(abs, true);
+}
+
+void viewport_save_texture_to_file(gpu_texture_t *screenshot, char *path) {
+	iron_write_png(path, gpu_get_texture_pixels(screenshot), screenshot->width, screenshot->height, 0);
 }
 
 void viewport_capture_screenshot() {
