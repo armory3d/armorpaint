@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Text to text node fixes
 - Word wrap fixes
 - UI deselect text exposed
+- Linux: keep a stable `WM_CLASS` (app name) instead of deriving it from the window title,
+  so the desktop entry and `StartupWMClass` match correctly under GNOME/Wayland
 
 ### Performance
 - Mesh merge faster for reskin

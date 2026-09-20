@@ -151,7 +151,7 @@ Feature switches on the Linux build (from `paint/project.js`):
 
 | Field        | Value                                            |
 | ------------ | ------------------------------------------------ |
-| Commit       | `5feb5f7` (branch `feat/build-linux-docs`)        |
+| Commit       | branch `feat/build-linux-docs` (upstream sha `5feb5f7` + WM_CLASS fix) |
 | Host         | Ubuntu 26.04 LTS (x86_64)                        |
 | make         | GNU Make 4.4.1                                   |
 | clang        | Ubuntu clang 21.1.8 (6ubuntu1)                   |
@@ -159,3 +159,12 @@ Feature switches on the Linux build (from `paint/project.js`):
 | Command      | `../base/make --compile`                          |
 | Result       | SUCCESS — ELF x86-64, stripped, ~2.7 MB           |
 | Smoke test   | binary launches and keeps running (`timeout` kill, no crash) |
+
+## Desktop integration notes
+
+- The `.desktop` entry uses `StartupWMClass=ArmorPaint`. The engine keeps a
+  stable WM_CLASS set to the app name (instead of the window title), so GNOME
+  (Wayland/XWayland) matches the running window to the entry and shows the
+  ArmorPaint icon in the dock and app grid.
+- The icon is installed to `~/.local/share/icons/hicolor/256x256/apps/` and the
+  icon/desktop databases are refreshed on install.
