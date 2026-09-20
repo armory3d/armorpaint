@@ -19,7 +19,8 @@ original project and does not claim authorship. See `NOTICE`, `LICENSE` and
 
 ## Building
 
-See the [build instructions](https://github.com/dionarley/armorpaint#build).
+See the [Linux build guide](build_linux.md) for the full step-by-step (outputs,
+flags, troubleshooting) and the [build instructions](https://github.com/dionarley/armorpaint#build).
 
 ```
 cd paint

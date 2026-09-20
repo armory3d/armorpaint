@@ -80,6 +80,8 @@ cd armorpaint/paint
 
 ### Linux build & run guide
 
+Full step-by-step guide (outputs, flags, troubleshooting, verified build): [`docs/build_linux.md`](docs/build_linux.md).
+
 **Prerequisites** — dependencies and verified versions are documented in [`base/docs/linux_deps.md`](base/docs/linux_deps.md):
 
 ```bash
