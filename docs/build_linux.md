@@ -3,6 +3,57 @@
 This guide covers building the native **Vulkan (x86_64)** binary on Linux. The
 same flow is exercised by CI in [`.github/workflows/linux_vulkan.yml`](../.github/workflows/linux_vulkan.yml).
 
+## Install from a prebuilt release (no build required)
+
+Binaries are published as GitHub Releases on the fork
+[`dionarley/armorpaint`](https://github.com/dionarley/armorpaint/releases) and
+installed with a one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dionarley/armorpaint/main/scripts/install.sh | sh
+```
+
+wget works too: `sh` will pick whatever downloader is available.
+
+What it does:
+
+- Detects the architecture (x86_64) and downloads the matching release asset
+  (`ArmorPaint-linux-x86_64.tar.xz`) plus its SHA-256 checksum.
+- Installs into your XDG data dir
+  (`~/.local/share/armorpaint/` by default, honors `XDG_DATA_HOME`).
+- Adds a launcher at `~/.local/bin/ArmorPaint`.
+- Installs the icon and an `armorpaint.desktop` entry in
+  `~/.local/share/applications/` so the app appears in the GNOME app grid
+  (`StartupWMClass` is set for correct window matching on Wayland/XWayland).
+- Refreshes the desktop database.
+
+Options:
+
+```bash
+sh install.sh --help                # usage
+sh install.sh --local FILE.tar.xz   # install from a local package (no download)
+sh install.sh --uninstall           # remove app, launcher, icon and .desktop entry
+```
+
+User variables: `ARMORPAINT_VERSION` (release tag, default `latest`),
+`ARMORPAINT_DIR`, `ARMORPAINT_BIN_DIR`, `XDG_DATA_HOME`, `XDG_CONFIG_HOME`.
+
+> The URL above points at `main`; until changes are merged there, use the same
+> file from the `feat/build-linux-docs` branch:
+> `https://raw.githubusercontent.com/dionarley/armorpaint/feat/build-linux-docs/scripts/install.sh`
+
+### Publishing a release
+
+Build + package the binary and checksum, then upload (see `make_package.sh`):
+
+```bash
+./scripts/make_package.sh --rebuild          # builds and creates the .tar.xz
+gh release create v0.1.2 \
+  paint/build/package/ArmorPaint-linux-x86_64.tar.xz \
+  paint/build/package/ArmorPaint-linux-x86_64.tar.xz.sha256 \
+  --repo dionarley/armorpaint --title 'ArmorPaint v0.1.2'
+```
+
 ## How the build works
 
 `../base/make` runs the bundled **amake** tool (`base/tools/make.js`) against

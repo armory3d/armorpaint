@@ -80,7 +80,13 @@ cd armorpaint/paint
 
 ### Linux build & run guide
 
-Full step-by-step guide (outputs, flags, troubleshooting, verified build): [`docs/build_linux.md`](docs/build_linux.md).
+**Prebuilt (no build needed)** — install the Linux binary from a GitHub Release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dionarley/armorpaint/main/scripts/install.sh | sh
+```
+
+Full step-by-step build guide (outputs, flags, troubleshooting, verified build): [`docs/build_linux.md`](docs/build_linux.md).
 
 **Prerequisites** — dependencies and verified versions are documented in [`base/docs/linux_deps.md`](base/docs/linux_deps.md):
 
