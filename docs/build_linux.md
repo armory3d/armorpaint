@@ -147,7 +147,7 @@ Feature switches on the Linux build (from `paint/project.js`):
 
 | Field        | Value                                            |
 | ------------ | ------------------------------------------------ |
-| Commit       | `main` merge `788238ba` (upstream sha `5feb5f7` + WM_CLASS fix) |
+| Commit       | `main` `330dc297` (upstream sha `5feb5f7` + WM_CLASS fix) |
 | Host         | Ubuntu 26.04 LTS (x86_64)                        |
 | make         | GNU Make 4.4.1                                   |
 | clang        | Ubuntu clang 21.1.8 (6ubuntu1)                   |
