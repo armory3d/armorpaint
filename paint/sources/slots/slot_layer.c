@@ -328,6 +328,7 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 	                                                                           : LAYER_SLOT_TYPE_GROUP,
 	                                                 raw->parent);
 	array_insert(layers, i, l);
+	tab_stages_add_layer(l->name);
 
 	if (slot_layer_is_layer(raw)) {
 		draw_begin(l->texpaint, false, 0);
