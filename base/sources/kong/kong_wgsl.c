@@ -326,18 +326,18 @@ static void write_globals(char *wgsl, size_t *offset, function *main, bool *fram
 				binding += 1;
 			}
 			else if (base_type == bvh_type_id) {
-				assert(false);
+				kong_assert(false);
 				binding += 1;
 			}
 			else if (get_type(g->type)->built_in) {
 				if (get_type(g->type)->array_size > 0) {
-					assert(false);
+					kong_assert(false);
 					binding += 1;
 				}
 			}
 			else {
 				if (get_type(g->type)->array_size > 0) {
-					assert(false);
+					kong_assert(false);
 					binding += 1;
 				}
 				else {
@@ -427,7 +427,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 
 	for (size_t i = 0; i < functions_size; ++i) {
 		function *f = functions[i];
-		assert(f != NULL);
+		kong_assert(f != NULL);
 
 		debug_context context = {0};
 		check(f->block != NULL, context, "Function block missing");
@@ -503,11 +503,11 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				}
 			}
 			else if (stage == SHADER_STAGE_COMPUTE) {
-				assert(f->parameters_size == 0);
-				assert(f->return_type.type == void_id);
+				kong_assert(f->parameters_size == 0);
+				kong_assert(f->return_type.type == void_id);
 
 				attribute *threads = find_attribute(&f->attributes, add_name("threads"));
-				assert(threads != NULL && threads->paramters_count == 3);
+				kong_assert(threads != NULL && threads->paramters_count == 3);
 
 				*offset += sprintf(&code[*offset],
 				                   "@compute @workgroup_size(%u, %u, %u) fn main(@builtin(local_invocation_id) _kong_group_thread_id: vec3<u32>, "
@@ -555,8 +555,8 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				type_id from_type = o->op_load_access_list.from.type.type;
 
 				if (is_texture(from_type)) {
-					assert(o->op_load_access_list.access_list_size == 1);
-					assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
+					kong_assert(o->op_load_access_list.access_list_size == 1);
+					kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 					*offset += sprintf(&code[*offset], "var %s: %s = ", get_var(o->op_load_access_list.to, f, main).str,
 					                   type_string(o->op_load_access_list.to.type.type));
@@ -612,9 +612,9 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				type_id to_type = o->op_store_access_list.to.type.type;
 
 				if (is_texture(to_type)) {
-					assert(o->type == OPCODE_STORE_ACCESS_LIST);
-					assert(o->op_store_access_list.access_list_size == 1);
-					assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
+					kong_assert(o->type == OPCODE_STORE_ACCESS_LIST);
+					kong_assert(o->op_store_access_list.access_list_size == 1);
+					kong_assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 					*offset += sprintf(&code[*offset], "textureStore(%s, vec2<u32>(u32(_%" PRIu64 ".x), u32(_%" PRIu64 ".y)), _%" PRIu64 ");\n",
 					                   get_var(o->op_store_access_list.to, f, main).str, o->op_store_access_list.access_list[0].access_element.index.index,
@@ -668,7 +668,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 						*offset += sprintf(&code[*offset], " *= %s;\n", get_var(o->op_store_access_list.from, f, main).str);
 						break;
 					default:
-						assert(false);
+						kong_assert(false);
 						break;
 					}
 				}
@@ -1093,7 +1093,7 @@ static char *wgsl_export_fragment2(function *main) {
 
 	size_t offset = 0;
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id pixel_input = main->parameter_types[0].type;
 
 	check(pixel_input != NO_TYPE, context, "fragment input missing");
@@ -1161,7 +1161,7 @@ void wgsl_export2(char **vs, char **fs) {
 					fragment_functions[fragment_functions_size] = i;
 					fragment_functions_size += 1;
 
-					assert(f->parameters_size > 0);
+					kong_assert(f->parameters_size > 0);
 					fragment_inputs[fragment_inputs_size] = f->parameter_types[0].type;
 					fragment_inputs_size += 1;
 				}

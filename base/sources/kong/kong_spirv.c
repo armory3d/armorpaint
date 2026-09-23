@@ -334,7 +334,7 @@ static void write_buffer(FILE *file, uint8_t *output, size_t output_size) {
 
 static type_id find_access_type(int *indices, access_kind *access_kinds, int indices_size, type_id base_type) {
 	if (get_type(base_type)->tex_kind == TEXTURE_KIND_2D) {
-		assert(indices_size == 1);
+		kong_assert(indices_size == 1);
 		return float4_id;
 	}
 
@@ -348,12 +348,12 @@ static type_id find_access_type(int *indices, access_kind *access_kinds, int ind
 			return vector_base_type(base_type);
 		case ACCESS_MEMBER: {
 			type *t = get_type(base_type);
-			assert(indices[0] < t->members.size);
+			kong_assert(indices[0] < t->members.size);
 			return t->members.m[indices[0]].type.type;
 		}
 		}
 
-		assert(false);
+		kong_assert(false);
 		return base_type;
 	}
 	else {
@@ -366,12 +366,12 @@ static type_id find_access_type(int *indices, access_kind *access_kinds, int ind
 			return base_type;
 		case ACCESS_MEMBER: {
 			type *t = get_type(base_type);
-			assert(indices[0] < t->members.size);
+			kong_assert(indices[0] < t->members.size);
 			return find_access_type(&indices[1], &access_kinds[1], indices_size - 1, t->members.m[indices[0]].type.type);
 		}
 		}
 
-		assert(false);
+		kong_assert(false);
 		return base_type;
 	}
 }
@@ -644,7 +644,7 @@ static struct {
 } *type_map = NULL;
 
 static void add_to_type_map(type_id kong_type, spirv_id spirv_type, bool readwrite, storage_class storage) {
-	assert(kong_type != NO_TYPE);
+	kong_assert(kong_type != NO_TYPE);
 
 	complex_type ct = {
 	    .type      = kong_type,
@@ -793,7 +793,7 @@ static void write_types(instructions_buffer *buffer, function *main) {
 			for (size_t j = 0; j < t->members.size; ++j) {
 				member_types[member_types_size] = convert_type_to_spirv_id(t->members.m[j].type.type);
 				member_types_size += 1;
-				assert(member_types_size < 256);
+				kong_assert(member_types_size < 256);
 			}
 
 			spirv_id struct_type = write_type_struct(buffer, member_types, member_types_size);
@@ -817,7 +817,7 @@ static void write_types(instructions_buffer *buffer, function *main) {
 				pointer_relation *previous_relation = &written_pointer_relations.values[relation_index];
 
 				if (previous_relation->pointer_type_id.id == type_map[i].value.id) {
-					assert(previous_relation->non_pointer_type_id.id == non_pointer_type_id.id);
+					kong_assert(previous_relation->non_pointer_type_id.id == non_pointer_type_id.id);
 					found = true;
 					break;
 				}
@@ -991,7 +991,7 @@ static spirv_id get_int_constant(int value) {
 
 	if (container == NULL) {
 		container = (int_constant_container *)malloc(sizeof(int_constant_container));
-		assert(container != NULL);
+		kong_assert(container != NULL);
 		container->container.key = value;
 		container->value         = allocate_index();
 		hash_map_add(int_constants, (struct container *)container);
@@ -1823,8 +1823,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			uint16_t indices_size = o->op_load_access_list.access_list_size;
 
 			if (get_type(o->op_load_access_list.from.type.type)->tex_kind == TEXTURE_KIND_2D) {
-				assert(indices_size == 1);
-				assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
+				kong_assert(indices_size == 1);
+				kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 				////
 				// spirv_id image = write_op_load(instructions, spirv_readwrite_image_type, convert_kong_index_to_spirv_id(o->op_load_access_list.from.index));
@@ -1849,7 +1849,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				for (uint16_t i = 0; i < indices_size; ++i) {
 					switch (o->op_load_access_list.access_list[i].kind) {
 					case ACCESS_ELEMENT:
-						assert(false);
+						kong_assert(false);
 						break;
 					case ACCESS_MEMBER: {
 						uint32_t member_index = 0;
@@ -1862,14 +1862,14 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 							}
 						}
 
-						assert(found);
+						kong_assert(found);
 
 						indices[i] = member_index;
 
 						break;
 					}
 					case ACCESS_SWIZZLE: {
-						assert(o->op_load_access_list.access_list[i].access_swizzle.swizzle.size == 1);
+						kong_assert(o->op_load_access_list.access_list[i].access_swizzle.swizzle.size == 1);
 
 						indices[i] = o->op_load_access_list.access_list[i].access_swizzle.swizzle.indices[0];
 
@@ -1910,7 +1910,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 							}
 						}
 
-						assert(found);
+						kong_assert(found);
 
 						access_kinds[i]  = ACCESS_MEMBER;
 						plain_indices[i] = member_index;
@@ -1919,7 +1919,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 						break;
 					}
 					case ACCESS_SWIZZLE: {
-						assert(o->op_load_access_list.access_list[i].access_swizzle.swizzle.size == 1);
+						kong_assert(o->op_load_access_list.access_list[i].access_swizzle.swizzle.size == 1);
 
 						access_kinds[i]  = ACCESS_SWIZZLE;
 						plain_indices[i] = 0; // unused
@@ -1933,7 +1933,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 
 				type_id access_kong_type = find_access_type(plain_indices, access_kinds, indices_size, o->op_load_access_list.from.type.type);
-				assert(access_kong_type != NO_TYPE);
+				kong_assert(access_kong_type != NO_TYPE);
 
 				spirv_id access_type = {0};
 
@@ -2046,7 +2046,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 				////
 				else {
-					assert(false);
+					kong_assert(false);
 				}
 			}
 			else if (func == add_name("float2")) {
@@ -2061,7 +2061,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 						hmput(index_map, o->op_call.var.index, id);
 					}
 					else {
-						assert(false);
+						kong_assert(false);
 					}
 				}
 				else if (o->op_call.parameters_size == 2) {
@@ -2073,7 +2073,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					hmput(index_map, o->op_call.var.index, id);
 				}
 				else {
-					assert(false);
+					kong_assert(false);
 				}
 			}
 			else if (func == add_name("float3")) {
@@ -2114,7 +2114,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					hmput(index_map, o->op_call.var.index, id);
 				}
 				else {
-					assert(false);
+					kong_assert(false);
 				}
 			}
 			else if (func == add_name("int2")) {
@@ -2129,11 +2129,11 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 						hmput(index_map, o->op_call.var.index, id);
 					}
 					else {
-						assert(false);
+						kong_assert(false);
 					}
 				}
 				else {
-					assert(o->op_call.parameters_size == 2);
+					kong_assert(o->op_call.parameters_size == 2);
 					spirv_id constituents[2];
 					for (int i = 0; i < o->op_call.parameters_size; ++i) {
 						constituents[i] = get_var(instructions, o->op_call.parameters[i]);
@@ -2168,7 +2168,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					hmput(index_map, o->op_call.var.index, id);
 				}
 				else {
-					assert(false);
+					kong_assert(false);
 				}
 			}
 			else if (func == add_name("uint2")) {
@@ -2568,8 +2568,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			type *s = get_type(o->op_store_access_list.to.type.type);
 
 			if (get_type(o->op_store_access_list.to.type.type)->tex_kind == TEXTURE_KIND_2D) {
-				assert(indices_size == 1);
-				assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
+				kong_assert(indices_size == 1);
+				kong_assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 				spirv_id image = write_op_load(instructions, spirv_readwrite_image_type, convert_kong_index_to_spirv_id(o->op_store_access_list.to.index));
 
@@ -2600,7 +2600,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 							}
 						}
 
-						assert(found);
+						kong_assert(found);
 
 						access_kinds[i]  = ACCESS_MEMBER;
 						plain_indices[i] = member_index;
@@ -2610,7 +2610,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 						break;
 					}
 					case ACCESS_SWIZZLE: {
-						assert(o->op_store_access_list.access_list[i].access_swizzle.swizzle.size == 1);
+						kong_assert(o->op_store_access_list.access_list[i].access_swizzle.swizzle.size == 1);
 
 						access_kinds[i]  = ACCESS_SWIZZLE;
 						plain_indices[i] = 0; // unused
@@ -2625,7 +2625,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 
 				type_id access_kong_type = find_access_type(plain_indices, access_kinds, indices_size, o->op_store_access_list.to.type.type);
-				assert(access_kong_type != NO_TYPE);
+				kong_assert(access_kong_type != NO_TYPE);
 
 				spirv_id access_type = {0};
 
@@ -2637,7 +2637,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					access_type = convert_pointer_type_to_spirv_id(access_kong_type, STORAGE_CLASS_OUTPUT);
 					break;
 				case VARIABLE_INTERNAL:
-					assert(false);
+					kong_assert(false);
 					break;
 				}
 
@@ -2789,7 +2789,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				break;
 			}
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 
@@ -2871,7 +2871,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			break;
 		}
 		case OPCODE_LESS: {
-			assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
+			kong_assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
 
 			spirv_id left  = get_var(instructions, o->op_binary.left);
 			spirv_id right = get_var(instructions, o->op_binary.right);
@@ -2888,7 +2888,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				result = write_op_u_less_than(instructions, spirv_bool_type, left, right);
 			}
 			else {
-				assert(false);
+				kong_assert(false);
 			}
 
 			hmput(index_map, o->op_binary.result.index, result);
@@ -2896,7 +2896,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			break;
 		}
 		case OPCODE_LESS_EQUAL: {
-			assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
+			kong_assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
 
 			spirv_id left  = get_var(instructions, o->op_binary.left);
 			spirv_id right = get_var(instructions, o->op_binary.right);
@@ -2913,7 +2913,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				result = write_op_u_less_than_equal(instructions, spirv_bool_type, left, right);
 			}
 			else {
-				assert(false);
+				kong_assert(false);
 			}
 
 			hmput(index_map, o->op_binary.result.index, result);
@@ -2921,7 +2921,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			break;
 		}
 		case OPCODE_GREATER: {
-			assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
+			kong_assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
 
 			spirv_id left  = get_var(instructions, o->op_binary.left);
 			spirv_id right = get_var(instructions, o->op_binary.right);
@@ -2938,7 +2938,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				result = write_op_u_greater_than(instructions, spirv_bool_type, left, right);
 			}
 			else {
-				assert(false);
+				kong_assert(false);
 			}
 
 			hmput(index_map, o->op_binary.result.index, result);
@@ -2946,7 +2946,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			break;
 		}
 		case OPCODE_GREATER_EQUAL: {
-			assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
+			kong_assert(o->op_binary.left.type.type == o->op_binary.right.type.type);
 
 			spirv_id left  = get_var(instructions, o->op_binary.left);
 			spirv_id right = get_var(instructions, o->op_binary.right);
@@ -2963,7 +2963,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				result = write_op_u_greater_than_equal(instructions, spirv_bool_type, left, right);
 			}
 			else {
-				assert(false);
+				kong_assert(false);
 			}
 
 			hmput(index_map, o->op_binary.result.index, result);
@@ -2983,7 +2983,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				hmput(index_map, o->op_binary.result.index, result);
 			}
 			else {
-				assert(false);
+				kong_assert(false);
 			}
 
 			break;
@@ -3176,7 +3176,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 
 	if (!ends_with_return) {
 		if (main) {
-			assert(stage == SHADER_STAGE_COMPUTE);
+			kong_assert(stage == SHADER_STAGE_COMPUTE);
 		}
 		write_op_return(instructions);
 	}
@@ -3436,7 +3436,7 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 		}
 		else if (get_type(base_type)->tex_kind != TEXTURE_KIND_NONE) {
 			if (t->array_size == UINT32_MAX) {
-				assert(false);
+				kong_assert(false);
 			}
 			else {
 				spirv_id image_pointer_type;
@@ -3460,20 +3460,20 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 			}
 		}
 		else if (base_type == bvh_type_id) {
-			assert(false);
+			kong_assert(false);
 		}
 		else if (base_type == float_id) {
 			spirv_id id = get_float_constant(g->value.value.floats[0]);
 			hmput(index_map, g->var_index, id);
 		}
 		else if (base_type == float2_id) {
-			assert(false);
+			kong_assert(false);
 		}
 		else if (base_type == float3_id) {
-			assert(false);
+			kong_assert(false);
 		}
 		else if (base_type == float4_id) {
-			assert(false);
+			kong_assert(false);
 		}
 		else {
 			bool root_constant = binding == 0xffffffff;
@@ -3494,7 +3494,7 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 				add_to_type_map(member_type, member_pointer_type, false, storage);
 
 				member_types_size += 1;
-				assert(member_types_size < 256);
+				kong_assert(member_types_size < 256);
 			}
 
 			spirv_id struct_type = write_type_struct(aggregate_types_block, member_types, member_types_size);
@@ -3697,7 +3697,7 @@ static char *spirv_export_vertex2(function *main, bool debug, int *size_out) {
 	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
 	};
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id vertex_input  = main->parameter_types[0].type;
 	type_id vertex_output = main->return_type.type;
 
@@ -3861,7 +3861,7 @@ static char *spirv_export_fragment2(function *main, bool debug, int *size_out) {
 	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
 	};
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id pixel_input  = main->parameter_types[0].type;
 	type_id pixel_output = main->return_type.type;
 
@@ -3883,7 +3883,7 @@ static char *spirv_export_fragment2(function *main, bool debug, int *size_out) {
 		input_vars[input_var_index] = allocate_index();
 	}
 
-	assert(output->built_in); // has to be a float4 or a float4[]
+	kong_assert(output->built_in); // has to be a float4 or a float4[]
 
 	if (output->array_size > 0) {
 		output_vars_count = output->array_size;

@@ -574,7 +574,7 @@ static void write_functions(char *code, size_t *offset) {
 						*offset += sprintf(&code[*offset], " *= _%" PRIu64 ";\n", o->op_store_access_list.from.index);
 						break;
 					default:
-						assert(false);
+						kong_assert(false);
 						break;
 					}
 				}
@@ -900,7 +900,7 @@ char *metal_export(char *directory) {
 					fragment_functions[fragment_functions_size] = i;
 					fragment_functions_size += 1;
 
-					assert(f->parameters_size > 0);
+					kong_assert(f->parameters_size > 0);
 					fragment_inputs[fragment_inputs_size] = f->parameter_types[0].type;
 					fragment_inputs_size += 1;
 				}

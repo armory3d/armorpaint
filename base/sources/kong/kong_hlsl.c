@@ -62,7 +62,7 @@ static char *type_string(type_id type) {
 		}
 		else {
 			// TODO
-			assert(false);
+			kong_assert(false);
 		}
 	}
 	return get_name(get_type(type)->name);
@@ -701,7 +701,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 
 	for (size_t i = 0; i < functions_size; ++i) {
 		function *f = functions[i];
-		assert(f != NULL);
+		kong_assert(f != NULL);
 
 		debug_context context = {0};
 		check(f->block != NULL, context, "Function block missing");
@@ -973,7 +973,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 					*offset += sprintf(&hlsl[*offset], " *= _%" PRIu64 ";\n", o->op_store_access_list.from.index);
 					break;
 				default:
-					assert(false);
+					kong_assert(false);
 					break;
 				}
 				break;
@@ -1240,7 +1240,7 @@ static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
 	char       *hlsl   = &_buffer[0];
 	size_t      offset = 0;
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id vertex_inputs[64];
 	for (size_t input_index = 0; input_index < main->parameters_size; ++input_index) {
 		vertex_inputs[input_index] = main->parameter_types[input_index].type;
@@ -1262,7 +1262,7 @@ static char *hlsl_export_fragment2(api_kind d3d, function *main, bool debug) {
 	char       *hlsl   = &_buffer[0];
 	size_t      offset = 0;
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id pixel_input = main->parameter_types[0].type;
 
 	debug_context context = {0};

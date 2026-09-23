@@ -1,6 +1,7 @@
 #include "kong.h"
 #include "dir.h"
 #include <assert.h>
+#include <setjmp.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,6 +87,8 @@ size_t                  allocated_globals_size = 0;
 uint64_t next_variable_id = 1;
 
 bool               kong_error          = false;
+static jmp_buf     kong_error_jmp;
+static bool        kong_error_jmp_active = false;
 static function   *functions           = NULL;
 static function_id functions_size      = 128;
 static function_id functions_zeroed    = 0;
@@ -352,12 +355,12 @@ void find_used_capabilities(function *f) {
 			type_id  to_type = to.type.type;
 
 			if (is_texture(to_type)) {
-				assert(get_type(to_type)->array_size == 0);
+				kong_assert(get_type(to_type)->array_size == 0);
 
 				f->used_capabilities.image_write = true;
 
 				global *g = find_global_by_var(to);
-				assert(g != NULL);
+				kong_assert(g != NULL);
 			}
 			break;
 		}
@@ -374,7 +377,7 @@ void find_used_capabilities(function *f) {
 				}
 				else {
 					global *g = find_global_by_var(from);
-					assert(g != NULL);
+					kong_assert(g != NULL);
 				}
 			}
 
@@ -389,14 +392,14 @@ void find_used_capabilities(function *f) {
 				global *g = NULL;
 
 				if (tex_parameter.kind == VARIABLE_INTERNAL) {
-					assert(last_base_texture_to.index == tex_parameter.index);
+					kong_assert(last_base_texture_to.index == tex_parameter.index);
 					g = find_global_by_var(last_base_texture_from);
 				}
 				else {
 					g = find_global_by_var(tex_parameter);
 				}
 
-				assert(g != NULL);
+				kong_assert(g != NULL);
 			}
 
 			for (function_id i = 0; get_function(i) != NULL; ++i) {
@@ -684,12 +687,12 @@ static void update_globals_in_descriptor_set_group(descriptor_set_group *group, 
 }
 
 descriptor_set_group *get_descriptor_set_group(uint32_t descriptor_set_group_index) {
-	assert(descriptor_set_group_index < all_descriptor_set_groups.size);
+	kong_assert(descriptor_set_group_index < all_descriptor_set_groups.size);
 	return &all_descriptor_set_groups.values[descriptor_set_group_index];
 }
 
 static void assign_descriptor_set_group_index(function *f, uint32_t descriptor_set_group_index) {
-	assert(f->descriptor_set_group_index == UINT32_MAX || f->descriptor_set_group_index == descriptor_set_group_index);
+	kong_assert(f->descriptor_set_group_index == UINT32_MAX || f->descriptor_set_group_index == descriptor_set_group_index);
 	f->descriptor_set_group_index = descriptor_set_group_index;
 }
 
@@ -864,7 +867,7 @@ variable allocate_variable(type_ref type, variable_kind kind) {
 }
 
 opcode *emit_op(opcodes *code, opcode *o) {
-	assert(code->size + o->size < OPCODES_SIZE);
+	kong_assert(code->size + o->size < OPCODES_SIZE);
 
 	if (code->o == NULL) {
 		code->o = (uint8_t *)malloc(OPCODES_SIZE);
@@ -1097,7 +1100,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 						break;
 					default:
-						assert(false);
+						kong_assert(false);
 						break;
 					}
 
@@ -1308,7 +1311,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 
@@ -1693,11 +1696,22 @@ void error_args(debug_context context, const char *message, va_list args) {
 
 	iron_log_args(IRON_LOG_LEVEL_ERROR, buffer, args);
 	kong_error = true;
+	if (kong_error_jmp_active) {
+		longjmp(kong_error_jmp, 1);
+	}
 }
 
 void error_args_no_context(const char *message, va_list args) {
 	iron_log_args(IRON_LOG_LEVEL_ERROR, message, args);
 	kong_error = true;
+	if (kong_error_jmp_active) {
+		longjmp(kong_error_jmp, 1);
+	}
+}
+
+void kong_assert_failed(const char *test, const char *file, int line) {
+	error_no_context("Shader compiler assertion failed: %s (%s:%i)", test, file, line);
+	assert(false); // Not compiling a shader at runtime (amake)
 }
 
 void error(debug_context context, const char *message, ...) {
@@ -1726,6 +1740,7 @@ void check_function(bool test, debug_context context, const char *message, ...) 
 		va_start(args, message);
 		error_args(context, message, args);
 		va_end(args);
+		assert(false); // Not compiling a shader at runtime (amake)
 	}
 }
 
@@ -3138,7 +3153,7 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 			}
 
 			s->iffy.else_size += 1;
-			assert(s->iffy.else_size < 64);
+			kong_assert(s->iffy.else_size < 64);
 		}
 
 		return s;
@@ -4138,7 +4153,7 @@ size_t get_sets_count(void) {
 }
 
 void add_definition_to_set(descriptor_set *set, definition def) {
-	assert(def.kind != DEFINITION_FUNCTION && def.kind != DEFINITION_STRUCT);
+	kong_assert(def.kind != DEFINITION_FUNCTION && def.kind != DEFINITION_STRUCT);
 
 	for (size_t global_index = 0; global_index < set->globals.size; ++global_index) {
 		if (set->globals.globals[global_index] == def.global) {
@@ -4666,7 +4681,7 @@ static void copy_opcode(opcode *o) {
 
 	uint8_t *new_data = &new_code.o[new_code.size];
 
-	assert(new_code.size + o->size < OPCODES_SIZE);
+	kong_assert(new_code.size + o->size < OPCODES_SIZE);
 
 	memcpy(new_data, o, o->size);
 
@@ -4695,7 +4710,7 @@ void transform(uint32_t flags) {
 				kong_access a = o->op_store_access_list.access_list[o->op_store_access_list.access_list_size - 1];
 
 				if ((flags & TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE) != 0 && a.kind == ACCESS_SWIZZLE && a.access_swizzle.swizzle.size > 1) {
-					assert(is_vector(o->op_store_access_list.from.type.type));
+					kong_assert(is_vector(o->op_store_access_list.from.type.type));
 
 					type_id from_base_type = vector_base_type(o->op_store_access_list.from.type.type);
 
@@ -4752,7 +4767,7 @@ void transform(uint32_t flags) {
 				kong_access a = o->op_load_access_list.access_list[o->op_load_access_list.access_list_size - 1];
 
 				if ((flags & TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE) != 0 && a.kind == ACCESS_SWIZZLE && a.access_swizzle.swizzle.size > 1) {
-					assert(is_vector(o->op_load_access_list.to.type.type));
+					kong_assert(is_vector(o->op_load_access_list.to.type.type));
 
 					type_id to_type = vector_base_type(o->op_load_access_list.to.type.type);
 
@@ -5012,7 +5027,7 @@ static void resolve_types_in_element(statement *parent_block, expression *elemen
 
 	type_id of_type = element->element.of->type.type;
 
-	assert(of_type != NO_TYPE);
+	kong_assert(of_type != NO_TYPE);
 
 	type *of = get_type(of_type);
 
@@ -5036,7 +5051,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 	type_id of_type     = member->member.of->type.type;
 	name_id member_name = member->member.member_name;
 
-	assert(of_type != NO_TYPE);
+	kong_assert(of_type != NO_TYPE);
 
 	if (is_vector_or_scalar(of_type)) {
 		expression *of = member->member.of;
@@ -5102,7 +5117,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = float4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5121,7 +5136,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = int4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5140,7 +5155,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = uint4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5159,12 +5174,12 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = bool4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
 		else {
-			assert(false);
+			kong_assert(false);
 		}
 	}
 	else {
@@ -5533,7 +5548,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		if (e->call.func_name == add_name("sample") || e->call.func_name == add_name("sample_lod")) {
 			if (e->call.parameters.e[0]->kind == EXPRESSION_VARIABLE) {
 				global *g = find_global(e->call.parameters.e[0]->variable);
-				assert(g != NULL);
+				kong_assert(g != NULL);
 				e->type.type = float4_id;
 			}
 			else {
@@ -5564,7 +5579,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		break;
 	}
 	case EXPRESSION_SWIZZLE:
-		assert(false); // swizzle is created in the typer
+		kong_assert(false); // swizzle is created in the typer
 		break;
 	}
 
@@ -5574,6 +5589,8 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		error(context, "Could not resolve type");
 	}
 }
+
+static function *resolve_types_function = NULL;
 
 void resolve_types_in_block(statement *parent, statement *block) {
 	debug_context context = {0};
@@ -5590,6 +5607,15 @@ void resolve_types_in_block(statement *parent, statement *block) {
 		}
 		case STATEMENT_RETURN_EXPRESSION: {
 			resolve_types_in_expression(block, s->expression);
+			type_id return_type = resolve_types_function->return_type.type;
+			type_id value_type  = s->expression->type.type;
+			bool    mismatch    = !types_compatible(value_type, return_type) ||
+			                      (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
+			if (value_type != NO_TYPE && return_type != NO_TYPE && mismatch) {
+				debug_context context = {0};
+				error(context, "Return type mismatch %s vs %s in %s", get_name(get_type(value_type)->name), get_name(get_type(return_type)->name),
+				      get_name(resolve_types_function->name));
+			}
 			break;
 		}
 		case STATEMENT_IF: {
@@ -5692,6 +5718,7 @@ void resolve_types(void) {
 			++f->block->block.vars.size;
 		}
 
+		resolve_types_function = f;
 		resolve_types_in_block(NULL, f->block);
 	}
 }
@@ -5974,7 +6001,7 @@ uint32_t vector_size(type_id t) {
 		return 4u;
 	}
 
-	assert(false);
+	kong_assert(false);
 	return 0;
 }
 
@@ -5992,7 +6019,7 @@ type_id vector_base_type(type_id vector_type) {
 		return bool_id;
 	}
 
-	assert(false);
+	kong_assert(false);
 	return float_id;
 }
 
@@ -6009,7 +6036,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return float4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return float_id;
 		}
 	}
@@ -6024,7 +6051,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return int4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return int_id;
 		}
 	}
@@ -6039,7 +6066,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return uint4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return uint_id;
 		}
 	}
@@ -6054,12 +6081,12 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return bool4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return bool_id;
 		}
 	}
 	else {
-		assert(false);
+		kong_assert(false);
 		return float_id;
 	}
 }
@@ -6172,13 +6199,9 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		statement_index  = _statement_index;
 	}
 
-	kong_error    = false;
-	char  *from   = "";
-	tokens tokens = tokenize(from, kong);
-	parse(from, &tokens);
-	resolve_types();
-
-	if (kong_error) {
+	kong_error = false;
+	if (setjmp(kong_error_jmp) != 0) { // error() while compiling
+		kong_error_jmp_active = false;
 		console_info("Warning: Shader compilation failed");
 #if defined(__APPLE__)
 		*vs = "";
@@ -6186,6 +6209,12 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 #endif
 		return;
 	}
+	kong_error_jmp_active = true;
+
+	char  *from   = "";
+	tokens tokens = tokenize(from, kong);
+	parse(from, &tokens);
+	resolve_types();
 	allocate_globals();
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
 		compile_function_block(&get_function(i)->code, get_function(i)->block);
@@ -6217,4 +6246,6 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	spirv_export2(vs, fs, vs_size, fs_size, false);
 
 #endif
+
+	kong_error_jmp_active = false;
 }

@@ -132,7 +132,7 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 			*offset += sprintf(&code[*offset], " *= _%" PRIu64 ";\n", o->op_store_access_list.from.index);
 			break;
 		default:
-			assert(false);
+			kong_assert(false);
 			break;
 		}
 		break;

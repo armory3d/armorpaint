@@ -634,9 +634,15 @@ void                  error_args(debug_context context, const char *message, va_
 void                  error_args_no_context(const char *message, va_list args);
 void                  check_function(bool test, debug_context context, const char *message, ...);
 
-#define check(test, context, message, ...) \
-	assert(test);                          \
-	check_function(test, context, message, ##__VA_ARGS__)
+#define check(test, context, message, ...) check_function(test, context, message, ##__VA_ARGS__)
+
+void kong_assert_failed(const char *test, const char *file, int line);
+#define kong_assert(test)                                      \
+	do {                                                       \
+		if (!(test)) {                                         \
+			kong_assert_failed(#test, __FILE__, __LINE__);     \
+		}                                                      \
+	} while (0)
 
 void        check_args(bool test, debug_context context, const char *message, va_list args);
 void        functions_init(void);
