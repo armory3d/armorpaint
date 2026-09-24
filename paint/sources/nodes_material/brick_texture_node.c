@@ -2,46 +2,46 @@
 #include "../global.h"
 
 char *str_tex_brick = "\
-fun tex_brick_noise(n: int): float { \
+float tex_brick_noise(int n) { \
 	n = (n >> 13) ^ n; \
-	var nn: int = (n * (n * n * 60493 + 19990303) + 1376312589) & 2147483647; \
+	int nn = (n * (n * n * 60493 + 19990303) + 1376312589) & 2147483647; \
 	return float(nn) / 2147483647.0; \
 } \
-fun tex_brick(co: float3, c1: float3, c2: float3, cm: float3, scale: float, mortar_size: float, mortar_smooth: float, bias: float, brick_width: float, row_height: float, offset_amount: float, offset_frequency: float, squash_amount: float, squash_frequency: float): float3 { \
-	var p: float3 = co * scale; \
-	var row: float = floor(p.y / row_height); \
-	var bw: float = brick_width; \
-	var offset: float = 0.0; \
+float3 tex_brick(float3 co, float3 c1, float3 c2, float3 cm, float scale, float mortar_size, float mortar_smooth, float bias, float brick_width, float row_height, float offset_amount, float offset_frequency, float squash_amount, float squash_frequency) { \
+	float3 p = co * scale; \
+	float row = floor(p.y / row_height); \
+	float bw = brick_width; \
+	float offset = 0.0; \
 	if (offset_frequency != 0.0 && squash_frequency != 0.0) { \
 		if ((row % squash_frequency) == 0.0) { bw = bw * squash_amount; } \
 		if ((row % offset_frequency) == 0.0) { offset = bw * offset_amount; } \
 	} \
-	var col: float = floor((p.x + offset) / bw); \
-	var x: float = (p.x + offset) - bw * col; \
-	var y: float = p.y - row_height * row; \
-	var tint: float = clamp(tex_brick_noise((int(row) << 16) + (int(col) & 65535)) + bias, 0.0, 1.0); \
-	var min_dist: float = min(min(x, y), min(bw - x, row_height - y)); \
-	var f: float = 0.0; \
+	float col = floor((p.x + offset) / bw); \
+	float x = (p.x + offset) - bw * col; \
+	float y = p.y - row_height * row; \
+	float tint = clamp(tex_brick_noise((int(row) << 16) + (int(col) & 65535)) + bias, 0.0, 1.0); \
+	float min_dist = min(min(x, y), min(bw - x, row_height - y)); \
+	float f = 0.0; \
 	if (min_dist < mortar_size) { \
 		if (mortar_smooth == 0.0) { f = 1.0; } \
 		if (mortar_smooth > 0.0) { f = smoothstep(0.0, mortar_smooth, 1.0 - min_dist / mortar_size); } \
 	} \
 	return lerp3(lerp3(c1, c2, tint), cm, f); \
 } \
-fun tex_brick_f(co: float3, scale: float, mortar_size: float, mortar_smooth: float, brick_width: float, row_height: float, offset_amount: float, offset_frequency: float, squash_amount: float, squash_frequency: float): float { \
-	var p: float3 = co * scale; \
-	var row: float = floor(p.y / row_height); \
-	var bw: float = brick_width; \
-	var offset: float = 0.0; \
+float tex_brick_f(float3 co, float scale, float mortar_size, float mortar_smooth, float brick_width, float row_height, float offset_amount, float offset_frequency, float squash_amount, float squash_frequency) { \
+	float3 p = co * scale; \
+	float row = floor(p.y / row_height); \
+	float bw = brick_width; \
+	float offset = 0.0; \
 	if (offset_frequency != 0.0 && squash_frequency != 0.0) { \
 		if ((row % squash_frequency) == 0.0) { bw = bw * squash_amount; } \
 		if ((row % offset_frequency) == 0.0) { offset = bw * offset_amount; } \
 	} \
-	var col: float = floor((p.x + offset) / bw); \
-	var x: float = (p.x + offset) - bw * col; \
-	var y: float = p.y - row_height * row; \
-	var min_dist: float = min(min(x, y), min(bw - x, row_height - y)); \
-	var f: float = 0.0; \
+	float col = floor((p.x + offset) / bw); \
+	float x = (p.x + offset) - bw * col; \
+	float y = p.y - row_height * row; \
+	float min_dist = min(min(x, y), min(bw - x, row_height - y)); \
+	float f = 0.0; \
 	if (min_dist < mortar_size) { \
 		if (mortar_smooth == 0.0) { f = 1.0; } \
 		if (mortar_smooth > 0.0) { f = smoothstep(0.0, mortar_smooth, 1.0 - min_dist / mortar_size); } \

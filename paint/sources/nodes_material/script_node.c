@@ -9,7 +9,7 @@ char *script_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char     *str    = sys_buffer_to_string(script);
 	char     *link   = parser_material_node_name(node, NULL);
 	any_map_set(parser_material_script_links, string_copy(link), str);
-	node_shader_add_constant(parser_material_kong, string_tmp("%s: float", link), string_tmp("_%s", link));
+	node_shader_add_constant(parser_material_kong, string_tmp("float %s", link), string_tmp("_%s", link));
 	return string_tmp("constants.%s", link);
 }
 

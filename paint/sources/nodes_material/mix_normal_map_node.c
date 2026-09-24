@@ -12,19 +12,19 @@ char *mix_normal_map_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	// The blending algorithms are based on the paper "Blending in Detail" by Colin Barré-Brisebois and Stephen Hill 2012
 	// https://blog.selfshadow.com/publications/blending-in-detail/
 	if (string_equals(blend, "PARTIAL_DERIVATIVE")) { // partial derivate blending
-		parser_material_write(parser_material_kong, string_tmp("var %s_n1: float3 = %s * 2.0 - 1.0;", store, nm1));
-		parser_material_write(parser_material_kong, string_tmp("var %s_n2: float3 = %s * 2.0 - 1.0;", store, nm2));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n1 = %s * 2.0 - 1.0;", store, nm1));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n2 = %s * 2.0 - 1.0;", store, nm2));
 		return string_tmp("0.5 * normalize(float3(%s_n1.xy * %s_n2.z + %s_n2.xy * %s_n1.z, %s_n1.z * %s_n2.z)) + 0.5", store, store, store, store, store,
 		                  store);
 	}
 	else if (string_equals(blend, "WHITEOUT")) { // whiteout blending
-		parser_material_write(parser_material_kong, string_tmp("var %s_n1: float3 = %s * 2.0 - 1.0;", store, nm1));
-		parser_material_write(parser_material_kong, string_tmp("var %s_n2: float3 = %s * 2.0 - 1.0;", store, nm2));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n1 = %s * 2.0 - 1.0;", store, nm1));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n2 = %s * 2.0 - 1.0;", store, nm2));
 		return string_tmp("0.5 * normalize(float3(%s_n1.xy + %s_n2.xy, %s_n1.z * %s_n2.z)) + 0.5", store, store, store, store);
 	}
 	else { // REORIENTED - reoriented normal mapping
-		parser_material_write(parser_material_kong, string_tmp("var %s_n1: float3 = %s * 2.0 - float3(1.0, 1.0, 0.0);", store, nm1));
-		parser_material_write(parser_material_kong, string_tmp("var %s_n2: float3 = %s * float3(-2.0, -2.0, 2.0) - float3(-1.0, -1.0, 1.0);", store, nm2));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n1 = %s * 2.0 - float3(1.0, 1.0, 0.0);", store, nm1));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_n2 = %s * float3(-2.0, -2.0, 2.0) - float3(-1.0, -1.0, 1.0);", store, nm2));
 		return string_tmp("0.5 * normalize(%s_n1 * dot(%s_n1, %s_n2) - %s_n2 * %s_n1.z) + 0.5", store, store, store, store, store);
 	}
 }

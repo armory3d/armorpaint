@@ -2,6 +2,9 @@
 #include "../global.h"
 
 void _parser_material_cache_tex_text_node_on_next_frame(char *text) {
+	if (data_cached_textures != NULL && any_map_get(data_cached_textures, string_tmp("tex_text_%s", text)) != NULL) {
+		return;
+	}
 	char          *_text_tool_text  = g_context->text_tool_text;
 	gpu_texture_t *_text_tool_image = g_context->text_tool_image;
 	g_context->text_tool_text       = string_copy(text);
@@ -9,9 +12,11 @@ void _parser_material_cache_tex_text_node_on_next_frame(char *text) {
 	util_render_make_text_preview();
 	char *file = string_tmp("tex_text_%s", text);
 	// TODO: remove old cache
-	any_map_set(data_cached_textures, file, g_context->text_tool_image);
+	any_map_set(data_cached_textures, string_copy(file), g_context->text_tool_image);
 	g_context->text_tool_text  = string_copy(_text_tool_text);
 	g_context->text_tool_image = _text_tool_image;
+	make_material_parse_paint_material(true);
+	util_render_make_material_preview();
 }
 
 void _parser_material_cache_tex_text_node(char *file, char *text) {

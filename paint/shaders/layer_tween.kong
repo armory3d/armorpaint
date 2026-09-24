@@ -1,42 +1,32 @@
-#[set(everything)]
-const constants: {
-	factor: float;
+cbuffer constants {
+	float factor;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const tex0: tex2d;
+tex2d tex0;
 
-#[set(everything)]
-const tex1: tex2d;
+tex2d tex1;
 
 struct vert_in {
-	pos: float2;
-}
+	float2 pos;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun layer_tween_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
 	output.pos = float4(input.pos.xy, 0.0, 1.0);
 	return output;
 }
 
-fun layer_tween_frag(input: vert_out): float4 {
-	var col0: float4 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
-	var col1: float4 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+float4 frag(vert_out input) {
+	float4 col0 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
+	float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
 	return lerp4(col0, col1, constants.factor);
-}
-
-#[pipe]
-struct pipe {
-	vertex = layer_tween_vert;
-	fragment = layer_tween_frag;
 }

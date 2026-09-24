@@ -1,33 +1,26 @@
 
-#[set(everything)]
-const constants: {
-	empty: float;
+cbuffer constants {
+	float empty;
 };
 
 struct vert_in {
-	pos: float4;
-	nor: float2;
-	tex: float2;
-}
+	float4 pos;
+	float2 nor;
+	float2 tex;
+};
 
 struct vert_out {
-	pos: float4;
-}
+	float4 pos;
+};
 
-fun dilate_map_vert(input: vert_in): vert_out {
-	var output: vert_out;
-	var tex_coord: float2 = float2(input.tex.x * 2.0 - 1.0, (1.0 - input.tex.y) * 2.0 - 1.0);
+vert_out vert(vert_in input) {
+	vert_out output;
+	float2 tex_coord = float2(input.tex.x * 2.0 - 1.0, (1.0 - input.tex.y) * 2.0 - 1.0);
 	output.pos = float4(tex_coord, 0.0, 1.0);
-	var keep: float = input.pos.x + input.nor.x;
+	float keep = input.pos.x + input.nor.x;
 	return output;
 }
 
-fun dilate_map_frag(input: vert_out): float {
+float frag(vert_out input) {
 	return 1.0;
-}
-
-#[pipe]
-struct pipe {
-	vertex = dilate_map_vert;
-	fragment = dilate_map_frag;
 }

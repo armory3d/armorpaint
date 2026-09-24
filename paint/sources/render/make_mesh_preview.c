@@ -32,13 +32,13 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 
 	char *pos = "input.pos";
 
-	node_shader_add_constant(kong, "WVP: float4x4", "_world_view_proj_matrix");
+	node_shader_add_constant(kong, "float4x4 WVP", "_world_view_proj_matrix");
 	node_shader_write_attrib_vert(kong, string_tmp("output.pos = constants.WVP * float4(%s.xyz, 1.0);", pos));
 	f32   sc          = g_context->brush_scale * g_context->brush_nodes_scale;
 	char *brush_scale = f32_to_string(sc);
-	node_shader_add_out(kong, "tex_coord: float2");
+	node_shader_add_out(kong, "float2 tex_coord");
 	node_shader_write_attrib_vert(kong, string_tmp("output.tex_coord = input.tex * float(%s);", brush_scale));
-	node_shader_write_attrib_frag(kong, "var tex_coord: float2 = input.tex_coord;");
+	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
 
 	bool decal                         = g_context->decal_preview;
 	parser_material_sample_keep_aspect = decal;
@@ -54,13 +54,13 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	char *opac                         = sout->out_opacity;
 	char *height                       = sout->out_height;
 	char *nortan                       = parser_material_out_normaltan;
-	node_shader_write_frag(kong, string_tmp("var basecol: float3 = pow3(%s, float3(2.2, 2.2, 2.2));", base));
-	node_shader_write_frag(kong, string_tmp("var roughness: float = %s;", rough));
-	node_shader_write_frag(kong, string_tmp("var metallic: float = %s;", met));
-	node_shader_write_frag(kong, string_tmp("var occlusion: float = %s;", occ));
-	node_shader_write_frag(kong, string_tmp("var opacity: float = %s;", opac));
-	node_shader_write_frag(kong, string_tmp("var nortan: float3 = %s;", nortan));
-	node_shader_write_frag(kong, string_tmp("var height: float = %s;", height));
+	node_shader_write_frag(kong, string_tmp("float3 basecol = pow3(%s, float3(2.2, 2.2, 2.2));", base));
+	node_shader_write_frag(kong, string_tmp("float roughness = %s;", rough));
+	node_shader_write_frag(kong, string_tmp("float metallic = %s;", met));
+	node_shader_write_frag(kong, string_tmp("float occlusion = %s;", occ));
+	node_shader_write_frag(kong, string_tmp("float opacity = %s;", opac));
+	node_shader_write_frag(kong, string_tmp("float3 nortan = %s;", nortan));
+	node_shader_write_frag(kong, string_tmp("float height = %s;", height));
 
 	if (decal) {
 		if (g_context->tool == TOOL_TYPE_TEXT) {
@@ -82,18 +82,18 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 		kong->frag_wvpposition = true;
 		node_shader_add_function(kong, str_dither_bayer);
 		node_shader_write_frag(
-		    kong, "var fragcoord1: float2 = float2(input.wvpposition.x / input.wvpposition.w, input.wvpposition.y / input.wvpposition.w) * 0.5 + 0.5;");
-		node_shader_write_frag(kong, "var dither: float = dither_bayer(fragcoord1 * float2(256.0, 256.0));");
+		    kong, "float2 fragcoord1 = float2(input.wvpposition.x / input.wvpposition.w, input.wvpposition.y / input.wvpposition.w) * 0.5 + 0.5;");
+		node_shader_write_frag(kong, "float dither = dither_bayer(fragcoord1 * float2(256.0, 256.0));");
 		node_shader_write_frag(kong, "if (opacity <= dither) { discard; }");
 	}
 
 	if (make_material_height_used) {
 		node_shader_write_frag(kong, "if (height > 0.0) {");
-		node_shader_write_frag(kong, "var height_dx: float = ddx(height * 2.0);");
-		node_shader_write_frag(kong, "var height_dy: float = ddy(height * 2.0);");
+		node_shader_write_frag(kong, "float height_dx = ddx(height * 2.0);");
+		node_shader_write_frag(kong, "float height_dy = ddy(height * 2.0);");
 		// Whiteout blend
-		node_shader_write_frag(kong, "var n1: float3 = nortan * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
-		node_shader_write_frag(kong, "var n2: float3 = normalize(float3(height_dx * 16.0, height_dy * 16.0, 1.0));");
+		node_shader_write_frag(kong, "float3 n1 = nortan * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
+		node_shader_write_frag(kong, "float3 n2 = normalize(float3(height_dx * 16.0, height_dy * 16.0, 1.0));");
 		node_shader_write_frag(kong, "nortan = normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5);");
 		node_shader_write_frag(kong, "}");
 	}
@@ -104,7 +104,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	}
 	else {
 		kong->frag_vvec = true;
-		node_shader_write_frag(kong, "var TBN: float3x3 = cotangent_frame(n, vvec, tex_coord);");
+		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, vvec, tex_coord);");
 		node_shader_write_frag(kong, "n = nortan * 2.0 - 1.0;");
 		node_shader_write_frag(kong, "n.y = -n.y;");
 		node_shader_write_frag(kong, "n = normalize(TBN * n);");

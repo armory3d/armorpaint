@@ -352,21 +352,21 @@ char *render_path_raytrace_ext = ".spirv";
 #endif
 
 char *str_hue_sat = "\
-fun hsv_to_rgb(c: float3): float3 { \
-	var K: float4 = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); \
-	var p: float3 = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www); \
+float3 hsv_to_rgb(float3 c) { \
+	float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); \
+	float3 p = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www); \
 	return lerp3(K.xxx, clamp3(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y) * c.z; \
 } \
-fun rgb_to_hsv(c: float3): float3 { \
-	var K: float4 = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); \
-	var p: float4 = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
-	var q: float4 = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
-	var d: float = q.x - min(q.w, q.y); \
-	var e: float = 0.0000000001; \
+float3 rgb_to_hsv(float3 c) { \
+	float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); \
+	float4 p = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
+	float4 q = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
+	float d = q.x - min(q.w, q.y); \
+	float e = 0.0000000001; \
 	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); \
 } \
-fun hue_sat(col: float3, shift: float4): float3 { \
-	var hsv: float3 = rgb_to_hsv(col); \
+float3 hue_sat(float3 col, float4 shift) { \
+	float3 hsv = rgb_to_hsv(col); \
 	hsv.x += shift.x; \
 	hsv.y *= shift.y; \
 	hsv.z *= shift.z; \
@@ -375,40 +375,40 @@ fun hue_sat(col: float3, shift: float4): float3 { \
 ";
 
 char *str_brightcontrast = "\
-fun brightcontrast(col: float3, bright: float, contr: float): float3 { \
-	var a: float = 1.0 + contr; \
-	var b: float = bright - contr * 0.5; \
+float3 brightcontrast(float3 col, float bright, float contr) { \
+	float a = 1.0 + contr; \
+	float b = bright - contr * 0.5; \
 	return max3(a * col + b, float3(0.0, 0.0, 0.0)); \
 } \
 ";
 
 char *str_cotangent_frame = "\
-fun cotangent_frame(n: float3, p: float3, tex_coord: float2): float3x3 { \
-	var duv1: float2 = ddx2(tex_coord); \
-	var duv2: float2 = ddy2(tex_coord); \
-	var dp1: float3 = ddx3(p); \
-	var dp2: float3 = ddy3(p); \
-	var dp2perp: float3 = cross(dp2, n); \
-	var dp1perp: float3 = cross(n, dp1); \
-	var t: float3 = dp2perp * duv1.x + dp1perp * duv2.x; \
-	var b: float3 = dp2perp * duv1.y + dp1perp * duv2.y; \
-	var invmax: float = rsqrt(max(dot(t, t), dot(b, b))); \
+float3x3 cotangent_frame(float3 n, float3 p, float2 tex_coord) { \
+	float2 duv1 = ddx2(tex_coord); \
+	float2 duv2 = ddy2(tex_coord); \
+	float3 dp1 = ddx3(p); \
+	float3 dp2 = ddy3(p); \
+	float3 dp2perp = cross(dp2, n); \
+	float3 dp1perp = cross(n, dp1); \
+	float3 t = dp2perp * duv1.x + dp1perp * duv2.x; \
+	float3 b = dp2perp * duv1.y + dp1perp * duv2.y; \
+	float invmax = rsqrt(max(dot(t, t), dot(b, b))); \
 	return float3x3(t * invmax, b * invmax, n); \
 } \
 ";
 
 // let str_octahedron_wrap: string = "\
-// fun octahedron_wrap(v: float2): float2 { \
+// float2 octahedron_wrap(float2 v) { \
 // 	return (1.0 - abs(v.yx)) * (float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0)); \
 // } \
 // ";
 
 char *str_octahedron_wrap = "\
-fun octahedron_wrap(v: float2): float2 { \
-	var a: float2; \
+float2 octahedron_wrap(float2 v) { \
+	float2 a; \
 	if (v.x >= 0.0) { a.x = 1.0; } else { a.x = -1.0; } \
 	if (v.y >= 0.0) { a.y = 1.0; } else { a.y = -1.0; } \
-	var r: float2; \
+	float2 r; \
 	r.x = abs(v.y); \
 	r.y = abs(v.x); \
 	r.x = 1.0 - r.x; \
@@ -418,26 +418,26 @@ fun octahedron_wrap(v: float2): float2 { \
 ";
 
 // let str_pack_float_int16: string = "\
-// fun pack_f32_i16(f: float, i: uint): float { \
-// 	var prec: float = float(1 << 16); \
-// 	var maxi: float = float(1 << 4); \
-// 	var prec_minus_one: float = prec - 1.0; \
-// 	var t1: float = ((prec / maxi) - 1.0) / prec_minus_one; \
-// 	var t2: float = (prec / maxi) / prec_minus_one; \
+// float pack_f32_i16(float f, uint i) { \
+// 	float prec = float(1 << 16); \
+// 	float maxi = float(1 << 4); \
+// 	float prec_minus_one = prec - 1.0; \
+// 	float t1 = ((prec / maxi) - 1.0) / prec_minus_one; \
+// 	float t2 = (prec / maxi) / prec_minus_one; \
 // 	return t1 * f + t2 * float(i); \
 // } \
 // ";
 
 char *str_pack_float_int16 = "\
-fun pack_f32_i16(f: float, i: uint): float { \
+float pack_f32_i16(float f, uint i) { \
 	return 0.062485207147583624 * min(f, 0.9990234375) + 0.062500476102698687 * float(i); \
 } \
 ";
 
 char *str_dither_bayer = "\
-fun dither_bayer(uv: float2): float { \
-	var x: int = int(uv.x % 4.0); \
-	var y: int = int(uv.y % 4.0); \
+float dither_bayer(float2 uv) { \
+	int x = int(uv.x % 4.0); \
+	int y = int(uv.y % 4.0); \
 	if (y == 0) { \
 		if (x == 0) { \
 			return 0.0 / 16.0; \

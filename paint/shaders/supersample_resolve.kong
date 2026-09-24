@@ -1,36 +1,33 @@
 
-#[set(everything)]
-const constants: {
-	screen_size_inv: float2;
+cbuffer constants {
+	float2 screen_size_inv;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const tex: tex2d;
+tex2d tex;
 
 struct vert_in {
-	pos: float2;
-}
+	float2 pos;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun supersample_resolve_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
 	output.pos = float4(input.pos.xy, 0.0, 1.0);
 	return output;
 }
 
-fun supersample_resolve_frag(input: vert_out): float4 {
+float4 frag(vert_out input) {
 	// 4X resolve
-	var tex_step: float2 = constants.screen_size_inv / 4.0;
-	var col: float4 = sample(tex, sampler_linear, input.tex);
+	float2 tex_step = constants.screen_size_inv / 4.0;
+	float4 col = sample(tex, sampler_linear, input.tex);
 	col += sample(tex, sampler_linear, input.tex + float2(1.5, 0.0) * tex_step);
 	col += sample(tex, sampler_linear, input.tex + float2(-1.5, 0.0) * tex_step);
 	col += sample(tex, sampler_linear, input.tex + float2(0.0, 1.5) * tex_step);
@@ -40,10 +37,4 @@ fun supersample_resolve_frag(input: vert_out): float4 {
 	col += sample(tex, sampler_linear, input.tex + float2(1.5, -1.5) * tex_step);
 	col += sample(tex, sampler_linear, input.tex + float2(-1.5, 1.5) * tex_step);
 	return col / 9.0;
-}
-
-#[pipe]
-struct pipe {
-	vertex = supersample_resolve_vert;
-	fragment = supersample_resolve_frag;
 }

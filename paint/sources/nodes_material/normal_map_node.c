@@ -6,7 +6,7 @@ char *normal_map_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *norm     = parser_material_parse_vector_input(node->inputs->buffer[1]);
 
 	char *store = parser_material_store_var_name(node);
-	parser_material_write(parser_material_kong, string_tmp("var %s_texn: float3 = %s * 2.0 - 1.0;", store, norm));
+	parser_material_write(parser_material_kong, string_tmp("float3 %s_texn = %s * 2.0 - 1.0;", store, norm));
 	parser_material_write(parser_material_kong, string_tmp("%s_texn.xy = %s * %s_texn.xy;", store, strength, store));
 	parser_material_write(parser_material_kong, string_tmp("%s_texn = normalize(%s_texn);", store, store));
 

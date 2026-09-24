@@ -1,69 +1,65 @@
 
-#[set(everything)]
-const constants: {
-	empty: float4;
+cbuffer constants {
+	float4 empty;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const height_map: tex2d;
+tex2d height_map;
 
-#[set(everything)]
-const normal_map: tex2d;
+tex2d normal_map;
 
-const num_dirs: float   = 64.0;  // cosine-weighted hemisphere directions
-const num_steps: float  = 24.0;  // height-field march steps per direction
-const max_radius: float = 0.04;  // search radius
-const height_scale: float = 1.0;
-const ao_bias: float    = 0.0015; // ignore occluders within this height of the surface
-const ao_max_diff: float = 0.3;   // ignore occluders taller than this
-const ao_power: float   = 1.6;    // contrast of the final occlusion
-const PI2: float        = 6.28318530718;
+const float num_dirs   = 64.0;  // cosine-weighted hemisphere directions
+const float num_steps  = 24.0;  // height-field march steps per direction
+const float max_radius = 0.04;  // search radius
+const float height_scale = 1.0;
+const float ao_bias    = 0.0015; // ignore occluders within this height of the surface
+const float ao_max_diff = 0.3;   // ignore occluders taller than this
+const float ao_power   = 1.6;    // contrast of the final occlusion
+const float PI2        = 6.28318530718;
 
 struct vert_in {
-	pos: float2;
-}
+	float2 pos;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun depth_to_ao_pass_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
 	output.pos = float4(input.pos.xy, 0.0, 1.0);
 	return output;
 }
 
-fun hash(p: float2): float {
+float hash(float2 p) {
 	return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453);
 }
 
-fun tangent(n: float3): float3 {
-	var t1: float3 = cross(n, float3(0.0, 0.0, 1.0));
-	var t2: float3 = cross(n, float3(0.0, 1.0, 0.0));
+float3 tangent(float3 n) {
+	float3 t1 = cross(n, float3(0.0, 0.0, 1.0));
+	float3 t2 = cross(n, float3(0.0, 1.0, 0.0));
 	if (length(t1) > length(t2)) {
 		return normalize(t1);
 	}
 	return normalize(t2);
 }
 
-fun ao_ray(dir: float3, uv: float2, h0: float): float {
-	var step_size: float = max_radius / num_steps;
-	var t: float = step_size;
-	var i: int = 0;
+float ao_ray(float3 dir, float2 uv, float h0) {
+	float step_size = max_radius / num_steps;
+	float t = step_size;
+	int i = 0;
 	while (i < int(num_steps)) {
-		var coord: float2 = uv + dir.xy * t;
+		float2 coord = uv + dir.xy * t;
 		if (coord.x < 0.0 || coord.x > 1.0 || coord.y < 0.0 || coord.y > 1.0) {
 			return 0.0; // walked off the map
 		}
-		var ray_z: float = h0 + dir.z * t;
-		var surf: float = sample_lod(height_map, sampler_linear, coord, 0.0).r * height_scale;
-		var delta: float = surf - ray_z;
+		float ray_z = h0 + dir.z * t;
+		float surf = sample_lod(height_map, sampler_linear, coord, 0.0).r * height_scale;
+		float delta = surf - ray_z;
 		if (delta > ao_bias && delta < ao_max_diff) {
 			return 1.0 - t / max_radius; // linear distance falloff
 		}
@@ -73,41 +69,35 @@ fun ao_ray(dir: float3, uv: float2, h0: float): float {
 	return 0.0;
 }
 
-fun depth_to_ao_pass_frag(input: vert_out): float4 {
-	var height: float = sample_lod(height_map, sampler_linear, input.tex, 0.0).r * height_scale;
-	var normal: float3 = sample_lod(normal_map, sampler_linear, input.tex, 0.0).rgb * 2.0 - 1.0;
-	var n: float3 = normalize(normal);
+float4 frag(vert_out input) {
+	float height = sample_lod(height_map, sampler_linear, input.tex, 0.0).r * height_scale;
+	float3 normal = sample_lod(normal_map, sampler_linear, input.tex, 0.0).rgb * 2.0 - 1.0;
+	float3 n = normalize(normal);
 
-	var t1: float3 = tangent(n);
-	var t2: float3 = cross(n, t1);
+	float3 t1 = tangent(n);
+	float3 t2 = cross(n, t1);
 
-	var jitter: float = hash(input.tex);
-	var h0: float = height + ao_bias;
+	float jitter = hash(input.tex);
+	float h0 = height + ao_bias;
 
-	var occ: float = 0.0;
-	var i: int = 0;
+	float occ = 0.0;
+	int i = 0;
 	while (i < int(num_dirs)) {
 		// Cosine-weighted hemisphere sample
-		var u1: float = (float(i) + 0.5) / num_dirs;
-		var u2: float = frac(float(i) * 0.61803398875 + jitter);
-		var r: float = sqrt(u1);
-		var phi: float = PI2 * u2;
-		var lx: float = r * cos(phi);
-		var ly: float = r * sin(phi);
-		var lz: float = sqrt(max(0.0, 1.0 - u1));
-		var dir: float3 = lx * t1 + ly * t2 + lz * n;
+		float u1 = (float(i) + 0.5) / num_dirs;
+		float u2 = frac(float(i) * 0.61803398875 + jitter);
+		float r = sqrt(u1);
+		float phi = PI2 * u2;
+		float lx = r * cos(phi);
+		float ly = r * sin(phi);
+		float lz = sqrt(max(0.0, 1.0 - u1));
+		float3 dir = lx * t1 + ly * t2 + lz * n;
 
 		occ += ao_ray(dir, input.tex, h0);
 		i += 1;
 	}
 
-	var ao: float = 1.0 - occ / num_dirs;
+	float ao = 1.0 - occ / num_dirs;
 	ao = pow(max(0.0, ao), ao_power);
 	return float4(ao, ao, ao, 1.0);
-}
-
-#[pipe]
-struct pipe {
-	vertex = depth_to_ao_pass_vert;
-	fragment = depth_to_ao_pass_frag;
 }

@@ -1,60 +1,57 @@
 
-#[set(everything)]
-const constants: {
-	VP: float4x4;
-	invVP: float4x4;
-	mouse: float2;
-	tex_step: float2;
-	radius: float;
-	camera_right: float3;
-	tint: float3;
-	camera_up: float3;
-	camera_align: float;
+cbuffer constants {
+	float4x4 VP;
+	float4x4 invVP;
+	float2 mouse;
+	float2 tex_step;
+	float radius;
+	float3 camera_right;
+	float3 tint;
+	float3 camera_up;
+	float camera_align;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const gbufferD: tex2d;
+tex2d gbufferD;
 
 struct vert_in {
-	pos: float4;
-	nor: float2;
-	tex: float2;
-}
+	float4 pos;
+	float2 nor;
+	float2 tex;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun get_pos(uv: float2): float3 {
-	var depth: float = sample_lod(gbufferD, sampler_linear, float2(uv.x, 1.0 - uv.y), 0.0).r;
-	var wpos: float4 = float4(uv * 2.0 - 1.0, depth, 1.0);
+float3 get_pos(float2 uv) {
+	float depth = sample_lod(gbufferD, sampler_linear, float2(uv.x, 1.0 - uv.y), 0.0).r;
+	float4 wpos = float4(uv * 2.0 - 1.0, depth, 1.0);
 	wpos = constants.invVP * wpos;
 	return wpos.xyz / wpos.w;
 }
 
-fun get_normal(p0: float3, uv: float2): float3 {
-	var p1: float3 = get_pos(uv + float2(constants.tex_step.x * 4.0, 0.0));
-	var p2: float3 = get_pos(uv + float2(0.0, constants.tex_step.y * 4.0));
+float3 get_normal(float3 p0, float2 uv) {
+	float3 p1 = get_pos(uv + float2(constants.tex_step.x * 4.0, 0.0));
+	float3 p2 = get_pos(uv + float2(0.0, constants.tex_step.y * 4.0));
 	return normalize(cross(p2 - p0, p1 - p0));
 }
 
-fun cursor_vert(input: vert_in): vert_out {
-	var keep: float = input.pos.x + input.nor.x; // hlsl
+vert_out vert(vert_in input) {
+	float keep = input.pos.x + input.nor.x; // hlsl
 
-	var output: vert_out;
+	vert_out output;
 	output.tex = input.tex;
-	var wpos: float3 = get_pos(constants.mouse);
-	var uv1: float2 = constants.mouse + constants.tex_step * float2(4.0, 4.0);
-	var uv2: float2 = constants.mouse - constants.tex_step * float2(4.0, 4.0);
-	var wpos1: float3 = get_pos(uv1);
-	var wpos2: float3 = get_pos(uv2);
-	var n: float3 = normalize(get_normal(wpos, constants.mouse) + get_normal(wpos1, uv1) + get_normal(wpos2, uv2));
-	var n_tan: float3;
-	var n_bin: float3;
+	float3 wpos = get_pos(constants.mouse);
+	float2 uv1 = constants.mouse + constants.tex_step * float2(4.0, 4.0);
+	float2 uv2 = constants.mouse - constants.tex_step * float2(4.0, 4.0);
+	float3 wpos1 = get_pos(uv1);
+	float3 wpos2 = get_pos(uv2);
+	float3 n = normalize(get_normal(wpos, constants.mouse) + get_normal(wpos1, uv1) + get_normal(wpos2, uv2));
+	float3 n_tan;
+	float3 n_bin;
 
 	if (constants.camera_align > 0.0) {
 		n_tan = constants.camera_right;
@@ -82,16 +79,10 @@ fun cursor_vert(input: vert_in): vert_out {
 	return output;
 }
 
-fun cursor_frag(input: vert_out): float4 {
-	var radius: float = 0.45;
-	var thickness: float = 0.03;
-	var dist: float = distance(input.tex, float2(0.5, 0.5));
-	var ring: float = smoothstep(radius - thickness, radius, dist) - smoothstep(radius, radius + thickness, dist);
+float4 frag(vert_out input) {
+	float radius = 0.45;
+	float thickness = 0.03;
+	float dist = distance(input.tex, float2(0.5, 0.5));
+	float ring = smoothstep(radius - thickness, radius, dist) - smoothstep(radius, radius + thickness, dist);
 	return float4(constants.tint, min(ring, 0.6));
-}
-
-#[pipe]
-struct pipe {
-	vertex = cursor_vert;
-	fragment = cursor_frag;
 }

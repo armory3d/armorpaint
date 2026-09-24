@@ -1,47 +1,44 @@
 
-#[set(everything)]
-const constants: {
-	screen_size_inv: float2;
-	current_mip_level: int;
+cbuffer constants {
+	float2 screen_size_inv;
+	int current_mip_level;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const tex: tex2d;
+tex2d tex;
 
 struct vert_in {
-	pos: float2;
-}
+	float2 pos;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-const bloom_knee: float = 0.5;
-const bloom_threshold: float = 0.8;
-const epsilon: float = 0.000062;
+const float bloom_knee = 0.5;
+const float bloom_threshold = 0.8;
+const float epsilon = 0.000062;
 
-fun bloom_downsample_pass_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
 	output.pos = float4(input.pos.xy, 0.0, 1.0);
 	return output;
 }
 
-fun clamp_coord(coord: float2, texel_size: float2): float2 {
-	var lo: float2 = texel_size * 0.5;
-	var hi: float2 = float2(1.0, 1.0) - lo;
+float2 clamp_coord(float2 coord, float2 texel_size) {
+	float2 lo = texel_size * 0.5;
+	float2 hi = float2(1.0, 1.0) - lo;
 	return float2(clamp(coord.x, lo.x, hi.x), clamp(coord.y, lo.y, hi.y));
 }
 
-fun downsample_dual_filter(tex_coord: float2, texel_size: float2): float3 {
-	var delta: float3 = float3(texel_size.xy, texel_size.x) * float3(0.5, 0.5, -0.5);
+float3 downsample_dual_filter(float2 tex_coord, float2 texel_size) {
+	float3 delta = float3(texel_size.xy, texel_size.x) * float3(0.5, 0.5, -0.5);
 
-	var result: float3;
+	float3 result;
 	result  = sample_lod(tex, sampler_linear, clamp_coord(tex_coord,            texel_size), 0.0).rgb * 4.0;
 	result += sample_lod(tex, sampler_linear, clamp_coord(tex_coord - delta.xy, texel_size), 0.0).rgb;
 	result += sample_lod(tex, sampler_linear, clamp_coord(tex_coord - delta.zy, texel_size), 0.0).rgb;
@@ -51,18 +48,18 @@ fun downsample_dual_filter(tex_coord: float2, texel_size: float2): float3 {
 	return result * (1.0 / 8.0);
 }
 
-fun bloom_downsample_pass_frag(input: vert_out): float4 {
-	var color: float4;
+float4 frag(vert_out input) {
+	float4 color;
 	color.rgb = downsample_dual_filter(input.tex, constants.screen_size_inv);
 
 	if (constants.current_mip_level == 0) {
-		var brightness: float = max(color.r, max(color.g, color.b));
+		float brightness = max(color.r, max(color.g, color.b));
 
-		var softening_curve: float = brightness - bloom_threshold + bloom_knee;
+		float softening_curve = brightness - bloom_threshold + bloom_knee;
 		softening_curve = clamp(softening_curve, 0.0, 2.0 * bloom_knee);
 		softening_curve = softening_curve * softening_curve / (4.0 * bloom_knee + epsilon);
 
-		var contribution_factor: float = max(softening_curve, brightness - bloom_threshold);
+		float contribution_factor = max(softening_curve, brightness - bloom_threshold);
 
 		contribution_factor /= max(epsilon, brightness);
 
@@ -71,10 +68,4 @@ fun bloom_downsample_pass_frag(input: vert_out): float4 {
 
 	color.a = 1.0;
 	return color;
-}
-
-#[pipe]
-struct pipe {
-	vertex = bloom_downsample_pass_vert;
-	fragment = bloom_downsample_pass_frag;
 }

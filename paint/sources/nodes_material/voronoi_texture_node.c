@@ -2,167 +2,167 @@
 #include "../global.h"
 
 char *str_tex_voronoi = "\
-fun voronoi_hash3(p: float3): float3 { \
-    var h: float3; \
+float3 voronoi_hash3(float3 p) { \
+    float3 h; \
     h.x = frac(sin(dot(p, float3(127.1, 311.7, 74.7))) * 43758.5453); \
     h.y = frac(sin(dot(p, float3(269.5, 183.3, 246.1))) * 43758.5453); \
     h.z = frac(sin(dot(p, float3(113.5, 271.9, 124.6))) * 43758.5453); \
     return h; \
 } \
-fun voronoi_2d_f1(px: float, py: float, r: float): float4 { \
-    var cx0: float = floor(px); var cy0: float = floor(py); \
-    var lx: float = px - cx0; var ly: float = py - cy0; \
-    var min_dist: float = 8.0; \
-    var bi: int = 0; var bj: int = 0; \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var h3: float3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
-        var ptx: float = float(i) + h3.x * r; var pty: float = float(j) + h3.y * r; \
-        var dvx: float = ptx - lx; var dvy: float = pty - ly; \
-        var d: float = sqrt(dvx * dvx + dvy * dvy); \
+float4 voronoi_2d_f1(float px, float py, float r) { \
+    float cx0 = floor(px); float cy0 = floor(py); \
+    float lx = px - cx0; float ly = py - cy0; \
+    float min_dist = 8.0; \
+    int bi = 0; int bj = 0; \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 h3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
+        float ptx = float(i) + h3.x * r; float pty = float(j) + h3.y * r; \
+        float dvx = ptx - lx; float dvy = pty - ly; \
+        float d = sqrt(dvx * dvx + dvy * dvy); \
         if (d < min_dist) { min_dist = d; bi = i; bj = j; } \
     } \
-    var bcx: float = cx0 + float(bi); var bcy: float = cy0 + float(bj); \
-    var bh: float3 = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    var bptx: float = float(bi) + bh.x * r; var bpty: float = float(bj) + bh.y * r; \
-    var col: float3 = voronoi_hash3(float3(cx0 + float(bi) + bptx * (1.0 - r), cy0 + float(bj) + bpty * (1.0 - r), 0.0)); \
+    float bcx = cx0 + float(bi); float bcy = cy0 + float(bj); \
+    float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
+    float bptx = float(bi) + bh.x * r; float bpty = float(bj) + bh.y * r; \
+    float3 col = voronoi_hash3(float3(cx0 + float(bi) + bptx * (1.0 - r), cy0 + float(bj) + bpty * (1.0 - r), 0.0)); \
     return float4(min_dist, col.x, col.y, col.z); \
 } \
-fun voronoi_2d_f1_pos(px: float, py: float, r: float): float3 { \
-    var cx0: float = floor(px); var cy0: float = floor(py); \
-    var lx: float = px - cx0; var ly: float = py - cy0; \
-    var min_dist: float = 8.0; \
-    var bi: int = 0; var bj: int = 0; \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var h3: float3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
-        var ptx: float = float(i) + h3.x * r; var pty: float = float(j) + h3.y * r; \
-        var dvx: float = ptx - lx; var dvy: float = pty - ly; \
-        var d: float = sqrt(dvx * dvx + dvy * dvy); \
+float3 voronoi_2d_f1_pos(float px, float py, float r) { \
+    float cx0 = floor(px); float cy0 = floor(py); \
+    float lx = px - cx0; float ly = py - cy0; \
+    float min_dist = 8.0; \
+    int bi = 0; int bj = 0; \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 h3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
+        float ptx = float(i) + h3.x * r; float pty = float(j) + h3.y * r; \
+        float dvx = ptx - lx; float dvy = pty - ly; \
+        float d = sqrt(dvx * dvx + dvy * dvy); \
         if (d < min_dist) { min_dist = d; bi = i; bj = j; } \
     } \
-    var bcx: float = cx0 + float(bi); var bcy: float = cy0 + float(bj); \
-    var bh: float3 = voronoi_hash3(float3(bcx, bcy, 0.0)); \
+    float bcx = cx0 + float(bi); float bcy = cy0 + float(bj); \
+    float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
     return float3(bcx + float(bi) + bh.x * r, bcy + float(bj) + bh.y * r, 0.0); \
 } \
-fun voronoi_2d_f2(px: float, py: float, r: float): float4 { \
-    var cx0: float = floor(px); var cy0: float = floor(py); \
-    var lx: float = px - cx0; var ly: float = py - cy0; \
-    var dist1: float = 8.0; var dist2: float = 8.0; \
-    var b1i: int = 0; var b1j: int = 0; var b2i: int = 0; var b2j: int = 0; \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var h3: float3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
-        var ptx: float = float(i) + h3.x * r; var pty: float = float(j) + h3.y * r; \
-        var dvx: float = ptx - lx; var dvy: float = pty - ly; \
-        var d: float = sqrt(dvx * dvx + dvy * dvy); \
+float4 voronoi_2d_f2(float px, float py, float r) { \
+    float cx0 = floor(px); float cy0 = floor(py); \
+    float lx = px - cx0; float ly = py - cy0; \
+    float dist1 = 8.0; float dist2 = 8.0; \
+    int b1i = 0; int b1j = 0; int b2i = 0; int b2j = 0; \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 h3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
+        float ptx = float(i) + h3.x * r; float pty = float(j) + h3.y * r; \
+        float dvx = ptx - lx; float dvy = pty - ly; \
+        float d = sqrt(dvx * dvx + dvy * dvy); \
         if (d < dist1) { dist2 = dist1; b2i = b1i; b2j = b1j; dist1 = d; b1i = i; b1j = j; } \
         else if (d < dist2) { dist2 = d; b2i = i; b2j = j; } \
     } \
-    var bcx: float = cx0 + float(b2i); var bcy: float = cy0 + float(b2j); \
-    var bh: float3 = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    var bptx: float = float(b2i) + bh.x * r; var bpty: float = float(b2j) + bh.y * r; \
-    var col: float3 = voronoi_hash3(float3(cx0 + float(b2i) + bptx * (1.0 - r), cy0 + float(b2j) + bpty * (1.0 - r), 0.0)); \
+    float bcx = cx0 + float(b2i); float bcy = cy0 + float(b2j); \
+    float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
+    float bptx = float(b2i) + bh.x * r; float bpty = float(b2j) + bh.y * r; \
+    float3 col = voronoi_hash3(float3(cx0 + float(b2i) + bptx * (1.0 - r), cy0 + float(b2j) + bpty * (1.0 - r), 0.0)); \
     return float4(dist2, col.x, col.y, col.z); \
 } \
-fun voronoi_2d_f2_pos(px: float, py: float, r: float): float3 { \
-    var cx0: float = floor(px); var cy0: float = floor(py); \
-    var lx: float = px - cx0; var ly: float = py - cy0; \
-    var dist1: float = 8.0; var dist2: float = 8.0; \
-    var b1i: int = 0; var b1j: int = 0; var b2i: int = 0; var b2j: int = 0; \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var h3: float3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
-        var ptx: float = float(i) + h3.x * r; var pty: float = float(j) + h3.y * r; \
-        var dvx: float = ptx - lx; var dvy: float = pty - ly; \
-        var d: float = sqrt(dvx * dvx + dvy * dvy); \
+float3 voronoi_2d_f2_pos(float px, float py, float r) { \
+    float cx0 = floor(px); float cy0 = floor(py); \
+    float lx = px - cx0; float ly = py - cy0; \
+    float dist1 = 8.0; float dist2 = 8.0; \
+    int b1i = 0; int b1j = 0; int b2i = 0; int b2j = 0; \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 h3 = voronoi_hash3(float3(cx0 + float(i), cy0 + float(j), 0.0)); \
+        float ptx = float(i) + h3.x * r; float pty = float(j) + h3.y * r; \
+        float dvx = ptx - lx; float dvy = pty - ly; \
+        float d = sqrt(dvx * dvx + dvy * dvy); \
         if (d < dist1) { dist2 = dist1; b2i = b1i; b2j = b1j; dist1 = d; b1i = i; b1j = j; } \
         else if (d < dist2) { dist2 = d; b2i = i; b2j = j; } \
     } \
-    var bcx: float = cx0 + float(b2i); var bcy: float = cy0 + float(b2j); \
-    var bh: float3 = voronoi_hash3(float3(bcx, bcy, 0.0)); \
+    float bcx = cx0 + float(b2i); float bcy = cy0 + float(b2j); \
+    float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
     return float3(bcx + float(b2i) + bh.x * r, bcy + float(b2j) + bh.y * r, 0.0); \
 } \
-fun voronoi_2d_f1_fbm(px: float, py: float, detail: float, roughness: float, lacunarity: float, r: float): float { \
-    var sum: float = 0.0; var max_amp: float = 0.0; \
-    var amp: float = 1.0; var freq: float = 1.0; \
-    var n: int = int(clamp(detail, 0.0, 15.0)); \
-    for (var i: int = 0; i <= n; i += 1) { \
+float voronoi_2d_f1_fbm(float px, float py, float detail, float roughness, float lacunarity, float r) { \
+    float sum = 0.0; float max_amp = 0.0; \
+    float amp = 1.0; float freq = 1.0; \
+    int n = int(clamp(detail, 0.0, 15.0)); \
+    for (int i = 0; i <= n; i += 1) { \
         sum = sum + amp * voronoi_2d_f1(px * freq, py * freq, r).x; \
         max_amp = max_amp + amp; amp = amp * roughness; freq = freq * lacunarity; \
     } \
-    var rmd: float = detail - floor(detail); \
+    float rmd = detail - floor(detail); \
     if (rmd > 0.001) { \
         sum = sum + rmd * amp * voronoi_2d_f1(px * freq, py * freq, r).x; \
         max_amp = max_amp + rmd * amp; \
     } \
     return sum / max_amp; \
 } \
-fun voronoi_2d_f2_fbm(px: float, py: float, detail: float, roughness: float, lacunarity: float, r: float): float { \
-    var sum: float = 0.0; var max_amp: float = 0.0; \
-    var amp: float = 1.0; var freq: float = 1.0; \
-    var n: int = int(clamp(detail, 0.0, 15.0)); \
-    for (var i: int = 0; i <= n; i += 1) { \
+float voronoi_2d_f2_fbm(float px, float py, float detail, float roughness, float lacunarity, float r) { \
+    float sum = 0.0; float max_amp = 0.0; \
+    float amp = 1.0; float freq = 1.0; \
+    int n = int(clamp(detail, 0.0, 15.0)); \
+    for (int i = 0; i <= n; i += 1) { \
         sum = sum + amp * voronoi_2d_f2(px * freq, py * freq, r).x; \
         max_amp = max_amp + amp; amp = amp * roughness; freq = freq * lacunarity; \
     } \
-    var rmd: float = detail - floor(detail); \
+    float rmd = detail - floor(detail); \
     if (rmd > 0.001) { \
         sum = sum + rmd * amp * voronoi_2d_f2(px * freq, py * freq, r).x; \
         max_amp = max_amp + rmd * amp; \
     } \
     return sum / max_amp; \
 } \
-fun voronoi_3d_f1(p: float3, r: float): float4 { \
-    var cell: float3 = floor3(p); \
-    var lp: float3 = p - cell; \
-    var min_dist: float = 8.0; \
-    var bi: int = 0; var bj: int = 0; var bk: int = 0; \
-    for (var k: int = -1; k <= 1; k += 1) \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var offset: float3 = float3(float(i), float(j), float(k)); \
-        var pt: float3 = offset + voronoi_hash3(cell + offset) * r; \
-        var dv: float3 = pt - lp; \
-        var d: float = sqrt(dot(dv, dv)); \
+float4 voronoi_3d_f1(float3 p, float r) { \
+    float3 cell = floor3(p); \
+    float3 lp = p - cell; \
+    float min_dist = 8.0; \
+    int bi = 0; int bj = 0; int bk = 0; \
+    for (int k = -1; k <= 1; k += 1) \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 offset = float3(float(i), float(j), float(k)); \
+        float3 pt = offset + voronoi_hash3(cell + offset) * r; \
+        float3 dv = pt - lp; \
+        float d = sqrt(dot(dv, dv)); \
         if (d < min_dist) { min_dist = d; bi = i; bj = j; bk = k; } \
     } \
-    var off: float3 = float3(float(bi), float(bj), float(bk)); \
-    var bpt: float3 = off + voronoi_hash3(cell + off) * r; \
-    var col: float3 = voronoi_hash3(cell + off + bpt * (1.0 - r)); \
+    float3 off = float3(float(bi), float(bj), float(bk)); \
+    float3 bpt = off + voronoi_hash3(cell + off) * r; \
+    float3 col = voronoi_hash3(cell + off + bpt * (1.0 - r)); \
     return float4(min_dist, col.x, col.y, col.z); \
 } \
-fun voronoi_3d_f1_pos(p: float3, r: float): float3 { \
-    var cell: float3 = floor3(p); \
-    var lp: float3 = p - cell; \
-    var min_dist: float = 8.0; \
-    var bi: int = 0; var bj: int = 0; var bk: int = 0; \
-    for (var k: int = -1; k <= 1; k += 1) \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var offset: float3 = float3(float(i), float(j), float(k)); \
-        var pt: float3 = offset + voronoi_hash3(cell + offset) * r; \
-        var dv: float3 = pt - lp; \
-        var d: float = sqrt(dot(dv, dv)); \
+float3 voronoi_3d_f1_pos(float3 p, float r) { \
+    float3 cell = floor3(p); \
+    float3 lp = p - cell; \
+    float min_dist = 8.0; \
+    int bi = 0; int bj = 0; int bk = 0; \
+    for (int k = -1; k <= 1; k += 1) \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 offset = float3(float(i), float(j), float(k)); \
+        float3 pt = offset + voronoi_hash3(cell + offset) * r; \
+        float3 dv = pt - lp; \
+        float d = sqrt(dot(dv, dv)); \
         if (d < min_dist) { min_dist = d; bi = i; bj = j; bk = k; } \
     } \
-    var off: float3 = float3(float(bi), float(bj), float(bk)); \
-    var bpt: float3 = off + voronoi_hash3(cell + off) * r; \
+    float3 off = float3(float(bi), float(bj), float(bk)); \
+    float3 bpt = off + voronoi_hash3(cell + off) * r; \
     return cell + off + bpt; \
 } \
-fun voronoi_3d_f2(p: float3, r: float): float4 { \
-    var cell: float3 = floor3(p); \
-    var lp: float3 = p - cell; \
-    var dist1: float = 8.0; var dist2: float = 8.0; \
-    var b1i: int = 0; var b1j: int = 0; var b1k: int = 0; \
-    var b2i: int = 0; var b2j: int = 0; var b2k: int = 0; \
-    for (var k: int = -1; k <= 1; k += 1) \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var offset: float3 = float3(float(i), float(j), float(k)); \
-        var pt: float3 = offset + voronoi_hash3(cell + offset) * r; \
-        var dv: float3 = pt - lp; \
-        var d: float = sqrt(dot(dv, dv)); \
+float4 voronoi_3d_f2(float3 p, float r) { \
+    float3 cell = floor3(p); \
+    float3 lp = p - cell; \
+    float dist1 = 8.0; float dist2 = 8.0; \
+    int b1i = 0; int b1j = 0; int b1k = 0; \
+    int b2i = 0; int b2j = 0; int b2k = 0; \
+    for (int k = -1; k <= 1; k += 1) \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 offset = float3(float(i), float(j), float(k)); \
+        float3 pt = offset + voronoi_hash3(cell + offset) * r; \
+        float3 dv = pt - lp; \
+        float d = sqrt(dot(dv, dv)); \
         if (d < dist1) { \
             dist2 = dist1; b2i = b1i; b2j = b1j; b2k = b1k; \
             dist1 = d; b1i = i; b1j = j; b1k = k; \
@@ -170,24 +170,24 @@ fun voronoi_3d_f2(p: float3, r: float): float4 { \
             dist2 = d; b2i = i; b2j = j; b2k = k; \
         } \
     } \
-    var off2: float3 = float3(float(b2i), float(b2j), float(b2k)); \
-    var bpt2: float3 = off2 + voronoi_hash3(cell + off2) * r; \
-    var col: float3 = voronoi_hash3(cell + off2 + bpt2 * (1.0 - r)); \
+    float3 off2 = float3(float(b2i), float(b2j), float(b2k)); \
+    float3 bpt2 = off2 + voronoi_hash3(cell + off2) * r; \
+    float3 col = voronoi_hash3(cell + off2 + bpt2 * (1.0 - r)); \
     return float4(dist2, col.x, col.y, col.z); \
 } \
-fun voronoi_3d_f2_pos(p: float3, r: float): float3 { \
-    var cell: float3 = floor3(p); \
-    var lp: float3 = p - cell; \
-    var dist1: float = 8.0; var dist2: float = 8.0; \
-    var b1i: int = 0; var b1j: int = 0; var b1k: int = 0; \
-    var b2i: int = 0; var b2j: int = 0; var b2k: int = 0; \
-    for (var k: int = -1; k <= 1; k += 1) \
-    for (var j: int = -1; j <= 1; j += 1) \
-    for (var i: int = -1; i <= 1; i += 1) { \
-        var offset: float3 = float3(float(i), float(j), float(k)); \
-        var pt: float3 = offset + voronoi_hash3(cell + offset) * r; \
-        var dv: float3 = pt - lp; \
-        var d: float = sqrt(dot(dv, dv)); \
+float3 voronoi_3d_f2_pos(float3 p, float r) { \
+    float3 cell = floor3(p); \
+    float3 lp = p - cell; \
+    float dist1 = 8.0; float dist2 = 8.0; \
+    int b1i = 0; int b1j = 0; int b1k = 0; \
+    int b2i = 0; int b2j = 0; int b2k = 0; \
+    for (int k = -1; k <= 1; k += 1) \
+    for (int j = -1; j <= 1; j += 1) \
+    for (int i = -1; i <= 1; i += 1) { \
+        float3 offset = float3(float(i), float(j), float(k)); \
+        float3 pt = offset + voronoi_hash3(cell + offset) * r; \
+        float3 dv = pt - lp; \
+        float d = sqrt(dot(dv, dv)); \
         if (d < dist1) { \
             dist2 = dist1; b2i = b1i; b2j = b1j; b2k = b1k; \
             dist1 = d; b1i = i; b1j = j; b1k = k; \
@@ -195,34 +195,34 @@ fun voronoi_3d_f2_pos(p: float3, r: float): float3 { \
             dist2 = d; b2i = i; b2j = j; b2k = k; \
         } \
     } \
-    var off2: float3 = float3(float(b2i), float(b2j), float(b2k)); \
-    var bpt2: float3 = off2 + voronoi_hash3(cell + off2) * r; \
+    float3 off2 = float3(float(b2i), float(b2j), float(b2k)); \
+    float3 bpt2 = off2 + voronoi_hash3(cell + off2) * r; \
     return cell + off2 + bpt2; \
 } \
-fun voronoi_3d_f1_fbm(p: float3, detail: float, roughness: float, lacunarity: float, r: float): float { \
-    var sum: float = 0.0; var max_amp: float = 0.0; \
-    var amp: float = 1.0; var freq: float = 1.0; \
-    var n: int = int(clamp(detail, 0.0, 15.0)); \
-    for (var i: int = 0; i <= n; i += 1) { \
+float voronoi_3d_f1_fbm(float3 p, float detail, float roughness, float lacunarity, float r) { \
+    float sum = 0.0; float max_amp = 0.0; \
+    float amp = 1.0; float freq = 1.0; \
+    int n = int(clamp(detail, 0.0, 15.0)); \
+    for (int i = 0; i <= n; i += 1) { \
         sum = sum + amp * voronoi_3d_f1(p * freq, r).x; \
         max_amp = max_amp + amp; amp = amp * roughness; freq = freq * lacunarity; \
     } \
-    var rmd: float = detail - floor(detail); \
+    float rmd = detail - floor(detail); \
     if (rmd > 0.001) { \
         sum = sum + rmd * amp * voronoi_3d_f1(p * freq, r).x; \
         max_amp = max_amp + rmd * amp; \
     } \
     return sum / max_amp; \
 } \
-fun voronoi_3d_f2_fbm(p: float3, detail: float, roughness: float, lacunarity: float, r: float): float { \
-    var sum: float = 0.0; var max_amp: float = 0.0; \
-    var amp: float = 1.0; var freq: float = 1.0; \
-    var n: int = int(clamp(detail, 0.0, 15.0)); \
-    for (var i: int = 0; i <= n; i += 1) { \
+float voronoi_3d_f2_fbm(float3 p, float detail, float roughness, float lacunarity, float r) { \
+    float sum = 0.0; float max_amp = 0.0; \
+    float amp = 1.0; float freq = 1.0; \
+    int n = int(clamp(detail, 0.0, 15.0)); \
+    for (int i = 0; i <= n; i += 1) { \
         sum = sum + amp * voronoi_3d_f2(p * freq, r).x; \
         max_amp = max_amp + amp; amp = amp * roughness; freq = freq * lacunarity; \
     } \
-    var rmd: float = detail - floor(detail); \
+    float rmd = detail - floor(detail); \
     if (rmd > 0.001) { \
         sum = sum + rmd * amp * voronoi_3d_f2(p * freq, r).x; \
         max_amp = max_amp + rmd * amp; \

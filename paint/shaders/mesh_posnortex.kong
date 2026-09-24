@@ -1,33 +1,32 @@
 
-#[set(everything)]
-const constants: {
-	WVP: float4x4;
-	N: float3x3;
-	tex_unpack: float;
+cbuffer constants {
+	float4x4 WVP;
+	float3x3 N;
+	float tex_unpack;
 };
 
 struct vert_in {
-	pos: float4;
-	nor: float2;
-	tex: float2;
-}
+	float4 pos;
+	float2 nor;
+	float2 tex;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-	wnormal: float3;
-}
+	float4 pos;
+	float2 tex;
+	float3 wnormal;
+};
 
-fun mesh_posnortex_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.pos = constants.WVP * float4(input.pos.xyz, 1.0);
 	output.tex = input.tex * constants.tex_unpack;
 	output.wnormal = normalize(constants.N * float3(input.nor.xy, input.pos.w));
 	return output;
 }
 
-fun octahedron_wrap(v: float2): float2 {
-	var a: float2;
+float2 octahedron_wrap(float2 v) {
+	float2 a;
 	if (v.x >= 0.0) {
 		a.x = 1.0;
 	}
@@ -42,7 +41,7 @@ fun octahedron_wrap(v: float2): float2 {
 		a.y = -1.0;
 	}
 
-	var r: float2;
+	float2 r;
 	r.x = abs(v.y);
 	r.y = abs(v.x);
 	r.x = 1.0 - r.x;
@@ -52,26 +51,26 @@ fun octahedron_wrap(v: float2): float2 {
 	// return (1.0 - abs(v.yx)) * (float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0));
 }
 
-fun pack_f32_i16(f: float, i: uint): float {
+float pack_f32_i16(float f, uint i) {
 	// GBuffer helper - Sebastien Lagarde
 	// https://seblagarde.wordpress.com/2018/09/02/gbuffer-helper-packing-integer-and-float-together/
-	// const num_bit_target: int = 16;
-	// const num_bit_i: int = 4;
-	// const prec: float = float(1 << num_bit_target);
-	// const maxi: float = float(1 << num_bit_i);
-	// const prec_minus_one: float = prec - 1.0;
-	// const t1: float = ((prec / maxi) - 1.0) / prec_minus_one;
-	// const t2: float = (prec / maxi) / prec_minus_one;
+	// const int num_bit_target = 16;
+	// const int num_bit_i = 4;
+	// const float prec = float(1 << num_bit_target);
+	// const float maxi = float(1 << num_bit_i);
+	// const float prec_minus_one = prec - 1.0;
+	// const float t1 = ((prec / maxi) - 1.0) / prec_minus_one;
+	// const float t2 = (prec / maxi) / prec_minus_one;
 	// return t1 * f + t2 * float(i);
 	return 0.062485207147583624 * min(f, 0.9990234375) + 0.062500476102698687 * float(i);
 }
 
-fun mesh_posnortex_frag(input: vert_out): float4[3] {
-	var n: float3 = normalize(input.wnormal);
-	var basecol: float3 = float3(0.2, 0.2, 0.2) + input.tex.x * 0.0000001; // keep tex_coord
-	var roughness: float = 0.4;
-	var metallic: float = 0.0;
-	var occlusion: float = 1.0;
+float4[3] frag(vert_out input) {
+	float3 n = normalize(input.wnormal);
+	float3 basecol = float3(0.2, 0.2, 0.2) + input.tex.x * 0.0000001; // keep tex_coord
+	float roughness = 0.4;
+	float metallic = 0.0;
+	float occlusion = 1.0;
 
 	// n /= abs(n.x) + abs(n.y) + abs(n.z);
 	n = n / (abs(n.x) + abs(n.y) + abs(n.z));
@@ -82,17 +81,11 @@ fun mesh_posnortex_frag(input: vert_out): float4[3] {
 		n.xy = octahedron_wrap(n.xy);
 	}
 
-	// var matid: uint = 0;
-	var matid: uint = uint(0.0);
-	var color: float4[3];
+	// uint matid = 0;
+	uint matid = uint(0.0);
+	float4 color[3];
 	color[0] = float4(n.xy, roughness, pack_f32_i16(metallic, matid));
 	color[1] = float4(basecol, occlusion);
 	color[2] = float4(0.0, 0.0, 0.0, 0.0);
 	return color;
-}
-
-#[pipe]
-struct pipe {
-	vertex = mesh_posnortex_vert;
-	fragment = mesh_posnortex_frag;
 }

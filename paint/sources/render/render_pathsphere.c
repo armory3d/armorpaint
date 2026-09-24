@@ -30,11 +30,11 @@ static node_shader_context_t *make_pathsphere_shader(char *name) {
 
 	kong->frag_n = true;
 
-	node_shader_add_constant(kong, "WVP: float4x4", "_world_view_proj_matrix");
+	node_shader_add_constant(kong, "float4x4 WVP", "_world_view_proj_matrix");
 	node_shader_write_vert(kong, "output.pos = constants.WVP * float4(input.pos.xyz, 1.0);");
 
-	node_shader_add_constant(kong, "cam_look: float3", "_camera_look");
-	node_shader_write_attrib_frag(kong, "var vvec: float3 = -constants.cam_look;");
+	node_shader_add_constant(kong, "float3 cam_look", "_camera_look");
+	node_shader_write_attrib_frag(kong, "float3 vvec = -constants.cam_look;");
 
 	node_shader_add_texture(kong, "senvmap_radiance", "_envmap_radiance");
 	node_shader_add_texture(kong, "senvmap_radiance0", "_envmap_radiance0");
@@ -43,46 +43,46 @@ static node_shader_context_t *make_pathsphere_shader(char *name) {
 	node_shader_add_texture(kong, "senvmap_radiance3", "_envmap_radiance3");
 	node_shader_add_texture(kong, "senvmap_radiance4", "_envmap_radiance4");
 
-	node_shader_add_constant(kong, "envmap_data: float4", "_envmap_data"); // (angle, sin, cos, strength)
-	node_shader_add_constant(kong, "shirr0: float4", "_envmap_irradiance0");
-	node_shader_add_constant(kong, "shirr1: float4", "_envmap_irradiance1");
-	node_shader_add_constant(kong, "shirr2: float4", "_envmap_irradiance2");
-	node_shader_add_constant(kong, "shirr3: float4", "_envmap_irradiance3");
-	node_shader_add_constant(kong, "shirr4: float4", "_envmap_irradiance4");
-	node_shader_add_constant(kong, "shirr5: float4", "_envmap_irradiance5");
-	node_shader_add_constant(kong, "shirr6: float4", "_envmap_irradiance6");
+	node_shader_add_constant(kong, "float4 envmap_data", "_envmap_data"); // (angle, sin, cos, strength)
+	node_shader_add_constant(kong, "float4 shirr0", "_envmap_irradiance0");
+	node_shader_add_constant(kong, "float4 shirr1", "_envmap_irradiance1");
+	node_shader_add_constant(kong, "float4 shirr2", "_envmap_irradiance2");
+	node_shader_add_constant(kong, "float4 shirr3", "_envmap_irradiance3");
+	node_shader_add_constant(kong, "float4 shirr4", "_envmap_irradiance4");
+	node_shader_add_constant(kong, "float4 shirr5", "_envmap_irradiance5");
+	node_shader_add_constant(kong, "float4 shirr6", "_envmap_irradiance6");
 
 	node_shader_add_function(kong, str_sh_irradiance);
 	node_shader_add_function(kong, str_envmap_equirect);
 	node_shader_add_function(kong, str_envmap_sample);
 	node_shader_add_function(kong, str_env_brdf_approx);
 
-	node_shader_write_frag(kong, "var basecol: float3 = float3(0.4, 0.0, 0.0);");
-	node_shader_write_frag(kong, "var roughness: float = 0.5;");
-	node_shader_write_frag(kong, "var metallic: float = 0.0;");
+	node_shader_write_frag(kong, "float3 basecol = float3(0.4, 0.0, 0.0);");
+	node_shader_write_frag(kong, "float roughness = 0.5;");
+	node_shader_write_frag(kong, "float metallic = 0.0;");
 
 	// Indirect lighting
-	node_shader_write_frag(kong, "var albedo: float3 = lerp3(basecol, float3(0.0, 0.0, 0.0), metallic);");
-	node_shader_write_frag(kong, "var f0: float3 = lerp3(float3(0.04, 0.04, 0.04), basecol, metallic);");
-	node_shader_write_frag(kong, "var dotnv: float = max(0.0, dot(n, vvec));");
-	node_shader_write_frag(kong, "var wreflect: float3 = reflect(-vvec, n);");
-	node_shader_write_frag(kong, "var envlod: float = roughness * 5.0;");
-	node_shader_write_frag(kong, "var lod0: float = floor(envlod);");
-	node_shader_write_frag(kong, "var lod1: float = ceil(envlod);");
-	node_shader_write_frag(kong, "var lodf: float = envlod - lod0;");
-	node_shader_write_frag(kong, "var envmap_coord: float2 = envmap_equirect(wreflect, constants.envmap_data.x);");
-	node_shader_write_frag(kong, "var lodc0: float3 = envmap_sample(lod0, envmap_coord);");
-	node_shader_write_frag(kong, "var lodc1: float3 = envmap_sample(lod1, envmap_coord);");
-	node_shader_write_frag(kong, "var prefiltered_color: float3 = lerp3(lodc0, lodc1, lodf);");
+	node_shader_write_frag(kong, "float3 albedo = lerp3(basecol, float3(0.0, 0.0, 0.0), metallic);");
+	node_shader_write_frag(kong, "float3 f0 = lerp3(float3(0.04, 0.04, 0.04), basecol, metallic);");
+	node_shader_write_frag(kong, "float dotnv = max(0.0, dot(n, vvec));");
+	node_shader_write_frag(kong, "float3 wreflect = reflect(-vvec, n);");
+	node_shader_write_frag(kong, "float envlod = roughness * 5.0;");
+	node_shader_write_frag(kong, "float lod0 = floor(envlod);");
+	node_shader_write_frag(kong, "float lod1 = ceil(envlod);");
+	node_shader_write_frag(kong, "float lodf = envlod - lod0;");
+	node_shader_write_frag(kong, "float2 envmap_coord = envmap_equirect(wreflect, constants.envmap_data.x);");
+	node_shader_write_frag(kong, "float3 lodc0 = envmap_sample(lod0, envmap_coord);");
+	node_shader_write_frag(kong, "float3 lodc1 = envmap_sample(lod1, envmap_coord);");
+	node_shader_write_frag(kong, "float3 prefiltered_color = lerp3(lodc0, lodc1, lodf);");
 	// Rotate normal by envmap angle for irradiance
-	node_shader_write_frag(kong, "var indirect: float3 = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z + n.y * constants.envmap_data.y, n.y * "
+	node_shader_write_frag(kong, "float3 indirect = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z + n.y * constants.envmap_data.y, n.y * "
 	                             "constants.envmap_data.z - n.x * constants.envmap_data.y, n.z)) / 3.14159265);");
 	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv);");
 	node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
 	node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
 
 	// Filmic tone-mapping (matches compositor_pass)
-	node_shader_write_frag(kong, "var tc: float3 = max3(indirect - float3(0.004, 0.004, 0.004), float3(0.0, 0.0, 0.0));");
+	node_shader_write_frag(kong, "float3 tc = max3(indirect - float3(0.004, 0.004, 0.004), float3(0.0, 0.0, 0.0));");
 	node_shader_write_frag(kong,
 	                       "indirect = (tc * (tc * 6.2 + float3(0.5, 0.5, 0.5))) / (tc * (tc * 6.2 + float3(1.7, 1.7, 1.7)) + float3(0.06, 0.06, 0.06));");
 	node_shader_write_frag(kong, "output = float4(indirect, 1.0);");

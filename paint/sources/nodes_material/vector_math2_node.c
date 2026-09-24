@@ -36,7 +36,7 @@ char *vector_math2_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	else if (string_equals(op, "DIVIDE")) {
 		char *store = string_tmp("%s_vec2", parser_material_store_var_name(node));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s;", store, vec2));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s = %s;", store, vec2));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.x == 0.0) { %s.x = 0.000001; }", store, store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.y == 0.0) { %s.y = 0.000001; }", store, store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.z == 0.0) { %s.z = 0.000001; }", store, store));

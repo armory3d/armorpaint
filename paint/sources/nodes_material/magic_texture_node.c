@@ -2,11 +2,11 @@
 #include "../global.h"
 
 char *str_tex_magic = "\
-fun tex_magic(co: float3, distortion: float, depth: float): float3 { \
-	var p: float3 = co % float3(6.28318530718, 6.28318530718, 6.28318530718); \
-	var x: float = sin((p.x + p.y + p.z) * 5.0); \
-	var y: float = cos((-p.x + p.y - p.z) * 5.0); \
-	var z: float = -cos((-p.x - p.y + p.z) * 5.0); \
+float3 tex_magic(float3 co, float distortion, float depth) { \
+	float3 p = co % float3(6.28318530718, 6.28318530718, 6.28318530718); \
+	float x = sin((p.x + p.y + p.z) * 5.0); \
+	float y = cos((-p.x + p.y - p.z) * 5.0); \
+	float z = -cos((-p.x - p.y + p.z) * 5.0); \
 	if (depth > 0.0) { \
 		x = x * distortion; \
 		y = y * distortion; \
@@ -51,15 +51,15 @@ fun tex_magic(co: float3, distortion: float, depth: float): float3 { \
 		} \
 	} \
 	if (abs(distortion) > 0.0) { \
-		var d2: float = distortion * 2.0; \
+		float d2 = distortion * 2.0; \
 		x = x / d2; \
 		y = y / d2; \
 		z = z / d2; \
 	} \
 	return float3(0.5 - x, 0.5 - y, 0.5 - z); \
 } \
-fun tex_magic_f(co: float3, distortion: float, depth: float): float { \
-	var c: float3 = tex_magic(co, distortion, depth); \
+float tex_magic_f(float3 co, float distortion, float depth) { \
+	float3 c = tex_magic(co, distortion, depth); \
 	return (c.x + c.y + c.z) / 3.0; \
 } \
 ";

@@ -51,11 +51,11 @@ void node_shader_context_add_constant(node_shader_context_t *raw, char *ctype, c
 }
 
 void node_shader_add_constant(node_shader_t *raw, char *s, char *link) {
-	// inp: float4
+	// float4 inp
 	if (string_array_index_of(raw->consts, s) == -1) {
-		string_array_t *ar    = string_split(s, ": ");
-		char           *uname = ar->buffer[0];
-		char           *utype = ar->buffer[1];
+		string_array_t *ar    = string_split(s, " ");
+		char           *utype = ar->buffer[0];
+		char           *uname = ar->buffer[1];
 		any_array_push(raw->consts, s);
 		node_shader_context_add_constant(raw->context, utype, uname, link);
 		// The context keeps uname / utype
@@ -152,7 +152,7 @@ void node_shader_vstruct_to_vsin(node_shader_t *raw) {
 	vertex_element_t_array_t *vs = raw->context->data->vertex_elements;
 	for (i32 i = 0; i < vs->length; ++i) {
 		vertex_element_t *e = vs->buffer[i];
-		node_shader_add_in(raw, string_tmp("%s: float%s", e->name, node_shader_data_size(raw, e->data)));
+		node_shader_add_in(raw, string_tmp("float%s %s", node_shader_data_size(raw, e->data), e->name));
 	}
 }
 
@@ -174,42 +174,39 @@ char *node_shader_get(node_shader_t *raw) {
 		string_buffer_append(sb, (char *)raw->ins->buffer[i]);
 		string_buffer_append(sb, ";\n");
 	}
-	string_buffer_append(sb, "}\n\n");
+	string_buffer_append(sb, "};\n\n");
 
 	string_buffer_append(sb, "struct vert_out {\n");
-	string_buffer_append(sb, "\tpos: float4;\n");
+	string_buffer_append(sb, "\tfloat4 pos;\n");
 	for (i32 i = 0; i < raw->outs->length; ++i) {
 		string_buffer_append(sb, "\t");
 		string_buffer_append(sb, (char *)raw->outs->buffer[i]);
 		string_buffer_append(sb, ";\n");
 	}
 	if (raw->consts->length == 0) {
-		string_buffer_append(sb, "\tempty: float4;\n");
+		string_buffer_append(sb, "\tfloat4 empty;\n");
 	}
-	string_buffer_append(sb, "}\n\n");
+	string_buffer_append(sb, "};\n\n");
 
-	string_buffer_append(sb, "#[set(everything)]\n");
-	string_buffer_append(sb, "const constants: {\n");
+	string_buffer_append(sb, "cbuffer constants {\n");
 	for (i32 i = 0; i < raw->consts->length; ++i) {
 		string_buffer_append(sb, "\t");
 		string_buffer_append(sb, (char *)raw->consts->buffer[i]);
 		string_buffer_append(sb, ";\n");
 	}
 	if (raw->consts->length == 0) {
-		string_buffer_append(sb, "\tempty: float4;\n");
+		string_buffer_append(sb, "\tfloat4 empty;\n");
 	}
 	string_buffer_append(sb, "};\n\n");
 
 	if (raw->textures->length > 0) {
-		string_buffer_append(sb, "#[set(everything)]\n");
-		string_buffer_append(sb, "const sampler_linear: sampler;\n\n");
+		string_buffer_append(sb, "sampler sampler_linear;\n\n");
 	}
 
 	for (i32 i = 0; i < raw->textures->length; ++i) {
-		string_buffer_append(sb, "#[set(everything)]\n");
-		string_buffer_append(sb, "const ");
+		string_buffer_append(sb, "tex2d ");
 		string_buffer_append(sb, (char *)raw->textures->buffer[i]);
-		string_buffer_append(sb, ": tex2d;\n");
+		string_buffer_append(sb, ";\n");
 	}
 
 	string_array_t *keys = map_keys(raw->functions);
@@ -222,8 +219,8 @@ char *node_shader_get(node_shader_t *raw) {
 	free(keys);
 	string_buffer_append(sb, "\n");
 
-	string_buffer_append(sb, "fun kong_vert(input: vert_in): vert_out {\n");
-	string_buffer_append(sb, "\tvar output: vert_out;\n\n");
+	string_buffer_append(sb, "vert_out vert(vert_in input) {\n");
+	string_buffer_append(sb, "\tvert_out output;\n\n");
 	string_buffer_append(sb, string_buffer_get(&raw->vert_attribs));
 	string_buffer_append(sb, string_buffer_get(&raw->vert_normal));
 	string_buffer_append(sb, string_buffer_get(&raw->vert));
@@ -234,23 +231,20 @@ char *node_shader_get(node_shader_t *raw) {
 	string_buffer_append(sb, "\n\treturn output;\n");
 	string_buffer_append(sb, "}\n\n");
 
-	string_buffer_append(sb, "fun kong_frag(input: vert_out): ");
 	string_buffer_append(sb, raw->frag_out);
-	string_buffer_append(sb, " {\n");
-	string_buffer_append(sb, "\tvar output: ");
-	string_buffer_append(sb, raw->frag_out);
+	string_buffer_append(sb, " frag(vert_out input) {\n");
+	// float4[2] -> float4 output[2]
+	i32 frag_out_array = string_index_of(raw->frag_out, "[");
+	string_buffer_append(sb, "\t");
+	string_buffer_append(sb, frag_out_array > -1 ? substring(raw->frag_out, 0, frag_out_array) : raw->frag_out);
+	string_buffer_append(sb, " output");
+	string_buffer_append(sb, frag_out_array > -1 ? raw->frag_out + frag_out_array : "");
 	string_buffer_append(sb, ";\n\n");
 	string_buffer_append(sb, string_buffer_get(&raw->frag_attribs));
 	string_buffer_append(sb, string_buffer_get(&raw->frag_normal));
 	string_buffer_append(sb, string_buffer_get(&raw->frag));
 	string_buffer_append(sb, string_buffer_get(&raw->frag_end));
 	string_buffer_append(sb, "\n\treturn output;\n");
-	string_buffer_append(sb, "}\n\n");
-
-	string_buffer_append(sb, "#[pipe]\n");
-	string_buffer_append(sb, "struct pipe {\n");
-	string_buffer_append(sb, "\tvertex = kong_vert;\n");
-	string_buffer_append(sb, "\tfragment = kong_frag;\n");
 	string_buffer_append(sb, "}\n");
 
 	string_buffer_free(&raw->vert);

@@ -1,55 +1,52 @@
 
-#[set(everything)]
-const constants: {
-	SMVP: float4x4;
-	envmap_data_world: float4; // angle, tonemap_strength, empty, strength
+cbuffer constants {
+	float4x4 SMVP;
+	float4 envmap_data_world; // angle, tonemap_strength, empty, strength
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const envmap: tex2d;
+tex2d envmap;
 
-const PI: float = 3.1415926535;
-const PI2: float = 6.283185307;
+const float PI = 3.1415926535;
+const float PI2 = 6.283185307;
 
 struct vert_in {
-	pos: float3;
-	nor: float3;
-}
+	float3 pos;
+	float3 nor;
+};
 
 struct vert_out {
-	pos: float4;
-	nor: float3;
-}
+	float4 pos;
+	float3 nor;
+};
 
-fun world_pass_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.pos = constants.SMVP * float4(input.pos, 1.0);
 	output.nor = input.nor;
 	return output;
 }
 
-fun envmap_equirect(normal: float3, angle: float): float2 {
-	var phi: float = acos(normal.z);
-	var theta: float = atan2(-normal.y, normal.x) + PI + angle;
+float2 envmap_equirect(float3 normal, float angle) {
+	float phi = acos(normal.z);
+	float theta = atan2(-normal.y, normal.x) + PI + angle;
 	return float2(theta / PI2, phi / PI);
 }
 
-fun tonemap_filmic(color: float3): float3 {
+float3 tonemap_filmic(float3 color) {
 	// Based on Filmic Tonemapping Operators http://filmicgames.com/archives/75
-	// var x: float3 = max(float3(0.0, 0.0, 0.0), color - 0.004);
-	var x: float3;
+	// float3 x = max(float3(0.0, 0.0, 0.0), color - 0.004);
+	float3 x;
 	x.x = max(0.0, color.x - 0.004);
 	x.y = max(0.0, color.y - 0.004);
 	x.z = max(0.0, color.z - 0.004);
 	return (x * (x * 6.2 + 0.5)) / (x * (x * 6.2 + 1.7) + 0.06);
 }
 
-fun world_pass_frag(input: vert_out): float4 {
-	var n: float3 = normalize(input.nor);
-	var color: float4;
+float4 frag(vert_out input) {
+	float3 n = normalize(input.nor);
+	float4 color;
 	color.rgb = sample(envmap, sampler_linear, envmap_equirect(-n, constants.envmap_data_world.x)).rgb * constants.envmap_data_world.w;
 
 	// Tonemap with gamma - non-lit modes
@@ -57,10 +54,4 @@ fun world_pass_frag(input: vert_out): float4 {
 
 	color.a = 0.0; // Mark as non-opaque
 	return color;
-}
-
-#[pipe]
-struct pipe {
-	vertex = world_pass_vert;
-	fragment = world_pass_frag;
 }

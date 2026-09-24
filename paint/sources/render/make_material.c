@@ -461,11 +461,11 @@ char *make_material_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 		char *res_r    = string_tmp("%s_res_r", string_replace_all(cola, ".", "_"));
 		char *res_g    = string_tmp("%s_res_g", string_replace_all(cola, ".", "_"));
 		char *res_b    = string_tmp("%s_res_b", string_replace_all(cola, ".", "_"));
-		node_shader_write_frag(kong, string_tmp("var %s: float;", res_r));
-		node_shader_write_frag(kong, string_tmp("var %s: float;", res_g));
-		node_shader_write_frag(kong, string_tmp("var %s: float;", res_b));
-		node_shader_write_frag(kong, string_tmp("var %s: float3 = %s;", cola_rgb, cola)); // cola_rgb = cola.rgb
-		node_shader_write_frag(kong, string_tmp("var %s: float3 = %s;", colb_rgb, colb));
+		node_shader_write_frag(kong, string_tmp("float %s;", res_r));
+		node_shader_write_frag(kong, string_tmp("float %s;", res_g));
+		node_shader_write_frag(kong, string_tmp("float %s;", res_b));
+		node_shader_write_frag(kong, string_tmp("float3 %s = %s;", cola_rgb, cola)); // cola_rgb = cola.rgb
+		node_shader_write_frag(kong, string_tmp("float3 %s = %s;", colb_rgb, colb));
 		node_shader_write_frag(kong, string_tmp("if (%s.r < 0.5) { %s = 2.0 * %s.r * %s.r; } else { %s = 1.0 - 2.0 * (1.0 - %s.r) * (1.0 - %s.r); }", cola_rgb,
 		                                        res_r, cola_rgb, colb_rgb, res_r, cola_rgb, colb_rgb));
 		node_shader_write_frag(kong, string_tmp("if (%s.g < 0.5) { %s = 2.0 * %s.g * %s.g; } else { %s = 1.0 - 2.0 * (1.0 - %s.g) * (1.0 - %s.g); }", cola_rgb,

@@ -4,7 +4,7 @@
 char *mix_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *fac     = parser_material_parse_value_input(node->inputs->buffer[0], false);
 	char *fac_var = string_tmp("%s_fac", parser_material_node_name(node, NULL));
-	parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", fac_var, fac));
+	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", fac_var, fac));
 	char             *col1  = parser_material_parse_vector_input(node->inputs->buffer[1]);
 	char             *col2  = parser_material_parse_vector_input(node->inputs->buffer[2]);
 	ui_node_button_t *but   = node->buttons->buffer[0]; // blend_type
@@ -51,9 +51,9 @@ char *mix_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		char *res_r     = string_tmp("%s_res_r", node_name);
 		char *res_g     = string_tmp("%s_res_g", node_name);
 		char *res_b     = string_tmp("%s_res_b", node_name);
-		parser_material_write(parser_material_kong, string_tmp("var %s: float;", res_r));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float;", res_g));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float;", res_b));
+		parser_material_write(parser_material_kong, string_tmp("float %s;", res_r));
+		parser_material_write(parser_material_kong, string_tmp("float %s;", res_g));
+		parser_material_write(parser_material_kong, string_tmp("float %s;", res_b));
 		parser_material_write(parser_material_kong,
 		                      string_tmp("if (%s.r < 0.5) { %s = 2.0 * %s.r * %s.r; } else { %s = 1.0 - 2.0 * (1.0 - %s.r) * (1.0 - %s.r); }", col1, res_r,
 		                                 col1, col2, res_r, col1, col2));

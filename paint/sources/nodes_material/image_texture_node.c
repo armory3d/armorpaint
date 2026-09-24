@@ -28,13 +28,13 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	}
 	char *tex_store = parser_material_store_var_name(node);
 	if (parser_material_sample_keep_aspect) {
-		node_shader_add_constant(parser_material_kong, string_tmp("%s_size: float2", tex_name), string_tmp("_size(%s)", tex_name));
-		parser_material_write(parser_material_kong, string_tmp("var %s_size: float2 = constants.%s_size;", tex_store, tex_name));
-		parser_material_write(parser_material_kong, string_tmp("var %s_ax: float = %s_size.x / %s_size.y;", tex_store, tex_store, tex_store));
-		parser_material_write(parser_material_kong, string_tmp("var %s_ay: float = %s_size.y / %s_size.x;", tex_store, tex_store, tex_store));
+		node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(%s)", tex_name));
+		parser_material_write(parser_material_kong, string_tmp("float2 %s_size = constants.%s_size;", tex_store, tex_name));
+		parser_material_write(parser_material_kong, string_tmp("float %s_ax = %s_size.x / %s_size.y;", tex_store, tex_store, tex_store));
+		parser_material_write(parser_material_kong, string_tmp("float %s_ay = %s_size.y / %s_size.x;", tex_store, tex_store, tex_store));
 		parser_material_write(
 		    parser_material_kong,
-		    string_tmp("var %s_uv: float2 = ((%s.xy / float(%s) - float2(0.5, 0.5)) * float2(max(%s_ay, 1.0), max(%s_ax, 1.0))) + float2(0.5, 0.5);", tex_store,
+		    string_tmp("float2 %s_uv = ((%s.xy / float(%s) - float2(0.5, 0.5)) * float2(max(%s_ay, 1.0), max(%s_ax, 1.0))) + float2(0.5, 0.5);", tex_store,
 		               uv_name, parser_material_sample_uv_scale, tex_store, tex_store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s_uv.x < 0.0 || %s_uv.y < 0.0 || %s_uv.x > 1.0 || %s_uv.y > 1.0) { discard; }", tex_store,
 		                                                       tex_store, tex_store, tex_store));
@@ -43,10 +43,10 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	}
 	if (parser_material_triplanar) {
 		if (!string_equals(uv_name, parser_material_tex_coord)) {
-			parser_material_write(parser_material_kong, string_tmp("var %s1: float3 = %s;", uv_name, uv_name));
-			parser_material_write(parser_material_kong, string_tmp("var %s2: float3 = %s;", uv_name, uv_name));
+			parser_material_write(parser_material_kong, string_tmp("float3 %s1 = %s;", uv_name, uv_name));
+			parser_material_write(parser_material_kong, string_tmp("float3 %s2 = %s;", uv_name, uv_name));
 		}
-		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = float4(0.0, 0.0, 0.0, 0.0);", tex_store));
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(0.0, 0.0, 0.0, 0.0);", tex_store));
 		parser_material_write(parser_material_kong, string_tmp("if (tex_coord_blend.x > 0.0) {%s += sample(%s, sampler_linear, %s.xy) * tex_coord_blend.x; }",
 		                                                       tex_store, tex_name, uv_name));
 		parser_material_write(parser_material_kong, string_tmp("if (tex_coord_blend.y > 0.0) {%s += sample(%s, sampler_linear, %s1.xy) * tex_coord_blend.y; }",
@@ -56,11 +56,11 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	}
 	else {
 		if (parser_material_is_frag) {
-			parser_material_write(parser_material_kong, string_tmp("var %s: float4 = sample(%s, sampler_linear, %s.xy);", tex_store, tex_name, uv_name));
+			parser_material_write(parser_material_kong, string_tmp("float4 %s = sample(%s, sampler_linear, %s.xy);", tex_store, tex_name, uv_name));
 		}
 		else {
 			parser_material_write(parser_material_kong,
-			                      string_tmp("var %s: float4 = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
+			                      string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
 		}
 		if (!ends_with(tex->file, ".jpg")) { // Pre-mult alpha
 			parser_material_write(parser_material_kong, string_tmp("%s.rgb = %s.rgb * %s.a;", tex_store, tex_store, tex_store));
@@ -96,7 +96,7 @@ char *image_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	else {
 		char *tex_store = parser_material_store_var_name(node); // Pink color for missing texture
-		parser_material_write(parser_material_kong, string_tmp("var %s: float4 = float4(1.0, 0.0, 1.0, 1.0);", tex_store));
+		parser_material_write(parser_material_kong, string_tmp("float4 %s = float4(1.0, 0.0, 1.0, 1.0);", tex_store));
 		return string_tmp("%s.rgb", tex_store);
 	}
 }

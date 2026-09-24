@@ -11,7 +11,7 @@ char *custom_node(ui_node_t *node, char *socket_name) {
 	char *my_out = "my_out";
 
 	node_shader_write_frag(kong,
-		string("var %s: float = cos(sin(tex_coord.x * 200.0 * %s) + cos(tex_coord.y * 200.0 * %s));", my_out, scale, scale)
+		string("float %s = cos(sin(tex_coord.x * 200.0 * %s) + cos(tex_coord.y * 200.0 * %s));", my_out, scale, scale)
 	);
 
 	if (string_equals(socket_name, "Color")) {

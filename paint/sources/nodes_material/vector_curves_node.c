@@ -63,16 +63,16 @@ f32 vector_curves_eval_cpu(f32 *points, i32 num, f32 t) {
 char *vector_curves_eval(char *name, char *fac, f32 *points, i32 num) {
 	char *result_var = string_tmp("%s_result", name);
 	char *fac_var    = string_tmp("%s_fac", name);
-	parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", fac_var, fac));
+	parser_material_write(parser_material_kong, string_tmp("float %s = %s;", fac_var, fac));
 
 	if (num <= 0) {
-		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", result_var, fac_var));
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s;", result_var, fac_var));
 		return result_var;
 	}
 
 	if (num == 1) {
 		char *y = f32_to_string_with_zeros(points[1]);
-		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", result_var, y));
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s;", result_var, y));
 		return result_var;
 	}
 
@@ -88,7 +88,7 @@ char *vector_curves_eval(char *name, char *fac, f32 *points, i32 num) {
 	f32   x1 = points[s1 * 2], y1 = points[s1 * 2 + 1];
 	char *b01 = string_tmp("clamp((%s - %s) / max(%s, 0.00001), 0.0, 1.0)", fac_var, f32_to_string_with_zeros(x0), f32_to_string_with_zeros(x1 - x0));
 	parser_material_write(parser_material_kong,
-	                      string_tmp("var %s: float = lerp(%s, %s, %s);", result_var, f32_to_string_with_zeros(y0), f32_to_string_with_zeros(y1), b01));
+	                      string_tmp("float %s = lerp(%s, %s, %s);", result_var, f32_to_string_with_zeros(y0), f32_to_string_with_zeros(y1), b01));
 
 	// Override for each subsequent segment
 	for (i32 i = 1; i < num - 1; i++) {

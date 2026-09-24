@@ -187,36 +187,36 @@ void parser_material_finalize(node_shader_context_t *con) {
 
 	if (kong->frag_bposition) {
 		if (parser_material_triplanar) {
-			node_shader_write_attrib_frag(kong, "var bposition: float3 = float3(\
+			node_shader_write_attrib_frag(kong, "float3 bposition = float3(\
 				tex_coord1.x * tex_coord_blend.y + tex_coord2.x * tex_coord_blend.z,\
 				tex_coord.x * tex_coord_blend.x + tex_coord2.y * tex_coord_blend.z,\
 				tex_coord.y * tex_coord_blend.x + tex_coord1.y * tex_coord_blend.y);");
 		}
 		else if (kong->frag_ndcpos) {
-			node_shader_add_out(kong, "_bposition: float3");
+			node_shader_add_out(kong, "float3 _bposition");
 			node_shader_write_vert(kong, "output._bposition = (output.ndc.xyz / output.ndc.w);");
-			node_shader_write_attrib_frag(kong, "var bposition: float3 = input._bposition;");
+			node_shader_write_attrib_frag(kong, "float3 bposition = input._bposition;");
 		}
 		else {
-			node_shader_add_out(kong, "_bposition: float3");
-			node_shader_add_constant(kong, "dim: float3", "_dim");
-			node_shader_add_constant(kong, "hdim: float3", "_half_dim");
+			node_shader_add_out(kong, "float3 _bposition");
+			node_shader_add_constant(kong, "float3 dim", "_dim");
+			node_shader_add_constant(kong, "float3 hdim", "_half_dim");
 			node_shader_write_attrib_vert(kong, "output._bposition = (input.pos.xyz + constants.hdim) / constants.dim;");
-			node_shader_write_attrib_frag(kong, "var bposition: float3 = input._bposition;");
+			node_shader_write_attrib_frag(kong, "float3 bposition = input._bposition;");
 		}
 	}
 	if (kong->frag_wposition) {
-		node_shader_add_constant(kong, "W: float4x4", "_world_matrix");
-		node_shader_add_out(kong, "wposition: float3");
+		node_shader_add_constant(kong, "float4x4 W", "_world_matrix");
+		node_shader_add_out(kong, "float3 wposition");
 		node_shader_write_attrib_vert(kong, "output.wposition = (constants.W * float4(input.pos.xyz, 1.0)).xyz;");
 	}
 	if (kong->frag_vposition) {
-		node_shader_add_constant(kong, "WV: float4x4", "_world_view_matrix");
-		node_shader_add_out(kong, "vposition: float3");
+		node_shader_add_constant(kong, "float4x4 WV", "_world_view_matrix");
+		node_shader_add_out(kong, "float3 vposition");
 		node_shader_write_attrib_vert(kong, "output.vposition = (constants.WV * float4(input.pos.xyz, 1.0)).xyz;");
 	}
 	if (kong->frag_mposition) {
-		node_shader_add_out(kong, "mposition: float3");
+		node_shader_add_out(kong, "float3 mposition");
 		if (kong->frag_ndcpos) {
 			node_shader_write_vert(kong, "output.mposition = (output.ndc.xyz / output.ndc.w);");
 		}
@@ -225,45 +225,45 @@ void parser_material_finalize(node_shader_context_t *con) {
 		}
 	}
 	if (kong->frag_wtangent) {
-		node_shader_add_out(kong, "wtangent: float3");
+		node_shader_add_out(kong, "float3 wtangent");
 		node_shader_write_attrib_vert(kong, "output.wtangent = float3(0.0, 0.0, 0.0);");
 	}
 	if (kong->frag_vvec_cam) {
-		node_shader_add_constant(kong, "WV: float4x4", "_world_view_matrix");
-		node_shader_add_out(kong, "eye_dir_cam: float3");
+		node_shader_add_constant(kong, "float4x4 WV", "_world_view_matrix");
+		node_shader_add_out(kong, "float3 eye_dir_cam");
 		node_shader_write_attrib_vert(kong, "output.eye_dir_cam = (constants.WV * float4(input.pos.xyz, 1.0)).xyz;");
 		node_shader_write_attrib_vert(kong, "output.eye_dir_cam.z *= -1.0;");
-		node_shader_write_attrib_frag(kong, "var vvec_cam: float3 = normalize(input.eye_dir_cam);");
+		node_shader_write_attrib_frag(kong, "float3 vvec_cam = normalize(input.eye_dir_cam);");
 	}
 	if (kong->frag_vvec) {
-		node_shader_add_constant(kong, "eye: float3", "_camera_pos");
-		node_shader_add_out(kong, "eye_dir: float3");
+		node_shader_add_constant(kong, "float3 eye", "_camera_pos");
+		node_shader_add_out(kong, "float3 eye_dir");
 		node_shader_write_attrib_vert(kong, "output.eye_dir = constants.eye - output.wposition;");
-		node_shader_write_attrib_frag(kong, "var vvec: float3 = normalize(input.eye_dir);");
+		node_shader_write_attrib_frag(kong, "float3 vvec = normalize(input.eye_dir);");
 	}
 	if (kong->frag_n) {
-		node_shader_add_constant(kong, "N: float3x3", "_normal_matrix");
-		node_shader_add_out(kong, "wnormal: float3");
+		node_shader_add_constant(kong, "float3x3 N", "_normal_matrix");
+		node_shader_add_out(kong, "float3 wnormal");
 		node_shader_write_attrib_vert(kong, "output.wnormal = constants.N * float3(input.nor.xy, input.pos.w);");
-		node_shader_write_attrib_frag(kong, "var n: float3 = normalize(input.wnormal);");
+		node_shader_write_attrib_frag(kong, "float3 n = normalize(input.wnormal);");
 	}
 	if (kong->vert_n) {
-		node_shader_add_constant(kong, "N: float3x3", "_normal_matrix");
-		node_shader_write_attrib_vert(kong, "var vert_wnormal: float3 = normalize(constants.N * float3(input.nor.xy, input.pos.w));");
+		node_shader_add_constant(kong, "float3x3 N", "_normal_matrix");
+		node_shader_write_attrib_vert(kong, "float3 vert_wnormal = normalize(constants.N * float3(input.nor.xy, input.pos.w));");
 	}
 	if (kong->frag_nattr) {
-		node_shader_add_out(kong, "nattr: float3");
+		node_shader_add_out(kong, "float3 nattr");
 		node_shader_write_attrib_vert(kong, "output.nattr = float3(input.nor.xy, input.pos.w);");
 	}
 	if (kong->frag_dotnv) {
-		node_shader_write_attrib_frag(kong, "var dotnv: float = max(dot(n, vvec), 0.0);");
+		node_shader_write_attrib_frag(kong, "float dotnv = max(dot(n, vvec), 0.0);");
 	}
 	if (kong->frag_wvpposition) {
-		node_shader_add_out(kong, "wvpposition: float4");
+		node_shader_add_out(kong, "float4 wvpposition");
 		node_shader_write_end_vert(kong, "output.wvpposition = output.pos;");
 	}
 	if (node_shader_context_is_elem(con, "col")) {
-		node_shader_add_out(kong, "vcolor: float3");
+		node_shader_add_out(kong, "float3 vcolor");
 		node_shader_write_attrib_vert(kong, "output.vcolor = input.col.rgb;");
 	}
 }
@@ -468,14 +468,14 @@ char *parser_material_write_result(ui_node_link_t *l) {
 			if (res == NULL) {
 				return NULL;
 			}
-			parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s;", res_var, res));
+			parser_material_write(parser_material_kong, string_tmp("float3 %s = %s;", res_var, res));
 		}
 		else if (string_equals(st, "VALUE")) {
 			char *res = parser_material_parse_value(from_node, from_socket);
 			if (res == NULL) {
 				return NULL;
 			}
-			parser_material_write(parser_material_kong, string_tmp("var %s: float = %s;", res_var, res));
+			parser_material_write(parser_material_kong, string_tmp("float %s = %s;", res_var, res));
 		}
 	}
 	return res_var;

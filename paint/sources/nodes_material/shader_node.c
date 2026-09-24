@@ -9,7 +9,7 @@ char *shader_node_text(ui_node_t *node) {
 char *shader_node_call(ui_node_t *node, char *type, char *suffix) {
 	char *text  = shader_node_text(node);
 	char *fname = string("shader_node_%s_%s", parser_material_node_name(node, NULL), suffix);
-	node_shader_add_function(parser_material_kong, string("fun %s(tex_coord: float2): %s {\n%s\n}", fname, type, text));
+	node_shader_add_function(parser_material_kong, string("%s %s(float2 tex_coord) {\n%s\n}", type, fname, text));
 	node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 	return string("%s(tex_coord)", fname);
 }

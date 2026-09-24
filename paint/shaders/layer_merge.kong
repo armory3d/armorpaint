@@ -1,93 +1,87 @@
 
-#[set(everything)]
-const constants: {
-	opac: float;
-	blending: int;
-	tex1w: float;
+cbuffer constants {
+	float opac;
+	int blending;
+	float tex1w;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const tex0: tex2d;
+tex2d tex0;
 
-#[set(everything)]
-const tex1: tex2d;
+tex2d tex1;
 
-#[set(everything)]
-const texmask: tex2d;
+tex2d texmask;
 
-#[set(everything)]
-const texa: tex2d;
+tex2d texa;
 
 struct vert_in {
-	pos: float2;
-}
+	float2 pos;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun layer_merge_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
 	output.pos = float4(input.pos.xy, 0.0, 1.0);
 	return output;
 }
 
-fun hsv_to_rgb(c: float3): float3 {
-	var K: float4 = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-	var p: float3 = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www);
+float3 hsv_to_rgb(float3 c) {
+	float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+	float3 p = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www);
 	return c.z * lerp3(K.xxx, clamp3(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y);
 }
 
-fun rgb_to_hsv(c: float3): float3 {
-	var K: float4 = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-	var p: float4 = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
-	var q: float4 = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
-	var d: float = q.x - min(q.w, q.y);
-	var e: float = 0.0000000001;
+float3 rgb_to_hsv(float3 c) {
+	float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+	float4 p = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+	float4 q = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+	float d = q.x - min(q.w, q.y);
+	float e = 0.0000000001;
 	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
 
-fun layer_merge_frag(input: vert_out): float4 {
-	var col0: float4 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
-	var cola: float4 = sample_lod(texa, sampler_linear, input.tex, 0.0);
-	var maskr: float = sample_lod(texmask, sampler_linear, input.tex, 0.0).r;
-	var str: float = col0.a * constants.opac;
+float4 frag(vert_out input) {
+	float4 col0 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
+	float4 cola = sample_lod(texa, sampler_linear, input.tex, 0.0);
+	float maskr = sample_lod(texmask, sampler_linear, input.tex, 0.0).r;
+	float str = col0.a * constants.opac;
 	str *= maskr;
 
 	if (constants.blending == 101) { // Merging _nor and _pack
-		var col1: float4 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
 		return lerp4(cola, col1, str);
 	}
 	if (constants.blending == 102) { // Merging _nor with normal blending
-		var col1: float4 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
 		// Whiteout blend
-		var n1: float3 = cola.rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
-		var n2: float3 = lerp3(float3(0.5, 0.5, 1.0), col1.rgb, str) * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+		float3 n1 = cola.rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+		float3 n2 = lerp3(float3(0.5, 0.5, 1.0), col1.rgb, str) * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
 		return float4(
 			normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5),
 			max(col1.a, cola.a));
 	}
 	if (constants.blending == 103) { // Merging _pack with height blending
-		var col1: float4 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
 		return float4(lerp3(cola.rgb, col1.rgb, str), cola.a + col1.a * str);
 	}
 	if (constants.blending == 104) { // Merge _pack.height into _nor
-		var tex_step: float = 1.0 / constants.tex1w;
-		var height0: float = sample_lod(tex1, sampler_linear, float2(input.tex.x - tex_step, input.tex.y), 0.0).a;
-		var height1: float = sample_lod(tex1, sampler_linear, float2(input.tex.x + tex_step, input.tex.y), 0.0).a;
-		var height2: float = sample_lod(tex1, sampler_linear, float2(input.tex.x, input.tex.y - tex_step), 0.0).a;
-		var height3: float = sample_lod(tex1, sampler_linear, float2(input.tex.x, input.tex.y + tex_step), 0.0).a;
-		var height_dx: float = height0 - height1;
-		var height_dy: float = height2 - height3;
+		float tex_step = 1.0 / constants.tex1w;
+		float height0 = sample_lod(tex1, sampler_linear, float2(input.tex.x - tex_step, input.tex.y), 0.0).a;
+		float height1 = sample_lod(tex1, sampler_linear, float2(input.tex.x + tex_step, input.tex.y), 0.0).a;
+		float height2 = sample_lod(tex1, sampler_linear, float2(input.tex.x, input.tex.y - tex_step), 0.0).a;
+		float height3 = sample_lod(tex1, sampler_linear, float2(input.tex.x, input.tex.y + tex_step), 0.0).a;
+		float height_dx = height0 - height1;
+		float height_dy = height2 - height3;
 		// Whiteout blend
-		var n1: float3 = col0.rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
-		var n2: float3 = normalize(float3(height_dx * 16.0, height_dy * 16.0, 1.0));
+		float3 n1 = col0.rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+		float3 n2 = normalize(float3(height_dx * 16.0, height_dy * 16.0, 1.0));
 		return float4(
 			normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5),
 			col0.a);
@@ -134,9 +128,9 @@ fun layer_merge_frag(input: vert_out): float4 {
 			max(col0.a * maskr, cola.a));
 	}
 	if (constants.blending == 8) { // Overlay
-		var rr: float = lerp(2.0 * cola.r * col0.r, 1.0 - 2.0 * (1.0 - cola.r) * (1.0 - col0.r), step(0.5, cola.r));
-		var gg: float = lerp(2.0 * cola.g * col0.g, 1.0 - 2.0 * (1.0 - cola.g) * (1.0 - col0.g), step(0.5, cola.g));
-		var bb: float = lerp(2.0 * cola.b * col0.b, 1.0 - 2.0 * (1.0 - cola.b) * (1.0 - col0.b), step(0.5, cola.b));
+		float rr = lerp(2.0 * cola.r * col0.r, 1.0 - 2.0 * (1.0 - cola.r) * (1.0 - col0.r), step(0.5, cola.r));
+		float gg = lerp(2.0 * cola.g * col0.g, 1.0 - 2.0 * (1.0 - cola.g) * (1.0 - col0.g), step(0.5, cola.g));
+		float bb = lerp(2.0 * cola.b * col0.b, 1.0 - 2.0 * (1.0 - cola.b) * (1.0 - col0.b), step(0.5, cola.b));
 		return float4(
 			lerp3(cola.rgb, float3(rr, gg, bb), str),
 			max(col0.a * maskr, cola.a));
@@ -214,10 +208,4 @@ fun layer_merge_frag(input: vert_out): float4 {
 	}
 
 	return float4(1.0, 1.0, 1.0, 1.0);
-}
-
-#[pipe]
-struct pipe {
-	vertex = layer_merge_vert;
-	fragment = layer_merge_frag;
 }

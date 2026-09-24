@@ -2,45 +2,45 @@
 #include "../global.h"
 
 char *str_tex_noise = "\
-fun hash(n: float): float { return frac(sin(n) * 10000.0); } \
-fun tex_noise_f(x: float3): float { \
-	var step: float3 = float3(110.0, 241.0, 171.0); \
-	var i: float3 = floor3(x); \
-	var f: float3 = frac3(x); \
-	var n: float = dot(i, step); \
-	var u: float3 = f * f * (3.0 - 2.0 * f); \
+float hash(float n) { return frac(sin(n) * 10000.0); } \
+float tex_noise_f(float3 x) { \
+	float3 step = float3(110.0, 241.0, 171.0); \
+	float3 i = floor3(x); \
+	float3 f = frac3(x); \
+	float n = dot(i, step); \
+	float3 u = f * f * (3.0 - 2.0 * f); \
 	return lerp(lerp(lerp(hash(n + dot(step, float3(0.0, 0.0, 0.0))), hash(n + dot(step, float3(1.0, 0.0, 0.0))), u.x), \
 	                     lerp(hash(n + dot(step, float3(0.0, 1.0, 0.0))), hash(n + dot(step, float3(1.0, 1.0, 0.0))), u.x), u.y), \
 	                lerp(lerp(hash(n + dot(step, float3(0.0, 0.0, 1.0))), hash(n + dot(step, float3(1.0, 0.0, 1.0))), u.x), \
 	                     lerp(hash(n + dot(step, float3(0.0, 1.0, 1.0))), hash(n + dot(step, float3(1.0, 1.0, 1.0))), u.x), u.y), u.z); \
 } \
-fun tex_noise_fbm(p: float3, detail: float, roughness: float, lacunarity: float): float { \
-	var fscale: float = 1.0; \
-	var amp: float = 1.0; \
-	var maxamp: float = 0.0; \
-	var sum: float = 0.0; \
-	var n: int = int(clamp(detail, 0.0, 8.0)); \
-	for (var ii: int = 0; ii <= n; ii += 1) { \
+float tex_noise_fbm(float3 p, float detail, float roughness, float lacunarity) { \
+	float fscale = 1.0; \
+	float amp = 1.0; \
+	float maxamp = 0.0; \
+	float sum = 0.0; \
+	int n = int(clamp(detail, 0.0, 8.0)); \
+	for (int ii = 0; ii <= n; ii += 1) { \
 		sum = sum + amp * tex_noise_f(p * fscale); \
 		maxamp = maxamp + amp; \
 		amp = amp * roughness; \
 		fscale = fscale * lacunarity; \
 	} \
-	var rmd: float = detail - floor(detail); \
+	float rmd = detail - floor(detail); \
 	if (rmd > 0.0) { \
-		var t: float = tex_noise_f(p * fscale); \
-		var sum2: float = sum + t * amp; \
-		var maxamp2: float = maxamp + amp; \
+		float t = tex_noise_f(p * fscale); \
+		float sum2 = sum + t * amp; \
+		float maxamp2 = maxamp + amp; \
 		return lerp(sum / maxamp, sum2 / maxamp2, rmd); \
 	} \
 	return sum / maxamp; \
 } \
-fun tex_noise(p: float3, scale: float, detail: float, roughness: float, lacunarity: float, distortion: float): float3 { \
-	var pp: float3 = p * scale; \
+float3 tex_noise(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion) { \
+	float3 pp = p * scale; \
 	pp = pp + distortion * (float3(tex_noise_f(pp), tex_noise_f(pp + float3(0.5, 0.0, 0.0)), tex_noise_f(pp + float3(0.0, 0.5, 0.0))) * 2.0 - 1.0); \
-	var f: float = tex_noise_fbm(pp, detail, roughness, lacunarity); \
-	var r: float = tex_noise_fbm(pp + float3(0.33, 0.0, 0.0), detail, roughness, lacunarity); \
-	var g: float = tex_noise_fbm(pp + float3(0.0, 0.33, 0.0), detail, roughness, lacunarity); \
+	float f = tex_noise_fbm(pp, detail, roughness, lacunarity); \
+	float r = tex_noise_fbm(pp + float3(0.33, 0.0, 0.0), detail, roughness, lacunarity); \
+	float g = tex_noise_fbm(pp + float3(0.0, 0.33, 0.0), detail, roughness, lacunarity); \
 	return float3(f, r, g); \
 } \
 ";

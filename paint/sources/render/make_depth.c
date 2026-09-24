@@ -24,7 +24,7 @@ node_shader_context_t *make_depth_run(material_t *data) {
 	node_shader_t *kong  = node_shader_context_make_kong(con_depth);
 	kong->frag_wposition = true;
 
-	node_shader_add_constant(kong, "VP: float4x4", "_view_proj_matrix");
+	node_shader_add_constant(kong, "float4x4 VP", "_view_proj_matrix");
 
 	node_shader_write_vert(kong, "output.pos = constants.VP * float4(output.wposition.xyz, 1.0);");
 
