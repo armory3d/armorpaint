@@ -163,8 +163,13 @@ bool iron_internal_file_reader_open(iron_file_reader_t *reader, const char *file
 #endif
 
 #ifdef IRON_WINDOWS
-	// Drive letter or network
-	bool is_abs = (filename[1] == ':' && filename[2] == '\\') || (filename[0] == '\\' && filename[1] == '\\');
+	// Drive letter or network. Accept either separator: the '/' -> '\\' normalisation
+	// above writes into filepath, but this test reads filename, so a forward-slashed
+	// absolute path ("E:/x/y") was classified as relative and then prefixed with
+	// fileslocation, making the open fail. Win32 accepts '/' in paths, so matching it
+	// here is sufficient.
+	bool is_abs = (filename[1] == ':' && (filename[2] == '\\' || filename[2] == '/')) || (filename[0] == '\\' && filename[1] == '\\') ||
+	              (filename[0] == '/' && filename[1] == '/');
 #else
 	bool is_abs = filename[0] == '/';
 #endif
@@ -395,11 +400,24 @@ void iron_delete_file(char *path) {
 #ifdef IRON_IOS
 	IOSDeleteFile(path);
 #elif defined(IRON_WINDOWS)
-	char cmd[1024];
-	strcpy(cmd, "del /f \"");
-	strcat(cmd, path);
-	strcat(cmd, "\"");
-	iron_sys_command(cmd);
+	// Delete through the Win32 API rather than shelling out to cmd.exe's del.
+	//
+	// The old path built `del /f "<path>"` and handed it to iron_sys_command(). That
+	// had three problems, all silent because iron_delete_file() returns void:
+	//   1. cmd.exe's del does not accept '/' as a separator ('/' introduces a switch),
+	//      so every forward-slashed path failed -- and callers pass forward slashes.
+	//   2. strcat() of an arbitrary-length path into a fixed 1024-byte stack buffer.
+	//   3. a path containing a double quote closed the argument and let the rest run
+	//      as a command.
+	// DeleteFileW has none of these, accepts '/', and does not spawn a process.
+	MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, 1024);
+	// del's /f switch force-deletes read-only files; DeleteFileW refuses them. Clear the
+	// flag first so the behaviour stays identical to what this function did before.
+	DWORD attribs = GetFileAttributesW(temp_wstring);
+	if (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_READONLY)) {
+		SetFileAttributesW(temp_wstring, attribs & ~FILE_ATTRIBUTE_READONLY);
+	}
+	DeleteFileW(temp_wstring);
 #else
 	char cmd[1024];
 	strcpy(cmd, "rm \"");
