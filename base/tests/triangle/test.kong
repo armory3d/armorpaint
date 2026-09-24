@@ -1,24 +1,18 @@
 
 struct vert_in {
-	pos: float3;
-}
+	float3 pos;
+};
 
 struct vert_out {
-	pos: float4;
-}
+	float4 pos;
+};
 
-fun test_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.pos = float4(input.pos, 1.0);
 	return output;
 }
 
-fun test_frag(input: vert_out): float4 {
+float4 frag(vert_out input) {
 	return float4(1.0, 0.0, 0.0, 1.0);
-}
-
-#[pipe]
-struct pipe {
-	vertex = test_vert;
-	fragment = test_frag;
 }

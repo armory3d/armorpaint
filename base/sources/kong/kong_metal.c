@@ -92,49 +92,35 @@ static void type_name(type_id id, char *output_name) {
 }
 
 static void write_types(char *metal, size_t *offset) {
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			name_id vertex_shader_name = NO_NAME;
-
-			for (size_t j = 0; j < t->members.size; ++j) {
-				if (t->members.m[j].name == add_name("vertex")) {
-					vertex_shader_name = t->members.m[j].value.identifier;
-				}
-			}
-
-			for (function_id i = 0; get_function(i) != NULL; ++i) {
-				function *f = get_function(i);
-				if (f->name == vertex_shader_name) {
-					uint64_t parameter_ids[256] = {0};
-					for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-						for (size_t i = 0; i < f->block->block.vars.size; ++i) {
-							if (f->parameter_names[parameter_index] == f->block->block.vars.v[i].name) {
-								parameter_ids[parameter_index] = f->block->block.vars.v[i].variable_id;
-								break;
-							}
-						}
-					}
-
-					*offset += sprintf(&metal[*offset], "struct _kong_%s_attributes {\n", get_name(f->name));
-
-					uint32_t a = 0;
-
-					for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-						type *t = get_type(f->parameter_types[parameter_index].type);
-
-						for (size_t j = 0; j < t->members.size; ++j) {
-							*offset += sprintf(&metal[*offset], "\t%s _%" PRIu64 "_%s [[attribute(%u)]];\n", type_string(t->members.m[j].type.type),
-							                   parameter_ids[parameter_index], get_name(t->members.m[j].name), a);
-
-							a += 1;
-						}
-					}
-
-					*offset += sprintf(&metal[*offset], "};\n\n");
+	function_id vertex_id = find_vertex_function();
+	if (vertex_id != NO_FUNCTION) {
+		function *f = get_function(vertex_id);
+		uint64_t parameter_ids[256] = {0};
+		for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
+			for (size_t i = 0; i < f->block->block.vars.size; ++i) {
+				if (f->parameter_names[parameter_index] == f->block->block.vars.v[i].name) {
+					parameter_ids[parameter_index] = f->block->block.vars.v[i].variable_id;
+					break;
 				}
 			}
 		}
+
+		*offset += sprintf(&metal[*offset], "struct _kong_%s_attributes {\n", get_name(f->name));
+
+		uint32_t a = 0;
+
+		for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
+			type *t = get_type(f->parameter_types[parameter_index].type);
+
+			for (size_t j = 0; j < t->members.size; ++j) {
+				*offset += sprintf(&metal[*offset], "\t%s _%" PRIu64 "_%s [[attribute(%u)]];\n", type_string(t->members.m[j].type.type),
+				                   parameter_ids[parameter_index], get_name(t->members.m[j].name), a);
+
+				a += 1;
+			}
+		}
+
+		*offset += sprintf(&metal[*offset], "};\n\n");
 	}
 
 	for (type_id i = 0; get_type(i) != NULL; ++i) {
@@ -144,7 +130,7 @@ static void write_types(char *metal, size_t *offset) {
 
 		type *t = get_type(i);
 
-		if (!t->built_in && !has_attribute(&t->attributes, add_name("pipe"))) {
+		if (!t->built_in) {
 			char name[256];
 			type_name(i, name);
 			*offset += sprintf(&metal[*offset], "struct %s {\n", name);
@@ -200,15 +186,6 @@ static bool is_compute_function(function_id f) {
 static void write_argument_buffers(char *code, size_t *offset) {
 	for (size_t set_index = 0; set_index < get_sets_count(); ++set_index) {
 		descriptor_set *set = get_set(set_index);
-
-		if (set->name == add_name("root_constants")) {
-			if (set->globals.size != 1) {
-				debug_context context = {0};
-				error(context, "More than one root constants struct found");
-			}
-
-			continue;
-		}
 
 		*offset += sprintf(&code[*offset], "struct %s {\n", get_name(set->name));
 
@@ -279,7 +256,7 @@ static void write_globals(char *code, size_t *offset) {
 	}
 }
 
-static bool var_name(variable var, char *output_name) {
+static void var_name(variable var, char *output_name) {
 	global *g = NULL;
 
 	for (global_id j = 0; get_global(j) != NULL && get_global(j)->type != NO_TYPE; ++j) {
@@ -292,15 +269,9 @@ static bool var_name(variable var, char *output_name) {
 	if (g == NULL || has_attribute(&g->attributes, add_name("indexed"))) {
 		sprintf(output_name, "_%" PRIu64, var.index);
 	}
-	else if (g->sets[0]->name == add_name("root_constants")) {
-		sprintf(output_name, "root_constants");
-		return true;
-	}
 	else {
 		sprintf(output_name, "argument_buffer0._%" PRIu64, var.index);
 	}
-
-	return false;
 }
 
 static void write_functions(char *code, size_t *offset) {
@@ -344,19 +315,9 @@ static void write_functions(char *code, size_t *offset) {
 			for (size_t set_index = 0; set_index < set_group->size; ++set_index) {
 				descriptor_set *set = set_group->values[set_index];
 
-				if (set->name == add_name("root_constants")) {
-					global *g = get_global(set->globals.globals[0]);
-
-					char name[256];
-					type_name(g->type, name);
-
-					buffers_offset += sprintf(&buffers[buffers_offset], ", constant %s& root_constants [[buffer(%zu)]]", name, buffer_index);
-				}
-				else {
-					buffers_offset += sprintf(&buffers[buffers_offset], ", constant %s& argument_buffer%zu [[buffer(%zu)]]", get_name(set->name),
-					                          argument_buffer_index, buffer_index);
-					argument_buffer_index += 1;
-				}
+				buffers_offset += sprintf(&buffers[buffers_offset], ", constant %s& argument_buffer%zu [[buffer(%zu)]]", get_name(set->name),
+				                          argument_buffer_index, buffer_index);
+				argument_buffer_index += 1;
 
 				buffer_index += 1;
 			}
@@ -448,7 +409,7 @@ static void write_functions(char *code, size_t *offset) {
 				}
 
 				char from_name[256];
-				bool root_constant = var_name(o->op_load_access_list.from, from_name);
+				var_name(o->op_load_access_list.from, from_name);
 
 				indent(code, offset, indentation);
 				*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = ", type_string(o->op_load_access_list.to.type.type), o->op_load_access_list.to.index);
@@ -470,7 +431,7 @@ static void write_functions(char *code, size_t *offset) {
 						}
 						break;
 					case ACCESS_MEMBER:
-						if (i == 0 && g != NULL && !root_constant) {
+						if (i == 0 && g != NULL) {
 							*offset += sprintf(&code[*offset], "%s", from_name);
 
 							*offset += sprintf(&code[*offset], "->%s", get_name(o->op_load_access_list.access_list[i].access_member.name));
@@ -866,47 +827,29 @@ char *metal_export(char *directory) {
 		}
 	}
 
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			name_id vertex_shader_name   = NO_NAME;
-			name_id fragment_shader_name = NO_NAME;
+	function_id vertex_id   = find_vertex_function();
+	function_id fragment_id = find_fragment_function();
 
-			for (size_t j = 0; j < t->members.size; ++j) {
-				if (t->members.m[j].name == add_name("vertex")) {
-					vertex_shader_name = t->members.m[j].value.identifier;
-				}
-				else if (t->members.m[j].name == add_name("fragment")) {
-					fragment_shader_name = t->members.m[j].value.identifier;
-				}
-			}
+	debug_context context = {0};
+	check(vertex_id != NO_FUNCTION, context, "vert() missing");
+	check(fragment_id != NO_FUNCTION, context, "frag() missing");
 
-			debug_context context = {0};
-			check(vertex_shader_name != NO_NAME, context, "vertex shader missing");
-			check(fragment_shader_name != NO_NAME, context, "fragment shader missing");
+	function *vertex_shader = get_function(vertex_id);
+	vertex_functions[vertex_functions_size] = vertex_id;
+	vertex_functions_size += 1;
 
-			for (function_id i = 0; get_function(i) != NULL; ++i) {
-				function *f = get_function(i);
-				if (f->name == vertex_shader_name) {
-					vertex_functions[vertex_functions_size] = i;
-					vertex_functions_size += 1;
-
-					for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-						vertex_inputs[vertex_inputs_size] = f->parameter_types[parameter_index].type;
-						vertex_inputs_size += 1;
-					}
-				}
-				else if (f->name == fragment_shader_name) {
-					fragment_functions[fragment_functions_size] = i;
-					fragment_functions_size += 1;
-
-					kong_assert(f->parameters_size > 0);
-					fragment_inputs[fragment_inputs_size] = f->parameter_types[0].type;
-					fragment_inputs_size += 1;
-				}
-			}
-		}
+	for (uint8_t parameter_index = 0; parameter_index < vertex_shader->parameters_size; ++parameter_index) {
+		vertex_inputs[vertex_inputs_size] = vertex_shader->parameter_types[parameter_index].type;
+		vertex_inputs_size += 1;
 	}
+
+	function *fragment_shader = get_function(fragment_id);
+	fragment_functions[fragment_functions_size] = fragment_id;
+	fragment_functions_size += 1;
+
+	kong_assert(fragment_shader->parameters_size > 0);
+	fragment_inputs[fragment_inputs_size] = fragment_shader->parameter_types[0].type;
+	fragment_inputs_size += 1;
 
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
 		function *f = get_function(i);

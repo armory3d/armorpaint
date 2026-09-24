@@ -1,33 +1,26 @@
 
-#[set(everything)]
-const constants: {
-	VP: float4x4;
-	color: float3;
+cbuffer constants {
+	float4x4 VP;
+	float3 color;
 };
 
 struct vert_in {
-	pos: float3;
-}
+	float3 pos;
+};
 
 struct vert_out {
-	pos: float4;
-}
+	float4 pos;
+};
 
-fun line_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.pos = constants.VP * float4(input.pos, 1.0);
 	return output;
 }
 
-fun line_frag(input: vert_out): float4[2] {
-	var color: float4[2];
+float4[2] frag(vert_out input) {
+	float4 color[2];
 	color[0] = float4(1.0, 1.0, 0.0, 1.0);
 	color[1] = float4(constants.color, 1.0);
 	return color;
-}
-
-#[pipe]
-struct pipe {
-	vertex = line_vert;
-	fragment = line_frag;
 }

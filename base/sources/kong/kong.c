@@ -71,15 +71,12 @@ type_id bool_id;
 type_id bool2_id;
 type_id bool3_id;
 type_id bool4_id;
-type_id function_type_id;
 type_id sampler_type_id;
 type_id ray_type_id;
 type_id bvh_type_id;
 
-static render_pipelines       all_render_pipelines;
-static render_pipeline_groups all_render_pipeline_groups;
-static compute_shaders        all_compute_shaders;
-static descriptor_set_groups  all_descriptor_set_groups;
+static compute_shaders       all_compute_shaders;
+static descriptor_set_groups all_descriptor_set_groups;
 
 static allocated_global allocated_globals[1024];
 size_t                  allocated_globals_size = 0;
@@ -533,102 +530,22 @@ static void find_referenced_sets(global_array *globals, descriptor_sets *sets) {
 	}
 }
 
-static render_pipeline extract_render_pipeline_from_type(type *t) {
-	name_id vertex_shader_name   = NO_NAME;
-	name_id fragment_shader_name = NO_NAME;
-
-	for (size_t j = 0; j < t->members.size; ++j) {
-		if (t->members.m[j].name == add_name("vertex")) {
-			vertex_shader_name = t->members.m[j].value.identifier;
-		}
-		else if (t->members.m[j].name == add_name("fragment")) {
-			fragment_shader_name = t->members.m[j].value.identifier;
-		}
-	}
-
-	debug_context context = {0};
-	check(vertex_shader_name != NO_NAME, context, "vertex shader missing");
-	check(fragment_shader_name != NO_NAME, context, "fragment shader missing");
-
-	render_pipeline pipeline = {0};
-
+function_id find_function_id(name_id name) {
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
-		function *f = get_function(i);
-		if (vertex_shader_name != NO_NAME && f->name == vertex_shader_name) {
-			pipeline.vertex_shader = f;
-		}
-		if (f->name == fragment_shader_name) {
-			pipeline.fragment_shader = f;
+		if (get_function(i)->name == name) {
+			return i;
 		}
 	}
-
-	return pipeline;
+	return NO_FUNCTION;
 }
 
-static void find_all_render_pipelines(void) {
-	static_array_init(all_render_pipelines);
-
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			static_array_push(all_render_pipelines, extract_render_pipeline_from_type(t));
-		}
-	}
+// A render pipeline is made of the vert() and frag() entry functions
+function_id find_vertex_function(void) {
+	return find_function_id(add_name("vert"));
 }
 
-static bool same_shader(function *a, function *b) {
-	if (a == NULL && b == NULL) {
-		return false;
-	}
-
-	return a == b;
-}
-
-static void find_render_pipeline_groups(void) {
-	static_array_init(all_render_pipeline_groups);
-
-	render_pipeline_indices remaining_pipelines;
-	static_array_init(remaining_pipelines);
-
-	for (uint32_t index = 0; index < all_render_pipelines.size; ++index) {
-		static_array_push(remaining_pipelines, index);
-	}
-
-	while (remaining_pipelines.size > 0) {
-		render_pipeline_indices next_remaining_pipelines;
-		static_array_init(next_remaining_pipelines);
-
-		render_pipeline_group group;
-		static_array_init(group);
-
-		static_array_push(group, remaining_pipelines.values[0]);
-
-		for (size_t index = 1; index < remaining_pipelines.size; ++index) {
-			uint32_t         pipeline_index = remaining_pipelines.values[index];
-			render_pipeline *pipeline       = &all_render_pipelines.values[pipeline_index];
-
-			bool found = false;
-
-			for (size_t index_in_bucket = 0; index_in_bucket < group.size; ++index_in_bucket) {
-				render_pipeline *pipeline_in_group = &all_render_pipelines.values[group.values[index_in_bucket]];
-				if (same_shader(pipeline->vertex_shader, pipeline_in_group->vertex_shader) ||
-				    same_shader(pipeline->fragment_shader, pipeline_in_group->fragment_shader)) {
-					found = true;
-					break;
-				}
-			}
-
-			if (found) {
-				static_array_push(group, pipeline_index);
-			}
-			else {
-				static_array_push(next_remaining_pipelines, pipeline_index);
-			}
-		}
-
-		remaining_pipelines = next_remaining_pipelines;
-		static_array_push(all_render_pipeline_groups, group);
-	}
+function_id find_fragment_function(void) {
+	return find_function_id(add_name("frag"));
 }
 
 static void find_all_compute_shaders(void) {
@@ -699,23 +616,23 @@ static void assign_descriptor_set_group_index(function *f, uint32_t descriptor_s
 static void find_descriptor_set_groups(void) {
 	static_array_init(all_descriptor_set_groups);
 
-	for (size_t pipeline_group_index = 0; pipeline_group_index < all_render_pipeline_groups.size; ++pipeline_group_index) {
+	function_id vertex_id   = find_vertex_function();
+	function_id fragment_id = find_fragment_function();
+	if ((vertex_id == NO_FUNCTION) != (fragment_id == NO_FUNCTION)) {
+		debug_context context = {0};
+		error(context, vertex_id == NO_FUNCTION ? "vert() missing" : "frag() missing");
+	}
+
+	if (vertex_id != NO_FUNCTION && fragment_id != NO_FUNCTION) {
+		function *vertex_shader   = get_function(vertex_id);
+		function *fragment_shader = get_function(fragment_id);
+
 		descriptor_set_group group;
 		static_array_init(group);
 
 		global_array function_globals = {0};
-
-		render_pipeline_group *pipeline_group = &all_render_pipeline_groups.values[pipeline_group_index];
-		for (size_t pipeline_index = 0; pipeline_index < pipeline_group->size; ++pipeline_index) {
-			render_pipeline *pipeline = &all_render_pipelines.values[pipeline_group->values[pipeline_index]];
-
-			if (pipeline->vertex_shader != NULL) {
-				find_referenced_globals(pipeline->vertex_shader, &function_globals);
-			}
-			if (pipeline->fragment_shader != NULL) {
-				find_referenced_globals(pipeline->fragment_shader, &function_globals);
-			}
-		}
+		find_referenced_globals(vertex_shader, &function_globals);
+		find_referenced_globals(fragment_shader, &function_globals);
 
 		find_referenced_sets(&function_globals, &group);
 
@@ -726,16 +643,8 @@ static void find_descriptor_set_groups(void) {
 		uint32_t descriptor_set_group_index = (uint32_t)all_descriptor_set_groups.size;
 		static_array_push(all_descriptor_set_groups, group);
 
-		for (size_t pipeline_index = 0; pipeline_index < pipeline_group->size; ++pipeline_index) {
-			render_pipeline *pipeline = &all_render_pipelines.values[pipeline_group->values[pipeline_index]];
-
-			if (pipeline->vertex_shader != NULL) {
-				assign_descriptor_set_group_index(pipeline->vertex_shader, descriptor_set_group_index);
-			}
-			if (pipeline->fragment_shader != NULL) {
-				assign_descriptor_set_group_index(pipeline->fragment_shader, descriptor_set_group_index);
-			}
-		}
+		assign_descriptor_set_group_index(vertex_shader, descriptor_set_group_index);
+		assign_descriptor_set_group_index(fragment_shader, descriptor_set_group_index);
 	}
 
 	for (size_t compute_shader_index = 0; compute_shader_index < all_compute_shaders.size; ++compute_shader_index) {
@@ -761,24 +670,6 @@ static void find_descriptor_set_groups(void) {
 	}
 }
 
-descriptor_set_group *find_descriptor_set_group_for_pipe_type(type *t) {
-	if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-		render_pipeline pipeline = extract_render_pipeline_from_type(t);
-
-		if (pipeline.vertex_shader->descriptor_set_group_index != UINT32_MAX) {
-			return &all_descriptor_set_groups.values[pipeline.vertex_shader->descriptor_set_group_index];
-		}
-
-		if (pipeline.fragment_shader->descriptor_set_group_index != UINT32_MAX) {
-			return &all_descriptor_set_groups.values[pipeline.fragment_shader->descriptor_set_group_index];
-		}
-
-		return NULL;
-	}
-
-	return NULL;
-}
-
 descriptor_set_group *find_descriptor_set_group_for_function(function *f) {
 	if (f->descriptor_set_group_index != UINT32_MAX) {
 		return &all_descriptor_set_groups.values[f->descriptor_set_group_index];
@@ -789,8 +680,6 @@ descriptor_set_group *find_descriptor_set_group_for_function(function *f) {
 }
 
 void analyze(void) {
-	find_all_render_pipelines();
-	find_render_pipeline_groups();
 	find_all_compute_shaders();
 	find_descriptor_set_groups();
 }
@@ -2886,6 +2775,15 @@ static void match_token_identifier(state_t *state) {
 	}
 }
 
+static token peek(state_t *state, size_t offset) {
+	return tokens_get(state->tokens, state->index + offset);
+}
+
+// Declarations start with a type followed by a name, two identifiers never start an expression
+static bool is_declaration(state_t *state) {
+	return current(state).kind == TOKEN_IDENTIFIER && peek(state, 1).kind == TOKEN_IDENTIFIER;
+}
+
 static definition  parse_definition(state_t *state);
 static statement  *parse_statement(state_t *state, block *parent_block);
 static expression *parse_expression(state_t *state);
@@ -2948,9 +2846,20 @@ typedef struct modifiers {
 	size_t     size;
 } modifiers_t;
 
+static type_ref   parse_type_ref(state_t *state);
+static uint32_t   parse_array_suffix(state_t *state);
 static definition parse_struct(state_t *state);
-static definition parse_function(state_t *state);
-static definition parse_const(state_t *state, attribute_list attributes);
+static definition parse_cbuffer(state_t *state, attribute_list attributes);
+static definition parse_function(state_t *state, type_ref return_type, token name);
+static definition parse_global(state_t *state, attribute_list attributes, name_id type_name, token name);
+
+// All resource globals share a single descriptor set
+static void add_resource_to_set(definition d) {
+	bool is_resource = d.kind != DEFINITION_CONST_BASIC || get_type(get_global(d.global)->type)->array_size > 0;
+	if (is_resource) {
+		add_definition_to_set(create_set(add_name("everything")), d);
+	}
+}
 
 static double attribute_parameter_to_number(name_id attribute_name, name_id parameter_name) {
 	if (attribute_name == add_name("topology") && parameter_name == add_name("triangle")) {
@@ -2968,9 +2877,7 @@ static double attribute_parameter_to_number(name_id attribute_name, name_id para
 }
 
 static definition parse_definition(state_t *state) {
-	attribute_list  attributes = {0};
-	descriptor_set *current_sets[64];
-	size_t          current_sets_count = 0;
+	attribute_list attributes = {0};
 
 	if (current(state).kind == TOKEN_HASH) {
 		advance_state(state);
@@ -2983,12 +2890,6 @@ static definition parse_definition(state_t *state) {
 			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 			current_attribute.name = current(state).identifier;
 
-			if (current_attribute.name == add_name("root_constants")) {
-				current_sets[current_sets_count]                                = create_set(current_attribute.name);
-				current_attribute.parameters[current_attribute.paramters_count] = current_sets[current_sets_count]->index;
-				current_sets_count += 1;
-			}
-
 			advance_state(state);
 
 			if (current(state).kind == TOKEN_LEFT_PAREN) {
@@ -2996,19 +2897,8 @@ static definition parse_definition(state_t *state) {
 
 				while (current(state).kind != TOKEN_RIGHT_PAREN) {
 					if (current(state).kind == TOKEN_IDENTIFIER) {
-						if (current_attribute.name == add_name("set")) {
-							if (current(state).identifier == add_name("root_constants")) {
-								debug_context context = {0};
-								error(context, "Descriptor set can not be called root_constants");
-							}
-							current_sets[current_sets_count]                                = create_set(current(state).identifier);
-							current_attribute.parameters[current_attribute.paramters_count] = current_sets[current_sets_count]->index;
-							current_sets_count += 1;
-						}
-						else {
-							current_attribute.parameters[current_attribute.paramters_count] =
-							    attribute_parameter_to_number(current_attribute.name, current(state).identifier);
-						}
+						current_attribute.parameters[current_attribute.paramters_count] =
+						    attribute_parameter_to_number(current_attribute.name, current(state).identifier);
 						current_attribute.paramters_count += 1;
 						advance_state(state);
 					}
@@ -3043,38 +2933,66 @@ static definition parse_definition(state_t *state) {
 
 	switch (current(state).kind) {
 	case TOKEN_STRUCT: {
-		if (current_sets_count != 0) {
-			debug_context context = {0};
-			error(context, "A struct can not be assigned to a set");
-		}
-
 		definition structy                 = parse_struct(state);
 		get_type(structy.type)->attributes = attributes;
 		return structy;
 	}
-	case TOKEN_FUNCTION: {
-		if (current_sets_count != 0) {
-			debug_context context = {0};
-			error(context, "A function can not be assigned to a set");
-		}
-
-		definition d  = parse_function(state);
-		function  *f  = get_function(d.function);
-		f->attributes = attributes;
+	case TOKEN_CBUFFER: {
+		definition d = parse_cbuffer(state, attributes);
+		add_resource_to_set(d);
 		return d;
 	}
-	case TOKEN_CONST: {
-		definition d = parse_const(state, attributes);
-
-		for (size_t set_index = 0; set_index < current_sets_count; ++set_index) {
-			add_definition_to_set(current_sets[set_index], d);
+	case TOKEN_CONST:
+	case TOKEN_IDENTIFIER: {
+		if (current(state).kind == TOKEN_CONST) {
+			advance_state(state);
 		}
 
+		type_ref type = parse_type_ref(state);
+
+		// Texture formats, as in tex2d<rgba32>
+		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
+			advance_state(state);
+			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+			advance_state(state);
+
+			if (current(state).kind == TOKEN_LEFT_PAREN) {
+				advance_state(state);
+				match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
+				advance_state(state);
+			}
+
+			if (current(state).kind != TOKEN_OPERATOR || current(state).op != OPERATOR_GREATER) {
+				error(state->context, "Expected a greater than");
+			}
+			advance_state(state);
+		}
+
+		// Only functions returning render target arrays put the size after the type, as in float4[2] frag(...)
+		type.unresolved.array_size = parse_array_suffix(state);
+
+		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+		token name = current(state);
+		advance_state(state);
+
+		if (current(state).kind == TOKEN_LEFT_PAREN) {
+			definition d  = parse_function(state, type, name);
+			function  *f  = get_function(d.function);
+			f->attributes = attributes;
+			return d;
+		}
+
+		if (type.unresolved.array_size != 0) {
+			error(state->context, "Array size goes after the name");
+		}
+
+		definition d = parse_global(state, attributes, type.unresolved.name, name);
+		add_resource_to_set(d);
 		return d;
 	}
 	default: {
 		update_debug_context(state);
-		error(state->context, "Expected a struct, a function or a const");
+		error(state->context, "Expected a struct, a cbuffer, a function or a global");
 
 		definition d = {0};
 		return d;
@@ -3082,11 +3000,8 @@ static definition parse_definition(state_t *state) {
 	}
 }
 
-static type_ref parse_type_ref(state_t *state) {
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-	token type_name = current(state);
-	advance_state(state);
-
+// Parses the [N] or [] following a declared name, returns 0 when there is none
+static uint32_t parse_array_suffix(state_t *state) {
 	uint32_t array_size = 0;
 	if (current(state).kind == TOKEN_LEFT_SQUARE) {
 		advance_state(state);
@@ -3103,14 +3018,54 @@ static type_ref parse_type_ref(state_t *state) {
 		match_token(state, TOKEN_RIGHT_SQUARE, "Expected a closing square bracket");
 		advance_state(state);
 	}
+	return array_size;
+}
+
+static type_ref parse_type_ref(state_t *state) {
+	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+	token type_name = current(state);
+	advance_state(state);
 
 	type_ref t;
 	init_type_ref(&t, type_name.identifier);
-	t.unresolved.array_size = array_size;
+	t.unresolved.array_size = 0;
 	return t;
 }
 
+static statement *parse_local_variable(state_t *state) {
+	type_ref type = parse_type_ref(state);
+
+	match_token_identifier(state);
+	token name = current(state);
+	advance_state(state);
+
+	type.unresolved.array_size = parse_array_suffix(state);
+
+	expression *init = NULL;
+
+	if (current(state).kind == TOKEN_OPERATOR) {
+		check(current(state).op == OPERATOR_ASSIGN, state->context, "Expected an assign");
+		advance_state(state);
+		init = parse_expression(state);
+	}
+
+	match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
+	advance_state(state);
+
+	statement *statement                      = statement_allocate();
+	statement->kind                           = STATEMENT_LOCAL_VARIABLE;
+	statement->local_variable.var.name        = name.identifier;
+	statement->local_variable.var.type        = type;
+	statement->local_variable.var.variable_id = 0;
+	statement->local_variable.init            = init;
+	return statement;
+}
+
 static statement *parse_statement(state_t *state, block *parent_block) {
+	if (is_declaration(state)) {
+		return parse_local_variable(state);
+	}
+
 	switch (current(state).kind) {
 	case TOKEN_IF: {
 		advance_state(state);
@@ -3247,37 +3202,6 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 	}
 	case TOKEN_LEFT_CURLY: {
 		return parse_block(state, parent_block);
-	}
-	case TOKEN_VAR: {
-		advance_state(state);
-
-		match_token_identifier(state);
-		token name = current(state);
-		advance_state(state);
-
-		match_token(state, TOKEN_COLON, "Expected a colon");
-		advance_state(state);
-
-		type_ref type = parse_type_ref(state);
-
-		expression *init = NULL;
-
-		if (current(state).kind == TOKEN_OPERATOR) {
-			check(current(state).op == OPERATOR_ASSIGN, state->context, "Expected an assign");
-			advance_state(state);
-			init = parse_expression(state);
-		}
-
-		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
-		advance_state(state);
-
-		statement *statement                      = statement_allocate();
-		statement->kind                           = STATEMENT_LOCAL_VARIABLE;
-		statement->local_variable.var.name        = name.identifier;
-		statement->local_variable.var.type        = type;
-		statement->local_variable.var.variable_id = 0;
-		statement->local_variable.init            = init;
-		return statement;
 	}
 	case TOKEN_RETURN: {
 		advance_state(state);
@@ -3732,7 +3656,6 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 
 	token    member_names[MAX_MEMBERS];
 	type_ref type_refs[MAX_MEMBERS];
-	token    member_values[MAX_MEMBERS];
 	size_t   count = 0;
 
 	while (current(state).kind != TOKEN_RIGHT_CURLY) {
@@ -3745,45 +3668,11 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 			break;
 		}
 
+		type_refs[count] = parse_type_ref(state);
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		member_names[count] = current(state);
-
 		advance_state(state);
-
-		if (current(state).kind == TOKEN_COLON) {
-			advance_state(state);
-			type_refs[count] = parse_type_ref(state);
-		}
-		else {
-			type_ref t;
-			t.type                  = NO_TYPE;
-			t.unresolved.name       = NO_NAME;
-			t.unresolved.array_size = 0;
-			type_refs[count]        = t;
-		}
-
-		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_ASSIGN) {
-			advance_state(state);
-			if (current(state).kind == TOKEN_BOOLEAN || current(state).kind == TOKEN_FLOAT || current(state).kind == TOKEN_INT ||
-			    current(state).kind == TOKEN_IDENTIFIER) {
-				member_values[count] = current(state);
-				advance_state(state);
-
-				if (current(state).kind == TOKEN_LEFT_PAREN) {
-					advance_state(state);
-					match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
-					advance_state(state);
-				}
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Unsupported assign in struct");
-			}
-		}
-		else {
-			member_values[count].kind       = TOKEN_NONE;
-			member_values[count].identifier = NO_NAME;
-		}
+		type_refs[count].unresolved.array_size = parse_array_suffix(state);
 
 		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
 
@@ -3803,41 +3692,20 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 
 	for (size_t i = 0; i < count; ++i) {
 		member member;
-		member.name  = member_names[i].identifier;
-		member.value = member_values[i];
-		if (member.value.kind != TOKEN_NONE) {
-			if (member.value.kind == TOKEN_BOOLEAN) {
-				init_type_ref(&member.type, add_name("bool"));
-			}
-			else if (member.value.kind == TOKEN_FLOAT) {
-				init_type_ref(&member.type, add_name("float"));
-			}
-			else if (member.value.kind == TOKEN_INT) {
-				init_type_ref(&member.type, add_name("int"));
-			}
-			else if (member.value.kind == TOKEN_IDENTIFIER) {
-				global *g = find_global(member.value.identifier);
-				if (g != NULL && g->name != NO_NAME) {
-					init_type_ref(&member.type, get_type(g->type)->name);
-				}
-				else {
-					init_type_ref(&member.type, add_name("fun"));
-				}
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Unsupported value in struct");
-			}
-		}
-		else {
-			member.type = type_refs[i];
-		}
+		member.name = member_names[i].identifier;
+		member.type = type_refs[i];
 
 		s->members.m[i] = member;
 	}
 	s->members.size = count;
 
 	return definition;
+}
+
+static void skip_optional_semicolon(state_t *state) {
+	if (current(state).kind == TOKEN_SEMICOLON) {
+		advance_state(state);
+	}
 }
 
 static definition parse_struct(state_t *state) {
@@ -3847,15 +3715,28 @@ static definition parse_struct(state_t *state) {
 	token name = current(state);
 	advance_state(state);
 
-	return parse_struct_inner(state, name.identifier);
+	definition d = parse_struct_inner(state, name.identifier);
+	skip_optional_semicolon(state);
+	return d;
 }
 
-static definition parse_function(state_t *state) {
+static definition parse_cbuffer(state_t *state, attribute_list attributes) {
 	advance_state(state);
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 
+	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 	token name = current(state);
 	advance_state(state);
+
+	type_id type = parse_struct_inner(state, NO_NAME).type;
+	skip_optional_semicolon(state);
+
+	definition d = {0};
+	d.kind       = DEFINITION_CONST_CUSTOM;
+	d.global     = add_global(type, attributes, name.identifier);
+	return d;
+}
+
+static definition parse_function(state_t *state, type_ref return_type, token name) {
 	match_token(state, TOKEN_LEFT_PAREN, "Expected an opening bracket");
 	advance_state(state);
 
@@ -3877,12 +3758,11 @@ static definition parse_function(state_t *state) {
 			advance_state(state);
 		}
 
+		param_types[parameters_size] = parse_type_ref(state);
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		param_names[parameters_size] = current(state).identifier;
 		advance_state(state);
-		match_token(state, TOKEN_COLON, "Expected a colon");
-		advance_state(state);
-		param_types[parameters_size] = parse_type_ref(state);
+		param_types[parameters_size].unresolved.array_size = parse_array_suffix(state);
 		if (current(state).kind == TOKEN_COMMA) {
 			advance_state(state);
 		}
@@ -3891,10 +3771,6 @@ static definition parse_function(state_t *state) {
 
 	match_token(state, TOKEN_RIGHT_PAREN, "Expected a closing bracket");
 	advance_state(state);
-	match_token(state, TOKEN_COLON, "Expected a colon");
-	advance_state(state);
-
-	type_ref return_type = parse_type_ref(state);
 
 	statement *block = parse_block(state, NULL);
 
@@ -3914,28 +3790,7 @@ static definition parse_function(state_t *state) {
 	return d;
 }
 
-static definition parse_const(state_t *state, attribute_list attributes) {
-	advance_state(state);
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-
-	token name = current(state);
-	advance_state(state);
-	match_token(state, TOKEN_COLON, "Expected a colon");
-	advance_state(state);
-
-	name_id type_name   = NO_NAME;
-	type_id type        = NO_TYPE;
-	name_id format_name = NO_NAME;
-
-	if (current(state).kind == TOKEN_LEFT_CURLY) {
-		type = parse_struct_inner(state, NO_NAME).type;
-	}
-	else {
-		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-		type_name = current(state).identifier;
-		advance_state(state);
-	}
-
+static definition parse_global(state_t *state, attribute_list attributes, name_id type_name, token name) {
 	bool     array      = false;
 	uint32_t array_size = UINT32_MAX;
 
@@ -3958,24 +3813,6 @@ static definition parse_const(state_t *state, attribute_list attributes) {
 		value = parse_expression(state);
 	}
 
-	if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
-		advance_state(state);
-		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-		format_name = current(state).identifier;
-		advance_state(state);
-
-		if (current(state).kind == TOKEN_LEFT_PAREN) {
-			advance_state(state);
-			match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
-			advance_state(state);
-		}
-
-		if (current(state).kind != TOKEN_OPERATOR || current(state).op != OPERATOR_GREATER) {
-			error(state->context, "Expected a greater than");
-		}
-		advance_state(state);
-	}
-
 	match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
 	advance_state(state);
 
@@ -3989,14 +3826,8 @@ static definition parse_const(state_t *state, attribute_list attributes) {
 	name_id tex2darray_name   = add_name("tex2darray");
 	name_id texcubearray_name = add_name("texcubearray");
 
-	if (type_name == NO_NAME) {
-		debug_context context = {0};
-		check(type != NO_TYPE, context, "Const has no type");
-		d.kind   = DEFINITION_CONST_CUSTOM;
-		d.global = add_global(type, attributes, name.identifier);
-	}
-	else if (type_name == tex1d_name || type_name == tex2d_name || type_name == tex3d_name || type_name == texcube_name || type_name == tex1darray_name ||
-	         type_name == tex2darray_name || type_name == texcubearray_name) {
+	if (type_name == tex1d_name || type_name == tex2d_name || type_name == tex3d_name || type_name == texcube_name || type_name == tex1darray_name ||
+	    type_name == tex2darray_name || type_name == texcubearray_name) {
 		struct type tex_type;
 		tex_type.name                        = type_name;
 		tex_type.attributes.attributes_count = 0;
@@ -4331,11 +4162,8 @@ static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokeni
 	else if (tokenizer_buffer_equals(buffer, "struct")) {
 		token = token_create(TOKEN_STRUCT, state);
 	}
-	else if (tokenizer_buffer_equals(buffer, "fun")) {
-		token = token_create(TOKEN_FUNCTION, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "var")) {
-		token = token_create(TOKEN_VAR, state);
+	else if (tokenizer_buffer_equals(buffer, "cbuffer")) {
+		token = token_create(TOKEN_CBUFFER, state);
 	}
 	else if (tokenizer_buffer_equals(buffer, "const")) {
 		token = token_create(TOKEN_CONST, state);
@@ -5396,7 +5224,103 @@ static type_ref upgrade_type(type_ref left_type, type_ref right_type) {
 	return left_type;
 }
 
+// SPIR-V and WGSL have no implicit int -> float conversion, make it explicit
+static bool needs_float_conversion(type_id from, type_id to) {
+	if (!is_vector_or_scalar(from) || !is_vector_or_scalar(to) || vector_base_type(to) != float_id) {
+		return false;
+	}
+	type_id from_base = vector_base_type(from);
+	return (from_base == int_id || from_base == uint_id) && vector_size(from) == vector_size(to);
+}
+
+static void convert_to_float(expression *e, type_ref to) {
+	if (!needs_float_conversion(e->type.type, to.type)) {
+		return;
+	}
+	if (e->kind == EXPRESSION_INT) {
+		e->kind = EXPRESSION_FLOAT;
+	}
+	else if (e->kind == EXPRESSION_UNARY && e->unary.op == OPERATOR_MINUS) {
+		convert_to_float(e->unary.right, to);
+	}
+	else if (e->kind == EXPRESSION_GROUPING) {
+		convert_to_float(e->grouping, to);
+	}
+	else {
+		expression *inner       = expression_allocate();
+		*inner                  = *e;
+		e->kind                 = EXPRESSION_CALL;
+		e->call.func_name       = get_type(to.type)->name; // float(), float2(), ..
+		e->call.parameters.e[0] = inner;
+		e->call.parameters.size = 1;
+	}
+	e->type = to;
+}
+
+static void convert_operands_to_float(expression *e) {
+	convert_to_float(e->binary.left, e->binary.right->type);
+	convert_to_float(e->binary.right, e->binary.left->type);
+}
+
+static void resolve_multiply_type(expression *e) {
+	if (e->binary.op == OPERATOR_MULTIPLY_ASSIGN) {
+		convert_to_float(e->binary.right, e->binary.left->type);
+	}
+	else {
+		convert_operands_to_float(e);
+	}
+	type_id left_type  = e->binary.left->type.type;
+	type_id right_type = e->binary.right->type.type;
+	if ((left_type == float4x4_id && right_type == float4_id) || (left_type == float3x3_id && right_type == float3_id)) {
+		e->type = e->binary.right->type;
+	}
+	else if (right_type == float_id && (left_type == float2_id || left_type == float3_id || left_type == float4_id)) {
+		e->type = e->binary.left->type;
+	}
+	else if (types_compatible(left_type, right_type)) {
+		e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
+	}
+	else {
+		debug_context context = {0};
+		error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
+	}
+}
+
+// HLSL style mul(a, b), turned into a * b
+static void resolve_mul_call(statement *parent, expression *e) {
+	if (e->call.parameters.size != 2) {
+		debug_context context = {0};
+		error(context, "mul() takes two parameters");
+		return;
+	}
+
+	expression *left  = e->call.parameters.e[0];
+	expression *right = e->call.parameters.e[1];
+	resolve_types_in_expression(parent, left);
+	resolve_types_in_expression(parent, right);
+
+	if (is_vector(left->type.type) && is_matrix(right->type.type)) {
+		debug_context context = {0};
+		error(context, "mul(vector, matrix) is not supported, use mul(matrix, vector) with a transposed matrix");
+	}
+	if (is_vector(left->type.type) && is_vector(right->type.type)) {
+		debug_context context = {0};
+		error(context, "mul(vector, vector) is not supported, use dot() or *");
+	}
+
+	e->kind         = EXPRESSION_BINARY;
+	e->binary.left  = left;
+	e->binary.op    = OPERATOR_MULTIPLY;
+	e->binary.right = right;
+	resolve_multiply_type(e);
+}
+
 void resolve_types_in_expression(statement *parent, expression *e) {
+	if (e->kind == EXPRESSION_CALL && e->call.func_name == add_name("mul")) {
+		resolve_mul_call(parent, e);
+		return;
+	}
+
 	switch (e->kind) {
 	case EXPRESSION_BINARY: {
 		resolve_types_in_expression(parent, e->binary.left);
@@ -5408,6 +5332,9 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		case OPERATOR_GREATER_EQUAL:
 		case OPERATOR_LESS:
 		case OPERATOR_LESS_EQUAL:
+			convert_operands_to_float(e);
+			e->type.type = bool_id;
+			break;
 		case OPERATOR_OR:
 		case OPERATOR_AND: {
 			e->type.type = bool_id;
@@ -5423,21 +5350,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		}
 		case OPERATOR_MULTIPLY:
 		case OPERATOR_MULTIPLY_ASSIGN: {
-			type_id left_type  = e->binary.left->type.type;
-			type_id right_type = e->binary.right->type.type;
-			if ((left_type == float4x4_id && right_type == float4_id) || (left_type == float3x3_id && right_type == float3_id)) {
-				e->type = e->binary.right->type;
-			}
-			else if (right_type == float_id && (left_type == float2_id || left_type == float3_id || left_type == float4_id)) {
-				e->type = e->binary.left->type;
-			}
-			else if (types_compatible(left_type, right_type)) {
-				e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
-			}
+			resolve_multiply_type(e);
 			break;
 		}
 		case OPERATOR_MINUS:
@@ -5450,6 +5363,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				debug_context context = {0};
 				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
 			}
+			convert_operands_to_float(e);
 			e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
 			break;
 		}
@@ -5463,6 +5377,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				debug_context context = {0};
 				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
 			}
+			convert_to_float(e->binary.right, e->binary.left->type);
 			e->type = e->binary.left->type;
 			break;
 		}
@@ -5545,6 +5460,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		break;
 	}
 	case EXPRESSION_CALL: {
+		function *called = NULL;
 		if (e->call.func_name == add_name("sample") || e->call.func_name == add_name("sample_lod")) {
 			if (e->call.parameters.e[0]->kind == EXPRESSION_VARIABLE) {
 				global *g = find_global(e->call.parameters.e[0]->variable);
@@ -5560,6 +5476,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				function *f = get_function(i);
 				if (f->name == e->call.func_name) {
 					e->type = f->return_type;
+					called  = f;
 					break;
 				}
 			}
@@ -5567,6 +5484,9 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			resolve_types_in_expression(parent, e->call.parameters.e[i]);
+			if (called != NULL && i < called->parameters_size) {
+				convert_to_float(e->call.parameters.e[i], called->parameter_types[i]);
+			}
 		}
 		break;
 	}
@@ -5607,6 +5527,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 		}
 		case STATEMENT_RETURN_EXPRESSION: {
 			resolve_types_in_expression(block, s->expression);
+			convert_to_float(s->expression, resolve_types_function->return_type);
 			type_id return_type = resolve_types_function->return_type.type;
 			type_id value_type  = s->expression->type.type;
 			bool    mismatch    = !types_compatible(value_type, return_type) ||
@@ -5654,6 +5575,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 
 			if (s->local_variable.init != NULL) {
 				resolve_types_in_expression(block, s->local_variable.init);
+				convert_to_float(s->local_variable.init, s->local_variable.var.type);
 			}
 
 			block->block.vars.v[block->block.vars.size].name = var_name;
@@ -5840,11 +5762,6 @@ void types_init(void) {
 	{
 		bvh_type_id                     = add_type(add_name("bvh"));
 		get_type(bvh_type_id)->built_in = true;
-	}
-
-	{
-		function_type_id                     = add_type(add_name("fun"));
-		get_type(function_type_id)->built_in = true;
 	}
 }
 
@@ -6228,11 +6145,11 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 #elif defined(__APPLE__)
 
 	static char vs_temp[1024 * 128];
-	strcpy(vs_temp, "//>kong_vert\n");
+	strcpy(vs_temp, "//>vert\n");
 	char *metal = metal_export("");
 	strcat(vs_temp, metal);
 	*vs = &vs_temp[0];
-	*fs = "//>kong_frag\n";
+	*fs = "//>frag\n";
 	free(metal);
 
 #elif defined(IRON_WASM)

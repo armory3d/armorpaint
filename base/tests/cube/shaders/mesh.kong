@@ -1,38 +1,29 @@
 
-#[set(everything)]
-const constants: {
-	WVP: float4x4;
+cbuffer constants {
+	float4x4 WVP;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const my_texture: tex2d;
+tex2d my_texture;
 
 struct vert_in {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-}
+	float4 pos;
+	float2 tex;
+};
 
-fun mesh_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.tex = input.tex;
 	output.pos = constants.WVP * float4(input.pos.xyz, 1.0);
 	return output;
 }
 
-fun mesh_frag(input: vert_out): float4 {
+float4 frag(vert_out input) {
 	return sample(my_texture, sampler_linear, input.tex);
-}
-
-#[pipe]
-struct pipe {
-	vertex = mesh_vert;
-	fragment = mesh_frag;
 }

@@ -120,7 +120,7 @@ static void write_types(char *hlsl, size_t *offset, shader_stage stage, type_id 
 
 		bool built_in = t->built_in || (get_type(t->base) != NULL && get_type(t->base)->built_in);
 
-		if (!built_in && !has_attribute(&t->attributes, add_name("pipe"))) {
+		if (!built_in) {
 			*offset += sprintf(&hlsl[*offset], "struct %s {\n", get_name(t->name));
 
 			if (stage == SHADER_STAGE_VERTEX && is_input(types[i], inputs, inputs_count)) {
@@ -179,26 +179,6 @@ static void assign_register_indices(uint32_t *register_indices, function *shader
 
 	for (size_t group_index = 0; group_index < set_group->size; ++group_index) {
 		descriptor_set *set = set_group->values[group_index];
-
-		if (set->name == add_name("root_constants")) {
-			if (set->globals.size != 1) {
-				debug_context context = {0};
-				error(context, "More than one root constants struct found");
-			}
-
-			global_id g_id = set->globals.globals[0];
-			global   *g    = get_global(g_id);
-
-			if (get_type(g->type)->built_in) {
-				debug_context context = {0};
-				error(context, "Unsupported type for a root constant");
-			}
-
-			register_indices[g_id] = srv_index;
-			srv_index += 1;
-
-			continue;
-		}
 
 		for (size_t g_index = 0; g_index < set->globals.size; ++g_index) {
 			global_id global_index = set->globals.globals[g_index];
@@ -417,27 +397,6 @@ static void write_root_signature(function *main, char *hlsl, size_t *offset) {
 
 	for (size_t group_index = 0; group_index < set_group->size; ++group_index) {
 		descriptor_set *set = set_group->values[group_index];
-
-		if (set->name == add_name("root_constants")) {
-			if (set->globals.size != 1) {
-				debug_context context = {0};
-				error(context, "More than one root constants struct found");
-			}
-
-			uint32_t  size = 0;
-			global_id g    = set->globals.globals[0];
-
-			if (get_type(get_global(g)->type)->built_in) {
-				debug_context context = {0};
-				error(context, "Unsupported type for a root constant");
-			}
-
-			size += struct_size(get_global(g)->type);
-
-			*offset += sprintf(&hlsl[*offset], "\\\n, RootConstants(num32BitConstants=%i, b%i)", size / 4, register_indices[g]);
-
-			continue;
-		}
 
 		bool has_sampler   = false;
 		bool has_other     = false;
@@ -1275,76 +1234,39 @@ static char *hlsl_export_fragment2(api_kind d3d, function *main, bool debug) {
 }
 
 void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug) {
-	static_array(function *, shaders, 256);
+	function_id vertex_id   = find_vertex_function();
+	function_id fragment_id = find_fragment_function();
 
-	shaders vertex_shaders;
-	shaders fragment_shaders;
+	debug_context context = {0};
+	check(vertex_id != NO_FUNCTION, context, "vert() missing");
+	check(fragment_id != NO_FUNCTION, context, "frag() missing");
 
-	static_array_init(vertex_shaders);
-	static_array_init(fragment_shaders);
+	function *vertex_shader   = get_function(vertex_id);
+	function *fragment_shader = get_function(fragment_id);
 
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			name_id vertex_shader_name   = NO_NAME;
-			name_id fragment_shader_name = NO_NAME;
+	global_array all_globals = {0};
+	find_referenced_globals(vertex_shader, &all_globals);
+	find_referenced_globals(fragment_shader, &all_globals);
 
-			for (size_t j = 0; j < t->members.size; ++j) {
-				if (t->members.m[j].name == add_name("vertex")) {
-					vertex_shader_name = t->members.m[j].value.identifier;
-				}
-				else if (t->members.m[j].name == add_name("fragment")) {
-					fragment_shader_name = t->members.m[j].value.identifier;
-				}
-			}
+	for (size_t global_index = 0; global_index < all_globals.size; ++global_index) {
+		global *g = get_global(all_globals.globals[global_index]);
+		for (size_t set_index = 0; set_index < g->sets_count; ++set_index) {
+			bool found = false;
 
-			debug_context context = {0};
-
-			function *vertex_shader   = NULL;
-			function *fragment_shader = NULL;
-
-			for (function_id i = 0; get_function(i) != NULL; ++i) {
-				function *f = get_function(i);
-				if (vertex_shader_name != NO_NAME && f->name == vertex_shader_name) {
-					vertex_shader = f;
-					static_array_push(vertex_shaders, f);
-				}
-				if (f->name == fragment_shader_name) {
-					fragment_shader = f;
-					static_array_push(fragment_shaders, f);
+			for (size_t all_sets_index = 0; all_sets_index < all_descriptor_sets_count; ++all_sets_index) {
+				if (all_descriptor_sets[all_sets_index] == g->sets[set_index]) {
+					found = true;
+					break;
 				}
 			}
 
-			global_array all_globals = {0};
-
-			if (vertex_shader != NULL) {
-				find_referenced_globals(vertex_shader, &all_globals);
-			}
-			if (fragment_shader != NULL) {
-				find_referenced_globals(fragment_shader, &all_globals);
-			}
-
-			for (size_t global_index = 0; global_index < all_globals.size; ++global_index) {
-				global *g = get_global(all_globals.globals[global_index]);
-				for (size_t set_index = 0; set_index < g->sets_count; ++set_index) {
-					bool found = false;
-
-					for (size_t all_sets_index = 0; all_sets_index < all_descriptor_sets_count; ++all_sets_index) {
-						if (all_descriptor_sets[all_sets_index] == g->sets[set_index]) {
-							found = true;
-							break;
-						}
-					}
-
-					if (!found) {
-						all_descriptor_sets[all_descriptor_sets_count] = g->sets[set_index];
-						all_descriptor_sets_count += 1;
-					}
-				}
+			if (!found) {
+				all_descriptor_sets[all_descriptor_sets_count] = g->sets[set_index];
+				all_descriptor_sets_count += 1;
 			}
 		}
 	}
 
-	*vs = hlsl_export_vertex2(d3d, vertex_shaders.values[0], debug);
-	*fs = hlsl_export_fragment2(d3d, fragment_shaders.values[0], debug);
+	*vs = hlsl_export_vertex2(d3d, vertex_shader, debug);
+	*fs = hlsl_export_fragment2(d3d, fragment_shader, debug);
 }

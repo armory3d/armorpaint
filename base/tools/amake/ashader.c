@@ -151,22 +151,13 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 
 	char *metal = metal_export("");
 
-	int  i = string_last_index_of(to, "/");
-	char filename[512];
-	strcpy(filename, to);
-	char *filebase = &filename[i + 1];
-	int   j        = string_index_of(filebase, ".");
-	filebase[j]    = '\0';
-
 	char to_[512];
 	strcpy(to_, to);
 	to_[strlen(to_) - 5] = '\0';
 	strcat(to_, "vert.metal");
 
 	fp = fopen(to_, "wb");
-	fwrite("//>", 1, 3, fp);
-	fwrite(filebase, 1, strlen(filebase), fp);
-	fwrite("_vert\n", 1, 6, fp);
+	fwrite("//>vert\n", 1, 8, fp);
 	fwrite(metal, 1, strlen(metal), fp);
 	fclose(fp);
 
@@ -175,9 +166,7 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 	strcat(to_, "frag.metal");
 
 	fp = fopen(to_, "wb");
-	fwrite("//>", 1, 3, fp);
-	fwrite(filebase, 1, strlen(filebase), fp);
-	fwrite("_frag\n", 1, 6, fp);
+	fwrite("//>frag\n", 1, 8, fp);
 	fclose(fp);
 
 #else

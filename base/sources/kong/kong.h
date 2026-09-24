@@ -179,8 +179,7 @@ typedef struct token {
 		TOKEN_OPERATOR,
 		TOKEN_IN,
 		TOKEN_STRUCT,
-		TOKEN_FUNCTION,
-		TOKEN_VAR,
+		TOKEN_CBUFFER,
 		TOKEN_CONST,
 		TOKEN_RETURN,
 		TOKEN_DISCARD
@@ -203,7 +202,6 @@ typedef struct tokens {
 typedef struct member {
 	name_id  name;
 	type_ref type;
-	token    value;
 } member;
 
 typedef struct members {
@@ -405,11 +403,6 @@ typedef struct function {
 	opcodes code;
 } function;
 
-typedef struct render_pipeline {
-	function *vertex_shader;
-	function *fragment_shader;
-} render_pipeline;
-
 typedef struct debug_context {
 	const char *filename;
 	uint32_t    column;
@@ -606,10 +599,6 @@ typedef struct descriptor_set {
 	global_array globals;
 } descriptor_set;
 
-static_array(render_pipeline, render_pipelines, 256);
-static_array(uint32_t, render_pipeline_indices, 256);
-typedef render_pipeline_indices render_pipeline_group;
-static_array(render_pipeline_group, render_pipeline_groups, 64);
 static_array(function *, compute_shaders, 256);
 static_array(uint32_t, compute_shader_indices, 256);
 static_array(descriptor_set *, descriptor_sets, 256);
@@ -625,7 +614,9 @@ void                  find_referenced_globals(function *f, global_array *globals
 void                  find_used_builtins(function *f);
 void                  find_used_capabilities(function *f);
 descriptor_set_group *get_descriptor_set_group(uint32_t descriptor_set_group_index);
-descriptor_set_group *find_descriptor_set_group_for_pipe_type(type *t);
+function_id           find_function_id(name_id name);
+function_id           find_vertex_function(void);
+function_id           find_fragment_function(void);
 descriptor_set_group *find_descriptor_set_group_for_function(function *f);
 void                  analyze(void);
 void                  error(debug_context context, const char *message, ...);

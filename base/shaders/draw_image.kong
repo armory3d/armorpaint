@@ -1,43 +1,34 @@
 
-#[set(everything)]
-const constants: {
-	empty: float4;
+cbuffer constants {
+	float4 empty;
 };
 
-#[set(everything)]
-const sampler_linear: sampler;
+sampler sampler_linear;
 
-#[set(everything)]
-const tex: tex2d;
+tex2d tex;
 
 struct vert_in {
-	pos: float2;
-	tex: float2;
-	col: float4;
-}
+	float2 pos;
+	float2 tex;
+	float4 col;
+};
 
 struct vert_out {
-	pos: float4;
-	tex: float2;
-	col: float4;
-}
+	float4 pos;
+	float2 tex;
+	float4 col;
+};
 
-fun draw_image_vert(input: vert_in): vert_out {
-	var output: vert_out;
+vert_out vert(vert_in input) {
+	vert_out output;
 	output.pos = float4(input.pos, 0.0, 1.0);
 	output.tex = input.tex;
 	output.col = input.col;
 	return output;
 }
 
-fun draw_image_frag(input: vert_out): float4 {
-	var texcolor: float4 = sample(tex, sampler_linear, input.tex) * input.col;
+float4 frag(vert_out input) {
+	float4 texcolor = sample(tex, sampler_linear, input.tex) * input.col;
 	texcolor.rgb = texcolor.rgb * texcolor.a * input.col.a;
 	return texcolor;
-}
-
-#[pipe]
-struct pipe {
-	vertex = draw_image_vert;
-	fragment = draw_image_frag;
 }
