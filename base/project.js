@@ -13,7 +13,7 @@ let dir     = flags.name.substr(5).toLowerCase(); // ArmorPaint -> paint
 let project = new Project("Base");
 project.add_include_dir("sources");
 project.add_include_dir("sources/libs");
-project.add_shaders("shaders/*.kong");
+project.add_shaders("shaders/*.shader");
 project.add_assets("assets/*", {destination : "data/{name}"});
 project.add_assets("assets/licenses/**", {destination : "data/licenses/{name}"});
 project.add_assets("assets/themes/*.json", {destination : "data/themes/{name}"});
