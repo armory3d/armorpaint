@@ -55,5 +55,5 @@ void neural_node_models_init() {
 	                                         .web     = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
 	                                         .license = "apache-2.0"}),
 	    },
-	    5);
+	    4);
 }
