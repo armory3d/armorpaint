@@ -10,7 +10,7 @@ project.add_cfiles("io_tiff/**");
 
 if (fs_exists(os_cwd() + "/../paint/plugins/external")) {
     project.add_cfiles("external/**");
-    project.add_shaders("external/*.kong");
+    project.add_shaders("external/*.shader");
     project.add_assets("external/assets/*", {destination : "data/{name}"});
     project.add_define("WITH_EXTERNAL");
 }

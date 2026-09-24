@@ -32,7 +32,7 @@ project.add_project("../base");
 project.add_cfiles("sources/startup.c");
 project.add_cfiles("sources/minic_api.c");
 project.add_cfiles("sources/main.c");
-project.add_shaders("shaders/*.kong");
+project.add_shaders("shaders/*.shader");
 project.add_assets("assets/*", {destination : "data/{name}"});
 project.add_assets("assets/export_presets/*", {destination : "data/export_presets/{name}"});
 project.add_assets("assets/keymap_presets/*", {destination : "data/keymap_presets/{name}"});
