@@ -74,6 +74,7 @@ minic_ctx_t *minic_eval(const char *src);
 minic_ctx_t *minic_eval_named(const char *src, const char *filename);
 void         minic_ctx_free(minic_ctx_t *ctx);
 float        minic_ctx_result(minic_ctx_t *ctx);
+minic_val_t  minic_ctx_return_val(minic_ctx_t *ctx);
 minic_val_t  minic_ctx_call_fn(minic_ctx_t *ctx, void *fn_ptr, minic_val_t *args, int argc);
 // Call a minic function from native C. fn_ptr is a minic func passed from a script,
 // valid as long as the owning minic_ctx_t has not been freed

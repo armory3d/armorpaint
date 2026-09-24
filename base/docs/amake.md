@@ -4,6 +4,8 @@
 
 [`ashader.c`](https://github.com/armory3d/armorpaint/blob/main/base/docs/ashader.md): Converts a `.shader` source into a graphics api specific format.
 
-`quickjs`: An embedded JavaScript engine, which is used to run the `make.js` file (see below).
+`make.c`: Evaluates `project.c` files with the embedded [minic](https://github.com/armory3d/armorpaint/blob/main/base/sources/libs/minic.c) interpreter, then exports assets and shaders. The api available to `project.c` files is documented in [`amake.h`](https://github.com/armory3d/armorpaint/blob/main/base/tools/amake/amake.h).
 
-`make.js`: Handles processing of `project.js` files and creating project files for desired target, e.g. a Visual Studio solution.
+`script.c`: `amake --c <file.c> [args]` runs a C file with minic, e.g. [`extract_locales.c`](https://github.com/armory3d/armorpaint/blob/main/base/tools/extract_locales.c).
+
+`exporters.c`: Creates project files for the desired target, e.g. a Visual Studio solution, an Xcode project or a makefile.

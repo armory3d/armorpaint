@@ -1,169 +1,237 @@
+// Based on https://github.com/Kode/kmake by RobDangerous
 
-#include "quickjs-libc.h"
-#include "quickjs.h"
-#include <stdbool.h>
+// amake: evaluates project.c files, exports assets and shaders and writes the project files for the target
+
+#include "make.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
-#include <Windows.h>
-#include <direct.h>
-static JSValue js_os_exec_win(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	JSValue args = argv[0];
-	JSValue val  = JS_GetPropertyStr(ctx, args, "length");
-
-	uint32_t exec_argc;
-	JS_ToUint32(ctx, &exec_argc, val);
-
-	char **exec_argv = js_mallocz(ctx, sizeof(exec_argv[0]) * (exec_argc + 1));
-	for (int i = 0; i < exec_argc; i++) {
-		val          = JS_GetPropertyUint32(ctx, args, i);
-		exec_argv[i] = JS_ToCString(ctx, val);
-		JS_FreeValue(ctx, val);
-	}
-	exec_argv[exec_argc] = NULL;
-
-	if (argc >= 2) {
-		JSValue options = argv[1];
-		val             = JS_GetPropertyStr(ctx, options, "cwd");
-		if (!JS_IsUndefined(val)) {
-			char *cwd = JS_ToCString(ctx, val);
-			JS_FreeValue(ctx, val);
-			_chdir(cwd);
-		}
-	}
-
-	char cmd[1024];
-	cmd[0] = 0;
-	for (int i = 0; i < exec_argc; ++i) {
-		strcat(cmd, exec_argv[i]);
-		strcat(cmd, " ");
-	}
-
-	HANDLE              hReadPipe, hWritePipe;
-	SECURITY_ATTRIBUTES saAttr;
-	saAttr.nLength              = sizeof(SECURITY_ATTRIBUTES);
-	saAttr.bInheritHandle       = TRUE;
-	saAttr.lpSecurityDescriptor = NULL;
-	CreatePipe(&hReadPipe, &hWritePipe, &saAttr, 0);
-	SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0);
-
-	STARTUPINFO         si;
-	PROCESS_INFORMATION pi;
-	ZeroMemory(&si, sizeof(si));
-	si.cb         = sizeof(si);
-	si.dwFlags    = STARTF_USESTDHANDLES;
-	si.hStdOutput = hWritePipe;
-	si.hStdError  = hWritePipe;
-	ZeroMemory(&pi, sizeof(pi));
-	CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
-	CloseHandle(hWritePipe);
-
-	char buf[4096];
-	int  buf_len = 0;
-	int  bytes_read;
-	while (ReadFile(hReadPipe, buf + buf_len, 4096 - buf_len - 1, &bytes_read, NULL) && bytes_read > 0) {
-		buf_len += bytes_read;
-		if (buf_len >= 4096 - 1) {
-			break;
-		}
-	}
-	buf[buf_len] = '\0';
-
-	CloseHandle(hReadPipe);
-	WaitForSingleObject(pi.hProcess, INFINITE);
-	DWORD exit_code;
-	GetExitCodeProcess(pi.hProcess, &exit_code);
-	CloseHandle(pi.hProcess);
-	CloseHandle(pi.hThread);
-
-	printf("%s", buf);
-
-	JSValue result = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, result, "stdout", JS_NewString(ctx, buf));
-	JS_SetPropertyStr(ctx, result, "status", JS_NewInt32(ctx, (int32_t)exit_code));
-	return result;
-}
-
+#include <windows.h>
+#else
+#include <sys/time.h>
 #endif
 
-int            ashader(char *shader_lang, char *from, char *to);
-static JSValue js_ashader(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	const char *shader_lang = JS_ToCString(ctx, argv[0]);
-	const char *from        = JS_ToCString(ctx, argv[1]);
-	const char *to          = JS_ToCString(ctx, argv[2]);
-	ashader(shader_lang, from, to);
-	return JS_UNDEFINED;
+options_t goptions;
+int       gargc;
+char    **gargv;
+char     *path_sep       = "/";
+char     *other_path_sep = "\\";
+char     *makedir;
+char     *irondir;
+
+static double now_ms(void) {
+#ifdef _WIN32
+	return (double)GetTickCount64();
+#else
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+#endif
 }
 
-void    export_k(const char *from, const char *to);
-JSValue js_export_k(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	const char *from = JS_ToCString(ctx, argv[0]);
-	const char *to   = JS_ToCString(ctx, argv[1]);
-	export_k(from, to);
-	return JS_UNDEFINED;
+static char *default_target(void) {
+	if (strcmp(os_platform(), "linux") == 0) {
+		return "linux";
+	}
+	else if (strcmp(os_platform(), "win32") == 0) {
+		return "windows";
+	}
+	return "macos";
 }
 
-void    export_ico(const char *from, const char *to);
-JSValue js_export_ico(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	const char *from = JS_ToCString(ctx, argv[0]);
-	const char *to   = JS_ToCString(ctx, argv[1]);
-	export_ico(from, to);
-	return JS_UNDEFINED;
+static project_t *export_amake_project(void) {
+	printf("Creating %s project files.\n", goptions.target);
+	project_t *project = load_project(".", true);
+	if (strcmp(goptions.graphics, "metal") == 0) {
+		any_array_push(project->includes, path_join("build", "sources", "*"));
+	}
+	project_search_files(project);
+	project_internal_flatten(project);
+	fs_ensuredir("build");
+	export_solution(project);
+	return project;
 }
 
-void    export_png(const char *from, const char *to, int width, int height);
-JSValue js_export_png(JSContext *ctx, JSValue this_val, int argc, JSValue *argv) {
-	const char *from = JS_ToCString(ctx, argv[0]);
-	const char *to   = JS_ToCString(ctx, argv[1]);
-	int32_t     width;
-	JS_ToInt32(ctx, &width, argv[2]);
-	int32_t height;
-	JS_ToInt32(ctx, &height, argv[3]);
-	export_png(from, to, width, height);
-	return JS_UNDEFINED;
+static any_array_t *args_list(char **args, int count) {
+	any_array_t *list = list_create();
+	for (int i = 0; i < count; ++i) {
+		any_array_push(list, args[i]);
+	}
+	return list;
+}
+
+static void compile_project(int status, project_t *project) {
+	if (status != 0) {
+		exit(1);
+	}
+	char *exe = project->executable_name != NULL ? project->executable_name : project->safe_name;
+	if (strcmp(goptions.target, "linux") == 0) {
+		char *from = path_resolve(path_join("build", goptions.build_path), exe);
+		char *to   = path_resolve(".", project->debugdir, exe);
+		fs_copyfile(from, to);
+		os_chmod_exec(to);
+	}
+	else if (strcmp(goptions.target, "windows") == 0) {
+		// os_exec changed the working directory to build
+		char *from = path_join("x64", goptions.debug ? "Debug" : "Release", string("%s.exe", exe));
+		char *to   = path_resolve("..", project->debugdir, string("%s.exe", exe));
+		fs_copyfile(from, to);
+	}
+	else if (strcmp(goptions.target, "wasm") == 0) {
+		char *from = path_resolve(path_join("build", goptions.build_path), string("%s.wasm", exe));
+		char *to   = path_resolve(".", project->debugdir, "start.wasm");
+		fs_copyfile(from, to);
+	}
+	if (goptions.run) {
+		if (strcmp(goptions.target, "macos") == 0) {
+			char *app = string("build/%s/%s.app/Contents/MacOS/%s", goptions.debug ? "Debug" : "Release", project->name, project->name);
+			os_exec(args_list((char *[]){app}, 1), "build", NULL);
+		}
+		else if (strcmp(goptions.target, "linux") == 0) {
+			char *dir = path_resolve(".", project->debugdir);
+			os_exec(args_list((char *[]){path_resolve(dir, exe)}, 1), dir, NULL);
+		}
+		else if (strcmp(goptions.target, "windows") == 0) {
+			os_exec(args_list((char *[]){path_resolve("..", project->debugdir, exe)}, 1), path_resolve(".", project->debugdir), NULL);
+		}
+	}
+}
+
+static void run(void) {
+	printf("Using Iron from %s\n", irondir);
+	goptions.build_path = goptions.debug ? "Debug" : "Release";
+	project_t *project  = export_amake_project();
+	char      *name     = project->safe_name;
+	if (!goptions.compile || name[0] == '\0') {
+		return;
+	}
+
+	printf("Compiling...\n");
+	char *target = goptions.target;
+	int   status;
+	if (strcmp(target, "linux") == 0 || strcmp(target, "wasm") == 0 || strcmp(goptions.ccompiler, "tcc") == 0) {
+		char *cores = string("%d", os_cpus_length());
+		status      = os_exec(args_list((char *[]){"make", "-j", cores}, 3), path_join("build", goptions.build_path), NULL);
+	}
+	else if (strcmp(target, "macos") == 0 || strcmp(target, "ios") == 0) {
+		char *config = goptions.debug ? "Debug" : "Release";
+		status       = os_exec(args_list((char *[]){"xcodebuild", "-configuration", config, "-project", string("%s.xcodeproj", name)}, 5), "build", NULL);
+	}
+	else if (strcmp(target, "windows") == 0) {
+		char *program_files = os_env("ProgramFiles(x86)");
+		char *vswhere       = path_join(program_files != NULL ? program_files : "", "Microsoft Visual Studio", "Installer", "vswhere.exe");
+		char *vsvars        = "";
+		os_exec(args_list((char *[]){vswhere, "-products", "*", "-latest", "-find", "VC\\Auxiliary\\Build\\vcvars64.bat"}, 6), NULL, &vsvars);
+		fs_writefile(path_join("build", "build.bat"),
+		             string("@call \"%s\"\n@MSBuild.exe \"%s\" /m /clp:ErrorsOnly /p:Configuration=%s,Platform=x64", str_trim(vsvars),
+		                    path_resolve("build", string("%s.vcxproj", name)), goptions.debug ? "Debug" : "Release"));
+		status = os_exec(args_list((char *[]){"build.bat"}, 1), "build", NULL);
+	}
+	else if (strcmp(target, "android") == 0) {
+		bool         win      = strcmp(os_platform(), "win32") == 0;
+		char        *assemble = string("assemble%s", goptions.debug ? "Debug" : "Release");
+		any_array_t *args     = win ? args_list((char *[]){"gradlew.bat", assemble}, 2) : args_list((char *[]){"bash", "gradlew", assemble}, 3);
+		status                = os_exec(args, path_join("build", name), NULL);
+	}
+	else {
+		return;
+	}
+	compile_project(status, project);
+}
+
+static void parse_options(int argc, char **argv) {
+	goptions.target    = default_target();
+	goptions.graphics  = "default";
+	goptions.ccompiler = "clang";
+	goptions.arch      = "default";
+	for (int i = 1; i < argc; ++i) {
+		if (!starts_with(argv[i], "--")) {
+			continue;
+		}
+		char *name  = argv[i] + 2;
+		char *value = NULL;
+		if (i < argc - 1 && !starts_with(argv[i + 1], "--")) {
+			value = argv[++i];
+		}
+		if (strcmp(name, "target") == 0 && value != NULL) {
+			goptions.target = value;
+		}
+		else if (strcmp(name, "graphics") == 0 && value != NULL) {
+			goptions.graphics = value;
+		}
+		else if (strcmp(name, "ccompiler") == 0 && value != NULL) {
+			goptions.ccompiler = value;
+		}
+		else if (strcmp(name, "arch") == 0 && value != NULL) {
+			goptions.arch = value;
+		}
+		else if (strcmp(name, "compile") == 0) {
+			goptions.compile = true;
+		}
+		else if (strcmp(name, "run") == 0) {
+			goptions.run = true;
+		}
+		else if (strcmp(name, "debug") == 0) {
+			goptions.debug = true;
+		}
+	}
+	if (goptions.run) {
+		goptions.compile = true;
+	}
+	if (strcmp(goptions.graphics, "default") == 0) {
+		if (strcmp(goptions.target, "wasm") == 0) {
+			goptions.graphics = "webgpu";
+		}
+		else if (strcmp(os_platform(), "win32") == 0) {
+			goptions.graphics = "direct3d12";
+		}
+		else if (strcmp(os_platform(), "darwin") == 0) {
+			goptions.graphics = "metal";
+		}
+		else {
+			goptions.graphics = "vulkan";
+		}
+	}
 }
 
 int main(int argc, char **argv) {
-	FILE *fp = fopen(argv[1], "rb");
-	fseek(fp, 0, SEEK_END);
-	int size = ftell(fp);
-	rewind(fp);
-	char *buffer = malloc(size + 1);
-	buffer[size] = 0;
-	fread(buffer, size, 1, fp);
-	fclose(fp);
-
-	JSRuntime *runtime = JS_NewRuntime();
-	JSContext *ctx     = JS_NewContext(runtime);
-
-	js_std_init_handlers(runtime);
-	js_std_add_helpers(ctx, argc, argv);
-	js_init_module_std(ctx, "std");
-	js_init_module_os(ctx, "os");
-
-	JSValue global_obj = JS_GetGlobalObject(ctx);
-	JSValue amake      = JS_NewObject(ctx);
-	JS_SetPropertyStr(ctx, amake, "export_k", JS_NewCFunction(ctx, js_export_k, "export_k", 2));
-	JS_SetPropertyStr(ctx, amake, "export_ico", JS_NewCFunction(ctx, js_export_ico, "export_ico", 2));
-	JS_SetPropertyStr(ctx, amake, "export_png", JS_NewCFunction(ctx, js_export_png, "export_png", 4));
-#ifdef _WIN32
-	JS_SetPropertyStr(ctx, amake, "os_exec_win", JS_NewCFunction(ctx, js_os_exec_win, "os_exec_win", 1));
-#endif
-	JS_SetPropertyStr(ctx, amake, "ashader", JS_NewCFunction(ctx, js_ashader, "ashader", 3));
-
-	JS_SetPropertyStr(ctx, global_obj, "amake", amake);
-	JS_FreeValue(ctx, global_obj);
-
-	JSValue ret = JS_Eval(ctx, buffer, size, "make.js", JS_EVAL_TYPE_MODULE);
-
-	if (JS_IsException(ret)) {
-		js_std_dump_error(ctx);
-		JS_ResetUncatchableError(ctx);
+	gargc = argc;
+	gargv = argv;
+	if (strcmp(os_platform(), "win32") == 0) {
+		path_sep       = "\\";
+		other_path_sep = "/";
 	}
 
-	JS_RunGC(runtime);
-	free(buffer);
+	// The binary lives in base/tools/bin/<platform>
+	char *binpath  = path_resolve(argv[0]);
+	char *toolsdir = js_substring(binpath, 0, str_last_index_of(binpath, path_sep));
+	makedir        = path_join(toolsdir, "..", "..");
+	irondir        = path_join(makedir, "..");
+
+	// amake --ashader <spirv|metal|hlsl|wgsl> <from> <to>
+	if (argc > 1 && strcmp(argv[1], "--ashader") == 0) {
+		if (argc < 5) {
+			printf("Usage: amake --ashader <spirv|metal|hlsl|wgsl> <from> <to>\n");
+			return 1;
+		}
+		return ashader(argv[2], argv[3], argv[4]);
+	}
+
+	// amake --c <file.c> [args], runs a C file with minic
+	if (argc > 1 && strcmp(argv[1], "--c") == 0) {
+		if (argc < 3) {
+			printf("Usage: amake --c <file.c> [args]\n");
+			return 1;
+		}
+		return run_script(argv[2], argc - 3, argv + 3);
+	}
+
+	parse_options(argc, argv);
+	double start = now_ms();
+	run();
+	printf("Done in %dms.\n", (int)(now_ms() - start));
 	return 0;
 }

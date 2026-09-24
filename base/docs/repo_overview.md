@@ -16,13 +16,12 @@ Small stand-alone projects for testing.
 
 - `/amake`: armorpain build tool
 - `/bin`: amake binary for each supported platform
-- `/make.js`: a part of amake, handles processing of `project.js` files
 - `/tcc`: actually a C compiler
 
-#### `/project.js`
+#### `/project.c`
 
 This file adds C source files, include directories, libraries and defines to the project, depending on the selected platform, graphics api and build flags.
 
 ## `/paint`
 
-Contains armorpaint specific code & assets only. The `project.js` file adds this specific code to the final project.
+Contains armorpaint specific code & assets only. The `project.c` file adds this specific code to the final project.

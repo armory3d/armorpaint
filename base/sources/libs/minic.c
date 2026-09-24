@@ -335,6 +335,11 @@ static void minic_lex_next(minic_lexer_t *l) {
 				l->cur.val  = minic_val_int(l->cur.text[0] == 't');
 				return;
 			}
+			if (l->cur.text[0] == 'N' && strcmp(l->cur.text, "NULL") == 0) {
+				l->cur.type = TOK_NUMBER;
+				l->cur.val  = minic_val_int(0);
+				return;
+			}
 			l->cur.type = TOK_IDENT;
 			return;
 		}
@@ -1081,6 +1086,23 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, minic_tok_type_t op
 	return minic_val_coerce(r, rt);
 }
 
+static int minic_sig_param_count(const char *sig) {
+	const char *open = strchr(sig, '(');
+	if (open == NULL || strstr(sig, "...") != NULL) {
+		return -1;
+	}
+	if (open[1] == ')') {
+		return 0;
+	}
+	int count = 1;
+	for (const char *c = open + 1; *c != '\0' && *c != ')'; ++c) {
+		if (*c == ',') {
+			count++;
+		}
+	}
+	return count;
+}
+
 // Parse a call argument list (after '(') and invoke a script or extern function
 static minic_val_t minic_parse_call(minic_env_t *e, const char *name) {
 	minic_val_t args[MINIC_MAX_ARGS];
@@ -1097,18 +1119,34 @@ static minic_val_t minic_parse_call(minic_env_t *e, const char *name) {
 		if (e->lex.cur.type == TOK_COMMA) {
 			minic_lex_next(&e->lex);
 		}
+		else if (e->lex.cur.type != TOK_RPAREN) {
+			minic_error(e, "expected ',' or ')' in call to '%s'", name);
+			return minic_val_int(0);
+		}
 	}
 	minic_expect(e, TOK_RPAREN);
+	if (e->error) {
+		return minic_val_int(0);
+	}
 	if (dropped > 0) {
 		minic_error(e, "too many arguments (max %d)", MINIC_MAX_ARGS);
 		return minic_val_int(0);
 	}
 	minic_func_t *fn = minic_func_get(e, name);
 	if (fn != NULL) {
+		if (argc != fn->param_count) {
+			minic_error(e, "'%s' expects %d arguments, got %d", name, fn->param_count, argc);
+			return minic_val_int(0);
+		}
 		return minic_call(e, fn, args, argc);
 	}
 	minic_ext_func_t *ext = minic_ext_func_get(name);
 	if (ext != NULL) {
+		int count = minic_sig_param_count(ext->sig);
+		if (count >= 0 && argc != count) {
+			minic_error(e, "'%s' expects %d arguments, got %d", name, count, argc);
+			return minic_val_int(0);
+		}
 		return minic_dispatch(ext, args, argc);
 	}
 	minic_error(e, "unknown function '%s'", name);
@@ -1182,6 +1220,10 @@ static minic_expr_t minic_parse_atom(minic_env_t *e) {
 		bool assigning = e->lex.cur.type == TOK_ASSIGN || minic_is_compound_assign(e->lex.cur.type) || e->lex.cur.type == TOK_INC || e->lex.cur.type == TOK_DEC;
 		if (var == NULL && !assigning && minic_global_get(name, &global)) {
 			return minic_value(global);
+		}
+		if (var == NULL && e->lex.cur.type != TOK_ASSIGN) {
+			minic_error(e, "unknown identifier '%s'", name);
+			return minic_value(minic_val_int(0));
 		}
 		if (var == NULL) {
 			var = minic_var_decl(e, name, minic_scalar_type(MINIC_T_VOID), minic_val_int(0));
@@ -2253,6 +2295,10 @@ void minic_ctx_free(minic_ctx_t *ctx) {
 
 float minic_ctx_result(minic_ctx_t *ctx) {
 	return ctx != NULL ? ctx->result : -1.0f;
+}
+
+minic_val_t minic_ctx_return_val(minic_ctx_t *ctx) {
+	return ctx != NULL ? ctx->e.return_val : minic_val_int(0);
 }
 
 // ███████╗██╗  ██╗████████╗███████╗██████╗ ███╗   ██╗ █████╗ ██╗
