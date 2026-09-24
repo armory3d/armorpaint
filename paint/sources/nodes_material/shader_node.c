@@ -6,8 +6,20 @@ char *shader_node_text(ui_node_t *node) {
 	return but->data != NULL ? (char *)but->data->buffer : "";
 }
 
+static char *shader_node_constants[][3] = {
+    {"time", "float", "_time"},
+};
+
+static i32 shader_node_constants_count = sizeof(shader_node_constants) / sizeof(shader_node_constants[0]);
+
 char *shader_node_call(ui_node_t *node, char *type, char *suffix) {
-	char *text  = shader_node_text(node);
+	char *text = shader_node_text(node);
+	for (i32 i = 0; i < shader_node_constants_count; ++i) {
+		char *name = shader_node_constants[i][0];
+		if (string_index_of(text, string("constants.%s", name)) != -1) {
+			node_shader_add_constant(parser_material_kong, string("%s %s", shader_node_constants[i][1], name), shader_node_constants[i][2]);
+		}
+	}
 	char *fname = string("shader_node_%s_%s", parser_material_node_name(node, NULL), suffix);
 	node_shader_add_function(parser_material_kong, string("%s %s(float2 tex_coord) {\n%s\n}", type, fname, text));
 	node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
@@ -22,6 +34,26 @@ char *shader_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 char *shader_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *str = shader_node_text(node);
 	return string_equals(str, "") ? "0.0" : shader_node_call(node, "float", "value");
+}
+
+char *shader_node_reference() {
+	buffer_t sb;
+	string_buffer_init(&sb);
+	string_buffer_append(&sb, "//     Constants:");
+	for (i32 i = 0; i < shader_node_constants_count; ++i) {
+		string_buffer_append(&sb, string("%s %s constants.%s", i > 0 ? "," : "", shader_node_constants[i][1], shader_node_constants[i][0]));
+	}
+	string_buffer_append(&sb, "\n"
+	                          "//     Example:\n"
+	                          "//     ui_node_t *sh = script_material_create_node_at(\"SHADER_GPU\", -400.0, 0.0);\n"
+	                          "//     script_material_set_text(sh, 0, \"float2 c = frac(tex_coord * 8.0);\\n"
+	                          "float d = length(c - float2(0.5, 0.5));\\n"
+	                          "return lerp(float3(1.0, 0.8, 0.2), float3(0.1, 0.1, 0.3), smoothstep(0.28, 0.3, d));\");\n"
+	                          "//     script_material_connect(sh, 0, script_material_get_node(\"OUTPUT_MATERIAL_PBR\"), 0);\n"
+	                          "//     script_material_update();\n");
+	char *result = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return result;
 }
 
 ui_node_button_t *shader_node_dirty = NULL;

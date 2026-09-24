@@ -538,6 +538,7 @@ X4(script_material_set_float, "v(p:ui_node_t node,i is_input,i socket,f value)",
 X7(script_material_set_color, "v(p:ui_node_t node,i is_input,i socket,f r,f g,f b,f a)", v, p, i, i, f, f, f, f)
 X6(script_material_set_vector, "v(p:ui_node_t node,i is_input,i socket,f x,f y,f z)", v, p, i, i, f, f, f)
 X3(script_material_set_button, "v(p:ui_node_t node,i button,f value)", v, p, i, f)
+X3(script_material_set_text, "v(p:ui_node_t node,i button,p:char text)", v, p, i, p)
 X0(script_material_update, "v()", v)
 X1(context_set_viewport_shader, "v(p viewport_shader)", v, p)
 X1(context_set_viewport_mode, "v(i mode)", v, i)

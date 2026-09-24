@@ -127,6 +127,10 @@ static void text_to_text_node_write_node(buffer_t *sb, ui_node_t *n) {
 		}
 		string_buffer_append(sb, "\n");
 	}
+
+	if (string_equals(n->type, "SHADER_GPU")) {
+		string_buffer_append(sb, shader_node_reference());
+	}
 }
 
 static char *text_to_text_node_nodes_reference(void) {

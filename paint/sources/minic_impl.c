@@ -722,6 +722,17 @@ void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
 	but->default_value->buffer[0] = value;
 }
 
+void script_material_set_text(ui_node_t *node, i32 button, char *text) {
+	if (node == NULL || text == NULL || button < 0 || button >= node->buttons->length) {
+		return;
+	}
+	ui_node_button_t *but = node->buttons->buffer[button];
+	but->data             = u8_array_create_from_string(text);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
 void script_material_update(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return;
