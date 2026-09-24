@@ -21,6 +21,7 @@ static VkRect2D                         current_scissor;
 static gpu_buffer_t                    *current_vb;
 static gpu_buffer_t                    *current_ib;
 static VkDescriptorSetLayout            descriptor_layout;
+static gpu_texture_t                    dummy_texture;
 static VkDescriptorSet                  descriptor_sets[GPU_CONSTANT_BUFFER_MULTIPLE];
 static VkRenderingInfo                  current_rendering_info;
 static VkRenderingAttachmentInfo        current_color_attachment_infos[8];
@@ -1024,6 +1025,9 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	    .flags = VK_FENCE_CREATE_SIGNALED_BIT,
 	};
 	vkCreateFence(device, &fence_info, NULL, &fence);
+
+	uint8_t dummy_pixel[4] = {0, 0, 0, 0};
+	gpu_texture_init_from_bytes(&dummy_texture, dummy_pixel, 1, 1, GPU_TEXTURE_FORMAT_RGBA32, false);
 }
 
 void iron_vulkan_surface_destroyed() {
@@ -1352,10 +1356,9 @@ static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
 	VkDescriptorImageInfo tex_desc[GPU_MAX_TEXTURES];
 	memset(&tex_desc, 0, sizeof(tex_desc));
 	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
-		if (current_textures[i] != NULL) {
-			tex_desc[i].imageView   = current_textures[i]->impl.view;
-			tex_desc[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		}
+		gpu_texture_t *texture  = current_textures[i] != NULL ? current_textures[i] : &dummy_texture;
+		tex_desc[i].imageView   = texture->impl.view;
+		tex_desc[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	}
 
 	VkWriteDescriptorSet writes[18];
@@ -1382,15 +1385,13 @@ static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
 	write_count++;
 
 	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
-		if (current_textures[i] != NULL) {
-			writes[2 + i].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writes[2 + i].dstSet          = descriptor_set;
-			writes[2 + i].dstBinding      = i + 2;
-			writes[2 + i].descriptorCount = 1;
-			writes[2 + i].descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			writes[2 + i].pImageInfo      = &tex_desc[i];
-			write_count++;
-		}
+		writes[write_count].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[write_count].dstSet          = descriptor_set;
+		writes[write_count].dstBinding      = i + 2;
+		writes[write_count].descriptorCount = 1;
+		writes[write_count].descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		writes[write_count].pImageInfo      = &tex_desc[i];
+		write_count++;
 	}
 
 	vkUpdateDescriptorSets(device, write_count, writes, 0, NULL);
