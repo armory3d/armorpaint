@@ -67,9 +67,9 @@ float4 frag(vert_out input) {
 	//for (int i = 0; i < int(constants.params.y); i += 1) {
 	int i = 0;
 	while (i < int(constants.params.y)) {
-		float3 dir = normalize(lerp3(n, cos_weighted_hemisphere_direction(n, input.tex, float(i) + constants.params.w * constants.params.y), constants.params.x));
+		float3 dir = normalize(lerp(n, cos_weighted_hemisphere_direction(n, input.tex, float(i) + constants.params.w * constants.params.y), constants.params.x));
 		float3 sampled = sample(radiance, sampler_linear, equirect(dir)).rgb;
-		sampled = min3(sampled, float3(10.0, 10.0, 10.0));
+		sampled = min(sampled, float3(10.0, 10.0, 10.0));
 		color.rgb = color.rgb + sampled;
 
 		//

@@ -17,32 +17,32 @@ char *mix_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	char *out_col = "";
 	if (string_equals(blend, "MIX")) {
-		out_col = string_tmp("lerp3(%s, %s, %s)", col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s, %s)", col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "DARKEN")) {
-		out_col = string_tmp("min3(%s, %s * %s)", col1, col2, fac_var);
+		out_col = string_tmp("min(%s, %s * %s)", col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "MULTIPLY")) {
-		out_col = string_tmp("lerp3(%s, %s * %s, %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s * %s, %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "BURN")) {
-		out_col = string_tmp("lerp3(%s, float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) / %s, %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) / %s, %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "LIGHTEN")) {
-		out_col = string_tmp("max3(%s, %s * %s)", col1, col2, fac_var);
+		out_col = string_tmp("max(%s, %s * %s)", col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "SCREEN")) {
 		char *v3 = parser_material_to_vec3(string_tmp("1.0 - %s", fac_var));
 		out_col  = string_tmp("(float3(1.0, 1.0, 1.0) - (%s + %s * (float3(1.0, 1.0, 1.0) - %s)) * (float3(1.0, 1.0, 1.0) - %s))", v3, fac_var, col2, col1);
 	}
 	else if (string_equals(blend, "DODGE")) {
-		out_col = string_tmp("lerp3(%s, %s / (float3(1.0, 1.0, 1.0) - %s), %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s / (float3(1.0, 1.0, 1.0) - %s), %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "ADD")) {
-		out_col = string_tmp("lerp3(%s, %s + %s, %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s + %s, %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "OVERLAY")) {
-		// out_col = "lerp3(" + col1 + ", float3( \
+		// out_col = "lerp(" + col1 + ", float3( \
 		// 	" + col1 + ".r < 0.5 ? 2.0 * " + col1 + ".r * " + col2 + ".r : 1.0 - 2.0 * (1.0 - " + col1 + ".r) * (1.0 - " + col2 + ".r), \
 		// 	" + col1 + ".g < 0.5 ? 2.0 * " + col1 + ".g * " + col2 + ".g : 1.0 - 2.0 * (1.0 - " + col1 + ".g) * (1.0 - " + col2 + ".g), \
 		// 	" + col1 + ".b < 0.5 ? 2.0 * " + col1 + ".b * " + col2 + ".b : 1.0 - 2.0 * (1.0 - " + col1 + ".b) * (1.0 - " + col2 + ".b) \
@@ -63,7 +63,7 @@ char *mix_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		parser_material_write(parser_material_kong,
 		                      string_tmp("if (%s.b < 0.5) { %s = 2.0 * %s.b * %s.b; } else { %s = 1.0 - 2.0 * (1.0 - %s.b) * (1.0 - %s.b); }", col1, res_b,
 		                                 col1, col2, res_b, col1, col2));
-		out_col = string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", col1, res_r, res_g, res_b, fac_var);
+		out_col = string_tmp("lerp(%s, float3(%s, %s, %s), %s)", col1, res_r, res_g, res_b, fac_var);
 	}
 	else if (string_equals(blend, "SOFT_LIGHT")) {
 		out_col = string_tmp("((1.0 - %s) * %s + %s * ((float3(1.0, 1.0, 1.0) - %s) * %s * %s + %s * (float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) * "
@@ -74,40 +74,40 @@ char *mix_color_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		out_col = string_tmp("(%s + %s * (float3(2.0, 2.0, 2.0) * (%s - float3(0.5, 0.5, 0.5))))", col1, fac_var, col2);
 	}
 	else if (string_equals(blend, "DIFFERENCE")) {
-		out_col = string_tmp("lerp3(%s, abs3(%s - %s), %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, abs(%s - %s), %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "EXCLUSION")) {
-		out_col = string_tmp("lerp3(%s, %s + %s - 2.0 * %s * %s, %s)", col1, col1, col2, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s + %s - 2.0 * %s * %s, %s)", col1, col1, col2, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "SUBTRACT")) {
-		out_col = string_tmp("lerp3(%s, %s - %s, %s)", col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, %s - %s, %s)", col1, col1, col2, fac_var);
 	}
 	else if (string_equals(blend, "DIVIDE")) {
 		f32   eps   = 0.000001;
 		char *eps_s = f32_to_string(eps);
-		col2        = string_tmp("max3(%s, float3(%s, %s, %s))", col2, eps_s, eps_s, eps_s);
+		col2        = string_tmp("max(%s, float3(%s, %s, %s))", col2, eps_s, eps_s, eps_s);
 		char *v3    = string_tmp("(float3(1.0, 1.0, 1.0) - float3(%s, %s, %s)) * %s + float3(%s, %s, %s) * %s / %s", fac_var, fac_var, fac_var, col1, fac_var,
 		                         fac_var, fac_var, col1, col2);
 		out_col     = string_tmp("(%s)", v3);
 	}
 	else if (string_equals(blend, "HUE")) {
 		node_shader_add_function(parser_material_kong, str_hue_sat);
-		out_col = string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col2, col1, col1, fac_var);
+		out_col = string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col2, col1, col1, fac_var);
 	}
 	else if (string_equals(blend, "SATURATION")) {
 		node_shader_add_function(parser_material_kong, str_hue_sat);
-		out_col = string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col1, col2, col1, fac_var);
+		out_col = string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col1, col2, col1, fac_var);
 	}
 	else if (string_equals(blend, "COLOR")) {
 		node_shader_add_function(parser_material_kong, str_hue_sat);
-		out_col = string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col2, col2, col1, fac_var);
+		out_col = string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col2, col2, col1, fac_var);
 	}
 	else if (string_equals(blend, "VALUE")) {
 		node_shader_add_function(parser_material_kong, str_hue_sat);
-		out_col = string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col1, col1, col2, fac_var);
+		out_col = string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", col1, col1, col1, col2, fac_var);
 	}
 	if (clamp_result) {
-		return string_tmp("clamp3(%s, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0))", out_col);
+		return string_tmp("clamp(%s, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0))", out_col);
 	}
 	else {
 		return out_col;

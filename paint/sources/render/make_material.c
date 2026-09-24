@@ -426,32 +426,32 @@ void make_material_parse_brush() {
 
 char *make_material_blend_mode(node_shader_t *kong, i32 blending, char *cola, char *colb, char *opac) {
 	if (blending == BLEND_TYPE_MIX) {
-		return string_tmp("lerp3(%s, %s, %s)", cola, colb, opac);
+		return string_tmp("lerp(%s, %s, %s)", cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_DARKEN) {
-		return string_tmp("lerp3(%s, min3(%s, %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, min(%s, %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_MULTIPLY) {
-		return string_tmp("lerp3(%s, %s * %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s * %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_BURN) {
-		return string_tmp("lerp3(%s, float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) / %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) / %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_LIGHTEN) {
-		return string_tmp("max3(%s, %s * %s)", cola, colb, opac);
+		return string_tmp("max(%s, %s * %s)", cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_SCREEN) {
 		return string_tmp("(float3(1.0, 1.0, 1.0) - (float3(1.0 - %s, 1.0 - %s, 1.0 - %s) + %s * (float3(1.0, 1.0, 1.0) - %s)) * (float3(1.0, 1.0, 1.0) - %s))",
 		                  opac, opac, opac, opac, colb, cola);
 	}
 	else if (blending == BLEND_TYPE_DODGE) {
-		return string_tmp("lerp3(%s, %s / (float3(1.0, 1.0, 1.0) - %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s / (float3(1.0, 1.0, 1.0) - %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_ADD) {
-		return string_tmp("lerp3(%s, %s + %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s + %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_OVERLAY) {
-		// return "lerp3(" + cola + ", float3( \
+		// return "lerp(" + cola + ", float3( \
 		// 	" + cola + ".r < 0.5 ? 2.0 * " + cola + ".r * " + colb + ".r : 1.0 - 2.0 * (1.0 - " + cola + ".r) * (1.0 - " + colb + ".r), \
 		// 	" + cola + ".g < 0.5 ? 2.0 * " + cola + ".g * " + colb + ".g : 1.0 - 2.0 * (1.0 - " + cola + ".g) * (1.0 - " + colb + ".g), \
 		// 	" + cola + ".b < 0.5 ? 2.0 * " + cola + ".b * " + colb + ".b : 1.0 - 2.0 * (1.0 - " + cola + ".b) * (1.0 - " + colb + ".b) \
@@ -472,7 +472,7 @@ char *make_material_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 		                                        res_g, cola_rgb, colb_rgb, res_g, cola_rgb, colb_rgb));
 		node_shader_write_frag(kong, string_tmp("if (%s.b < 0.5) { %s = 2.0 * %s.b * %s.b; } else { %s = 1.0 - 2.0 * (1.0 - %s.b) * (1.0 - %s.b); }", cola_rgb,
 		                                        res_b, cola_rgb, colb_rgb, res_b, cola_rgb, colb_rgb));
-		return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", cola, res_r, res_g, res_b, opac);
+		return string_tmp("lerp(%s, float3(%s, %s, %s), %s)", cola, res_r, res_g, res_b, opac);
 	}
 	else if (blending == BLEND_TYPE_SOFT_LIGHT) {
 		return string_tmp("((1.0 - %s) * %s + %s * ((float3(1.0, 1.0, 1.0) - %s) * %s * %s + %s * (float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - %s) * "
@@ -483,29 +483,29 @@ char *make_material_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 		return string_tmp("(%s + %s * (float3(2.0, 2.0, 2.0) * (%s - float3(0.5, 0.5, 0.5))))", cola, opac, colb);
 	}
 	else if (blending == BLEND_TYPE_DIFFERENCE) {
-		return string_tmp("lerp3(%s, abs3(%s - %s), %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, abs(%s - %s), %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_SUBTRACT) {
-		return string_tmp("lerp3(%s, %s - %s, %s)", cola, cola, colb, opac);
+		return string_tmp("lerp(%s, %s - %s, %s)", cola, cola, colb, opac);
 	}
 	else if (blending == BLEND_TYPE_DIVIDE) {
 		return string_tmp("float3(1.0 - %s, 1.0 - %s, 1.0 - %s) * %s + float3(%s, %s, %s) * %s / %s", opac, opac, opac, cola, opac, opac, opac, cola, colb);
 	}
 	else if (blending == BLEND_TYPE_HUE) {
 		node_shader_add_function(kong, str_hue_sat);
-		return string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, colb, cola, cola, opac);
+		return string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, colb, cola, cola, opac);
 	}
 	else if (blending == BLEND_TYPE_SATURATION) {
 		node_shader_add_function(kong, str_hue_sat);
-		return string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, cola, colb, cola, opac);
+		return string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, cola, colb, cola, opac);
 	}
 	else if (blending == BLEND_TYPE_COLOR) {
 		node_shader_add_function(kong, str_hue_sat);
-		return string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, colb, colb, cola, opac);
+		return string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, colb, colb, cola, opac);
 	}
 	else { // BlendValue
 		node_shader_add_function(kong, str_hue_sat);
-		return string_tmp("lerp3(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, cola, cola, colb, opac);
+		return string_tmp("lerp(%s, hsv_to_rgb(float3(rgb_to_hsv(%s).r, rgb_to_hsv(%s).g, rgb_to_hsv(%s).b)), %s)", cola, cola, cola, colb, opac);
 	}
 }
 

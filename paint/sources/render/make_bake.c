@@ -20,8 +20,8 @@ void make_bake_run(node_shader_context_t *con, node_shader_t *kong) {
 		radius         = string_tmp("float(%s)", radius);
 		offset         = string_tmp("float(%s)", offset);
 		kong->frag_n   = true;
-		node_shader_write_frag(kong, "float3 dx = ddx3(n);");
-		node_shader_write_frag(kong, "float3 dy = ddy3(n);");
+		node_shader_write_frag(kong, "float3 dx = ddx(n);");
+		node_shader_write_frag(kong, "float3 dy = ddy(n);");
 		node_shader_write_frag(kong, "float curvature = max(dot(dx, dx), dot(dy, dy));");
 		node_shader_write_frag(kong,
 		                       string_tmp("curvature = clamp(pow(curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);", radius, strength, offset));
@@ -58,8 +58,8 @@ void make_bake_run(node_shader_context_t *con, node_shader_t *kong) {
 	}
 	else if (g_context->bake_type == BAKE_TYPE_DERIVATIVE) {
 		node_shader_add_texture(kong, "texpaint_undo", "_texpaint_undo"); // Baked height
-		node_shader_write_frag(kong, "float2 tex_dx = ddx2(tex_coord);");
-		node_shader_write_frag(kong, "float2 tex_dy = ddy2(tex_coord);");
+		node_shader_write_frag(kong, "float2 tex_dx = ddx(tex_coord);");
+		node_shader_write_frag(kong, "float2 tex_dy = ddy(tex_coord);");
 		node_shader_write_frag(kong, "float h0 = sample_lod(texpaint_undo, sampler_linear, tex_coord, 0.0).r * 100.0;");
 		node_shader_write_frag(kong, "float h1 = sample_lod(texpaint_undo, sampler_linear, tex_coord + tex_dx, 0.0).r * 100.0;");
 		node_shader_write_frag(kong, "float h2 = sample_lod(texpaint_undo, sampler_linear, tex_coord + tex_dy, 0.0).r * 100.0;");

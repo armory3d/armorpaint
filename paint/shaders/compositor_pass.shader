@@ -61,7 +61,7 @@ float4 frag(vert_out input) {
 
 	if (constants.lut_size > 0.0) {
 		// .cube lut color grading
-		color.rgb = pow3(max3(color.rgb, float3(0.0, 0.0, 0.0)), float3(0.4545, 0.4545, 0.4545));
+		color.rgb = pow(max(color.rgb, float3(0.0, 0.0, 0.0)), float3(0.4545, 0.4545, 0.4545));
 		float r_s = min(max(color.x, 0.0), 1.0) * (constants.lut_size - 1.0);
 		float g_s = min(max(color.y, 0.0), 1.0) * (constants.lut_size - 1.0);
 		float b_s = min(max(color.z, 0.0), 1.0) * (constants.lut_size - 1.0);
@@ -74,11 +74,11 @@ float4 frag(vert_out input) {
 		float v = (g_s + 0.5) / constants.lut_size;
 		float4 s0 = sample_lod(lut_tex, sampler_linear, float2(u0, v), 0.0);
 		float4 s1 = sample_lod(lut_tex, sampler_linear, float2(u1, v), 0.0);
-		color.rgb = lerp3(s0.rgb, s1.rgb, float3(b_frac, b_frac, b_frac));
+		color.rgb = lerp(s0.rgb, s1.rgb, float3(b_frac, b_frac, b_frac));
 	}
 	else {
 		// Tonemap with gamma
-		color.rgb = lerp3(color.rgb, tonemap_filmic(color.rgb), constants.tonemap_strength);
+		color.rgb = lerp(color.rgb, tonemap_filmic(color.rgb), constants.tonemap_strength);
 	}
 
 	// Contrast
@@ -86,7 +86,7 @@ float4 frag(vert_out input) {
 
 	// Gamma
 	float inv_gamma = 1.0 / max(constants.gamma_strength, 0.01);
-	color.rgb = pow3(max3(color.rgb, float3(0.0, 0.0, 0.0)), float3(inv_gamma, inv_gamma, inv_gamma));
+	color.rgb = pow(max(color.rgb, float3(0.0, 0.0, 0.0)), float3(inv_gamma, inv_gamma, inv_gamma));
 
 	return color;
 }

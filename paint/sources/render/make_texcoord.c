@@ -156,7 +156,7 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 		kong->frag_n         = true;
 		node_shader_write_attrib_frag(kong, "float3 tri_weight = input.wnormal * input.wnormal;");
 		node_shader_write_attrib_frag(kong, "float tri_max = max(tri_weight.x, max(tri_weight.y, tri_weight.z));");
-		node_shader_write_attrib_frag(kong, "tri_weight = max3(tri_weight - float3(tri_max * 0.75, tri_max * 0.75, tri_max * 0.75), float3(0.0, 0.0, 0.0));");
+		node_shader_write_attrib_frag(kong, "tri_weight = max(tri_weight - float3(tri_max * 0.75, tri_max * 0.75, tri_max * 0.75), float3(0.0, 0.0, 0.0));");
 		node_shader_write_attrib_frag(kong, "float3 tex_coord_blend = tri_weight * (1.0 / (tri_weight.x + tri_weight.y + tri_weight.z));");
 		node_shader_write_attrib_frag(kong, string_tmp("float2 tex_coord = input.wposition.yz * %s * 0.5;", scale));
 		node_shader_write_attrib_frag(kong, string_tmp("float2 tex_coord1 = input.wposition.xz * %s * 0.5;", scale));

@@ -4,7 +4,7 @@
 char *quantize_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *strength = parser_material_parse_value_input(node->inputs->buffer[0], false);
 	char *col      = parser_material_parse_vector_input(node->inputs->buffer[1]);
-	return string_tmp("(floor3(100.0 * %s * %s) / (100.0 * %s))", strength, col, strength);
+	return string_tmp("(floor(100.0 * %s * %s) / (100.0 * %s))", strength, col, strength);
 }
 
 void quantize_node_init() {

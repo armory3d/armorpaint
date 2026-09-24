@@ -110,11 +110,11 @@ float2 octahedron_wrap(float2 v) {
 // }
 
 float3 surface_albedo(float3 base_color, float metalness) {
-	return lerp3(base_color, float3(0.0, 0.0, 0.0), metalness);
+	return lerp(base_color, float3(0.0, 0.0, 0.0), metalness);
 }
 
 float3 surface_f0(float3 base_color, float metalness) {
-	return lerp3(float3(0.04, 0.04, 0.04), base_color, metalness);
+	return lerp(float3(0.04, 0.04, 0.04), base_color, metalness);
 }
 
 float3 get_pos(float3 eye, float3 eye_look, float3 view_ray, float depth, float2 camera_proj) {
@@ -264,7 +264,7 @@ float4 frag(vert_out input) {
 	float2 envmap_coord = envmap_equirect(reflection_world, constants.envmap_data.x);
 	float3 lodc0 = envmap_sample(lod0, envmap_coord);
 	float3 lodc1 = envmap_sample(lod1, envmap_coord);
-	float3 prefiltered_color = lerp3(lodc0, lodc1, lodf);
+	float3 prefiltered_color = lerp(lodc0, lodc1, lodf);
 
 	// Emission - basecolor holds the emitted color, it is not an albedo
 	float3 emission = float3(0.0, 0.0, 0.0);
@@ -280,7 +280,7 @@ float4 frag(vert_out input) {
 	float4 color;
 	color.rgb = envl.rgb + emission;
 
-	color.rgb = max3(color.rgb, float3(0.0, 0.0, 0.0));
+	color.rgb = max(color.rgb, float3(0.0, 0.0, 0.0));
 	color.a = 1.0; // Mark as opaque
 	return color;
 }

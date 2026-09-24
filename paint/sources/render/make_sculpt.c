@@ -463,7 +463,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 		node_shader_write_attrib_frag(kong, "tri_nor = normalize((constants.W * float4(normalize(tri_nor), 0.0)).xyz);");
 		node_shader_write_attrib_frag(kong, "float3 tri_weight = tri_nor * tri_nor;");
 		node_shader_write_attrib_frag(kong, "float tri_max = max(tri_weight.x, max(tri_weight.y, tri_weight.z));");
-		node_shader_write_attrib_frag(kong, "tri_weight = max3(tri_weight - float3(tri_max * 0.75, tri_max * 0.75, tri_max * 0.75), float3(0.0, 0.0, 0.0));");
+		node_shader_write_attrib_frag(kong, "tri_weight = max(tri_weight - float3(tri_max * 0.75, tri_max * 0.75, tri_max * 0.75), float3(0.0, 0.0, 0.0));");
 		node_shader_write_attrib_frag(kong, "float3 tex_coord_blend = tri_weight * (1.0 / (tri_weight.x + tri_weight.y + tri_weight.z));");
 		node_shader_write_attrib_frag(kong, "tex_coord = wposition.yz * constants.brush_scale * 0.5;");
 		node_shader_write_attrib_frag(kong, "float2 tex_coord1 = wposition.xz * constants.brush_scale * 0.5;");
@@ -808,7 +808,7 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	node_shader_write_attrib_vert(kong, "float3 meshnor = normalize(cross(meshpos2.xyz - meshpos1.xyz, meshpos0.xyz - meshpos1.xyz));");
 	node_shader_write_attrib_vert(kong, "output.wnormal = constants.N * meshnor;");
 	// Reconstruct the face normal from the masked world position
-	node_shader_write_attrib_frag(kong, "float3 n = normalize(cross(ddx3(input.wposition), ddy3(input.wposition)));");
+	node_shader_write_attrib_frag(kong, "float3 n = normalize(cross(ddx(input.wposition), ddy(input.wposition)));");
 	node_shader_write_attrib_frag(kong, "if (dot(n, normalize(input.wnormal)) < 0.0) { n = -n; }");
 }
 

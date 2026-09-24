@@ -29,5 +29,5 @@ vert_out vert(vert_in input) {
 float4 frag(vert_out input) {
 	float4 current = sample_lod(tex, sampler_linear, input.tex, 0.0);
 	float4 previous = sample_lod(tex2, sampler_linear, input.tex, 0.0);
-	return float4(lerp3(current.rgb, previous.rgb, constants.taa_blend), 1.0);
+	return float4(lerp(current.rgb, previous.rgb, constants.taa_blend), 1.0);
 }

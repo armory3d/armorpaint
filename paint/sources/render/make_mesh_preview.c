@@ -54,7 +54,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	char *opac                         = sout->out_opacity;
 	char *height                       = sout->out_height;
 	char *nortan                       = parser_material_out_normaltan;
-	node_shader_write_frag(kong, string_tmp("float3 basecol = pow3(%s, float3(2.2, 2.2, 2.2));", base));
+	node_shader_write_frag(kong, string_tmp("float3 basecol = pow(%s, float3(2.2, 2.2, 2.2));", base));
 	node_shader_write_frag(kong, string_tmp("float roughness = %s;", rough));
 	node_shader_write_frag(kong, string_tmp("float metallic = %s;", met));
 	node_shader_write_frag(kong, string_tmp("float occlusion = %s;", occ));
@@ -122,7 +122,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	else {
 		node_shader_write_frag(
 		    kong, "output[0] = float4(n.x, n.y, lerp(1.0, roughness, opacity), pack_f32_i16(lerp(1.0, metallic, opacity), uint(0)));"); // metallic/matid
-		node_shader_write_frag(kong, "output[1] = float4(lerp3(float3(0.0, 0.0, 0.0), basecol, opacity), occlusion);");
+		node_shader_write_frag(kong, "output[1] = float4(lerp(float3(0.0, 0.0, 0.0), basecol, opacity), occlusion);");
 	}
 
 	if (viewport) {

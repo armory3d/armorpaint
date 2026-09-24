@@ -26,7 +26,7 @@ float3 tex_brick(float3 co, float3 c1, float3 c2, float3 cm, float scale, float 
 		if (mortar_smooth == 0.0) { f = 1.0; } \
 		if (mortar_smooth > 0.0) { f = smoothstep(0.0, mortar_smooth, 1.0 - min_dist / mortar_size); } \
 	} \
-	return lerp3(lerp3(c1, c2, tint), cm, f); \
+	return lerp(lerp(c1, c2, tint), cm, f); \
 } \
 float tex_brick_f(float3 co, float scale, float mortar_size, float mortar_smooth, float brick_width, float row_height, float offset_amount, float offset_frequency, float squash_amount, float squash_frequency) { \
 	float3 p = co * scale; \

@@ -69,10 +69,10 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	if (parser_material_transform_color_space) {
 		// Base color socket auto-converts from sRGB to linear
 		if (color_space == COLOR_SPACE_LINEAR && parser_material_parsing_basecolor) { // Linear to sRGB
-			parser_material_write(parser_material_kong, string_tmp("%s.rgb = pow3(%s.rgb, float3(2.2, 2.2, 2.2));", tex_store, tex_store));
+			parser_material_write(parser_material_kong, string_tmp("%s.rgb = pow(%s.rgb, float3(2.2, 2.2, 2.2));", tex_store, tex_store));
 		}
 		else if (color_space == COLOR_SPACE_SRGB && !parser_material_parsing_basecolor) { // sRGB to linear
-			parser_material_write(parser_material_kong, string_tmp("%s.rgb = pow3(%s.rgb, float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));", tex_store, tex_store));
+			parser_material_write(parser_material_kong, string_tmp("%s.rgb = pow(%s.rgb, float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));", tex_store, tex_store));
 		}
 		else if (color_space == COLOR_SPACE_DIRECTX_NORMAL_MAP) { // DirectX normal map to OpenGL normal map
 			parser_material_write(parser_material_kong, string_tmp("%s.y = 1.0 - %s.y;", tex_store, tex_store));

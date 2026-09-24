@@ -114,7 +114,7 @@ float voronoi_2d_f2_fbm(float px, float py, float detail, float roughness, float
     return sum / max_amp; \
 } \
 float4 voronoi_3d_f1(float3 p, float r) { \
-    float3 cell = floor3(p); \
+    float3 cell = floor(p); \
     float3 lp = p - cell; \
     float min_dist = 8.0; \
     int bi = 0; int bj = 0; int bk = 0; \
@@ -133,7 +133,7 @@ float4 voronoi_3d_f1(float3 p, float r) { \
     return float4(min_dist, col.x, col.y, col.z); \
 } \
 float3 voronoi_3d_f1_pos(float3 p, float r) { \
-    float3 cell = floor3(p); \
+    float3 cell = floor(p); \
     float3 lp = p - cell; \
     float min_dist = 8.0; \
     int bi = 0; int bj = 0; int bk = 0; \
@@ -151,7 +151,7 @@ float3 voronoi_3d_f1_pos(float3 p, float r) { \
     return cell + off + bpt; \
 } \
 float4 voronoi_3d_f2(float3 p, float r) { \
-    float3 cell = floor3(p); \
+    float3 cell = floor(p); \
     float3 lp = p - cell; \
     float dist1 = 8.0; float dist2 = 8.0; \
     int b1i = 0; int b1j = 0; int b1k = 0; \
@@ -176,7 +176,7 @@ float4 voronoi_3d_f2(float3 p, float r) { \
     return float4(dist2, col.x, col.y, col.z); \
 } \
 float3 voronoi_3d_f2_pos(float3 p, float r) { \
-    float3 cell = floor3(p); \
+    float3 cell = floor(p); \
     float3 lp = p - cell; \
     float dist1 = 8.0; float dist2 = 8.0; \
     int b1i = 0; int b1j = 0; int b1k = 0; \

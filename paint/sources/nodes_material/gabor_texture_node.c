@@ -59,7 +59,7 @@ float3 tex_gabor_3d(float3 co, float scale, float frequency, float anisotropy, f
 	float isotropy = 1.0 - clamp(anisotropy, 0.0, 1.0); \
 	float3 base_ori = normalize(orientation); \
 	float3 p = co * scale; \
-	float3 cell = floor3(p); \
+	float3 cell = floor(p); \
 	float3 lp = p - cell; \
 	float inc_base = acos(clamp(base_ori.z, -1.0, 1.0)); \
 	float len_xy = sqrt(base_ori.x * base_ori.x + base_ori.y * base_ori.y); \

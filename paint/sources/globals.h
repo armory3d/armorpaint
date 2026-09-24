@@ -354,13 +354,13 @@ char *render_path_raytrace_ext = ".spirv";
 char *str_hue_sat = "\
 float3 hsv_to_rgb(float3 c) { \
 	float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); \
-	float3 p = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www); \
-	return lerp3(K.xxx, clamp3(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y) * c.z; \
+	float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www); \
+	return lerp(K.xxx, clamp(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y) * c.z; \
 } \
 float3 rgb_to_hsv(float3 c) { \
 	float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); \
-	float4 p = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
-	float4 q = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
+	float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
+	float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
 	float d = q.x - min(q.w, q.y); \
 	float e = 0.0000000001; \
 	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); \
@@ -370,7 +370,7 @@ float3 hue_sat(float3 col, float4 shift) { \
 	hsv.x += shift.x; \
 	hsv.y *= shift.y; \
 	hsv.z *= shift.z; \
-	return lerp3(hsv_to_rgb(hsv), col, shift.w); \
+	return lerp(hsv_to_rgb(hsv), col, shift.w); \
 } \
 ";
 
@@ -378,16 +378,16 @@ char *str_brightcontrast = "\
 float3 brightcontrast(float3 col, float bright, float contr) { \
 	float a = 1.0 + contr; \
 	float b = bright - contr * 0.5; \
-	return max3(a * col + b, float3(0.0, 0.0, 0.0)); \
+	return max(a * col + b, float3(0.0, 0.0, 0.0)); \
 } \
 ";
 
 char *str_cotangent_frame = "\
 float3x3 cotangent_frame(float3 n, float3 p, float2 tex_coord) { \
-	float2 duv1 = ddx2(tex_coord); \
-	float2 duv2 = ddy2(tex_coord); \
-	float3 dp1 = ddx3(p); \
-	float3 dp2 = ddy3(p); \
+	float2 duv1 = ddx(tex_coord); \
+	float2 duv2 = ddy(tex_coord); \
+	float3 dp1 = ddx(p); \
+	float3 dp2 = ddy(p); \
 	float3 dp2perp = cross(dp2, n); \
 	float3 dp1perp = cross(n, dp1); \
 	float3 t = dp2perp * duv1.x + dp1perp * duv2.x; \

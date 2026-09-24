@@ -123,7 +123,7 @@ char *vector_curves_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *vc1  = vector_curves_eval(string_tmp("%s_y", name), string_tmp("%s.y", vec), curves->buffer + 32 * 1, ny);
 	char *vc2  = vector_curves_eval(string_tmp("%s_z", name), string_tmp("%s.z", vec), curves->buffer + 32 * 2, nz);
 	// Blend between original and mapped using factor
-	return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", vec, vc0, vc1, vc2, fac);
+	return string_tmp("lerp(%s, float3(%s, %s, %s), %s)", vec, vc0, vc1, vc2, fac);
 }
 
 void nodes_material_vector_curves_button(i32 node_id) {

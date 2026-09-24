@@ -31,8 +31,8 @@ char *geometry_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 		f32   offset                 = 0.0;
 		char *store                  = parser_material_store_var_name(node);
 		parser_material_kong->frag_n = true;
-		parser_material_write(parser_material_kong, string_tmp("float3 %s_dx = ddx3(n);", store));
-		parser_material_write(parser_material_kong, string_tmp("float3 %s_dy = ddy3(n);", store));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_dx = ddx(n);", store));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s_dy = ddy(n);", store));
 		parser_material_write(parser_material_kong,
 		                      string_tmp("float %s_curvature = max(dot(%s_dx, %s_dx), dot(%s_dy, %s_dy));", store, store, store, store, store));
 		parser_material_write(parser_material_kong, string_tmp("%s_curvature = clamp(pow(%s_curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);",

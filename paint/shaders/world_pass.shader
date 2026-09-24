@@ -50,7 +50,7 @@ float4 frag(vert_out input) {
 	color.rgb = sample(envmap, sampler_linear, envmap_equirect(-n, constants.envmap_data_world.x)).rgb * constants.envmap_data_world.w;
 
 	// Tonemap with gamma - non-lit modes
-	color.rgb = lerp3(color.rgb, tonemap_filmic(color.rgb), constants.envmap_data_world.y);
+	color.rgb = lerp(color.rgb, tonemap_filmic(color.rgb), constants.envmap_data_world.y);
 
 	color.a = 0.0; // Mark as non-opaque
 	return color;

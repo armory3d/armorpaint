@@ -63,8 +63,8 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	node_shader_write_frag(kong, string_tmp("float metallic = %s;", f32_to_string_with_zeros(metallic)));
 
 	// Indirect lighting
-	node_shader_write_frag(kong, "float3 albedo = lerp3(basecol, float3(0.0, 0.0, 0.0), metallic);");
-	node_shader_write_frag(kong, "float3 f0 = lerp3(float3(0.04, 0.04, 0.04), basecol, metallic);");
+	node_shader_write_frag(kong, "float3 albedo = lerp(basecol, float3(0.0, 0.0, 0.0), metallic);");
+	node_shader_write_frag(kong, "float3 f0 = lerp(float3(0.04, 0.04, 0.04), basecol, metallic);");
 	node_shader_write_frag(kong, "float dotnv = max(0.0, dot(n, vvec));");
 	node_shader_write_frag(kong, "float3 wreflect = reflect(-vvec, n);");
 	node_shader_write_frag(kong, "float envlod = roughness * 5.0;");
@@ -74,16 +74,16 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	node_shader_write_frag(kong, "float2 envmap_coord = envmap_equirect(wreflect, constants.envmap_data.x);");
 	node_shader_write_frag(kong, "float3 lodc0 = envmap_sample(lod0, envmap_coord);");
 	node_shader_write_frag(kong, "float3 lodc1 = envmap_sample(lod1, envmap_coord);");
-	node_shader_write_frag(kong, "float3 prefiltered_color = lerp3(lodc0, lodc1, lodf);");
+	node_shader_write_frag(kong, "float3 prefiltered_color = lerp(lodc0, lodc1, lodf);");
 	// Rotate normal by envmap angle for irradiance
 	node_shader_write_frag(kong, "float3 indirect = albedo * (sh_irradiance(float3(n.x * constants.envmap_data.z + n.y * constants.envmap_data.y, n.y * "
 	                             "constants.envmap_data.z - n.x * constants.envmap_data.y, n.z)) / 3.14159265);");
 	node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv);");
 	node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
-	node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
+	node_shader_write_frag(kong, "indirect = max(indirect, float3(0.0, 0.0, 0.0));");
 
 	// Filmic tone-mapping (matches compositor_pass)
-	node_shader_write_frag(kong, "float3 tc = max3(indirect - float3(0.004, 0.004, 0.004), float3(0.0, 0.0, 0.0));");
+	node_shader_write_frag(kong, "float3 tc = max(indirect - float3(0.004, 0.004, 0.004), float3(0.0, 0.0, 0.0));");
 	node_shader_write_frag(kong,
 	                       "indirect = (tc * (tc * 6.2 + float3(0.5, 0.5, 0.5))) / (tc * (tc * 6.2 + float3(1.7, 1.7, 1.7)) + float3(0.06, 0.06, 0.06));");
 	node_shader_write_frag(kong, "output = float4(indirect, 1.0);");

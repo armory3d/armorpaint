@@ -28,5 +28,5 @@ vert_out vert(vert_in input) {
 float4 frag(vert_out input) {
 	float4 col0 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
 	float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
-	return lerp4(col0, col1, constants.factor);
+	return lerp(col0, col1, constants.factor);
 }

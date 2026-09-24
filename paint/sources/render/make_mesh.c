@@ -179,8 +179,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		texture_count++;
 		node_shader_add_texture(kong, "texcolorid", "_texcolorid");
 		node_shader_write_frag(kong, "output[0] = float4(n.xy, 1.0, pack_f32_i16(0.0, uint(0)));");
-		node_shader_write_frag(kong, string_tmp("float3 idcol = pow3(sample_lod(texcolorid, sampler_linear, %s, 0.0).rgb, float3(2.2, 2.2, 2.2));",
-		                                        tex_coord_layer));
+		node_shader_write_frag(kong,
+		                       string_tmp("float3 idcol = pow(sample_lod(texcolorid, sampler_linear, %s, 0.0).rgb, float3(2.2, 2.2, 2.2));", tex_coord_layer));
 		node_shader_write_frag(kong, "output[1] = float4(idcol.rgb, 1.0);"); // occ
 	}
 	else {
@@ -399,13 +399,13 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 						// Whiteout blend
 						node_shader_write_frag(kong, "{");
 						node_shader_write_frag(kong, "float3 n1 = ntex * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
-						node_shader_write_frag(kong, "float3 n2 = lerp3(float3(0.5, 0.5, 1.0), texpaint_nor_sample.rgb, texpaint_opac) * float3(2.0, 2.0, "
+						node_shader_write_frag(kong, "float3 n2 = lerp(float3(0.5, 0.5, 1.0), texpaint_nor_sample.rgb, texpaint_opac) * float3(2.0, 2.0, "
 						                             "2.0) - float3(1.0, 1.0, 1.0);");
 						node_shader_write_frag(kong, "ntex = normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5);");
 						node_shader_write_frag(kong, "}");
 					}
 					else {
-						node_shader_write_frag(kong, "ntex = lerp3(ntex, texpaint_nor_sample.rgb, texpaint_opac);");
+						node_shader_write_frag(kong, "ntex = lerp(ntex, texpaint_nor_sample.rgb, texpaint_opac);");
 					}
 				}
 			}
@@ -505,8 +505,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		node_shader_write_frag(kong, "n = normalize(TBN * n);");
 
 		if (g_context->viewport_mode == VIEWPORT_MODE_LIT || g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
-			node_shader_write_frag(kong, "basecol = pow3(basecol, float3(2.2, 2.2, 2.2));");
-			node_shader_write_frag(kong, "basecol = max3(basecol, float3(0.0, 0.0, 0.0));");
+			node_shader_write_frag(kong, "basecol = pow(basecol, float3(2.2, 2.2, 2.2));");
+			node_shader_write_frag(kong, "basecol = max(basecol, float3(0.0, 0.0, 0.0));");
 
 			if (g_context->viewport_shader != NULL) {
 				node_shader_write_frag(kong, "float3 output_color;");
@@ -515,8 +515,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				node_shader_write_frag(kong, "output[1] = float4(output_color, 1.0);");
 			}
 			else if (g_config->render_mode == RENDER_MODE_FORWARD && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE) {
-				node_shader_write_frag(kong, "float3 albedo = lerp3(basecol, float3(0.0, 0.0, 0.0), metallic);");
-				node_shader_write_frag(kong, "float3 f0 = lerp3(float3(0.04, 0.04, 0.04), basecol, metallic);");
+				node_shader_write_frag(kong, "float3 albedo = lerp(basecol, float3(0.0, 0.0, 0.0), metallic);");
+				node_shader_write_frag(kong, "float3 f0 = lerp(float3(0.04, 0.04, 0.04), basecol, metallic);");
 				kong->frag_vvec = true;
 				node_shader_write_frag(kong, "float dotnv = dot(n, vvec);");
 				node_shader_write_frag(kong, "if (dotnv < 0.05) { n = normalize(n + vvec * (0.05 - dotnv)); dotnv = dot(n, vvec); }");
@@ -538,7 +538,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				node_shader_write_frag(kong, "float2 envmap_coord = envmap_equirect(wreflect, constants.envmap_data.x);");
 				node_shader_write_frag(kong, "float3 lodc0 = envmap_sample(lod0, envmap_coord);");
 				node_shader_write_frag(kong, "float3 lodc1 = envmap_sample(lod1, envmap_coord);");
-				node_shader_write_frag(kong, "float3 prefiltered_color = lerp3(lodc0, lodc1, lodf);");
+				node_shader_write_frag(kong, "float3 prefiltered_color = lerp(lodc0, lodc1, lodf);");
 				// node_shader_add_constant(kong, "float4 shirr[7]", "_envmap_irradiance");
 				node_shader_add_constant(kong, "float4 shirr0", "_envmap_irradiance0");
 				node_shader_add_constant(kong, "float4 shirr1", "_envmap_irradiance1");
@@ -554,7 +554,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 				node_shader_write_frag(kong, "indirect = indirect * occlusion;");
 				node_shader_write_frag(kong, "indirect = indirect + prefiltered_color * env_brdf_approx(f0, roughness, dotnv) * 0.5;");
 				node_shader_write_frag(kong, "indirect = indirect * constants.envmap_data.w;");
-				node_shader_write_frag(kong, "indirect = max3(indirect, float3(0.0, 0.0, 0.0));");
+				node_shader_write_frag(kong, "indirect = max(indirect, float3(0.0, 0.0, 0.0));");
 				node_shader_write_frag(kong, "output[1] = float4(indirect, 1.0);");
 			}
 			else {

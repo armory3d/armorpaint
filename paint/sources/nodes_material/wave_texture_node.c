@@ -5,8 +5,8 @@ char *str_tex_wave = "\
 float tex_wave_hash(float n) { return frac(sin(n) * 10000.0); } \
 float tex_wave_noise_f(float3 x) { \
 	float3 step = float3(110.0, 241.0, 171.0); \
-	float3 i = floor3(x); \
-	float3 f = frac3(x); \
+	float3 i = floor(x); \
+	float3 f = frac(x); \
 	float n = dot(i, step); \
 	float3 u = f * f * (3.0 - 2.0 * f); \
 	return lerp(lerp(lerp(tex_wave_hash(n + dot(step, float3(0.0, 0.0, 0.0))), tex_wave_hash(n + dot(step, float3(1.0, 0.0, 0.0))), u.x), \

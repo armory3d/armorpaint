@@ -575,8 +575,8 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
 		                                        make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "out_a"));
 	}
-	node_shader_write_frag(kong, "output[1] = float4(lerp3(sample_nor_undo.rgb, nortan, str), matid);");
-	node_shader_write_frag(kong, "output[2] = lerp4(sample_pack_undo, float4(occlusion, roughness, metallic, height), str);");
+	node_shader_write_frag(kong, "output[1] = float4(lerp(sample_nor_undo.rgb, nortan, str), matid);");
+	node_shader_write_frag(kong, "output[2] = lerp(sample_pack_undo, float4(occlusion, roughness, metallic, height), str);");
 	node_shader_write_frag(kong, "output[3] = float4(str, 0.0, 0.0, 1.0);");
 
 	if (!g_context->material->paint_base) {
