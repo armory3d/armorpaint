@@ -77,9 +77,6 @@ void nodes_material_init() {
 
 	nodes_material_neural = any_array_create_from_raw((void *[]){}, 0);
 	edit_image_node_init();
-#ifdef IRON_WINDOWS
-	image_to_3d_mesh_node_init();
-#endif
 	image_to_pbr_node_init();
 	repeat_node_init();
 	save_image_node_init();

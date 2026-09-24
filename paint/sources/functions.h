@@ -998,8 +998,6 @@ i32                       neural_node_model(ui_node_t *node, string_array_t *mod
 char                     *neural_node_prompt(ui_node_t *node);
 char                     *neural_node_prompt_area(ui_node_t *node);
 void                      edit_image_node_init();
-void                      image_to_3d_mesh_node_init();
-void                      image_to_3d_mesh_node_button(i32 node_id);
 void                      brush_output_node_parse_inputs();
 void                      brush_output_node_init();
 void                      tex_image_node_init();

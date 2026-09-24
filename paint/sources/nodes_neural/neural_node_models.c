@@ -43,18 +43,6 @@ void neural_node_models_init() {
 	                                         .web     = "https://huggingface.co/armory3d/Real-ESRGAN",
 	                                         .license = "bsd-3-clause"}),
 
-	        ALLOC_INIT(neural_node_model_t, {.name   = "Hunyuan3D",
-	                                         .memory = "12GB",
-	                                         .size   = "12.6GB",
-	                                         .nodes  = "Image to 3D Mesh",
-	                                         .urls   = any_array_create_from_raw(
-                                                 (void *[]){
-                                                     "https://huggingface.co/armory3d/hunyuan3d21_portable/resolve/main/Hunyuan3D_win64.tar",
-                                                 },
-                                                 1),
-	                                         .web     = "https://huggingface.co/armory3d/hunyuan3d21_portable",
-	                                         .license = "hunyuan3d"}),
-
 	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
 	                                         .memory = "20GB",
 	                                         .size   = "15.3GB",

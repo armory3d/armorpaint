@@ -725,7 +725,6 @@
     "Unable to check for updates.\nPlease visit {url}.": "Nem sikerült ellenőrizni a frissítéseket.\nKérjük látogasson el a {url} oldalra.",
     "Undo Steps": "Visszavonási lépések",
     "Undo {step}": "Visszavonás: {step}",
-    "Unpacking Hunyuan3D_win64.tar": "Hunyuan3D_win64.tar kibontása",
     "Unwrap": "Kibontás",
     "Unwrap Mesh": "Háló kibontása",
     "Unwrapping mesh": "Háló kibontása...",
