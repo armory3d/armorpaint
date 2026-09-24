@@ -771,6 +771,37 @@ opcode *emit_op(opcodes *code, opcode *o) {
 	return (opcode *)location;
 }
 
+static bool is_component_wise(name_id func) {
+	static const char *names[] = {"abs",   "frac", "floor", "ceil", "round", "trunc", "sin",  "cos",  "tan",        "asin",     "acos",    "atan",
+	                              "atan2", "sinh", "cosh",  "tanh", "exp",   "log",   "sign", "sqrt", "rsqrt",      "radians",  "degrees", "saturate",
+	                              "ddx",   "ddy",  "min",   "max",  "clamp", "step",  "pow",  "lerp", "smoothstep", "normalize"};
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+		if (func == add_name((char *)names[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static variable emit_splat(opcodes *code, variable scalar, type_id to) {
+	type_ref t;
+	init_type_ref(&t, NO_NAME);
+	t.type     = to;
+	variable v = allocate_variable(t, VARIABLE_INTERNAL);
+
+	opcode o;
+	o.type                    = OPCODE_CALL;
+	o.size                    = OP_SIZE(o, op_call);
+	o.op_call.func            = get_type(to)->name;
+	o.op_call.var             = v;
+	o.op_call.parameters_size = (uint8_t)vector_size(to);
+	for (uint8_t i = 0; i < o.op_call.parameters_size; ++i) {
+		o.op_call.parameters[i] = scalar;
+	}
+	emit_op(code, &o);
+	return v;
+}
+
 variable emit_expression(opcodes *code, block *parent, expression *e) {
 	switch (e->kind) {
 	case EXPRESSION_BINARY: {
@@ -1149,8 +1180,12 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 		debug_context context = {0};
 		check(e->call.parameters.size <= sizeof(o.op_call.parameters) / sizeof(variable), context, "Call parameters missized");
+		bool splat = is_component_wise(e->call.func_name) && is_vector(t.type);
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			o.op_call.parameters[i] = emit_expression(code, parent, e->call.parameters.e[i]);
+			if (splat && o.op_call.parameters[i].type.type == float_id) {
+				o.op_call.parameters[i] = emit_splat(code, o.op_call.parameters[i], t.type);
+			}
 		}
 		o.op_call.parameters_size = (uint8_t)e->call.parameters.size;
 
@@ -1633,84 +1668,6 @@ void check_function(bool test, debug_context context, const char *message, ...) 
 	}
 }
 
-static void add_func_float2_float2(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float2"));
-	f->return_type.type   = find_type_by_ref(&f->return_type);
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float2"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-	f->parameters_size         = 1;
-	f->block                   = NULL;
-}
-
-static void add_func_float3_float3_float_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float3"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float3_float3_float3_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float3"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float3"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float4_float4_float4_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float4"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float4"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float4"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
 static void add_func_float3x3_float3x3(char *name) {
 	function_id func = add_function(add_name(name));
 	function   *f    = get_function(func);
@@ -1903,24 +1860,6 @@ static void add_func_float3_float3_float3(char *name) {
 
 	f->parameter_names[1] = add_name("b");
 	init_type_ref(&f->parameter_types[1], add_name("float3"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameters_size = 2;
-	f->block           = NULL;
-}
-
-static void add_func_float4_float4_float4(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float4"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float4"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float4"));
 	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
 
 	f->parameters_size = 2;
@@ -2440,11 +2379,7 @@ void functions_init(void) {
 	add_func_int("group_index");
 	add_func_int("instance_id");
 	add_func_int("vertex_id");
-
-	////
-	// add_func_float3_float_float_float("lerp");
 	add_func_float_float_float_float("lerp");
-	////
 	add_func_float3("world_ray_origin");
 	add_func_float3("world_ray_direction");
 	add_func_float("ray_length");
@@ -2463,8 +2398,6 @@ void functions_init(void) {
 	add_func_float3x3("object_to_world3x3");
 	add_func_float3_float3_float3("reflect");
 	add_func_uint("primitive_index");
-	////
-	// add_func_float3_float3("abs");
 	add_func_float_float("abs");
 	add_func_float_float("tan");
 	add_func_float_float("log");
@@ -2476,7 +2409,6 @@ void functions_init(void) {
 	add_func_float_float("tanh");
 	add_func_float_float("radians");
 	add_func_float_float("degrees");
-	////
 	add_func_float_float_float("floor");
 	add_func_float_float_float("ceil");
 	add_func_float_float_float("round");
@@ -2490,32 +2422,10 @@ void functions_init(void) {
 	add_func_float_float_float("pow");
 	add_func_float_float3_float3("dot");
 	add_func_float3_float3_float3("cross");
-	add_func_float3_float3("saturate3");
 	add_func_float_float("saturate");
 	add_func_float_float("ddx");
 	add_func_float_float("ddy");
-
-	////
-
-	add_func_float2_float2("ddx2");
-	add_func_float2_float2("ddy2");
-	add_func_float3_float3("ddx3");
-	add_func_float3_float3("ddy3");
-	add_func_float3_float3_float_float("clamp3");
-	add_func_float3_float3_float3("min3");
-	add_func_float3_float3_float3("max3");
-	add_func_float4_float4_float4("max4");
-	add_func_float3_float3_float3("step3");
-	add_func_float3_float3_float3("pow3");
-	add_func_float3_float3_float3("floor3");
-	add_func_float3_float3_float3("ceil3");
-	add_func_float3_float3("abs3");
-	add_func_float3_float3("frac3");
-	add_func_float3_float3_float3_float("lerp3");
-	add_func_float4_float4_float4_float("lerp4");
 	add_func_float3x3_float3x3("transpose");
-
-	////
 
 	add_func_void_uint_uint("set_mesh_output_counts");
 
@@ -5480,6 +5390,32 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 					break;
 				}
 			}
+		}
+
+		if (called != NULL && is_component_wise(e->call.func_name)) {
+			uint32_t size = 1;
+			for (size_t i = 0; i < e->call.parameters.size; ++i) {
+				resolve_types_in_expression(parent, e->call.parameters.e[i]);
+				type_id t = e->call.parameters.e[i]->type.type;
+				if (is_vector_or_scalar(t) && vector_size(t) > size) {
+					size = vector_size(t);
+				}
+			}
+			for (size_t i = 0; i < e->call.parameters.size; ++i) {
+				expression *p = e->call.parameters.e[i];
+				type_id     t = p->type.type;
+				if (!is_vector_or_scalar(t) || (vector_size(t) != 1 && vector_size(t) != size)) {
+					debug_context context = {0};
+					error(context, "Parameter %zu of %s has type %s, expected a scalar or a vector of size %u", i, get_name(e->call.func_name),
+					      t == NO_TYPE ? "unknown" : get_name(get_type(t)->name), size);
+				}
+				type_ref to;
+				init_type_ref(&to, NO_NAME);
+				to.type = vector_to_size(float_id, vector_size(t));
+				convert_to_float(p, to);
+			}
+			e->type.type = vector_to_size(float_id, size);
+			break;
 		}
 
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {

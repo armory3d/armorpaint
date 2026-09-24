@@ -1727,6 +1727,13 @@ static spirv_id get_var(instructions_buffer *instructions, variable param) {
 	return id;
 }
 
+static spirv_id get_constituent(instructions_buffer *instructions, opcode *o, spirv_id *constituents, int i) {
+	if (i > 0 && o->op_call.parameters[i].index == o->op_call.parameters[i - 1].index) {
+		return constituents[i - 1];
+	}
+	return get_var(instructions, o->op_call.parameters[i]);
+}
+
 static void write_function(instructions_buffer *instructions, function *f, spirv_id result_type, spirv_id fun_type, spirv_id fun_id, shader_stage stage,
                            bool main, type_id output) {
 	write_op_function_preallocated(instructions, result_type, FUNCTION_CONTROL_NONE, fun_type, fun_id);
@@ -2091,7 +2098,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				else if (o->op_call.parameters_size == 2) {
 					spirv_id constituents[2];
 					for (int i = 0; i < o->op_call.parameters_size; ++i) {
-						constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+						constituents[i] = get_constituent(instructions, o, constituents, i);
 					}
 					spirv_id id = write_op_composite_construct(instructions, spirv_float2_type, constituents, o->op_call.parameters_size);
 					hmput(index_map, o->op_call.var.index, id);
@@ -2111,7 +2118,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("float3")) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_float3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2127,7 +2134,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("float4")) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_float4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2135,7 +2142,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("float3x3")) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_float3x3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2143,7 +2150,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("float4x4")) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_float4x4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2176,7 +2183,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					kong_assert(o->op_call.parameters_size == 2);
 					spirv_id constituents[2];
 					for (int i = 0; i < o->op_call.parameters_size; ++i) {
-						constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+						constituents[i] = get_constituent(instructions, o, constituents, i);
 					}
 					spirv_id id = write_op_composite_construct(instructions, spirv_int2_type, constituents, o->op_call.parameters_size);
 					hmput(index_map, o->op_call.var.index, id);
@@ -2185,7 +2192,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("int3")) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_int3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2193,7 +2200,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("int4")) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_int4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2214,7 +2221,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("uint2")) {
 				spirv_id constituents[2];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint2_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2222,7 +2229,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("uint3")) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2230,7 +2237,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == add_name("uint4")) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
-					constituents[i] = get_var(instructions, o->op_call.parameters[i]);
+					constituents[i] = get_constituent(instructions, o, constituents, i);
 				}
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2259,32 +2266,32 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			}
 			else if (func == add_name("ddx")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdx(instructions, spirv_float_type, operand);
+				spirv_id id      = write_op_dpdx(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("ddy")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdy(instructions, spirv_float_type, operand);
+				spirv_id id      = write_op_dpdy(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("round")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_ROUND, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ROUND, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("floor")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FLOOR, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FLOOR, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("sin")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_SIN, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SIN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("cos")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_COS, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_COS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("length")) {
@@ -2294,93 +2301,116 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			}
 			else if (func == add_name("abs")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FABS, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FABS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("ceil")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_CEIL, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_CEIL, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("frac")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FRACT, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FRACT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("asin")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_ASIN, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ASIN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("acos")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_ACOS, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ACOS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("atan")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_ATAN, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ATAN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("atan2")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_ATAN2, operand1, operand2);
+				spirv_id id =
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ATAN2, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("pow")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_POW, operand1, operand2);
+				spirv_id id =
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_POW, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("sqrt")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_SQRT, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SQRT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("rsqrt")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_INVERSE_SQRT, operand);
+				spirv_id id =
+				    write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_INVERSE_SQRT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("min")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FMIN, operand1, operand2);
+				spirv_id id =
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMIN, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("max")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
+				spirv_id id =
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("clamp")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-				spirv_id id       = write_op_ext_inst3(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FCLAMP, operand1, operand2, operand3);
+				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FCLAMP, operand1,
+				                                 operand2, operand3);
+				hmput(index_map, o->op_call.var.index, id);
+			}
+			else if (func == add_name("saturate")) {
+				type_id  t       = o->op_call.var.type.type;
+				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
+				spirv_id zero    = get_float_constant(0.0f);
+				spirv_id one     = get_float_constant(1.0f);
+				if (t != float_id) {
+					spirv_id zeros[4] = {zero, zero, zero, zero};
+					spirv_id ones[4]  = {one, one, one, one};
+					zero              = write_op_composite_construct(instructions, convert_type_to_spirv_id(t), zeros, vector_size(t));
+					one               = write_op_composite_construct(instructions, convert_type_to_spirv_id(t), ones, vector_size(t));
+				}
+				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(t), glsl_import, SPIRV_GLSL_STD_FCLAMP, operand, zero, one);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("lerp")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-				spirv_id id       = write_op_ext_inst3(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FMIX, operand1, operand2, operand3);
+				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMIX, operand1,
+				                                 operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("step")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_STEP, operand1, operand2);
+				spirv_id id =
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_STEP, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("smoothstep")) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-				spirv_id id       = write_op_ext_inst3(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_SMOOTHSTEP, operand1, operand2, operand3);
+				spirv_id id       = write_op_ext_inst3(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SMOOTHSTEP,
+				                                       operand1, operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("distance")) {
@@ -2397,7 +2427,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			}
 			else if (func == add_name("normalize")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_NORMALIZE, operand);
+				spirv_id id =
+				    write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_NORMALIZE, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("reflect")) {
@@ -2411,158 +2442,55 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 
 			else if (func == add_name("tan")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_TAN, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TAN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("log")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_LOG, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_LOG, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("exp")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_EXP, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_EXP, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("sign")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_FSIGN, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FSIGN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("trunc")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_TRUNC, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TRUNC, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("sinh")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_SINH, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SINH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("cosh")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_COSH, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_COSH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("tanh")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_TANH, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TANH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("radians")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_RADIANS, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_RADIANS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == add_name("degrees")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_DEGREES, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("ddx2")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdx(instructions, spirv_float2_type, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("ddy2")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdy(instructions, spirv_float2_type, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_DEGREES, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 
-			else if (func == add_name("ddx3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdx(instructions, spirv_float3_type, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("ddy3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_dpdy(instructions, spirv_float3_type, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("clamp3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-				spirv_id id       = write_op_ext_inst3(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FCLAMP, operand1, operand2, operand3);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("min3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FMIN, operand1, operand2);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("max3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("max4")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float4_type, glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("step3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_STEP, operand1, operand2);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("pow3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_POW, operand1, operand2);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("floor3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FLOOR, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("ceil3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_CEIL, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("abs3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FABS, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("frac3")) {
-				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id      = write_op_ext_inst(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FRACT, operand);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("lerp3")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-
-				if (o->op_call.parameters[2].type.type == float_id) {
-					spirv_id operands[3] = {operand3, operand3, operand3};
-					operand3             = write_op_composite_construct(instructions, spirv_float3_type, operands, 3);
-				}
-
-				spirv_id id = write_op_ext_inst3(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_FMIX, operand1, operand2, operand3);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("lerp4")) {
-				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
-				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-
-				if (o->op_call.parameters[2].type.type == float_id) {
-					spirv_id operands[4] = {operand3, operand3, operand3, operand3};
-					operand3             = write_op_composite_construct(instructions, spirv_float4_type, operands, 4);
-				}
-
-				spirv_id id = write_op_ext_inst3(instructions, spirv_float4_type, glsl_import, SPIRV_GLSL_STD_FMIX, operand1, operand2, operand3);
-				hmput(index_map, o->op_call.var.index, id);
-			}
 			else if (func == add_name("transpose")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_transpose(instructions, spirv_float3x3_type, operand);
