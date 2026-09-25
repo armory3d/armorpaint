@@ -1,0 +1,44 @@
+digraph runtime_architecture {
+	rankdir = TB;
+	concentrate = true;
+	node [shape = box, style = "rounded,filled", fontname = "Helvetica", fontsize = 10];
+	edge [fontname = "Helvetica", fontsize = 9];
+
+	subgraph cluster_app {
+		label = "ArmorPaint application  (paint/sources)";
+		style = rounded; fillcolor = "#eef6ff";
+		state   [label = "app state\nproject, layers, materials,\nbrushes, history, config", fillcolor = white];
+		ui      [label = "UI (iron_ui)\ntabs, viewport, nodes editor,\nmenu, sidebar, statusbar", fillcolor = white];
+		renderp [label = "render paths  (render/*)\ndeferred / forward / paint /\nraytrace / bake", fillcolor = white];
+		nodes   [label = "nodes\nmaterial, brush, neural,\nlogic + parser_*", fillcolor = white];
+		io      [label = "I/O\nimport_* / export_* / plugins", fillcolor = white];
+		state -> ui;
+		state -> renderp;
+		state -> nodes;
+		state -> io;
+	}
+
+	subgraph cluster_iron {
+		label = "iron engine  (base/sources)";
+		style = rounded; fillcolor = "#fdf3f0";
+		core    [label = "core\nalloc, array, string, map,\njson, math, path, thread", fillcolor = white];
+		scene   [label = "scene\nowjects, meshes, cameras,\narmpack parser (iron_armpack)", fillcolor = white];
+		draw    [label = "draw / gpu\niron_gpu, iron_draw,\nrender path helpers", fillcolor = white];
+		sysm    [label = "system\ninput, window, file, audio,\nnet, video, physics", fillcolor = white];
+		core -> scene;
+		scene -> draw;
+		sysm -> draw;
+	}
+
+	subgraph cluster_backends {
+		label = "platform / GPU backends  (base/sources/backends)";
+		style = rounded; fillcolor = "#f0f2f5";
+		gpu     [label = "GPU: vulkan_gpu.c\n(metal, d3d12 on other OS)", fillcolor = white];
+		platform [label = "platform: linux_system.c\n(+ posix_* / android / win / mac)", fillcolor = white];
+		gpu -> platform;
+	}
+
+	renderp -> draw [label = "render_path_* calls"];
+	draw  -> gpu;
+	sysm -> platform;
+}

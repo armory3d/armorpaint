@@ -1185,7 +1185,9 @@ void iron_init(iron_window_options_t *ops) {
 #endif
 	iron_x11_init();
 	iron_display_init();
-	iron_set_app_name(ops->title);
+	if (strcmp(iron_application_name(), "Iron Application") == 0) {
+		iron_set_app_name(ops->title);
+	}
 	iron_window_create(ops);
 }
 

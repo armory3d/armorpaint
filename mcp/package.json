@@ -1,0 +1,19 @@
+{
+	"name": "armorpaint-mcp",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "MCP (Model Context Protocol) server bridging AI agents (opencode and others) to ArmorPaint: offline .arm/.armpack inspection plus real rendering, texture and mesh export commands.",
+	"bin": {
+		"armorpaint-mcp": "server.js"
+	},
+	"scripts": {
+		"test": "node --test test/",
+		"test:integration": "ARMORPAINT_INTEGRATION=1 node --test test/",
+		"start": "node server.js"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"license": "Zlib"
+}
