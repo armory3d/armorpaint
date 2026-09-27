@@ -211,13 +211,20 @@ int main(int argc, char **argv) {
 	makedir        = path_join(toolsdir, "..", "..");
 	irondir        = path_join(makedir, "..");
 
-	// amake --ashader <spirv|metal|hlsl|wgsl> <from> <to>
+	// amake --ashader <spirv|metal|hlsl|wgsl> <from> <to> [-DNAME...]
 	if (argc > 1 && strcmp(argv[1], "--ashader") == 0) {
 		if (argc < 5) {
-			printf("Usage: amake --ashader <spirv|metal|hlsl|wgsl> <from> <to>\n");
+			printf("Usage: amake --ashader <spirv|metal|hlsl|wgsl> <from> <to> [-DNAME...]\n");
 			return 1;
 		}
-		return ashader(argv[2], argv[3], argv[4]);
+		char *defines[64];
+		int   defines_count = 0;
+		for (int i = 5; i < argc && defines_count < 64; ++i) {
+			if (strncmp(argv[i], "-D", 2) == 0) {
+				defines[defines_count++] = argv[i] + 2;
+			}
+		}
+		return ashader(argv[2], argv[3], argv[4], defines, defines_count);
 	}
 
 	// amake --c <file.c> [args], runs a C file with minic

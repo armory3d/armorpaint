@@ -744,7 +744,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 	}
 
 	MTLComputePipelineDescriptor *descriptor                   = [[MTLComputePipelineDescriptor alloc] init];
-	descriptor.computeFunction                                 = [library newFunctionWithName:@"raytracingKernel"];
+	descriptor.computeFunction                                 = [library newFunctionWithName:@"raytrace"];
 	descriptor.threadGroupSizeIsMultipleOfThreadExecutionWidth = YES;
 	_raytracing_pipeline = [device newComputePipelineStateWithDescriptor:descriptor options:0 reflection:nil error:&error];
 	_semaphore           = dispatch_semaphore_create(2);

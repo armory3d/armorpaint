@@ -137,7 +137,7 @@ int   run_script(char *file, int argc, char **argv);
 void export_k(const char *from, const char *to);
 void export_ico(const char *from, const char *to);
 void export_png(const char *from, const char *to, int width, int height);
-int  ashader(char *shader_lang, char *from, char *to);
+int  ashader(char *shader_lang, char *from, char *to, char **defines, int defines_count);
 
 // Strings, all results are heap allocated and leaked
 

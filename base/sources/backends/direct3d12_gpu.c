@@ -1371,14 +1371,14 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 
 	// Root signatures
 	D3D12_DESCRIPTOR_RANGE ranges[] = {{D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
+	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
+	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 7, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 8, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
-	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 9, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
-	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 10, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 11, 0, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, GPU_RAYTRACE_MAX_OBJECTS, 0, 1, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
 	                                   {D3D12_DESCRIPTOR_RANGE_TYPE_SRV, GPU_RAYTRACE_MAX_OBJECTS, 0, 2, D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND},
@@ -1970,7 +1970,7 @@ void gpu_raytrace_dispatch_rays() {
 	command_list->lpVtbl->SetComputeRootDescriptorTable(command_list, 16, dxr_geometry_tex_descriptor_handle[2]);
 
 	command_list->lpVtbl->SetPipelineState(command_list, (ID3D12PipelineState *)dxr_pipeline->impl.pipeline);
-	command_list->lpVtbl->Dispatch(command_list, (dxr_output->width + 15) / 16, (dxr_output->height + 15) / 16, 1);
+	command_list->lpVtbl->Dispatch(command_list, (dxr_output->width + 7) / 8, (dxr_output->height + 7) / 8, 1);
 
 	_gpu_barrier(dxr_output->impl.image, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 

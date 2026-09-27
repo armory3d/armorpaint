@@ -2071,7 +2071,9 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *compute
 	pipeline->constant_buffer = constant_buffer;
 
 	{
-		VkDescriptorSetLayoutBinding bindings[] = {{0, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		VkDescriptorSetLayoutBinding bindings[] = {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		                                           {1, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		                                           {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {3, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {4, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {5, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
@@ -2079,10 +2081,8 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *compute
 		                                           {7, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {8, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {9, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
-		                                           {10, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
-		                                           {11, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
-		                                           {12, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
-		                                           {13, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		                                           {10, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+		                                           {11, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {14, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {15, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, GPU_RAYTRACE_MAX_OBJECTS, VK_SHADER_STAGE_COMPUTE_BIT},
 		                                           {16, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, GPU_RAYTRACE_MAX_OBJECTS, VK_SHADER_STAGE_COMPUTE_BIT},
@@ -2767,7 +2767,7 @@ void gpu_raytrace_dispatch_rays() {
 	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .pNext           = &descriptor_acceleration_structure_info,
 	    .dstSet          = pipeline->impl.descriptor_set,
-	    .dstBinding      = 0,
+	    .dstBinding      = 1,
 	    .descriptorCount = 1,
 	    .descriptorType  = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
 	};
@@ -2785,7 +2785,7 @@ void gpu_raytrace_dispatch_rays() {
 	VkWriteDescriptorSet result_image_write = {
 	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .dstSet          = pipeline->impl.descriptor_set,
-	    .dstBinding      = 10,
+	    .dstBinding      = 2,
 	    .descriptorCount = 1,
 	    .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
 	    .pImageInfo      = &image_descriptor,
@@ -2794,7 +2794,7 @@ void gpu_raytrace_dispatch_rays() {
 	VkWriteDescriptorSet uniform_buffer_write = {
 	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .dstSet          = pipeline->impl.descriptor_set,
-	    .dstBinding      = 11,
+	    .dstBinding      = 0,
 	    .descriptorCount = 1,
 	    .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 	    .pBufferInfo     = &buffer_descriptor,
@@ -2920,7 +2920,7 @@ void gpu_raytrace_dispatch_rays() {
 	VkWriteDescriptorSet texenv_cdf_image_write = {
 	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .dstSet          = pipeline->impl.descriptor_set,
-	    .dstBinding      = 13,
+	    .dstBinding      = 10,
 	    .descriptorCount = 1,
 	    .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
 	    .pImageInfo      = &texenvcdfimage_descriptor,
@@ -2932,7 +2932,7 @@ void gpu_raytrace_dispatch_rays() {
 	VkWriteDescriptorSet sampler_linear_write = {
 	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
 	    .dstSet          = pipeline->impl.descriptor_set,
-	    .dstBinding      = 12,
+	    .dstBinding      = 11,
 	    .descriptorCount = 1,
 	    .descriptorType  = VK_DESCRIPTOR_TYPE_SAMPLER,
 	    .pImageInfo      = &sampler_info,

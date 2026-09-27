@@ -2,7 +2,16 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+char *cstyle_float(char *buffer, float value) {
+	sprintf(buffer, "%f", value);
+	if ((float)strtod(buffer, NULL) != value) {
+		sprintf(buffer, "%.9g", value);
+	}
+	return buffer;
+}
 
 void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func type_string, int *indentation) {
 	switch (o->type) {
@@ -61,7 +70,7 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 				*offset += sprintf(&code[*offset], ".%s", get_name(o->op_load_access_list.access_list[i].access_member.name));
 				break;
 			case ACCESS_SWIZZLE: {
-				char swizzle[4];
+				char swizzle[5];
 
 				for (uint32_t swizzle_index = 0; swizzle_index < o->op_load_access_list.access_list[i].access_swizzle.swizzle.size; ++swizzle_index) {
 					swizzle[swizzle_index] = "xyzw"[o->op_load_access_list.access_list[i].access_swizzle.swizzle.indices[swizzle_index]];
@@ -99,7 +108,7 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 				*offset += sprintf(&code[*offset], ".%s", get_name(o->op_store_access_list.access_list[i].access_member.name));
 				break;
 			case ACCESS_SWIZZLE: {
-				char swizzle[4];
+				char swizzle[5];
 
 				for (uint32_t swizzle_index = 0; swizzle_index < o->op_store_access_list.access_list[i].access_swizzle.swizzle.size; ++swizzle_index) {
 					swizzle[swizzle_index] = "xyzw"[o->op_store_access_list.access_list[i].access_swizzle.swizzle.indices[swizzle_index]];
@@ -137,11 +146,13 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 		}
 		break;
 	}
-	case OPCODE_LOAD_FLOAT_CONSTANT:
+	case OPCODE_LOAD_FLOAT_CONSTANT: {
+		char number[64];
 		indent(code, offset, *indentation);
-		*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = %f;\n", type_string(o->op_load_float_constant.to.type.type), o->op_load_float_constant.to.index,
-		                   o->op_load_float_constant.number);
+		*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = %s;\n", type_string(o->op_load_float_constant.to.type.type), o->op_load_float_constant.to.index,
+		                   cstyle_float(number, o->op_load_float_constant.number));
 		break;
+	}
 	case OPCODE_LOAD_INT_CONSTANT:
 		indent(code, offset, *indentation);
 		*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = %i;\n", type_string(o->op_load_int_constant.to.type.type), o->op_load_int_constant.to.index,
@@ -291,6 +302,16 @@ void cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func
 		*indentation -= 1;
 		indent(code, offset, *indentation);
 		*offset += sprintf(&code[*offset], "}\n");
+		break;
+	}
+	case OPCODE_BREAK: {
+		indent(code, offset, *indentation);
+		*offset += sprintf(&code[*offset], "break;\n");
+		break;
+	}
+	case OPCODE_CONTINUE: {
+		indent(code, offset, *indentation);
+		*offset += sprintf(&code[*offset], "continue;\n");
 		break;
 	}
 	default: {

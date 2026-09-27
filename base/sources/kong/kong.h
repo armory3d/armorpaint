@@ -182,7 +182,9 @@ typedef struct token {
 		TOKEN_CBUFFER,
 		TOKEN_CONST,
 		TOKEN_RETURN,
-		TOKEN_DISCARD
+		TOKEN_DISCARD,
+		TOKEN_BREAK,
+		TOKEN_CONTINUE
 	} kind;
 
 	union {
@@ -276,7 +278,9 @@ typedef struct opcode {
 		OPCODE_WHILE_END,
 		OPCODE_WHILE_BODY,
 		OPCODE_BLOCK_START,
-		OPCODE_BLOCK_END
+		OPCODE_BLOCK_END,
+		OPCODE_BREAK,
+		OPCODE_CONTINUE
 	} type;
 	uint32_t size;
 
@@ -358,6 +362,10 @@ typedef struct opcode {
 		struct {
 			uint64_t id;
 		} op_block;
+		struct {
+			uint64_t continue_id;
+			uint64_t end_id;
+		} op_loop_jump;
 		struct {
 			uint8_t nothing;
 		} op_nothing;
@@ -545,7 +553,9 @@ typedef struct statement {
 		STATEMENT_WHILE,
 		STATEMENT_DO_WHILE,
 		STATEMENT_BLOCK,
-		STATEMENT_LOCAL_VARIABLE
+		STATEMENT_LOCAL_VARIABLE,
+		STATEMENT_BREAK,
+		STATEMENT_CONTINUE
 	} kind;
 
 	union {
@@ -560,6 +570,7 @@ typedef struct statement {
 		struct {
 			expression       *test;
 			struct statement *while_block;
+			expression       *post;
 		} whiley;
 		block block;
 		struct {
@@ -613,6 +624,7 @@ void                  find_referenced_types(function *f, type_id *types, size_t 
 void                  find_referenced_globals(function *f, global_array *globals);
 void                  find_used_builtins(function *f);
 void                  find_used_capabilities(function *f);
+bool                  calls_function(function *f, const char *name);
 descriptor_set_group *get_descriptor_set_group(uint32_t descriptor_set_group_index);
 function_id           find_function_id(name_id name);
 function_id           find_vertex_function(void);
@@ -890,6 +902,7 @@ extern type_id bool4_id;
 extern type_id sampler_type_id;
 extern type_id ray_type_id;
 extern type_id bvh_type_id;
+extern type_id ray_query_type_id;
 
 static inline bool is_texture(type_id id) {
 	while (id != NO_TYPE) {
@@ -919,4 +932,9 @@ void     indent(char *code, size_t *offset, int indentation);
 
 typedef char *(*type_string_func)(type_id type);
 void  cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func type_string, int *indentation);
+char *cstyle_float(char *buffer, float value);
 char *metal_export(char *directory);
+char *metal_export_compute(void);
+char *hlsl_export_compute(void);
+char *spirv_export_compute(int *size);
+char *kong_preprocess(const char *source, char **defines, int defines_count);

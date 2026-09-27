@@ -23,12 +23,8 @@ project_t *main() {
 	add_cfiles(project, "../../sources/kong/stb_ds.c");
 	add_cfiles(project, "../../sources/kong/kong_spirv.c");
 	add_cfiles(project, "../../sources/kong/kong_wgsl.c");
-	if (platform == PLATFORM_WINDOWS) {
-		add_cfiles(project, "../../sources/kong/kong_hlsl.c");
-	}
-	if (platform == PLATFORM_MACOS || platform == PLATFORM_IOS) {
-		add_cfiles(project, "../../sources/kong/kong_metal.c");
-	}
+	add_cfiles(project, "../../sources/kong/kong_hlsl.c");
+	add_cfiles(project, "../../sources/kong/kong_metal.c");
 
 	if (platform == PLATFORM_WINDOWS) {
 		add_define(project, "_CRT_SECURE_NO_WARNINGS");

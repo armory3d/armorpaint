@@ -49,7 +49,41 @@ void               hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
 void               spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
 void               wgsl_export2(char **vs, char **fs);
 
-void kong_compile(char *shader_lang, const char *from, const char *to) {
+static bool has_compute_function(void) {
+	for (function_id i = 0; get_function(i) != NULL; ++i) {
+		if (has_attribute(&get_function(i)->attributes, add_name("compute"))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void kong_compile_compute(char *shader_lang, const char *to) {
+	char *code;
+	int   size;
+	if (strcmp(shader_lang, "spirv") == 0) {
+		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE | TRANSFORM_FLAG_BINARY_UNIFY_LENGTH);
+		code = spirv_export_compute(&size);
+	}
+	else if (strcmp(shader_lang, "hlsl") == 0) {
+		code = hlsl_export_compute();
+		size = (int)strlen(code);
+	}
+	else if (strcmp(shader_lang, "metal") == 0) {
+		code = metal_export_compute();
+		size = (int)strlen(code);
+	}
+	else {
+		printf("Compute shaders are not supported for %s\n", shader_lang);
+		return;
+	}
+
+	FILE *fp = fopen(to, "wb");
+	fwrite(code, 1, size, fp);
+	fclose(fp);
+}
+
+void kong_compile(char *shader_lang, const char *from, const char *to, char **defines, int defines_count) {
 	FILE *fp = fopen(from, "rb");
 	fseek(fp, 0, SEEK_END);
 	int size = ftell(fp);
@@ -58,6 +92,7 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 	data[size] = 0;
 	fread(data, size, 1, fp);
 	fclose(fp);
+	data = kong_preprocess(data, defines, defines_count);
 
 	next_variable_id       = 1;
 	allocated_globals_size = 0;
@@ -77,6 +112,11 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 		compile_function_block(&get_function(i)->code, get_function(i)->block);
 	}
 	analyze();
+
+	if (has_compute_function()) {
+		kong_compile_compute(shader_lang, to);
+		return;
+	}
 
 	if (strcmp(shader_lang, "wgsl") == 0) {
 		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE);
@@ -198,9 +238,9 @@ void kong_compile(char *shader_lang, const char *from, const char *to) {
 #endif
 }
 
-int ashader(char *shader_lang, char *from, char *to) {
+int ashader(char *shader_lang, char *from, char *to, char **defines, int defines_count) {
 	// shader_lang == hlsl || metal || spirv || wgsl
-	kong_compile(shader_lang, from, to);
+	kong_compile(shader_lang, from, to, defines, defines_count);
 	return 0;
 }
 

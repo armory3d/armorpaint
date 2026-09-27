@@ -1,6 +1,7 @@
-./glslangValidator -V --target-env vulkan1.3 raytrace_brute.comp -o ../raytrace_brute_core.spirv
-./glslangValidator -V --target-env vulkan1.3 -D_FULL raytrace_brute.comp -o ../raytrace_brute_full.spirv
-./glslangValidator -V --target-env vulkan1.3 raytrace_bake_ao.comp -o ../raytrace_bake_ao.spirv
-./glslangValidator -V --target-env vulkan1.3 raytrace_bake_light.comp -o ../raytrace_bake_light.spirv
-./glslangValidator -V --target-env vulkan1.3 raytrace_bake_bent.comp -o ../raytrace_bake_bent.spirv
-./glslangValidator -V --target-env vulkan1.3 raytrace_bake_thick.comp -o ../raytrace_bake_thick.spirv
+AMAKE=../../../tools/bin/linux_x64/amake
+$AMAKE --ashader spirv raytrace_brute.shader ../raytrace_brute_core.spirv
+$AMAKE --ashader spirv raytrace_brute.shader ../raytrace_brute_full.spirv -D_FULL
+$AMAKE --ashader spirv raytrace_bake_ao.shader ../raytrace_bake_ao.spirv
+$AMAKE --ashader spirv raytrace_bake_light.shader ../raytrace_bake_light.spirv
+$AMAKE --ashader spirv raytrace_bake_bent.shader ../raytrace_bake_bent.spirv
+$AMAKE --ashader spirv raytrace_bake_thick.shader ../raytrace_bake_thick.spirv

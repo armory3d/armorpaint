@@ -792,7 +792,7 @@ static void compile_shader(char *file, char *to_dir, char *temp) {
 		return;
 	}
 	fs_ensuredir(temp);
-	ashader(type, file, to);
+	ashader(type, file, to, NULL, 0);
 }
 
 static any_array_t *export_shaders(project_t *project, char *to_dir, char *temp) {

@@ -56,6 +56,9 @@ static char *type_string(type_id type) {
 	if (type == bvh_type_id) {
 		return "RaytracingAccelerationStructure";
 	}
+	if (type == ray_query_type_id) {
+		return "RayQuery<RAY_FLAG_FORCE_OPAQUE>";
+	}
 	if (get_type(type)->tex_kind != TEXTURE_KIND_NONE) {
 		if (get_type(type)->tex_kind == TEXTURE_KIND_2D) {
 			return "Texture2D<float4>";
@@ -293,7 +296,11 @@ static void write_globals(char *hlsl, size_t *offset, function *main, function *
 			*offset += sprintf(&hlsl[*offset], "RaytracingAccelerationStructure  _%" PRIu64 " : register(t%i);\n\n", g->var_index, register_index);
 		}
 		else if (base_type == float_id) {
-			*offset += sprintf(&hlsl[*offset], "static const float _%" PRIu64 " = %f;\n\n", g->var_index, g->value.value.floats[0]);
+			char number[64];
+			*offset += sprintf(&hlsl[*offset], "static const float _%" PRIu64 " = %s;\n\n", g->var_index, cstyle_float(number, g->value.value.floats[0]));
+		}
+		else if (base_type == int_id) {
+			*offset += sprintf(&hlsl[*offset], "static const int _%" PRIu64 " = %i;\n\n", g->var_index, g->value.value.ints[0]);
 		}
 		else if (base_type == float2_id) {
 			*offset += sprintf(&hlsl[*offset], "static const float2 _%" PRIu64 " = float2(%f, %f);\n\n", g->var_index, g->value.value.floats[0],
@@ -744,7 +751,6 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 					error(context, "Compute function requires a threads attribute with three parameters");
 				}
 
-				write_root_signature(f, hlsl, offset);
 				*offset += sprintf(&hlsl[*offset], "[numthreads(%i, %i, %i)]\n%s main(", (int)threads_attribute->parameters[0],
 				                   (int)threads_attribute->parameters[1], (int)threads_attribute->parameters[2], type_string(f->return_type.type));
 				for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
@@ -840,7 +846,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 						}
 						break;
 					case ACCESS_SWIZZLE: {
-						char swizzle[4];
+						char swizzle[5];
 
 						for (uint32_t swizzle_index = 0; swizzle_index < o->op_load_access_list.access_list[i].access_swizzle.swizzle.size; ++swizzle_index) {
 							swizzle[swizzle_index] = "xyzw"[o->op_load_access_list.access_list[i].access_swizzle.swizzle.indices[swizzle_index]];
@@ -899,7 +905,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 						*offset += sprintf(&hlsl[*offset], ".%s", member_string(s, o->op_store_access_list.access_list[i].access_member.name));
 						break;
 					case ACCESS_SWIZZLE: {
-						char swizzle[4];
+						char swizzle[5];
 
 						for (uint32_t swizzle_index = 0; swizzle_index < o->op_store_access_list.access_list[i].access_swizzle.swizzle.size; ++swizzle_index) {
 							swizzle[swizzle_index] = "xyzw"[o->op_store_access_list.access_list[i].access_swizzle.swizzle.indices[swizzle_index]];
@@ -1081,6 +1087,62 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 					*offset += sprintf(&hlsl[*offset], "_kong_mesh_vertices[_%" PRIu64 "] = _%" PRIu64 ";\n", o->op_call.parameters[0].index,
 					                   o->op_call.parameters[1].index);
 				}
+				else if (o->op_call.func == add_name("texture_size")) {
+					*offset += sprintf(&hlsl[*offset], "uint2 _%" PRIu64 "; _%" PRIu64 ".GetDimensions(_%" PRIu64 ".x, _%" PRIu64 ".y);\n",
+					                   o->op_call.var.index, o->op_call.parameters[0].index, o->op_call.var.index, o->op_call.var.index);
+				}
+				else if (o->op_call.func == add_name("ray_query_trace") || o->op_call.func == add_name("ray_query_trace_any")) {
+					char *flags = o->op_call.func == add_name("ray_query_trace_any") ? "RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH" : "RAY_FLAG_NONE";
+					*offset += sprintf(&hlsl[*offset], "_%" PRIu64 ".TraceRayInline(_%" PRIu64 ", %s, 0xff, _%" PRIu64 "); _%" PRIu64 ".Proceed();\n",
+					                   o->op_call.parameters[0].index, o->op_call.parameters[1].index, flags, o->op_call.parameters[2].index,
+					                   o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_hit")) {
+					*offset += sprintf(&hlsl[*offset], "bool _%" PRIu64 " = _%" PRIu64 ".CommittedStatus() == COMMITTED_TRIANGLE_HIT;\n", o->op_call.var.index,
+					                   o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_distance")) {
+					*offset +=
+					    sprintf(&hlsl[*offset], "float _%" PRIu64 " = _%" PRIu64 ".CommittedRayT();\n", o->op_call.var.index, o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_barycentrics")) {
+					*offset += sprintf(&hlsl[*offset], "float2 _%" PRIu64 " = _%" PRIu64 ".CommittedTriangleBarycentrics();\n", o->op_call.var.index,
+					                   o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_front_face")) {
+					*offset += sprintf(&hlsl[*offset], "bool _%" PRIu64 " = _%" PRIu64 ".CommittedTriangleFrontFace();\n", o->op_call.var.index,
+					                   o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_object_to_world")) {
+					*offset += sprintf(&hlsl[*offset], "float3x3 _%" PRIu64 " = (float3x3)_%" PRIu64 ".CommittedObjectToWorld3x4();\n", o->op_call.var.index,
+					                   o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_geometry")) {
+					*offset += sprintf(&hlsl[*offset], "uint _%" PRIu64 " = _kong_instances[_%" PRIu64 ".CommittedInstanceID()].geometry;\n",
+					                   o->op_call.var.index, o->op_call.parameters[0].index);
+				}
+				else if (o->op_call.func == add_name("ray_query_vertex")) {
+					uint64_t q = o->op_call.parameters[0].index;
+					*offset += sprintf(&hlsl[*offset],
+					                   "uint4 _%" PRIu64 " = _kong_vertex(_kong_instances[_%" PRIu64 ".CommittedInstanceID()], _%" PRIu64
+					                   ".CommittedPrimitiveIndex() * 3 + _%" PRIu64 ");\n",
+					                   o->op_call.var.index, q, q, o->op_call.parameters[1].index);
+				}
+				else if (strncmp(get_name(o->op_call.func), "geometry_texture", 16) == 0) {
+					char *name = get_name(o->op_call.func);
+					if (strstr(name, "_size") != NULL) {
+						*offset += sprintf(&hlsl[*offset],
+						                   "uint2 _%" PRIu64 "; _kong_geometry_texture%c[NonUniformResourceIndex(_%" PRIu64 ")].GetDimensions(_%" PRIu64
+						                   ".x, _%" PRIu64 ".y);\n",
+						                   o->op_call.var.index, name[16], o->op_call.parameters[0].index, o->op_call.var.index, o->op_call.var.index);
+					}
+					else {
+						*offset +=
+						    sprintf(&hlsl[*offset],
+						            "float4 _%" PRIu64 " = _kong_geometry_texture%c[NonUniformResourceIndex(_%" PRIu64 ")].Load(uint3(_%" PRIu64 ", 0));\n",
+						            o->op_call.var.index, name[16], o->op_call.parameters[0].index, o->op_call.parameters[1].index);
+					}
+				}
 				else if (o->op_call.func == add_name("float3x3") && o->op_call.parameters_size == 3) {
 					*offset += sprintf(&hlsl[*offset],
 					                   "float3x3 _%" PRIu64 " = float3x3(_%" PRIu64 ".x, _%" PRIu64 ".x, _%" PRIu64 ".x, _%" PRIu64 ".y, _%" PRIu64
@@ -1194,4 +1256,43 @@ void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug) {
 
 	*vs = hlsl_export_vertex2(d3d, vertex_shader, debug);
 	*fs = hlsl_export_fragment2(d3d, fragment_shader, debug);
+}
+
+static void write_raytrace_geometry(char *hlsl, size_t *offset) {
+	*offset += sprintf(&hlsl[*offset], "struct _kong_instance {\n\tuint geometry;\n\tuint stride; // Vertex size in bytes\n};\n\n"
+	                                   "StructuredBuffer<_kong_instance> _kong_instances : register(t11);\n"
+	                                   "ByteAddressBuffer _kong_vertices[64] : register(t0, space1);\n"
+	                                   "ByteAddressBuffer _kong_indices[64] : register(t0, space2);\n"
+	                                   "Texture2D<float4> _kong_geometry_texture0[64] : register(t0, space3);\n"
+	                                   "Texture2D<float4> _kong_geometry_texture1[64] : register(t0, space4);\n"
+	                                   "Texture2D<float4> _kong_geometry_texture2[64] : register(t0, space5);\n\n");
+
+	*offset += sprintf(&hlsl[*offset], "uint4 _kong_vertex(_kong_instance instance, uint corner) {\n"
+	                                   "\tuint index = _kong_indices[NonUniformResourceIndex(instance.geometry)].Load(corner * 4);\n"
+	                                   "\treturn _kong_vertices[NonUniformResourceIndex(instance.geometry)].Load4(index * instance.stride);\n"
+	                                   "}\n\n");
+}
+
+char *hlsl_export_compute(void) {
+	function *main = NULL;
+	for (function_id i = 0; get_function(i) != NULL; ++i) {
+		if (has_attribute(&get_function(i)->attributes, add_name("compute"))) {
+			main = get_function(i);
+			break;
+		}
+	}
+	debug_context context = {0};
+	check(main != NULL, context, "Compute function missing");
+
+	static char _buffer[1024 * 1024 * 2];
+	char       *hlsl   = &_buffer[0];
+	size_t      offset = 0;
+
+	if (calls_function(main, "ray_query_geometry") || calls_function(main, "ray_query_vertex")) {
+		write_raytrace_geometry(hlsl, &offset);
+	}
+	write_types(hlsl, &offset, SHADER_STAGE_COMPUTE, NULL, 0, NO_TYPE, main, NULL, 0);
+	write_globals(hlsl, &offset, main, NULL, 0);
+	write_functions(hlsl, &offset, SHADER_STAGE_COMPUTE, main, NULL, 0);
+	return hlsl;
 }
