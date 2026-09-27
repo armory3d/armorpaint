@@ -729,6 +729,7 @@ void util_mesh_calc_normals(bool smooth) {
 			smooth_vals          = f32_array_create(num_verts * 3);
 			vert_map             = i32_array_create(num_verts);
 			i32_array_t *indices = i32_array_create_from_raw((i32[]){}, 0);
+			memset(smooth_vals->buffer, 0, smooth_vals->length * sizeof(float));
 			for (i32 j = 0; j < num_verts; ++j) {
 				i32_array_push(indices, j);
 			}
@@ -1293,6 +1294,10 @@ void util_mesh_smooth() {
 	f32_array_t *vbsum = f32_array_create(num_verts * 3);
 	i32_array_t *vn    = i32_array_create(num_verts);
 	i32_array_t *vbn   = i32_array_create(num_verts);
+	memset(vsum->buffer, 0, vsum->length * sizeof(float));
+	memset(vbsum->buffer, 0, vbsum->length * sizeof(float));
+	memset(vn->buffer, 0, vn->length * sizeof(i32));
+	memset(vbn->buffer, 0, vbn->length * sizeof(i32));
 
 	for (i32 e = 0; e < num_edges; ++e) {
 		i32 vlo = edge_vlo->buffer[e];
@@ -1440,6 +1445,12 @@ void util_mesh_bevel(f32 amount) {
 	f32_array_t *cap_su  = f32_array_create(num_compact);
 	f32_array_t *cap_sv  = f32_array_create(num_compact);
 	i32_array_t *cap_cnt = i32_array_create(num_compact);
+	memset(cap_sx->buffer, 0, cap_sx->length * sizeof(float));
+	memset(cap_sy->buffer, 0, cap_sy->length * sizeof(float));
+	memset(cap_sz->buffer, 0, cap_sz->length * sizeof(float));
+	memset(cap_su->buffer, 0, cap_su->length * sizeof(float));
+	memset(cap_sv->buffer, 0, cap_sv->length * sizeof(float));
+	memset(cap_cnt->buffer, 0, cap_cnt->length * sizeof(i32));
 
 	for (i32 t = 0; t < num_tris; ++t) {
 		for (i32 k = 0; k < 3; ++k) {
