@@ -362,10 +362,16 @@ static void minic_api_sig_add(const char *name, const char *sig) {
 }
 
 static void minic_api_register(const char *name, const char *sig, minic_native_fn_t fn) {
-	char stripped[MINIC_MAX_SIG];
-	int  n    = 0;
-	bool skip = false;
-	for (const char *p = sig; *p != '\0' && n < MINIC_MAX_SIG - 1; ++p) {
+	char        stripped[MINIC_MAX_SIG];
+	int         n    = 0;
+	bool        skip = false;
+	const char *p    = sig;
+	if (strncmp(sig, "p:", 2) == 0) {
+		for (; *p != '\0' && *p != '(' && n < MINIC_MAX_SIG - 1; ++p) {
+			stripped[n++] = *p;
+		}
+	}
+	for (; *p != '\0' && n < MINIC_MAX_SIG - 1; ++p) {
 		if (*p == ' ' || *p == ':') {
 			skip = true;
 		}

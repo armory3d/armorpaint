@@ -1,17 +1,68 @@
 
 #include "global.h"
 
-void script_set_stage(char *name) {
-	if (g_project->stages == NULL) {
-		return;
+static i32 script_stage_index(char *name) {
+	if (g_project->stages == NULL || name == NULL) {
+		return -1;
 	}
 	for (i32 i = 0; i < g_project->stages->length; ++i) {
-		stage_t *s = g_project->stages->buffer[i];
-		if (string_equals(s->name, name)) {
-			tab_stages_selected = i;
-			tab_stages_apply(s);
-			return;
+		if (string_equals(g_project->stages->buffer[i]->name, name)) {
+			return i;
 		}
+	}
+	return -1;
+}
+
+void script_set_stage(char *name) {
+	i32 i = script_stage_index(name);
+	if (i >= 0) {
+		tab_stages_selected = i;
+		tab_stages_apply(g_project->stages->buffer[i]);
+	}
+}
+
+void script_stage_create(char *name) {
+	if (name == NULL || script_stage_index(name) >= 0) {
+		return;
+	}
+	if (g_project->stages == NULL) {
+		g_project->stages = any_array_create_from_raw((void *[]){}, 0);
+	}
+	stage_t *s = tab_stages_create_stage(string_copy(name));
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		string_array_push(s->layers, g_project->_->layers->buffer[i]->name);
+	}
+	any_array_push(g_project->stages, s);
+}
+
+void script_stage_add_object(char *stage, char *object) {
+	i32 i = script_stage_index(stage);
+	if (i < 0 || object == NULL) {
+		return;
+	}
+	stage_t *s = g_project->stages->buffer[i];
+	if (string_array_index_of(s->objects, object) < 0) {
+		string_array_push(s->objects, string_copy(object));
+	}
+}
+
+void script_stage_remove_object(char *stage, char *object) {
+	i32 i = script_stage_index(stage);
+	if (i < 0 || object == NULL) {
+		return;
+	}
+	stage_t *s   = g_project->stages->buffer[i];
+	i32      idx = string_array_index_of(s->objects, object);
+	if (idx >= 0) {
+		array_splice(s->objects, idx, 1);
+	}
+	tab_stages_set_hidden(s, object, false);
+}
+
+void script_stage_set_hidden(char *stage, char *object, bool hidden) {
+	i32 i = script_stage_index(stage);
+	if (i >= 0 && object != NULL) {
+		tab_stages_set_hidden(g_project->stages->buffer[i], string_copy(object), hidden);
 	}
 }
 
@@ -835,6 +886,19 @@ void script_object_remove(object_t *o) {
 	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
 		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 	}
+}
+
+void script_object_origin_to_geometry(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t") || array_index_of(g_project->_->paint_objects, o->ext) < 0) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	util_mesh_origin_to_geometry(util_mesh_get_hierarchy(o->ext));
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
 }
 
 void script_object_set_name(object_t *o, char *name) {
