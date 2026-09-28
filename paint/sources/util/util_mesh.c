@@ -924,6 +924,64 @@ void util_mesh_to_origin() {
 	util_mesh_merge(NULL);
 }
 
+void util_mesh_origin_to_geometry(mesh_object_t_array_t *objects) {
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_data_t *g  = objects->buffer[i]->data;
+		i16_array_t *va = g->vertex_arrays->buffer[0]->values;
+		i32          n  = math_floor(va->length / 4.0);
+		if (n == 0) {
+			continue;
+		}
+		f32 lo[3] = {va->buffer[0], va->buffer[1], va->buffer[2]};
+		f32 hi[3] = {va->buffer[0], va->buffer[1], va->buffer[2]};
+		for (i32 j = 1; j < n; ++j) {
+			for (i32 k = 0; k < 3; ++k) {
+				f32 v = va->buffer[j * 4 + k];
+				lo[k] = v < lo[k] ? v : lo[k];
+				hi[k] = v > hi[k] ? v : hi[k];
+			}
+		}
+		f32 sc        = g->scale_pos / 32767.0;
+		f32 c[3]      = {(lo[0] + hi[0]) / 2.0 * sc, (lo[1] + hi[1]) / 2.0 * sc, (lo[2] + hi[2]) / 2.0 * sc};
+		f32 max_scale = 0.0;
+		for (i32 k = 0; k < 3; ++k) {
+			max_scale = math_max(max_scale, math_max(math_abs(lo[k] * sc - c[k]), math_abs(hi[k] * sc - c[k])));
+		}
+		if (max_scale == 0.0) {
+			continue;
+		}
+
+		for (i32 j = 0; j < n; ++j) {
+			for (i32 k = 0; k < 3; ++k) {
+				va->buffer[j * 4 + k] = math_round((va->buffer[j * 4 + k] * sc - c[k]) / max_scale * 32767);
+			}
+		}
+		g->scale_pos = max_scale;
+		mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+
+		// Every object using this data moves by the offset, its children move back
+		for (i32 j = 0; j < g_project->_->paint_objects->length; ++j) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[j];
+			if (p->data != g) {
+				continue;
+			}
+			transform_t *t = p->base->transform;
+			vec4_t       d = vec4_apply_quat((vec4_t){c[0] * t->scale.x, c[1] * t->scale.y, c[2] * t->scale.z, 0.0}, t->rot);
+			t->loc         = (vec4_t){t->loc.x + d.x, t->loc.y + d.y, t->loc.z + d.z, t->loc.w};
+			for (i32 k = 0; k < p->base->children->length; ++k) {
+				transform_t *ct = ((object_t *)p->base->children->buffer[k])->transform;
+				ct->loc         = (vec4_t){ct->loc.x - c[0], ct->loc.y - c[1], ct->loc.z - c[2], ct->loc.w};
+			}
+		}
+		util_mesh_sync_scale_world(g);
+	}
+
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		transform_build_matrix(g_project->_->paint_objects->buffer[i]->base->transform);
+	}
+	util_mesh_transform_changed();
+}
+
 static void _util_mesh_apply_displacement(mesh_object_t *o, buffer_t *height, i32 res, f32 strength, f32 uv_scale) {
 	mesh_data_t *g         = o->data;
 	i16_array_t *va0       = g->vertex_arrays->buffer[0]->values;

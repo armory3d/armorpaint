@@ -696,6 +696,12 @@ void tab_meshes_draw_context_menu() {
 		ui_menu_sub_end();
 	}
 
+	if (ui_menu_button(tr("Origin to Geometry"), "", ICON_NONE)) {
+		util_mesh_origin_to_geometry(util_mesh_get_hierarchy(o));
+		g_context->ddirty = 2;
+		return;
+	}
+
 	ui_menu_separator();
 
 	transform_t *t = o->base->transform;
