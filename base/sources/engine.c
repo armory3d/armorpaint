@@ -436,9 +436,6 @@ world_data_t *world_data_get_raw_by_name(any_array_t *datas, char *name) {
 f32_array_t *world_data_get_empty_irradiance() {
 	if (_world_data_empty_irr == NULL) {
 		_world_data_empty_irr = f32_array_create(28);
-		for (i32 i = 0; i < _world_data_empty_irr->length; ++i) {
-			_world_data_empty_irr->buffer[i] = 0.0;
-		}
 	}
 	return _world_data_empty_irr;
 }
