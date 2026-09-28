@@ -601,10 +601,6 @@ void tab_meshes_draw_context_menu() {
 		util_mesh_duplicate();
 		return;
 	}
-	if (tab_meshes_slot_below(o) != NULL && ui_menu_button(tr("Merge Down"), "", ICON_NONE)) {
-		sys_notify_on_next_frame(tab_meshes_merge_down_next_frame, o);
-		return;
-	}
 	if (util_mesh_data_is_shared(o->data) && ui_menu_button(tr("Make Unique"), "", ICON_NONE)) {
 		util_mesh_unshare_data(o);
 		util_mesh_merge(NULL);
@@ -623,10 +619,84 @@ void tab_meshes_draw_context_menu() {
 		return;
 	}
 
-	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		util_mesh_uv_unwrap_per_object(o);
+	ui_menu_separator();
+
+	if (tab_meshes_slot_below(o) != NULL && ui_menu_button(tr("Merge Down"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(tab_meshes_merge_down_next_frame, o);
 		return;
 	}
+
+	// Geometry actions apply to the mesh and its children
+	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
+		util_mesh_uv_unwrap(util_mesh_get_hierarchy(o));
+		return;
+	}
+
+	if (ui_menu_sub_button(tr("Calculate Normals"))) {
+		ui_menu_sub_begin(2);
+		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
+			util_mesh_calc_normals(util_mesh_get_hierarchy(o), true);
+			g_context->ddirty = 2;
+		}
+		if (ui_menu_button(tr("Flat"), "", ICON_NONE)) {
+			util_mesh_calc_normals(util_mesh_get_hierarchy(o), false);
+			g_context->ddirty = 2;
+		}
+		ui_menu_sub_end();
+	}
+
+	if (ui_menu_button(tr("Flip Normals"), "", ICON_NONE)) {
+		util_mesh_flip_normals(util_mesh_get_hierarchy(o));
+		g_context->ddirty = 2;
+		return;
+	}
+
+	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
+		mesh_object_t_array_t *objects = util_mesh_get_hierarchy(o);
+		util_mesh_apply_displacement(objects, g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);
+		util_mesh_calc_normals(objects, false);
+		g_context->ddirty = 2;
+		return;
+	}
+
+	if (ui_menu_sub_button(tr("Rotate"))) {
+		ui_menu_sub_begin(3);
+		if (ui_menu_button(tr("X"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 1, 2);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		if (ui_menu_button(tr("Y"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 2, 0);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		if (ui_menu_button(tr("Z"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 0, 1);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		ui_menu_sub_end();
+	}
+
+	if (ui_menu_sub_button(tr("Modifiers"))) {
+		ui_menu_sub_begin(4);
+		if (ui_menu_button(tr("Decimate"), "", ICON_NONE)) {
+			util_mesh_decimate(util_mesh_get_hierarchy(o), 0.5);
+		}
+		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
+			util_mesh_smooth(util_mesh_get_hierarchy(o));
+		}
+		if (ui_menu_button(tr("Subdivide"), "", ICON_NONE)) {
+			util_mesh_subdivide(util_mesh_get_hierarchy(o));
+		}
+		if (ui_menu_button(tr("Bevel"), "", ICON_NONE)) {
+			util_mesh_bevel(util_mesh_get_hierarchy(o), 0.1);
+		}
+		ui_menu_sub_end();
+	}
+
+	ui_menu_separator();
 
 	transform_t *t = o->base->transform;
 
@@ -744,9 +814,8 @@ void tab_meshes_draw_context_menu() {
 }
 
 void tab_meshes_draw_edit() {
-
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		util_mesh_uv_unwrap();
+		util_mesh_uv_unwrap(NULL);
 	}
 
 	if (ui_menu_button(tr("Edit UV Map"), "", ICON_NONE)) {
@@ -759,24 +828,6 @@ void tab_meshes_draw_edit() {
 
 	ui_menu_separator();
 
-	if (ui_menu_sub_button(tr("Calculate Normals"))) {
-		ui_menu_sub_begin(2);
-		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
-			util_mesh_calc_normals(true);
-			g_context->ddirty = 2;
-		}
-		if (ui_menu_button(tr("Flat"), "", ICON_NONE)) {
-			util_mesh_calc_normals(false);
-			g_context->ddirty = 2;
-		}
-		ui_menu_sub_end();
-	}
-
-	if (ui_menu_button(tr("Flip Normals"), "", ICON_NONE)) {
-		util_mesh_flip_normals();
-		g_context->ddirty = 2;
-	}
-
 	if (ui_menu_button(tr("Geometry to Origin"), "", ICON_NONE)) {
 		util_mesh_to_origin();
 		g_context->ddirty = 2;
@@ -787,51 +838,6 @@ void tab_meshes_draw_edit() {
 		sys_notify_on_next_frame(&tab_meshes_merge_geometry_next_frame, NULL);
 	}
 	g_ui->enabled = true;
-
-	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
-		util_mesh_apply_displacement(g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);
-		util_mesh_calc_normals(false);
-		g_context->ddirty = 2;
-	}
-
-	if (ui_menu_sub_button(tr("Rotate"))) {
-		ui_menu_sub_begin(3);
-		if (ui_menu_button(tr("X"), "", ICON_NONE)) {
-			util_mesh_swap_axis(1, 2);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		if (ui_menu_button(tr("Y"), "", ICON_NONE)) {
-			util_mesh_swap_axis(2, 0);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		if (ui_menu_button(tr("Z"), "", ICON_NONE)) {
-			util_mesh_swap_axis(0, 1);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		ui_menu_sub_end();
-	}
-
-	ui_menu_separator();
-
-	if (ui_menu_sub_button(tr("Modifiers"))) {
-		ui_menu_sub_begin(4);
-		if (ui_menu_button(tr("Decimate"), "", ICON_NONE)) {
-			util_mesh_decimate(0.5);
-		}
-		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
-			util_mesh_smooth();
-		}
-		if (ui_menu_button(tr("Subdivide"), "", ICON_NONE)) {
-			util_mesh_subdivide();
-		}
-		if (ui_menu_button(tr("Bevel"), "", ICON_NONE)) {
-			util_mesh_bevel(0.1);
-		}
-		ui_menu_sub_end();
-	}
 }
 
 mesh_object_t *tab_meshes_append_shape(char *mesh_name) {

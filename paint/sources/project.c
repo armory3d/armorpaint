@@ -453,7 +453,7 @@ void project_unwrap_mesh_box_draw() {
 		console_toast(tr("Unwrapping mesh"));
 #endif
 
-		util_mesh_uv_unwrap();
+		util_mesh_uv_unwrap(NULL);
 	}
 }
 

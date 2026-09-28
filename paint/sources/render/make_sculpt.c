@@ -1271,7 +1271,7 @@ void slot_layer_apply_sculpt(slot_layer_t *raw) {
 		offset += g->index_array->length;
 	}
 
-	util_mesh_calc_normals(true);
+	util_mesh_calc_normals(NULL, true);
 	render_path_raytrace_ready = false;
 
 	slot_layer_delete(raw);
