@@ -93,8 +93,11 @@ static char *text_to_text_node_scene_bounds(void) {
 }
 
 static char *text_to_text_node_project_contents(void) {
-	buffer_t *encoded = util_encode_project(g_project);
-	char     *json    = armpack_decode_to_json_omit_large_arrays(encoded);
+	swatch_color_t_array_t *swatches = g_project->swatches;
+	g_project->swatches              = NULL;
+	buffer_t *encoded                = util_encode_project(g_project);
+	g_project->swatches              = swatches;
+	char *json                       = armpack_decode_to_json_omit_large_arrays(encoded);
 	array_free(encoded);
 	free(encoded);
 	return string("/* Current project state:\n%s\n%s%s*/\n", json, text_to_text_node_scene_bounds(), text_to_text_node_shapes());
