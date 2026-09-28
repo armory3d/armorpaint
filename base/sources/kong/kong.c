@@ -282,14 +282,6 @@ void find_used_builtins(function *f) {
 				f->used_builtins.dispatch_thread_id = true;
 			}
 
-			if (func == add_name("group_thread_id")) {
-				f->used_builtins.group_thread_id = true;
-			}
-
-			if (func == add_name("group_id")) {
-				f->used_builtins.group_id = true;
-			}
-
 			if (func == add_name("vertex_id")) {
 				f->used_builtins.vertex_id = true;
 			}
@@ -300,8 +292,6 @@ void find_used_builtins(function *f) {
 					find_used_builtins(f);
 
 					f->used_builtins.dispatch_thread_id |= called->used_builtins.dispatch_thread_id;
-					f->used_builtins.group_thread_id |= called->used_builtins.group_thread_id;
-					f->used_builtins.group_id |= called->used_builtins.group_id;
 					f->used_builtins.vertex_id |= called->used_builtins.vertex_id;
 
 					break;
@@ -1740,64 +1730,10 @@ static void add_func_float3x3_float3x3(char *name) {
 	f->block           = NULL;
 }
 
-////
-
 static void add_func_int(char *name) {
 	function_id func = add_function(add_name(name));
 	function   *f    = get_function(func);
 	init_type_ref(&f->return_type, add_name("int"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3_float_float_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type   = find_type_by_ref(&f->return_type);
-	f->parameter_names[0] = add_name("a");
-	f->parameter_names[1] = add_name("b");
-	f->parameter_names[2] = add_name("c");
-	for (int i = 0; i < 3; ++i) {
-		init_type_ref(&f->parameter_types[i], add_name("float"));
-		f->parameter_types[i].type = find_type_by_ref(&f->parameter_types[i]);
-	}
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3x3(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3x3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_uint(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("uint"));
 	f->return_type.type = find_type_by_ref(&f->return_type);
 	f->parameters_size  = 0;
 	f->block            = NULL;
@@ -1922,24 +1858,6 @@ static void add_func_float3_float3_float3(char *name) {
 
 	f->parameters_size = 2;
 	f->block           = NULL;
-}
-
-static void add_func_void_uint_uint(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-
-	init_type_ref(&f->return_type, add_name("void"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	f->parameter_names[1] = add_name("b");
-	for (int i = 0; i < 2; ++i) {
-		init_type_ref(&f->parameter_types[i], add_name("uint"));
-		f->parameter_types[i].type = find_type_by_ref(&f->parameter_types[i]);
-	}
-	f->parameters_size = 2;
-
-	f->block = NULL;
 }
 
 static void add_func_types(char *name, char *return_type, char **parameter_types, uint8_t parameters_size) {
@@ -2418,71 +2336,9 @@ void functions_init(void) {
 		f->block = NULL;
 	}
 
-	{
-		function_id func = add_function(add_name("trace_ray"));
-		function   *f    = get_function(func);
-
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("scene");
-		init_type_ref(&f->parameter_types[0], add_name("bvh"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-		f->parameters_size += 1;
-
-		f->parameter_names[1] = add_name("ray");
-		init_type_ref(&f->parameter_types[1], add_name("ray"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-		f->parameters_size += 1;
-
-		f->parameter_names[2] = add_name("payload");
-		init_type_ref(&f->parameter_types[2], add_name("void"));
-		f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-		f->parameters_size += 1;
-
-		f->block = NULL;
-	}
-
-	{
-		function_id func = add_function(add_name("dispatch_mesh"));
-		function   *f    = get_function(func);
-
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-		f->parameters_size += 1;
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("uint"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-		f->parameters_size += 1;
-
-		f->parameter_names[2] = add_name("z");
-		init_type_ref(&f->parameter_types[2], add_name("uint"));
-		f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-		f->parameters_size += 1;
-
-		f->parameter_names[3] = add_name("payload");
-		init_type_ref(&f->parameter_types[3], add_name("void"));
-		f->parameter_types[3].type = find_type_by_ref(&f->parameter_types[3]);
-		f->parameters_size += 1;
-
-		f->block = NULL;
-	}
-
-	add_func_uint3("group_id");
-	add_func_uint3("group_thread_id");
 	add_func_uint3("dispatch_thread_id");
-	add_func_int("group_index");
-	add_func_int("instance_id");
 	add_func_int("vertex_id");
 	add_func_float_float_float_float("lerp");
-	add_func_float3("world_ray_origin");
-	add_func_float3("world_ray_direction");
-	add_func_float("ray_length");
 	add_func_float3_float3("normalize");
 	add_func_float_float("sin");
 	add_func_float_float("cos");
@@ -2492,12 +2348,8 @@ void functions_init(void) {
 	add_func_float_float_float("atan2");
 	add_func_float_float2("length");
 	add_func_float_float3_float3("distance");
-	add_func_uint3("ray_index");
-	add_func_float3("ray_dimensions");
 	add_func_float_float("frac");
-	add_func_float3x3("object_to_world3x3");
 	add_func_float3_float3_float3("reflect");
-	add_func_uint("primitive_index");
 	add_func_float_float("abs");
 	add_func_float_float("tan");
 	add_func_float_float("log");
@@ -2528,46 +2380,6 @@ void functions_init(void) {
 	add_func_float_float("ddy");
 	add_func_float3x3_float3x3("transpose");
 	add_raytrace_funcs();
-
-	add_func_void_uint_uint("set_mesh_output_counts");
-
-	{
-		function_id func = add_function(add_name("set_mesh_triangle"));
-		function   *f    = get_function(func);
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("uint3"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-		f->parameters_size = 2;
-
-		f->block = NULL;
-	}
-
-	{
-		function_id func = add_function(add_name("set_mesh_vertex"));
-		function   *f    = get_function(func);
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("void"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-		f->parameters_size = 2;
-
-		f->block = NULL;
-	}
 }
 
 static void grow_functions_if_needed(uint64_t size) {
@@ -2707,17 +2519,12 @@ char *get_name(name_id id) {
 	return &names[id];
 }
 
-////
 static statement statements_buffer[4096];
 int              statement_index = 0;
-////
 
 static statement *statement_allocate(void) {
-	////
-	// statement    *s       = (statement *)malloc(sizeof(statement));
 	statement *s = &statements_buffer[statement_index];
 	statement_index++;
-	////
 	debug_context context = {0};
 	check(s != NULL, context, "Could not allocate statement");
 	return s;
@@ -2732,26 +2539,17 @@ static void statements_add(statements *statements, statement *statement) {
 	statements->size += 1;
 }
 
-////
 static expression experessions_buffer[8192];
 int               expression_index = 0;
-////
 
 static expression *expression_allocate(void) {
-	////
-	// expression   *e       = (expression *)malloc(sizeof(expression));
 	expression *e = &experessions_buffer[expression_index];
 	expression_index++;
-	////
 	debug_context context = {0};
 	check(e != NULL, context, "Could not allocate expression");
 	init_type_ref(&e->type, NO_NAME);
 	return e;
 }
-
-// static void expression_free(expression *expression) {
-//	free(expression);
-// }
 
 typedef struct state {
 	tokens       *tokens;
@@ -2873,11 +2671,7 @@ static void add_resource_to_set(definition d) {
 	}
 }
 
-static double attribute_parameter_to_number(name_id attribute_name, name_id parameter_name) {
-	if (attribute_name == add_name("topology") && parameter_name == add_name("triangle")) {
-		return 0;
-	}
-
+static double attribute_parameter_to_number(name_id parameter_name) {
 	type_id type = find_type_by_name(parameter_name);
 	if (type != NO_TYPE) {
 		return (double)type;
@@ -2909,8 +2703,7 @@ static definition parse_definition(state_t *state) {
 
 				while (current(state).kind != TOKEN_RIGHT_PAREN) {
 					if (current(state).kind == TOKEN_IDENTIFIER) {
-						current_attribute.parameters[current_attribute.paramters_count] =
-						    attribute_parameter_to_number(current_attribute.name, current(state).identifier);
+						current_attribute.parameters[current_attribute.paramters_count] = attribute_parameter_to_number(current(state).identifier);
 						current_attribute.paramters_count += 1;
 						advance_state(state);
 					}
@@ -3849,16 +3642,7 @@ static definition parse_global(state_t *state, attribute_list attributes, name_i
 
 	definition d = {0};
 
-	name_id tex1d_name        = add_name("tex1d");
-	name_id tex2d_name        = add_name("tex2d");
-	name_id tex3d_name        = add_name("tex3d");
-	name_id texcube_name      = add_name("texcube");
-	name_id tex1darray_name   = add_name("tex1darray");
-	name_id tex2darray_name   = add_name("tex2darray");
-	name_id texcubearray_name = add_name("texcubearray");
-
-	if (type_name == tex1d_name || type_name == tex2d_name || type_name == tex3d_name || type_name == texcube_name || type_name == tex1darray_name ||
-	    type_name == tex2darray_name || type_name == texcubearray_name) {
+	if (type_name == add_name("tex2d")) {
 		struct type tex_type;
 		tex_type.name                        = type_name;
 		tex_type.attributes.attributes_count = 0;
@@ -4271,9 +4055,7 @@ tokens tokenize(const char *filename, const char *source) {
 			}
 
 			tokens_add(&tokens, token_create(TOKEN_NONE, &state));
-			////
 			free(buffer.buf);
-			////
 			return tokens;
 		}
 		else {

@@ -510,9 +510,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				kong_assert(threads != NULL && threads->paramters_count == 3);
 
 				*offset += sprintf(&code[*offset],
-				                   "@compute @workgroup_size(%u, %u, %u) fn main(@builtin(local_invocation_id) _kong_group_thread_id: vec3<u32>, "
-				                   "@builtin(workgroup_id) _kong_group_id: vec3<u32>, @builtin(global_invocation_id) _kong_dispatch_thread_id: vec3<u32>, "
-				                   "@builtin(num_workgroups) _kong_threads_count: vec3<u32>, @builtin(local_invocation_index) _kong_group_index: u32) {\n",
+				                   "@compute @workgroup_size(%u, %u, %u) fn main(@builtin(global_invocation_id) _kong_dispatch_thread_id: vec3<u32>) {\n",
 				                   (uint32_t)threads->parameters[0], (uint32_t)threads->parameters[1], (uint32_t)threads->parameters[2]);
 			}
 		}
@@ -850,28 +848,11 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					                   get_var(o->op_call.parameters[1], f, main).str, get_var(o->op_call.parameters[2], f, main).str,
 					                   get_var(o->op_call.parameters[3], f, main).str);
 				}
-				else if (o->op_call.func == add_name("group_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_id can not have a parameter");
-					indent(code, offset, indentation);
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_id;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
-				}
-				else if (o->op_call.func == add_name("group_thread_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_thread_id can not have a parameter");
-					indent(code, offset, indentation);
-					*offset +=
-					    sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_thread_id;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
-				}
 				else if (o->op_call.func == add_name("dispatch_thread_id")) {
 					check(o->op_call.parameters_size == 0, context, "dispatch_thread_id can not have a parameter");
 					indent(code, offset, indentation);
 					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_dispatch_thread_id;\n", o->op_call.var.index,
 					                   type_string(o->op_call.var.type.type));
-				}
-				else if (o->op_call.func == add_name("group_index")) {
-					check(o->op_call.parameters_size == 0, context, "group_index can not have a parameter");
-					indent(code, offset, indentation);
-					*offset +=
-					    sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_index;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
 				}
 				else if (o->op_call.func == add_name("vertex_id")) {
 					check(o->op_call.parameters_size == 0, context, "vertex_id can not have a parameter");
@@ -904,9 +885,6 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index,
 					                   o->op_call.parameters[2].index);
 				}
-
-				////
-
 				else {
 					name_id     func_name_id = o->op_call.func;
 					const char *func_name    = get_name(o->op_call.func);

@@ -569,7 +569,7 @@ static void write_functions(char *code, size_t *offset) {
 			*offset += sprintf(&code[*offset], "vertex %s %s(_kong_%s_attributes _kong_stage_in [[stage_in]]", type_string(f->return_type.type),
 			                   get_name(f->name), get_name(f->name));
 
-			*offset += sprintf(&code[*offset], "%s, uint _kong_vertex_id [[vertex_id]], uint _kong_instance_id [[instance_id]]) {\n", buffers);
+			*offset += sprintf(&code[*offset], "%s, uint _kong_vertex_id [[vertex_id]]) {\n", buffers);
 		}
 		else if (is_fragment_function(i)) {
 			if (get_type(f->return_type.type)->array_size > 0) {
@@ -598,8 +598,7 @@ static void write_functions(char *code, size_t *offset) {
 		else if (is_compute_function(i)) {
 			*offset +=
 			    sprintf(&code[*offset],
-			            "kernel void %s(uint3 _kong_group_thread_id [[thread_position_in_threadgroup]], uint3 _kong_group_id [[threadgroup_position_in_grid]], "
-			            "uint _kong_group_index [[thread_index_in_threadgroup]], uint3 _kong_dispatch_thread_id [[thread_position_in_grid]]",
+			            "kernel void %s(uint3 _kong_dispatch_thread_id [[thread_position_in_grid]]",
 			            get_name(f->name));
 			for (uint8_t parameter_index = 1; parameter_index < f->parameters_size; ++parameter_index) {
 				*offset += sprintf(&code[*offset], ", %s _%" PRIu64, type_string(f->parameter_types[0].type), parameter_ids[0]);
@@ -835,23 +834,10 @@ static void write_functions(char *code, size_t *offset) {
 					                   type_string(o->op_call.var.type.type), o->op_call.var.index, prefix, o->op_call.parameters[0].index, prefix,
 					                   o->op_call.parameters[1].index, o->op_call.parameters[2].index, o->op_call.parameters[3].index);
 				}
-				else if (o->op_call.func == add_name("group_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_id can not have a parameter");
-					*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = _kong_group_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("group_thread_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_thread_id can not have a parameter");
-					*offset +=
-					    sprintf(&code[*offset], "%s _%" PRIu64 " = _kong_group_thread_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
 				else if (o->op_call.func == add_name("dispatch_thread_id")) {
 					check(o->op_call.parameters_size == 0, context, "dispatch_thread_id can not have a parameter");
 					*offset +=
 					    sprintf(&code[*offset], "%s _%" PRIu64 " = _kong_dispatch_thread_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("group_index")) {
-					check(o->op_call.parameters_size == 0, context, "group_index can not have a parameter");
-					*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = _kong_group_index;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
 				}
 				else if (o->op_call.func == add_name("vertex_id")) {
 					check(o->op_call.parameters_size == 0, context, "vertex_id can not have a parameter");
@@ -874,9 +860,6 @@ static void write_functions(char *code, size_t *offset) {
 					*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = dfdy(_%" PRIu64 ");\n", type_string(o->op_call.var.type.type), o->op_call.var.index,
 					                   o->op_call.parameters[0].index);
 				}
-
-				////
-
 				else if (compute_export && write_compute_builtin(code, offset, o)) {
 				}
 				else {

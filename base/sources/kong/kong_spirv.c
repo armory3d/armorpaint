@@ -44,15 +44,11 @@ typedef enum spirv_opcode {
 	SPIRV_OPCODE_COMPOSITE_CONSTRUCT = 80,
 	SPIRV_OPCODE_COMPOSITE_EXTRACT   = 81,
 	SPIRV_OPCODE_COPY_OBJECT         = 83,
-	////
 	SPIRV_OPCODE_TRANSPOSE = 84,
-	////
 	SPIRV_OPCODE_SAMPLED_IMAGE             = 86,
 	SPIRV_OPCODE_IMAGE_SAMPLE_IMPLICIT_LOD = 87,
 	SPIRV_OPCODE_IMAGE_SAMPLE_EXPLICIT_LOD = 88,
-	////
 	SPIRV_OPCODE_IMAGE_FETCH = 95,
-	////
 	SPIRV_OPCODE_IMAGE_READ               = 98,
 	SPIRV_OPCODE_IMAGE_WRITE              = 99,
 	SPIRV_OPCODE_IMAGE_QUERY_SIZE_LOD     = 103,
@@ -137,7 +133,6 @@ typedef enum spirv_glsl_std {
 	SPIRV_GLSL_STD_FRACT = 10,
 	SPIRV_GLSL_STD_SIN   = 13,
 	SPIRV_GLSL_STD_COS   = 14,
-	////
 	SPIRV_GLSL_STD_TRUNC   = 3,
 	SPIRV_GLSL_STD_FSIGN   = 6,
 	SPIRV_GLSL_STD_RADIANS = 11,
@@ -149,7 +144,6 @@ typedef enum spirv_glsl_std {
 	SPIRV_GLSL_STD_EXP     = 27,
 	SPIRV_GLSL_STD_EXP2    = 29,
 	SPIRV_GLSL_STD_LOG     = 28,
-	////
 	SPIRV_GLSL_STD_ASIN         = 16,
 	SPIRV_GLSL_STD_ACOS         = 17,
 	SPIRV_GLSL_STD_ATAN         = 18,
@@ -661,8 +655,6 @@ static spirv_id spirv_float4x4_type;
 static spirv_id glsl_import;
 
 static spirv_id dispatch_thread_id_variable;
-static spirv_id group_thread_id_variable;
-static spirv_id group_id_variable;
 static spirv_id work_group_size_variable;
 static spirv_id vertex_id_variable;
 
@@ -1500,8 +1492,6 @@ static spirv_id write_op_image_sample_explicit_lod(instructions_buffer *instruct
 	return result;
 }
 
-////
-
 static spirv_id write_op_image_fetch(instructions_buffer *instructions, spirv_id result_type, spirv_id sampled_image, spirv_id coordinate) {
 	spirv_id result = allocate_index();
 
@@ -1519,8 +1509,6 @@ static spirv_id write_op_transpose(instructions_buffer *instructions, spirv_id t
 	write_instruction(instructions, WORD_COUNT(operands), SPIRV_OPCODE_TRANSPOSE, operands);
 	return result;
 }
-
-////
 
 static spirv_id write_op_ext_inst(instructions_buffer *instructions, spirv_id result_type, spirv_id set, uint32_t instruction, spirv_id operand) {
 	spirv_id result = allocate_index();
@@ -1923,10 +1911,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 		}
 		else if (stage == SHADER_STAGE_VERTEX) {
 			for (size_t i = 0; i < input_vars_count; ++i) {
-				////
-				// spirv_id index   = get_int_constant((int)vertex_parameter_member_indices[i]);
 				spirv_id index = get_int_constant((int)i);
-				////
 				spirv_id loaded  = write_op_load(instructions, convert_type_to_spirv_id(input_types[i]), input_vars[i]);
 				spirv_id pointer = write_op_access_chain(instructions, convert_pointer_type_to_spirv_id(input_types[i], STORAGE_CLASS_FUNCTION),
 				                                         spirv_parameter_ids[vertex_parameter_indices[i]], &index, 1);
@@ -2163,12 +2148,10 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					spirv_id id = write_op_convert_u_to_f(instructions, spirv_float_type, get_var(instructions, o->op_call.parameters[0]));
 					hmput(index_map, o->op_call.var.index, id);
 				}
-				////
 				else if (o->op_call.parameters[0].type.type == float_id) {
 					spirv_id id = get_var(instructions, o->op_call.parameters[0]);
 					hmput(index_map, o->op_call.var.index, id);
 				}
-				////
 				else {
 					kong_assert(false);
 				}
@@ -2357,14 +2340,6 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint3_id), dispatch_thread_id_variable);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("group_thread_id")) {
-				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint3_id), group_thread_id_variable);
-				hmput(index_map, o->op_call.var.index, id);
-			}
-			else if (func == add_name("group_id")) {
-				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint3_id), group_id_variable);
-				hmput(index_map, o->op_call.var.index, id);
-			}
 			else if (func == add_name("vertex_id")) {
 				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint_id), vertex_id_variable);
 				hmput(index_map, o->op_call.var.index, id);
@@ -2548,9 +2523,6 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_REFLECT, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-
-			////
-
 			else if (func == add_name("tan")) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TAN, operand);
@@ -3626,10 +3598,8 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 		bool    writable  = globals.writable[i];
 		bool    storage   = stage == SHADER_STAGE_COMPUTE && writable;
 
-		////
 		readable = false;
 		writable = false;
-		////
 
 		if (base_type == sampler_type_id) {
 			add_to_type_map(g->type, spirv_sampler_type, false, STORAGE_CLASS_NONE);
@@ -3771,18 +3741,6 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 		write_op_variable_preallocated(global_vars_block, convert_pointer_type_to_spirv_id(uint3_id, STORAGE_CLASS_INPUT), dispatch_thread_id_variable,
 		                               STORAGE_CLASS_INPUT);
 		write_op_decorate_value(decorations, dispatch_thread_id_variable, DECORATION_BUILTIN, BUILTIN_GLOBAL_INVOCATION_ID);
-	}
-
-	if (main->used_builtins.group_thread_id) {
-		write_op_variable_preallocated(global_vars_block, convert_pointer_type_to_spirv_id(uint3_id, STORAGE_CLASS_INPUT), group_thread_id_variable,
-		                               STORAGE_CLASS_INPUT);
-		write_op_decorate_value(decorations, group_thread_id_variable, DECORATION_BUILTIN, BUILTIN_LOCAL_INVOCATION_ID);
-	}
-
-	if (main->used_builtins.group_id) {
-		write_op_variable_preallocated(global_vars_block, convert_pointer_type_to_spirv_id(uint3_id, STORAGE_CLASS_INPUT), group_id_variable,
-		                               STORAGE_CLASS_INPUT);
-		write_op_decorate_value(decorations, group_id_variable, DECORATION_BUILTIN, BUILTIN_WORKGROUP_ID);
 	}
 
 	if (main->used_builtins.vertex_id) {
@@ -4317,14 +4275,6 @@ char *spirv_export_compute(int *size_out) {
 	if (main->used_builtins.dispatch_thread_id) {
 		dispatch_thread_id_variable    = allocate_index();
 		interfaces[interfaces_count++] = dispatch_thread_id_variable;
-	}
-	if (main->used_builtins.group_thread_id) {
-		group_thread_id_variable       = allocate_index();
-		interfaces[interfaces_count++] = group_thread_id_variable;
-	}
-	if (main->used_builtins.group_id) {
-		group_id_variable              = allocate_index();
-		interfaces[interfaces_count++] = group_id_variable;
 	}
 	if (geometry) {
 		instances_var                  = allocate_index();

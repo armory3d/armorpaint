@@ -8,8 +8,6 @@
 
 static descriptor_set *all_descriptor_sets[256];
 static size_t          all_descriptor_sets_count = 0;
-static type_id         payload_types[256];
-static size_t          payload_types_count = 0;
 
 static char *member_string(type *parent_type, name_id member_name) {
 	if (parent_type == get_type(ray_type_id)) {
@@ -59,14 +57,8 @@ static char *type_string(type_id type) {
 	if (type == ray_query_type_id) {
 		return "RayQuery<RAY_FLAG_FORCE_OPAQUE>";
 	}
-	if (get_type(type)->tex_kind != TEXTURE_KIND_NONE) {
-		if (get_type(type)->tex_kind == TEXTURE_KIND_2D) {
-			return "Texture2D<float4>";
-		}
-		else {
-			// TODO
-			kong_assert(false);
-		}
+	if (get_type(type)->tex_kind == TEXTURE_KIND_2D) {
+		return "Texture2D<float4>";
 	}
 	return get_name(get_type(type)->name);
 }
@@ -97,16 +89,10 @@ static bool is_input(type_id t, type_id inputs[64], size_t inputs_count) {
 	return false;
 }
 
-static void write_types(char *hlsl, size_t *offset, shader_stage stage, type_id inputs[64], size_t inputs_count, type_id output, function *main,
-                        function **rayshaders, size_t rayshaders_count) {
+static void write_types(char *hlsl, size_t *offset, shader_stage stage, type_id inputs[64], size_t inputs_count, type_id output, function *main) {
 	type_id types[256];
 	size_t  types_size = 0;
-	if (main != NULL) {
-		find_referenced_types(main, types, &types_size);
-	}
-	for (size_t rayshader_index = 0; rayshader_index < rayshaders_count; ++rayshader_index) {
-		find_referenced_types(rayshaders[rayshader_index], types, &types_size);
-	}
+	find_referenced_types(main, types, &types_size);
 
 	size_t input_offsets[64];
 	input_offsets[0] = 0;
@@ -233,22 +219,12 @@ static void assign_register_indices(uint32_t *register_indices, function *shader
 	}
 }
 
-static void write_globals(char *hlsl, size_t *offset, function *main, function **rayshaders, size_t rayshaders_count) {
-	if (main == NULL) {
-		main = rayshaders[0]; // TODO: Consider all raytracing pipelines
-	}
-
+static void write_globals(char *hlsl, size_t *offset, function *main) {
 	uint32_t register_indices[512] = {0};
 	assign_register_indices(register_indices, main);
 
 	global_array globals = {0};
-
-	if (main != NULL) {
-		find_referenced_globals(main, &globals);
-	}
-	for (size_t rayshader_index = 0; rayshader_index < rayshaders_count; ++rayshader_index) {
-		find_referenced_globals(rayshaders[rayshader_index], &globals);
-	}
+	find_referenced_globals(main, &globals);
 
 	descriptor_set_group *group = find_descriptor_set_group_for_function(main);
 	for (size_t descriptor_set_index = 0; descriptor_set_index < group->size; ++descriptor_set_index) {
@@ -561,70 +537,13 @@ static void write_root_signature(function *main, char *hlsl, size_t *offset) {
 	*offset += sprintf(&hlsl[*offset], "\")]\n");
 }
 
-static bool is_payload_type(type_id t) {
-	for (size_t payload_index = 0; payload_index < payload_types_count; ++payload_index) {
-		if (payload_types[payload_index] == t) {
-			return true;
-		}
-	}
-	return false;
-}
-
-static void write_functions(char *hlsl, size_t *offset, shader_stage stage, function *main, function **rayshaders, size_t rayshaders_count) {
+static void write_functions(char *hlsl, size_t *offset, shader_stage stage, function *main) {
 	function *functions[256];
 	size_t    functions_size = 0;
 
-	if (main != NULL) {
-		functions[functions_size] = main;
-		functions_size += 1;
-
-		find_referenced_functions(main, functions, &functions_size);
-	}
-
-	for (size_t rayshader_index = 0; rayshader_index < rayshaders_count; ++rayshader_index) {
-		functions[functions_size] = rayshaders[rayshader_index];
-		functions_size += 1;
-		find_referenced_functions(rayshaders[rayshader_index], functions, &functions_size);
-	}
-
-	// find payloads
-	for (size_t i = 0; i < functions_size; ++i) {
-		function *f = functions[i];
-
-		uint8_t *data = f->code.o;
-		size_t   size = f->code.size;
-
-		size_t index = 0;
-		while (index < size) {
-			opcode *o = (opcode *)&data[index];
-			switch (o->type) {
-			case OPCODE_CALL: {
-				if (o->op_call.func == add_name("trace_ray")) {
-					debug_context context = {0};
-					check(o->op_call.parameters_size == 3, context, "trace_ray requires three parameters");
-
-					type_id payload_type = o->op_call.parameters[2].type.type;
-
-					bool found = false;
-					for (size_t payload_index = 0; payload_index < payload_types_count; ++payload_index) {
-						if (payload_types[payload_index] == payload_type) {
-							found = true;
-							break;
-						}
-					}
-
-					if (!found) {
-						payload_types[payload_types_count] = payload_type;
-						payload_types_count += 1;
-					}
-				}
-			}
-			default:
-				break;
-			}
-			index += o->size;
-		}
-	}
+	functions[functions_size] = main;
+	functions_size += 1;
+	find_referenced_functions(main, functions, &functions_size);
 
 	// function declarations
 	for (size_t i = 0; i < functions_size; ++i) {
@@ -644,19 +563,13 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 
 			*offset += sprintf(&hlsl[*offset], "%s %s(", type_string(f->return_type.type), get_name(f->name));
 			for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-				char *payload_prefix = "";
-				if (is_payload_type(f->parameter_types[parameter_index].type)) {
-					payload_prefix = "inout ";
-				}
-
 				if (parameter_index == 0) {
-
-					*offset += sprintf(&hlsl[*offset], "%s%s _%" PRIu64, payload_prefix, type_string(f->parameter_types[parameter_index].type),
-					                   parameter_ids[parameter_index]);
+					*offset +=
+					    sprintf(&hlsl[*offset], "%s _%" PRIu64, type_string(f->parameter_types[parameter_index].type), parameter_ids[parameter_index]);
 				}
 				else {
-					*offset += sprintf(&hlsl[*offset], ", %s%s _%" PRIu64, payload_prefix, type_string(f->parameter_types[parameter_index].type),
-					                   parameter_ids[parameter_index]);
+					*offset +=
+					    sprintf(&hlsl[*offset], ", %s _%" PRIu64, type_string(f->parameter_types[parameter_index].type), parameter_ids[parameter_index]);
 				}
 			}
 			*offset += sprintf(&hlsl[*offset], ");\n");
@@ -766,8 +679,7 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 				if (f->parameters_size > 0) {
 					*offset += sprintf(&hlsl[*offset], ", ");
 				}
-				*offset += sprintf(&hlsl[*offset], "in uint3 _kong_group_id : SV_GroupID, in uint3 _kong_group_thread_id : SV_GroupThreadID, in uint3 "
-				                                   "_kong_dispatch_thread_id : SV_DispatchThreadID, in uint _kong_group_index : SV_GroupIndex) {\n");
+				*offset += sprintf(&hlsl[*offset], "in uint3 _kong_dispatch_thread_id : SV_DispatchThreadID) {\n");
 			}
 			else {
 				debug_context context = {0};
@@ -777,18 +689,13 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 		else {
 			*offset += sprintf(&hlsl[*offset], "%s %s(", type_string(f->return_type.type), get_name(f->name));
 			for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-				char *payload_prefix = "";
-				if (is_payload_type(f->parameter_types[parameter_index].type)) {
-					payload_prefix = "inout ";
-				}
-
 				if (parameter_index == 0) {
-					*offset += sprintf(&hlsl[*offset], "%s%s _%" PRIu64, payload_prefix, type_string(f->parameter_types[parameter_index].type),
-					                   parameter_ids[parameter_index]);
+					*offset +=
+					    sprintf(&hlsl[*offset], "%s _%" PRIu64, type_string(f->parameter_types[parameter_index].type), parameter_ids[parameter_index]);
 				}
 				else {
-					*offset += sprintf(&hlsl[*offset], ", %s%s _%" PRIu64, payload_prefix, type_string(f->parameter_types[parameter_index].type),
-					                   parameter_ids[parameter_index]);
+					*offset +=
+					    sprintf(&hlsl[*offset], ", %s _%" PRIu64, type_string(f->parameter_types[parameter_index].type), parameter_ids[parameter_index]);
 				}
 			}
 			*offset += sprintf(&hlsl[*offset], ") {\n");
@@ -1002,90 +909,14 @@ static void write_functions(char *hlsl, size_t *offset, shader_stage stage, func
 					                   type_string(o->op_call.var.type.type), o->op_call.var.index, o->op_call.parameters[0].index,
 					                   o->op_call.parameters[1].index, o->op_call.parameters[2].index, o->op_call.parameters[3].index);
 				}
-				else if (o->op_call.func == add_name("group_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_id can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = _kong_group_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("group_thread_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_thread_id can not have a parameter");
-					*offset +=
-					    sprintf(&hlsl[*offset], "%s _%" PRIu64 " = _kong_group_thread_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
 				else if (o->op_call.func == add_name("dispatch_thread_id")) {
 					check(o->op_call.parameters_size == 0, context, "dispatch_thread_id can not have a parameter");
 					*offset +=
 					    sprintf(&hlsl[*offset], "%s _%" PRIu64 " = _kong_dispatch_thread_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
 				}
-				else if (o->op_call.func == add_name("group_index")) {
-					check(o->op_call.parameters_size == 0, context, "group_index can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = _kong_group_index;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("instance_id")) {
-					check(o->op_call.parameters_size == 0, context, "instance_id can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = InstanceID();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
 				else if (o->op_call.func == add_name("vertex_id")) {
 					check(o->op_call.parameters_size == 0, context, "vertex_id can not have a parameter");
 					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = _kong_vertex_id;\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("world_ray_direction")) {
-					check(o->op_call.parameters_size == 0, context, "world_ray_direction can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = WorldRayDirection();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("world_ray_origin")) {
-					check(o->op_call.parameters_size == 0, context, "world_ray_origin can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = WorldRayOrigin();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("ray_length")) {
-					check(o->op_call.parameters_size == 0, context, "ray_length can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = RayTCurrent();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("ray_index")) {
-					check(o->op_call.parameters_size == 0, context, "ray_index can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = DispatchRaysIndex();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("ray_dimensions")) {
-					check(o->op_call.parameters_size == 0, context, "ray_dimensions can not have a parameter");
-					*offset +=
-					    sprintf(&hlsl[*offset], "%s _%" PRIu64 " = DispatchRaysDimensions();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("object_to_world3x3")) {
-					check(o->op_call.parameters_size == 0, context, "object_to_world3x3 can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = (float3x3)ObjectToWorld4x3();\n", type_string(o->op_call.var.type.type),
-					                   o->op_call.var.index);
-				}
-				else if (o->op_call.func == add_name("primitive_index")) {
-					check(o->op_call.parameters_size == 0, context, "primitive_index can not have a parameter");
-					*offset += sprintf(&hlsl[*offset], "%s _%" PRIu64 " = PrimitiveIndex();\n", type_string(o->op_call.var.type.type), o->op_call.var.index);
-				}
-
-				////
-
-				else if (o->op_call.func == add_name("trace_ray")) {
-					check(o->op_call.parameters_size == 3, context, "trace_ray requires three parameters");
-					*offset += sprintf(&hlsl[*offset], "TraceRay(_%" PRIu64 ", RAY_FLAG_NONE, 0xFF, 0, 0, 0, _%" PRIu64 ", _%" PRIu64 ");\n",
-					                   o->op_call.parameters[0].index, o->op_call.parameters[1].index, o->op_call.parameters[2].index);
-				}
-				else if (o->op_call.func == add_name("dispatch_mesh")) {
-					check(o->op_call.parameters_size == 4, context, "dispatch_mesh requires four parameters");
-					*offset +=
-					    sprintf(&hlsl[*offset], "DispatchMesh(_%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.parameters[0].index,
-					            o->op_call.parameters[1].index, o->op_call.parameters[2].index, o->op_call.parameters[3].index);
-				}
-				else if (o->op_call.func == add_name("set_mesh_output_counts")) {
-					check(o->op_call.parameters_size == 2, context, "set_mesh_output_counts requires two parameters");
-					*offset += sprintf(&hlsl[*offset], "SetMeshOutputCounts(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.parameters[0].index,
-					                   o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("set_mesh_triangle")) {
-					check(o->op_call.parameters_size == 2, context, "set_mesh_triangle requires two parameters");
-					*offset += sprintf(&hlsl[*offset], "_kong_mesh_tris[_%" PRIu64 "] = _%" PRIu64 ";\n", o->op_call.parameters[0].index,
-					                   o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("set_mesh_vertex")) {
-					check(o->op_call.parameters_size == 2, context, "set_mesh_vertex requires two parameters");
-					*offset += sprintf(&hlsl[*offset], "_kong_mesh_vertices[_%" PRIu64 "] = _%" PRIu64 ";\n", o->op_call.parameters[0].index,
-					                   o->op_call.parameters[1].index);
 				}
 				else if (o->op_call.func == add_name("texture_size")) {
 					*offset += sprintf(&hlsl[*offset], "uint2 _%" PRIu64 "; _%" PRIu64 ".GetDimensions(_%" PRIu64 ".x, _%" PRIu64 ".y);\n",
@@ -1197,9 +1028,9 @@ static char *hlsl_export_vertex2(api_kind d3d, function *main, bool debug) {
 	check(main->parameters_size > 0, context, "vertex input missing");
 	check(vertex_output != NO_TYPE, context, "vertex output missing");
 
-	write_types(hlsl, &offset, SHADER_STAGE_VERTEX, vertex_inputs, main->parameters_size, vertex_output, main, NULL, 0);
-	write_globals(hlsl, &offset, main, NULL, 0);
-	write_functions(hlsl, &offset, SHADER_STAGE_VERTEX, main, NULL, 0);
+	write_types(hlsl, &offset, SHADER_STAGE_VERTEX, vertex_inputs, main->parameters_size, vertex_output, main);
+	write_globals(hlsl, &offset, main);
+	write_functions(hlsl, &offset, SHADER_STAGE_VERTEX, main);
 	return hlsl;
 }
 
@@ -1214,9 +1045,9 @@ static char *hlsl_export_fragment2(api_kind d3d, function *main, bool debug) {
 	debug_context context = {0};
 	check(pixel_input != NO_TYPE, context, "fragment input missing");
 
-	write_types(hlsl, &offset, SHADER_STAGE_FRAGMENT, &pixel_input, 1, NO_TYPE, main, NULL, 0);
-	write_globals(hlsl, &offset, main, NULL, 0);
-	write_functions(hlsl, &offset, SHADER_STAGE_FRAGMENT, main, NULL, 0);
+	write_types(hlsl, &offset, SHADER_STAGE_FRAGMENT, &pixel_input, 1, NO_TYPE, main);
+	write_globals(hlsl, &offset, main);
+	write_functions(hlsl, &offset, SHADER_STAGE_FRAGMENT, main);
 	return hlsl;
 }
 
@@ -1291,8 +1122,8 @@ char *hlsl_export_compute(void) {
 	if (calls_function(main, "ray_query_geometry") || calls_function(main, "ray_query_vertex")) {
 		write_raytrace_geometry(hlsl, &offset);
 	}
-	write_types(hlsl, &offset, SHADER_STAGE_COMPUTE, NULL, 0, NO_TYPE, main, NULL, 0);
-	write_globals(hlsl, &offset, main, NULL, 0);
-	write_functions(hlsl, &offset, SHADER_STAGE_COMPUTE, main, NULL, 0);
+	write_types(hlsl, &offset, SHADER_STAGE_COMPUTE, NULL, 0, NO_TYPE, main);
+	write_globals(hlsl, &offset, main);
+	write_functions(hlsl, &offset, SHADER_STAGE_COMPUTE, main);
 	return hlsl;
 }
