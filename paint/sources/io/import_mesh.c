@@ -68,6 +68,28 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 #endif
 }
 
+static mesh_object_t *import_mesh_make_root() {
+	// Mesh with no geometry
+	char       *name = string_copy(_import_mesh_unique_name("Root"));
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {.name      = name,
+	                                           .posa      = i16_array_create(0),
+	                                           .nora      = i16_array_create(0),
+	                                           .texa      = i16_array_create(0),
+	                                           .inda      = u32_array_create(0),
+	                                           .scale_pos = 1.0,
+	                                           .scale_tex = 1.0});
+
+	mesh_data_t *md    = mesh_data_create(import_mesh_raw_mesh(mesh));
+	md->_->handle      = name;
+	md->_->owns_arrays = true;
+	mesh_object_t *mo  = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
+	mo->base->name     = name;
+	mo->skip_context   = "paint";
+	any_map_set(data_cached_meshes, md->_->handle, md);
+	tab_stages_add_object(name);
+	return mo;
+}
+
 i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 	mesh_object_t *a = *(pa);
 	mesh_object_t *b = *(pb);
@@ -101,15 +123,18 @@ void import_mesh_finish_import(void *_) {
 			// Sort by name
 			array_sort(g_project->_->paint_objects, &import_mesh_finish_import_sort);
 
-			// Reparent
-			mesh_object_t *new_parent = g_project->_->paint_objects->buffer[0];
-			object_set_parent(new_parent->base, NULL);
-			for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
+			// Parent all meshes to an empty root
+			mesh_object_t *root = import_mesh_make_root();
+			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 				mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-				object_set_parent(p->base, new_parent->base);
+				object_set_parent(p->base, root->base);
+				transform_reset(p->base->transform);
+				transform_build_matrix(p->base->transform);
 			}
+			array_insert(g_project->_->paint_objects, 0, root);
+			g_project->mesh_parents = i32_array_create(0);
 		}
-		context_select_paint_object(context_main_object());
+		context_select_paint_object(import_mesh_append ? context_main_object() : g_project->_->paint_objects->buffer[1]);
 
 		if (g_context->merged_object == NULL) {
 			util_mesh_merge(NULL);
