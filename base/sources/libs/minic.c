@@ -2193,9 +2193,11 @@ static void minic_register_funcs(minic_env_t *e) {
 		if (strcmp(fname, "main") == 0) {
 			break;
 		}
-		if (e->func_count < e->func_cap) {
-			e->funcs[e->func_count++] = fn;
+		if (e->func_count == e->func_cap) {
+			e->func_cap *= 2;
+			e->funcs = (minic_func_t *)realloc(e->funcs, e->func_cap * sizeof(minic_func_t));
 		}
+		e->funcs[e->func_count++] = fn;
 
 		// Skip function body
 		int depth = 1;
@@ -2245,7 +2247,7 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	e->arr_cap     = 32;
 	e->arrs        = minic_alloc(e->arr_cap * (int)sizeof(minic_arr_t));
 	e->func_cap    = 32;
-	e->funcs       = minic_alloc(e->func_cap * (int)sizeof(minic_func_t));
+	e->funcs       = (minic_func_t *)malloc(e->func_cap * sizeof(minic_func_t)); // Grows during registration, freed in minic_ctx_free
 	e->struct_cap  = MINIC_MAX_STRUCTS;
 	e->structs     = minic_alloc(e->struct_cap * (int)sizeof(minic_struct_t));
 
@@ -2288,6 +2290,7 @@ minic_ctx_t *minic_eval(const char *src) {
 void minic_ctx_free(minic_ctx_t *ctx) {
 	if (ctx != NULL) {
 		free(ctx->mem);
+		free(ctx->e.funcs);
 		free(ctx->src_copy);
 		free(ctx);
 	}
