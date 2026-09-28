@@ -37,9 +37,6 @@ void import_envmap_get_radiance_mip(gpu_texture_t *mip, i32 level, gpu_texture_t
 
 f32_array_t *import_envmap_get_spherical_harmonics(buffer_t *source, i32 source_width, i32 source_height) {
 	f32_array_t *sh = f32_array_create(9 * 3 + 1); // Align to mult of 4 - 27->28
-	for (i32 i = 0; i < sh->length; ++i) {
-		sh->buffer[i] = 0.0f;
-	}
 
 	f32 dtheta = math_pi() * 2.0f / (f32)source_width;
 	f32 dphi   = math_pi() / (f32)source_height;
