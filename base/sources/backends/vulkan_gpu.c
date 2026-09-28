@@ -1884,20 +1884,20 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 	if (unified_memory && buffer->cpu_write) {
 		if (buffer->impl.buf == NULL) {
-			_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, buffer->count * buffer->stride, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, gpu_buffer_alloc_size(buffer->count, buffer->stride), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 			                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		}
 		void *p;
-		vkMapMemory(device, buffer->impl.mem, 0, buffer->count * buffer->stride, 0, (void **)&p);
+		vkMapMemory(device, buffer->impl.mem, 0, gpu_buffer_alloc_size(buffer->count, buffer->stride), 0, (void **)&p);
 		return p;
 	}
 
 	if (!buffer->cpu_write || buffer->impl.cpu_buf == NULL) {
-		_gpu_buffer_init(&buffer->impl.cpu_buf, &buffer->impl.cpu_mem, buffer->count * buffer->stride, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		_gpu_buffer_init(&buffer->impl.cpu_buf, &buffer->impl.cpu_mem, gpu_buffer_alloc_size(buffer->count, buffer->stride), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	}
 	void *p;
-	vkMapMemory(device, buffer->impl.cpu_mem, 0, buffer->count * buffer->stride, 0, (void **)&p);
+	vkMapMemory(device, buffer->impl.cpu_mem, 0, gpu_buffer_alloc_size(buffer->count, buffer->stride), 0, (void **)&p);
 	return p;
 }
 
@@ -1909,11 +1909,11 @@ void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	}
 
 	if (!buffer->cpu_write || buffer->impl.buf == NULL) {
-		_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, buffer->count * buffer->stride,
+		_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, gpu_buffer_alloc_size(buffer->count, buffer->stride),
 		                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 	vkUnmapMemory(device, buffer->impl.cpu_mem);
-	_gpu_buffer_copy(buffer->impl.buf, buffer->impl.cpu_buf, buffer->count * buffer->stride);
+	_gpu_buffer_copy(buffer->impl.buf, buffer->impl.cpu_buf, gpu_buffer_alloc_size(buffer->count, buffer->stride));
 
 	if (!buffer->cpu_write) {
 		queue_buffer_destroy(buffer->impl.cpu_buf, buffer->impl.cpu_mem);
@@ -1931,10 +1931,10 @@ void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
 }
 
 void *gpu_index_buffer_lock(gpu_buffer_t *buffer) {
-	_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, buffer->count * buffer->stride, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+	_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, gpu_buffer_alloc_size(buffer->count, buffer->stride), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 	                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	void *p;
-	vkMapMemory(device, buffer->impl.mem, 0, buffer->count * buffer->stride, 0, (void **)&p);
+	vkMapMemory(device, buffer->impl.mem, 0, gpu_buffer_alloc_size(buffer->count, buffer->stride), 0, (void **)&p);
 	return p;
 }
 
@@ -1942,9 +1942,9 @@ void gpu_index_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->version = ++gpu_buffer_versions;
 	vkUnmapMemory(device, buffer->impl.mem);
 	VkBuffer upload_buffer = buffer->impl.buf;
-	_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, buffer->count * buffer->stride, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+	_gpu_buffer_init(&buffer->impl.buf, &buffer->impl.mem, gpu_buffer_alloc_size(buffer->count, buffer->stride), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 	                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	_gpu_buffer_copy(buffer->impl.buf, upload_buffer, buffer->count * buffer->stride);
+	_gpu_buffer_copy(buffer->impl.buf, upload_buffer, gpu_buffer_alloc_size(buffer->count, buffer->stride));
 }
 
 void gpu_constant_buffer_init(gpu_buffer_t *buffer, uint32_t size) {

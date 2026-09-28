@@ -109,6 +109,10 @@ typedef struct gpu_buffer {
 	gpu_buffer_impl_t impl;
 } gpu_buffer_t;
 
+static inline uint32_t gpu_buffer_alloc_size(uint32_t count, uint32_t stride) {
+	return count > 0 ? count * stride : stride;
+}
+
 typedef struct gpu_vertex_element {
 	const char       *name;
 	gpu_vertex_data_t data;

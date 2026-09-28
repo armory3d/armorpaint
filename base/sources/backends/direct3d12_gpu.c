@@ -1160,7 +1160,7 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 
 void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 	if (!buffer->cpu_write || buffer->impl.cpu_buffer == NULL) {
-		_gpu_buffer_init(&buffer->impl.cpu_buffer, buffer->stride * buffer->count, D3D12_HEAP_TYPE_UPLOAD);
+		_gpu_buffer_init(&buffer->impl.cpu_buffer, gpu_buffer_alloc_size(buffer->count, buffer->stride), D3D12_HEAP_TYPE_UPLOAD);
 	}
 
 	D3D12_RANGE range = {
@@ -1175,7 +1175,7 @@ void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->version = ++gpu_buffer_versions;
 	if (!buffer->cpu_write || buffer->impl.buffer == NULL) {
-		_gpu_buffer_init(&buffer->impl.buffer, buffer->stride * buffer->count, D3D12_HEAP_TYPE_DEFAULT);
+		_gpu_buffer_init(&buffer->impl.buffer, gpu_buffer_alloc_size(buffer->count, buffer->stride), D3D12_HEAP_TYPE_DEFAULT);
 	}
 
 	D3D12_RANGE range = {
@@ -1185,7 +1185,7 @@ void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->impl.cpu_buffer->lpVtbl->Unmap(buffer->impl.cpu_buffer, 0, &range);
 
 	_gpu_barrier(buffer->impl.buffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-	command_list->lpVtbl->CopyBufferRegion(command_list, buffer->impl.buffer, 0, buffer->impl.cpu_buffer, 0, buffer->stride * buffer->count);
+	command_list->lpVtbl->CopyBufferRegion(command_list, buffer->impl.buffer, 0, buffer->impl.cpu_buffer, 0, gpu_buffer_alloc_size(buffer->count, buffer->stride));
 	_gpu_barrier(buffer->impl.buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	buffer->impl.vertex_buffer_view.BufferLocation = buffer->impl.buffer->lpVtbl->GetGPUVirtualAddress(buffer->impl.buffer);
 
@@ -1205,7 +1205,7 @@ void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
 }
 
 void *gpu_index_buffer_lock(gpu_buffer_t *buffer) {
-	_gpu_buffer_init(&buffer->impl.buffer, buffer->count * 4, D3D12_HEAP_TYPE_UPLOAD);
+	_gpu_buffer_init(&buffer->impl.buffer, gpu_buffer_alloc_size(buffer->count, 4), D3D12_HEAP_TYPE_UPLOAD);
 
 	D3D12_RANGE range = {
 	    .Begin = 0,
@@ -1225,9 +1225,9 @@ void gpu_index_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->impl.buffer->lpVtbl->Unmap(buffer->impl.buffer, 0, &range);
 
 	ID3D12Resource *upload_buffer = buffer->impl.buffer;
-	_gpu_buffer_init(&buffer->impl.buffer, buffer->count * 4, D3D12_HEAP_TYPE_DEFAULT);
+	_gpu_buffer_init(&buffer->impl.buffer, gpu_buffer_alloc_size(buffer->count, 4), D3D12_HEAP_TYPE_DEFAULT);
 	_gpu_barrier(buffer->impl.buffer, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-	command_list->lpVtbl->CopyBufferRegion(command_list, buffer->impl.buffer, 0, upload_buffer, 0, buffer->count * 4);
+	command_list->lpVtbl->CopyBufferRegion(command_list, buffer->impl.buffer, 0, upload_buffer, 0, gpu_buffer_alloc_size(buffer->count, 4));
 	_gpu_barrier(buffer->impl.buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER);
 	buffer->impl.index_buffer_view.BufferLocation = buffer->impl.buffer->lpVtbl->GetGPUVirtualAddress(buffer->impl.buffer);
 }

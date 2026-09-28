@@ -865,10 +865,11 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 		buffer->stride += gpu_vertex_data_size(structure->elements[i].data);
 	}
 
-	WGPUBufferDescriptor desc   = {.size = buffer->count * buffer->stride, .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst};
+	uint32_t             size   = gpu_buffer_alloc_size(buffer->count, buffer->stride);
+	WGPUBufferDescriptor desc   = {.size = size, .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst};
 	buffer->impl.buf            = wgpuDeviceCreateBuffer(device, &desc);
-	buffer->impl.mem            = malloc(buffer->count * buffer->stride);
-	buffer->impl.allocated_size = buffer->count * buffer->stride;
+	buffer->impl.mem            = malloc(size);
+	buffer->impl.allocated_size = size;
 }
 
 void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
@@ -884,10 +885,11 @@ void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
 	buffer->count  = count;
 	buffer->stride = sizeof(uint32_t);
 
-	WGPUBufferDescriptor desc   = {.size = buffer->count * buffer->stride, .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst};
+	uint32_t             size   = gpu_buffer_alloc_size(buffer->count, buffer->stride);
+	WGPUBufferDescriptor desc   = {.size = size, .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst};
 	buffer->impl.buf            = wgpuDeviceCreateBuffer(device, &desc);
-	buffer->impl.mem            = malloc(buffer->count * buffer->stride);
-	buffer->impl.allocated_size = buffer->count * buffer->stride;
+	buffer->impl.mem            = malloc(size);
+	buffer->impl.allocated_size = size;
 }
 
 void *gpu_index_buffer_lock(gpu_buffer_t *buffer) {

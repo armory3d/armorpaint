@@ -613,10 +613,10 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined;
 	options |= MTLResourceStorageModeShared;
 
-	id<MTLBuffer> buf = [device newBufferWithLength:count * buffer->stride options:options];
+	id<MTLBuffer> buf = [device newBufferWithLength:gpu_buffer_alloc_size(count, buffer->stride) options:options];
 	if (buf == nil) {
 		gpu_cleanup();
-		buf = [device newBufferWithLength:count * buffer->stride options:options];
+		buf = [device newBufferWithLength:gpu_buffer_alloc_size(count, buffer->stride) options:options];
 	}
 	buffer->impl.metal_buffer = (__bridge_retained void *)buf;
 }
@@ -637,10 +637,10 @@ void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
 	MTLResourceOptions options = MTLResourceCPUCacheModeWriteCombined;
 	options |= MTLResourceStorageModeShared;
 
-	buffer->impl.metal_buffer = (__bridge_retained void *)[device newBufferWithLength:sizeof(uint32_t) * count options:options];
+	buffer->impl.metal_buffer = (__bridge_retained void *)[device newBufferWithLength:gpu_buffer_alloc_size(count, sizeof(uint32_t)) options:options];
 	if (buffer->impl.metal_buffer == nil) {
 		gpu_cleanup();
-		buffer->impl.metal_buffer = (__bridge_retained void *)[device newBufferWithLength:sizeof(uint32_t) * count options:options];
+		buffer->impl.metal_buffer = (__bridge_retained void *)[device newBufferWithLength:gpu_buffer_alloc_size(count, sizeof(uint32_t)) options:options];
 	}
 }
 

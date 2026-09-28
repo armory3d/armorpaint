@@ -367,6 +367,9 @@ void _gpu_raytrace_as_init() {
 }
 
 void _gpu_raytrace_as_add(struct gpu_buffer *vb, gpu_buffer_t *ib, mat4_t transform, gpu_texture_t **textures) {
+	if (ib->count == 0) {
+		return;
+	}
 	gpu_raytrace_acceleration_structure_add(&rt_accel, vb, ib, transform, textures);
 }
 
