@@ -482,6 +482,7 @@ void                      script_project_new(void);
 void                      script_project_open(char *path);
 void                      script_import_asset(char *path, bool hdr_as_envmap);
 void                      script_append_mesh(char *path);
+void                      script_append_mesh_skinned(char *glb_path);
 void                      script_append_mesh_obj(char *data);
 void                      script_export_mesh(char *path);
 void                      script_export_material(char *path);

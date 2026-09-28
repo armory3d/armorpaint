@@ -482,6 +482,14 @@ void script_append_mesh(char *path) {
 	g_context->ddirty = 2;
 }
 
+extern int plugins_skinning_frame;
+
+void script_append_mesh_skinned(char *glb_path) {
+	plugins_skinning_frame = 0;
+	script_append_mesh(glb_path);
+	plugins_skinning_frame = -1;
+}
+
 void script_append_mesh_obj(char *data) {
 	if (data == NULL || data[0] == '\0') {
 		return;
