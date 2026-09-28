@@ -122,6 +122,19 @@ static bool tab_timeline_clip_matches(stage_t *stage, mesh_object_t *mesh) {
 	return false;
 }
 
+static bool tab_timeline_is_clip_instance(i32 mi) {
+	if (mi < 0 || g_project->stages == NULL) {
+		return false;
+	}
+	mesh_object_t *mesh = g_project->_->paint_objects->buffer[mi];
+	for (i32 si = 0; si < g_project->stages->length; ++si) {
+		if (tab_timeline_clip_matches(g_project->stages->buffer[si], mesh)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static mat4_t tab_timeline_nested_transform(i32 mi) {
 	mat4_t result = mat4_identity();
 	if (!tab_timeline_nested_enabled || tab_timeline_edit_stage != NULL || mi < 0 || g_project->stages == NULL) {
@@ -736,7 +749,8 @@ static void tab_timeline_load_mesh_keyframes(float frame_f, bool camera_only, f6
 			tab_timeline_sync_mesh_body(mi);
 			any = true;
 		}
-		else {
+		else if (nxt_kfi >= 0 || tab_timeline_is_clip_instance(mi)) {
+			// Meshes without keyframes are left to scripts and physics
 			i32 oi = tab_timeline_find_mesh_origin(mi);
 			if (oi >= 0) {
 				if (tab_timeline_set_mesh_transform(mi, ((tab_timeline_mesh_origin_t *)tab_timeline_mesh_origins->buffer[oi])->transform)) {
