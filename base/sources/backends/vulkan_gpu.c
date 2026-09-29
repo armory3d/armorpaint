@@ -2723,7 +2723,7 @@ void gpu_raytrace_set_target(gpu_texture_t *_output) {
 		    .arrayLayers   = 1,
 		    .samples       = VK_SAMPLE_COUNT_1_BIT,
 		    .tiling        = VK_IMAGE_TILING_OPTIMAL,
-		    .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+		    .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 		};
 		vkCreateImage(device, &image_info, NULL, &_output->impl.image);
 
