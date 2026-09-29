@@ -240,6 +240,17 @@ static void render_path_raytrace_build_env_cdf(char *file) {
 	free(pdf);
 }
 
+gpu_texture_t *render_path_raytrace_update_env_cdf() {
+	if (scene_world == NULL || scene_world->envmap == NULL) {
+		return NULL;
+	}
+	render_path_raytrace_build_env_cdf(scene_world->envmap);
+	if (render_path_raytrace_env_cdf_file == NULL || strcmp(render_path_raytrace_env_cdf_file, scene_world->envmap) != 0) {
+		return NULL;
+	}
+	return render_path_raytrace_env_cdf;
+}
+
 void render_path_raytrace_init() {}
 
 static bool render_path_raytrace_sculpt_visible() {

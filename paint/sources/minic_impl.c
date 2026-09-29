@@ -420,6 +420,19 @@ static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	}
 }
 
+static void script_bake_lightmap_done(void *fn) {
+	if (fn != NULL) {
+		minic_call_fn(fn, NULL, 0);
+	}
+}
+
+void script_bake_lightmap(object_t *o, i32 res, i32 samples, f32 range, char *path, void *done) {
+	if (o == NULL || o->ext == NULL || !string_equals(o->ext_type, "mesh_object_t") || path == NULL) {
+		return;
+	}
+	render_path_raytrace_bake_lightmap(o->ext, res, samples, range, path, script_bake_lightmap_done, done);
+}
+
 void script_quit(void) {
 	iron_stop();
 }
