@@ -581,10 +581,10 @@ void box_preferences_viewport_tab() {
 	string_array_t *pathtrace_mode_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Fast"),
-	        tr("Quality"),
+	        tr("Full"),
 	    },
 	    2);
-	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Quality"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Mode"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		render_path_raytrace_ready       = false;
 		render_path_raytrace_init_shader = true;
