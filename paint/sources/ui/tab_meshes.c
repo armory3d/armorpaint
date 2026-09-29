@@ -927,6 +927,9 @@ static vec4_t aabb_center(mesh_data_t *raw) {
 }
 
 void tab_meshes_make_preview(mesh_object_t *o) {
+	if (array_index_of((any_array_t *)g_project->_->paint_objects, o) < 0) {
+		return;
+	}
 	if (tab_meshes_preview_map == NULL) {
 		tab_meshes_preview_map = any_map_create();
 	}
