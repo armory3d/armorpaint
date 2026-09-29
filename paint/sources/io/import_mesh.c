@@ -273,7 +273,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 		history_reset();
 	}
 
-	g_project->stages = NULL;
+	g_project->stages                      = NULL;
 	g_context->paint_object->base->visible = true;
 	tab_stages_init();
 

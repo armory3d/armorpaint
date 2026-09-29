@@ -706,10 +706,10 @@ void import_arm_run_project(char *path) {
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = mesh_names->buffer[0];
 	g_project->_->paint_objects         = any_array_create_from_raw(
-	    (void *[]){
-	        g_context->paint_object,
-	    },
-	    1);
+        (void *[]){
+            g_context->paint_object,
+        },
+        1);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);

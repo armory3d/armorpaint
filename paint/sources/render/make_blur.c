@@ -77,16 +77,14 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "}");
 	}
 	else {
-		node_shader_write_frag(kong,
-		                       "float4 tex_coord_inp4 = gbuffer2[uint2(uint(sp.x * constants.gbuffer_size.x), uint(sp.y * constants.gbuffer_size.y))];");
+		node_shader_write_frag(kong, "float4 tex_coord_inp4 = gbuffer2[uint2(uint(sp.x * constants.gbuffer_size.x), uint(sp.y * constants.gbuffer_size.y))];");
 		node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba;");
 		node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");
 		node_shader_write_frag(kong, "float blur_step = 1.0 / constants.texpaint_size.x;");
 		node_shader_add_function(kong, str_get_blur_tool_weight);
 		// X
 		node_shader_write_frag(kong, "for (int i = 0; i <= 14; i += 1) {");
-		node_shader_write_frag(kong,
-		                       "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(blur_step * float(i - 7), 0.0));");
+		node_shader_write_frag(kong, "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(blur_step * float(i - 7), 0.0));");
 		node_shader_write_frag(kong, "float blur_weight_i = get_blur_tool_weight(i);");
 		node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_i;");
 		node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_i;");
@@ -101,8 +99,7 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "}");
 		// Y
 		node_shader_write_frag(kong, "for (int j = 0; j <= 14; j += 1) {");
-		node_shader_write_frag(kong,
-		                       "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(0.0, blur_step * float(j - 7)));");
+		node_shader_write_frag(kong, "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(0.0, blur_step * float(j - 7)));");
 		node_shader_write_frag(kong, "float blur_weight_j = get_blur_tool_weight(j);");
 		node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_j;");
 		node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_j;");

@@ -128,7 +128,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 			tex2 = texpaint_undo->_image;
 		}
 
-		gpu_texture_t *env_cdf = g_context->bake_type == BAKE_TYPE_LIGHTMAP ? render_path_raytrace_update_env_cdf() : NULL;
+		gpu_texture_t *env_cdf                 = g_context->bake_type == BAKE_TYPE_LIGHTMAP ? render_path_raytrace_update_env_cdf() : NULL;
 		render_path_raytrace_bake_env_sampling = env_cdf != NULL;
 		gpu_raytrace_set_textures(baketex0->_image, baketex1->_image, tex2, saved_envmap, bnoise_sobol, bnoise_scramble, bnoise_rank, env_cdf);
 	}
@@ -201,13 +201,13 @@ static lightmap_job_t  *lightmap_job        = NULL;
 static i32              lightmap_frame      = 0;
 static i32              lightmap_frames     = 0;
 static i32              lightmap_viewport_mode;
-static gpu_texture_t   *lightmap_pos    = NULL;
-static gpu_texture_t   *lightmap_nor    = NULL;
-static gpu_texture_t   *lightmap_base   = NULL;
-static gpu_texture_t   *lightmap_target = NULL;
-static u8              *lightmap_mask   = NULL;
-static f32_array_t     *lightmap_f32a   = NULL;
-static gpu_texture_t   *lightmap_env    = NULL;
+static gpu_texture_t   *lightmap_pos     = NULL;
+static gpu_texture_t   *lightmap_nor     = NULL;
+static gpu_texture_t   *lightmap_base    = NULL;
+static gpu_texture_t   *lightmap_target  = NULL;
+static u8              *lightmap_mask    = NULL;
+static f32_array_t     *lightmap_f32a    = NULL;
+static gpu_texture_t   *lightmap_env     = NULL;
 static gpu_texture_t   *lightmap_env_cdf = NULL;
 
 #define LIGHTMAP_SAMPLES_PER_DISPATCH 8 // Matches SAMPLES in raytrace_bake_light.shader
@@ -273,17 +273,17 @@ static void lightmap_raster(mesh_object_t *o, i32 res, f32 *pos, f32 *nor, u8 *m
 				if (b0 < -1e-4f || b1 < -1e-4f || b2 < -1e-4f) {
 					continue;
 				}
-				i32 o4       = (py * res + px) * 4;
-				pos[o4 + 0]  = p[0].x * b0 + p[1].x * b1 + p[2].x * b2;
-				pos[o4 + 1]  = p[0].y * b0 + p[1].y * b1 + p[2].y * b2;
-				pos[o4 + 2]  = p[0].z * b0 + p[1].z * b1 + p[2].z * b2;
-				pos[o4 + 3]  = 1.0f;
-				vec4_t nn    = vec4_norm((vec4_t){n[0].x * b0 + n[1].x * b1 + n[2].x * b2, n[0].y * b0 + n[1].y * b1 + n[2].y * b2,
-				                                  n[0].z * b0 + n[1].z * b1 + n[2].z * b2, 0.0});
-				nor[o4 + 0]  = nn.x;
-				nor[o4 + 1]  = nn.y;
-				nor[o4 + 2]  = nn.z;
-				nor[o4 + 3]  = 1.0f;
+				i32 o4      = (py * res + px) * 4;
+				pos[o4 + 0] = p[0].x * b0 + p[1].x * b1 + p[2].x * b2;
+				pos[o4 + 1] = p[0].y * b0 + p[1].y * b1 + p[2].y * b2;
+				pos[o4 + 2] = p[0].z * b0 + p[1].z * b1 + p[2].z * b2;
+				pos[o4 + 3] = 1.0f;
+				vec4_t nn   = vec4_norm(
+                    (vec4_t){n[0].x * b0 + n[1].x * b1 + n[2].x * b2, n[0].y * b0 + n[1].y * b1 + n[2].y * b2, n[0].z * b0 + n[1].z * b1 + n[2].z * b2, 0.0});
+				nor[o4 + 0]         = nn.x;
+				nor[o4 + 1]         = nn.y;
+				nor[o4 + 2]         = nn.z;
+				nor[o4 + 3]         = 1.0f;
 				mask[py * res + px] = 1;
 			}
 		}
@@ -303,13 +303,13 @@ static void lightmap_delete_textures() {
 }
 
 static void lightmap_begin(lightmap_job_t *job) {
-	i32  res  = job->res;
-	f32 *pos  = calloc((size_t)res * res * 4, sizeof(f32));
-	f32 *nor  = calloc((size_t)res * res * 4, sizeof(f32));
+	i32  res      = job->res;
+	f32 *pos      = calloc((size_t)res * res * 4, sizeof(f32));
+	f32 *nor      = calloc((size_t)res * res * 4, sizeof(f32));
 	lightmap_mask = calloc((size_t)res * res, 1);
 	lightmap_raster(job->object, res, pos, nor, lightmap_mask);
-	lightmap_pos = malloc(sizeof(gpu_texture_t));
-	lightmap_nor = malloc(sizeof(gpu_texture_t));
+	lightmap_pos         = malloc(sizeof(gpu_texture_t));
+	lightmap_nor         = malloc(sizeof(gpu_texture_t));
 	lightmap_pos->buffer = NULL;
 	lightmap_nor->buffer = NULL;
 	gpu_texture_init_from_bytes(lightmap_pos, pos, res, res, GPU_TEXTURE_FORMAT_RGBA128, false);
@@ -320,8 +320,8 @@ static void lightmap_begin(lightmap_job_t *job) {
 
 	if (lightmap_base == NULL) {
 		// Albedo of geometry without a material, light only output
-		u8 grey[4]    = {231, 231, 231, 255}; // 0.8 linear
-		lightmap_base = malloc(sizeof(gpu_texture_t));
+		u8 grey[4]            = {231, 231, 231, 255}; // 0.8 linear
+		lightmap_base         = malloc(sizeof(gpu_texture_t));
 		lightmap_base->buffer = NULL;
 		gpu_texture_init_from_bytes(lightmap_base, grey, 1, 1, GPU_TEXTURE_FORMAT_RGBA32, false);
 		lightmap_f32a = f32_array_create(24);
@@ -428,10 +428,10 @@ static void lightmap_write(lightmap_job_t *job) {
 					}
 				}
 				if (n > 0) {
-					f32 *d = px + (y * res + x) * 4;
-					d[0]   = r / n;
-					d[1]   = g / n;
-					d[2]   = bl / n;
+					f32 *d          = px + (y * res + x) * 4;
+					d[0]            = r / n;
+					d[1]            = g / n;
+					d[2]            = bl / n;
 					m2[y * res + x] = 1;
 				}
 			}
@@ -514,6 +514,6 @@ void render_path_raytrace_bake_lightmap(mesh_object_t *object, i32 res, i32 samp
 			g_context->viewport_mode = VIEWPORT_MODE_LIT; // Path tracer shares the raytrace pipeline
 		}
 	}
-	lightmap_jobs = realloc(lightmap_jobs, sizeof(lightmap_job_t *) * (lightmap_jobs_count + 1));
+	lightmap_jobs                        = realloc(lightmap_jobs, sizeof(lightmap_job_t *) * (lightmap_jobs_count + 1));
 	lightmap_jobs[lightmap_jobs_count++] = job;
 }

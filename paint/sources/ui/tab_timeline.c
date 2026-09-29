@@ -1492,9 +1492,9 @@ void tab_timeline_add_named_keyframe(char *name, i32 frame) {
 	if (name == NULL || frame < 0 || frame >= tab_timeline_max_frames) {
 		return;
 	}
-	tab_timeline_script_key_t *key = ALLOC_INIT(tab_timeline_script_key_t, {.name = string_copy(name), .frame = frame});
-	i32 layer_count = g_project->_->layers->length;
-	i32 row         = 0;
+	tab_timeline_script_key_t *key         = ALLOC_INIT(tab_timeline_script_key_t, {.name = string_copy(name), .frame = frame});
+	i32                        layer_count = g_project->_->layers->length;
+	i32                        row         = 0;
 	while (row < layer_count && !string_equals(tab_timeline_row_name(row), name)) {
 		++row;
 	}

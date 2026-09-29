@@ -1204,8 +1204,8 @@ static void _util_mesh_decimate_add_plane(f64 *q, f64 nx, f64 ny, f64 nz, f64 w,
 }
 
 static f64 _util_mesh_decimate_error(f64 *q, f64 x, f64 y, f64 z) {
-	return q[0] * x * x + 2 * q[1] * x * y + 2 * q[2] * x * z + 2 * q[3] * x + q[4] * y * y + 2 * q[5] * y * z + 2 * q[6] * y +
-	       q[7] * z * z + 2 * q[8] * z + q[9];
+	return q[0] * x * x + 2 * q[1] * x * y + 2 * q[2] * x * z + 2 * q[3] * x + q[4] * y * y + 2 * q[5] * y * z + 2 * q[6] * y + q[7] * z * z + 2 * q[8] * z +
+	       q[9];
 }
 
 static void _util_mesh_decimate_push_edge(decimate_t *d, i32 a, i32 b) {
@@ -1237,10 +1237,10 @@ static void _util_mesh_decimate_push_edge(decimate_t *d, i32 a, i32 b) {
 			e.y     = -inv * (-q[3] * (q[1] * q[7] - q[5] * q[2]) + q[6] * (q[0] * q[7] - q[2] * q[2]) - q[8] * (q[0] * q[5] - q[1] * q[2]));
 			e.z     = -inv * (q[3] * (q[1] * q[5] - q[4] * q[2]) - q[6] * (q[0] * q[5] - q[2] * q[1]) + q[8] * (q[0] * q[4] - q[1] * q[1]));
 			// Near-singular systems can shoot the vertex far away
-			f64 mx  = e.x - (pa[0] + pb[0]) * 0.5;
-			f64 my  = e.y - (pa[1] + pb[1]) * 0.5;
-			f64 mz  = e.z - (pa[2] + pb[2]) * 0.5;
-			ok      = mx * mx + my * my + mz * mz <= len * 4.0;
+			f64 mx = e.x - (pa[0] + pb[0]) * 0.5;
+			f64 my = e.y - (pa[1] + pb[1]) * 0.5;
+			f64 mz = e.z - (pa[2] + pb[2]) * 0.5;
+			ok     = mx * mx + my * my + mz * mz <= len * 4.0;
 			if (ok) {
 				e.cost = _util_mesh_decimate_error(q, e.x, e.y, e.z);
 			}
@@ -1330,15 +1330,15 @@ static bool _util_mesh_decimate_can_collapse(decimate_t *d, i32 a, i32 b, f64 x,
 		i32              v = k == 0 ? a : b;
 		decimate_list_t *l = &d->adj[v];
 		for (i32 i = 0; i < l->length; ++i) {
-			i32 ti = l->data[i];
-			i32 *t = &d->tri[ti * 3];
+			i32  ti = l->data[i];
+			i32 *t  = &d->tri[ti * 3];
 			if (d->tdead[ti] || (_util_mesh_decimate_has(t, a) && _util_mesh_decimate_has(t, b))) {
 				continue;
 			}
 			f64 p[3][3];
 			f64 o[3][3];
 			for (i32 j = 0; j < 3; ++j) {
-				f64 *s = &d->pos[t[j] * 3];
+				f64 *s  = &d->pos[t[j] * 3];
 				o[j][0] = s[0];
 				o[j][1] = s[1];
 				o[j][2] = s[2];
@@ -1425,16 +1425,16 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 	d.tri        = malloc(num_tris * 3 * sizeof(i32));
 	d.tdead      = calloc(num_tris, sizeof(bool));
 	for (i32 i = 0; i < num_verts; ++i) {
-		i32 c           = compact_id[i];
+		i32 c            = compact_id[i];
 		d.pos[c * 3]     = va0->buffer[i * 4] / 32767.0;
 		d.pos[c * 3 + 1] = va0->buffer[i * 4 + 1] / 32767.0;
 		d.pos[c * 3 + 2] = va0->buffer[i * 4 + 2] / 32767.0;
 	}
 
 	// Face quadrics, weighted by area
-	i32 alive     = 0;
-	f64 area_sum  = 0.0;
-	f64 len2_sum  = 0.0;
+	i32 alive    = 0;
+	f64 area_sum = 0.0;
+	f64 len2_sum = 0.0;
 	for (i32 t = 0; t < num_tris; ++t) {
 		i32 *v = &d.tri[t * 3];
 		for (i32 k = 0; k < 3; ++k)
@@ -1449,7 +1449,7 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 		f64  ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2];
 		f64  vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2];
 		f64  nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
-		f64  l  = sqrt(nx * nx + ny * ny + nz * nz);
+		f64  l = sqrt(nx * nx + ny * ny + nz * nz);
 		if (l > 0.0) {
 			nx /= l;
 			ny /= l;
@@ -1466,10 +1466,10 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 	}
 
 	// Unique edges, open ones also get a plane perpendicular to the face to hold the outline
-	i32          num_he  = num_tris * 3;
-	i32         *he_vlo  = malloc(num_he * sizeof(i32));
-	i32         *he_vhi  = malloc(num_he * sizeof(i32));
-	i32_array_t *order   = i32_array_create(0);
+	i32          num_he = num_tris * 3;
+	i32         *he_vlo = malloc(num_he * sizeof(i32));
+	i32         *he_vhi = malloc(num_he * sizeof(i32));
+	i32_array_t *order  = i32_array_create(0);
 	for (i32 h = 0; h < num_he; ++h) {
 		i32 a     = d.tri[h];
 		i32 b     = d.tri[(h / 3) * 3 + (h % 3 + 1) % 3];
@@ -1488,7 +1488,7 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 		i32 j = i + 1;
 		while (j < order->length && he_vlo[order->buffer[j]] == he_vlo[order->buffer[i]] && he_vhi[order->buffer[j]] == he_vhi[order->buffer[i]])
 			++j;
-		i32 h                  = order->buffer[i];
+		i32 h                    = order->buffer[i];
 		edges[num_edges * 2]     = he_vlo[h];
 		edges[num_edges * 2 + 1] = he_vhi[h];
 		num_edges++;
@@ -1503,9 +1503,9 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 			f64  ex = pb[0] - pa[0], ey = pb[1] - pa[1], ez = pb[2] - pa[2];
 			f64  cx = pc[0] - pa[0], cy = pc[1] - pa[1], cz = pc[2] - pa[2];
 			// Face normal, then the edge plane normal = edge x face normal
-			f64  fx = ey * cz - ez * cy, fy = ez * cx - ex * cz, fz = ex * cy - ey * cx;
-			f64  nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
-			f64  l  = sqrt(nx * nx + ny * ny + nz * nz);
+			f64 fx = ey * cz - ez * cy, fy = ez * cx - ex * cz, fz = ex * cy - ey * cx;
+			f64 nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
+			f64 l = sqrt(nx * nx + ny * ny + nz * nz);
 			if (l > 0.0) {
 				nx /= l;
 				ny /= l;
@@ -1547,7 +1547,7 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 		d.pos[b * 3 + 2] = e.z;
 		for (i32 i = 0; i < 10; ++i)
 			d.quad[b * 10 + i] += d.quad[a * 10 + i];
-		d.bnd[b] = d.bnd[b] || d.bnd[a];
+		d.bnd[b]  = d.bnd[b] || d.bnd[a];
 		d.dead[a] = true;
 		d.stamp[b]++;
 		decimate_list_t *la = &d.adj[a];
@@ -1618,8 +1618,8 @@ static void _util_mesh_decimate(mesh_object_t *o, f32 ratio) {
 			continue;
 		}
 		for (i32 k = 0; k < 3; ++k) {
-			f64 x = d.pos[v * 3 + k] * 32767.0;
-			x     = x < -32767.0 ? -32767.0 : x > 32767.0 ? 32767.0 : x;
+			f64 x                      = d.pos[v * 3 + k] * 32767.0;
+			x                          = x < -32767.0 ? -32767.0 : x > 32767.0 ? 32767.0 : x;
 			new_va0->buffer[r * 4 + k] = (i16)round(x);
 		}
 	}
@@ -1965,8 +1965,7 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 
 	for (i32 i = 0; i < num_corners;) {
 		i32 j = i + 1;
-		while (j < num_corners && he_vlo[he_order->buffer[j]] == he_vlo[he_order->buffer[i]] &&
-		       he_vhi[he_order->buffer[j]] == he_vhi[he_order->buffer[i]])
+		while (j < num_corners && he_vlo[he_order->buffer[j]] == he_vlo[he_order->buffer[i]] && he_vhi[he_order->buffer[j]] == he_vhi[he_order->buffer[i]])
 			++j;
 		i32 h0 = he_order->buffer[i];
 		if (j - i == 2 && ccv[h0] != ccv[he_order->buffer[i + 1]]) {
@@ -2044,8 +2043,8 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 		i32 w1s = wedge_of[h[1]];
 		i32 w1e = wedge_of[(h[1] / 3) * 3 + (h[1] % 3 + 1) % 3];
 		// A sharp edge that ends inside a smooth region has one wedge on both sides and does not push it
-		i32 ws[4]  = {w0s, w1e, w0e, w1s};
-		i32 wk[4]  = {0, 1, 0, 1};
+		i32  ws[4] = {w0s, w1e, w0e, w1s};
+		i32  wk[4] = {0, 1, 0, 1};
 		bool on[4] = {w0s != w1e, w0s != w1e, w0e != w1s, w0e != w1s};
 		for (i32 k = 0; k < 4; ++k) {
 			if (!on[k]) {
@@ -2106,8 +2105,8 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 		f64    qb = vec4_dot(vec4_add(vec4_cross(e1, d2), vec4_cross(d1, e2)), n);
 		f64    qc = vec4_dot(vec4_cross(d1, d2), n);
 		// Keep at least a quarter of the area
-		f64    k  = 0.75 * qa;
-		f64    r  = -1.0;
+		f64 k = 0.75 * qa;
+		f64 r = -1.0;
 		if (fabs(qc) < 1e-12 * qa) {
 			if (qb < 0.0) {
 				r = -k / qb;
@@ -2160,20 +2159,20 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 			while (p != -1 && (profs[p].wa != lo || profs[p].wb != hi))
 				p = profs[p].next;
 			if (p == -1) {
-				p                = num_profs++;
-				profs[p].cv      = v;
-				profs[p].wa      = lo;
-				profs[p].wb      = hi;
-				profs[p].cap_w   = end == 0 ? w1 : w0;
-				profs[p].first   = -1;
-				profs[p].next    = prof_head[v];
-				prof_head[v]     = p;
+				p              = num_profs++;
+				profs[p].cv    = v;
+				profs[p].wa    = lo;
+				profs[p].wb    = hi;
+				profs[p].cap_w = end == 0 ? w1 : w0;
+				profs[p].first = -1;
+				profs[p].next  = prof_head[v];
+				prof_head[v]   = p;
 			}
 			// Arc control point sits on the edge line, level with the profile ends
-			vec4_t pv  = cpos[v];
-			vec4_t pw0 = _util_mesh_bevel_get(out, w0);
-			vec4_t pw1 = _util_mesh_bevel_get(out, w1);
-			f32    l   = (vec4_dot(vec4_sub(pw0, pv), d) + vec4_dot(vec4_sub(pw1, pv), d)) * 0.5f;
+			vec4_t pv     = cpos[v];
+			vec4_t pw0    = _util_mesh_bevel_get(out, w0);
+			vec4_t pw1    = _util_mesh_bevel_get(out, w1);
+			f32    l      = (vec4_dot(vec4_sub(pw0, pv), d) + vec4_dot(vec4_sub(pw1, pv), d)) * 0.5f;
 			profs[p].ctrl = vec4_add(profs[p].ctrl, vec4_add(pv, vec4_mult(d, l)));
 			profs[p].ctrl_n++;
 			sharp_pr[s * 2 + end] = p;
@@ -2193,12 +2192,12 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 		f32    cosp = vec4_dot(vec4_norm(u), vec4_norm(v));
 		cosp        = cosp < -1.0f ? -1.0f : cosp > 1.0f ? 1.0f : cosp;
 		// Rational quadratic with this weight traces a circular arc tangent to both faces
-		f32    cw   = sqrtf((1.0f - cosp) * 0.5f);
-		f32    ch   = sqrtf((1.0f + cosp) * 0.5f);
-		f32    dl   = (vec4_len(u) + vec4_len(v)) * 0.5f;
-		vec4_t bis  = vec4_norm(vec4_add(vec4_norm(u), vec4_norm(v)));
-		pr->center  = vec4_add(c, vec4_mult(bis, dl / (ch > 0.1f ? ch : 0.1f)));
-		pr->first   = out->length / 3;
+		f32    cw  = sqrtf((1.0f - cosp) * 0.5f);
+		f32    ch  = sqrtf((1.0f + cosp) * 0.5f);
+		f32    dl  = (vec4_len(u) + vec4_len(v)) * 0.5f;
+		vec4_t bis = vec4_norm(vec4_add(vec4_norm(u), vec4_norm(v)));
+		pr->center = vec4_add(c, vec4_mult(bis, dl / (ch > 0.1f ? ch : 0.1f)));
+		pr->first  = out->length / 3;
 		for (i32 i = 1; i < segments; ++i) {
 			f32    t  = (f32)i / segments;
 			f32    b0 = (1.0f - t) * (1.0f - t);
@@ -2232,10 +2231,10 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 	}
 
 	// Corner caps where three or more wedges meet
-	i32 *cap_prof = malloc(num_profs * sizeof(i32));
-	bool *cap_used = calloc(num_profs, sizeof(bool));
-	i32_array_t *loop = i32_array_create_from_raw((i32[]){}, 0);
-	i32_array_t *ring = i32_array_create_from_raw((i32[]){}, 0);
+	i32         *cap_prof  = malloc(num_profs * sizeof(i32));
+	bool        *cap_used  = calloc(num_profs, sizeof(bool));
+	i32_array_t *loop      = i32_array_create_from_raw((i32[]){}, 0);
+	i32_array_t *ring      = i32_array_create_from_raw((i32[]){}, 0);
 	i32_array_t *next_ring = i32_array_create_from_raw((i32[]){}, 0);
 	for (i32 v = 0; v < num_compact; ++v) {
 		i32 n = 0;
@@ -2284,31 +2283,31 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 		vec4_t sc = {0.0, 0.0, 0.0, 0.0};
 		for (i32 k = 0; k < n; ++k)
 			sc = vec4_add(sc, profs[cap_prof[k]].center);
-		sc          = vec4_mult(sc, 1.0f / n);
-		vec4_t cc   = {0.0, 0.0, 0.0, 0.0};
-		f32    rad  = 0.0f;
+		sc         = vec4_mult(sc, 1.0f / n);
+		vec4_t cc  = {0.0, 0.0, 0.0, 0.0};
+		f32    rad = 0.0f;
 		for (i32 i = 0; i < loop->length; ++i) {
 			vec4_t q = _util_mesh_bevel_get(out, loop->buffer[i]);
 			cc       = vec4_add(cc, q);
 			rad += vec4_dist(q, sc);
 		}
-		cc            = vec4_mult(cc, 1.0f / loop->length);
-		rad           = rad / loop->length;
-		bool  sphere  = true;
+		cc          = vec4_mult(cc, 1.0f / loop->length);
+		rad         = rad / loop->length;
+		bool sphere = true;
 		for (i32 k = 0; k < n; ++k) {
 			if (vec4_dist(profs[cap_prof[k]].center, sc) > rad * 0.25f) {
 				sphere = false;
 			}
 		}
 
-		i32 rings = segments / 2 > 1 ? segments / 2 : 1;
-		i32 m     = loop->length;
+		i32 rings    = segments / 2 > 1 ? segments / 2 : 1;
+		i32 m        = loop->length;
 		ring->length = 0;
 		for (i32 i = 0; i < m; ++i)
 			i32_array_push(ring, loop->buffer[i]);
 		for (i32 r = 1; r < rings; ++r) {
 			next_ring->length = 0;
-			f32 f = (f32)r / rings;
+			f32 f             = (f32)r / rings;
 			for (i32 i = 0; i < m; ++i) {
 				vec4_t q = _util_mesh_bevel_get(out, loop->buffer[i]);
 				q        = vec4_add(vec4_mult(q, 1.0f - f), vec4_mult(cc, f));
@@ -2339,8 +2338,8 @@ static void _util_mesh_bevel(mesh_object_t *o, f32 amount) {
 	i16_array_t *new_va1     = i16_array_create(total_verts * 2);
 	i16_array_t *new_va2     = i16_array_create(total_verts * 2);
 	for (i32 i = 0; i < total_verts * 3; ++i) {
-		f32 x = out->buffer[i] * 32767.0f;
-		x     = x < -32767.0f ? -32767.0f : x > 32767.0f ? 32767.0f : x;
+		f32 x                                = out->buffer[i] * 32767.0f;
+		x                                    = x < -32767.0f ? -32767.0f : x > 32767.0f ? 32767.0f : x;
 		new_va0->buffer[(i / 3) * 4 + i % 3] = (i16)roundf(x);
 	}
 	for (i32 w = 0; w < num_wedges; ++w) {

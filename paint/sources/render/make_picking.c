@@ -26,8 +26,7 @@ void make_picking_run(node_shader_t *kong) {
 	// node_shader_write_frag(kong, "float2 tex_coord_inp = gbuffer2[uint2(constants.inp.x * constants.gbuffer_size.x, constants.inp.y *
 	// constants.gbuffer_size.y)].ba;");
 	node_shader_write_frag(
-	    kong,
-	    "float4 tex_coord_inp4 = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y))];");
+	    kong, "float4 tex_coord_inp4 = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y))];");
 	node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba;");
 
 	if (g_context->tool == TOOL_TYPE_COLORID) {
@@ -42,8 +41,7 @@ void make_picking_run(node_shader_t *kong) {
 			node_shader_add_texture(kong, "gbufferD", NULL);
 			node_shader_add_constant(kong, "float4x4 invVP", "_inv_view_proj_matrix");
 			node_shader_add_function(kong, str_get_pos_nor_from_depth);
-			node_shader_write_frag(kong,
-			                       "float3 out_pos_from_depth = get_pos_from_depth(float2(constants.inp.x, 1.0 - constants.inp.y), constants.invVP);");
+			node_shader_write_frag(kong, "float3 out_pos_from_depth = get_pos_from_depth(float2(constants.inp.x, 1.0 - constants.inp.y), constants.invVP);");
 			node_shader_write_frag(kong, "float3 out_nor_from_depth = get_nor_from_depth(out_pos_from_depth, float2(constants.inp.x, 1.0 - "
 			                             "constants.inp.y), constants.invVP, float2(1.0, 1.0) / constants.gbuffer_size);");
 			node_shader_write_frag(kong, "output[0] = float4(out_pos_from_depth, tex_coord_inp.x);");
@@ -72,8 +70,8 @@ void make_picking_run(node_shader_t *kong) {
 		node_shader_add_texture(kong, "gbuffer1", NULL);
 		node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
 		node_shader_add_constant(kong, "float4 inp", "_input_brush");
-		node_shader_write_frag(
-		    kong, "uint2 inp_co = uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y));");
+		node_shader_write_frag(kong,
+		                       "uint2 inp_co = uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y));");
 		node_shader_write_frag(kong, "output = gbuffer1[inp_co];");
 	}
 }

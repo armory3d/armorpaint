@@ -208,7 +208,7 @@ void project_new(bool reset_layers) {
 
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
-	g_context->paint_object->base->name = "Tessellated";
+	g_context->paint_object->base->name    = "Tessellated";
 	g_context->paint_object->base->visible = true;
 
 	while (g_project->_->materials->length > 0) {
@@ -234,9 +234,9 @@ void project_new(bool reset_layers) {
 	        slot_font_create("default.ttf", g_font, ""),
 	    },
 	    1);
-	g_context->font = g_project->_->fonts->buffer[0];
+	g_context->font      = g_project->_->fonts->buffer[0];
 	g_project->_->sounds = any_array_create_from_raw((void *[]){}, 0);
-	g_context->sound    = NULL;
+	g_context->sound     = NULL;
 	project_set_default_swatches();
 	g_context->swatch                = g_project->swatches->buffer[0];
 	g_context->picked_color          = project_make_swatch(0xffffffff);

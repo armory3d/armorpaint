@@ -20,8 +20,7 @@ void make_discard_face(node_shader_t *kong) {
 	// node_shader_write_frag(kong, "float2 tex_coord_inp = gbuffer2[uint2(constants.inp.x * constants.gbuffer_size.x, constants.inp.y *
 	// constants.gbuffer_size.y)].ba;");
 	node_shader_write_frag(
-	    kong,
-	    "float4 tex_coord_inp4 = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y))];");
+	    kong, "float4 tex_coord_inp4 = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y))];");
 	node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba;");
 	node_shader_write_frag(kong, "float4 face_c1 = textrianglemap[uint2(uint(tex_coord_inp.x * constants.textrianglemap_size.x), uint(tex_coord_inp.y * "
 	                             "constants.textrianglemap_size.y))];");

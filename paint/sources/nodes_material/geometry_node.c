@@ -35,8 +35,9 @@ char *geometry_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 		parser_material_write(parser_material_kong, string_tmp("float3 %s_dy = ddy(n);", store));
 		parser_material_write(parser_material_kong,
 		                      string_tmp("float %s_curvature = max(dot(%s_dx, %s_dx), dot(%s_dy, %s_dy));", store, store, store, store, store));
-		parser_material_write(parser_material_kong, string_tmp("%s_curvature = clamp(pow(%s_curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);",
-		                                                       store, store, parser_material_vec1(radius), parser_material_vec1(strength), parser_material_vec1(offset)));
+		parser_material_write(parser_material_kong,
+		                      string_tmp("%s_curvature = clamp(pow(%s_curvature, (1.0 / %s) * 0.25) * %s * 2.0 + %s / 10.0, 0.0, 1.0);", store, store,
+		                                 parser_material_vec1(radius), parser_material_vec1(strength), parser_material_vec1(offset)));
 		return string_tmp("%s_curvature", store);
 	}
 	return "";

@@ -34,8 +34,8 @@ void make_bake_run(node_shader_context_t *con, node_shader_t *kong) {
 	else if (g_context->bake_type == BAKE_TYPE_NORMAL) { // Tangent
 		kong->frag_n = true;
 		node_shader_add_texture(kong, "texpaint_undo", "_texpaint_undo"); // Baked high-poly normals
-		node_shader_write_frag(
-		    kong, "float3 n0 = sample_lod(texpaint_undo, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
+		node_shader_write_frag(kong,
+		                       "float3 n0 = sample_lod(texpaint_undo, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
 		node_shader_add_function(kong, str_cotangent_frame);
 		node_shader_write_frag(kong, "float3x3 invTBN = transpose(cotangent_frame(n, n, tex_coord));");
 		node_shader_write_frag(kong, "float3 res = normalize(invTBN * n0) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5);");
@@ -51,8 +51,8 @@ void make_bake_run(node_shader_context_t *con, node_shader_t *kong) {
 	else if (g_context->bake_type == BAKE_TYPE_HEIGHT) {
 		kong->frag_wposition = true;
 		node_shader_add_texture(kong, "texpaint_undo", "_texpaint_undo"); // Baked high-poly positions
-		node_shader_write_frag(
-		    kong, "float3 wpos0 = sample_lod(texpaint_undo, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
+		node_shader_write_frag(kong,
+		                       "float3 wpos0 = sample_lod(texpaint_undo, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
 		node_shader_write_frag(kong, "float res = distance(wpos0, input.wposition) * 10.0;");
 		node_shader_write_frag(kong, "output[0] = float4(res, res, res, 1.0);");
 	}

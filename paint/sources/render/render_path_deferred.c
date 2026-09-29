@@ -77,7 +77,7 @@ void render_path_deferred_init() {
 		t->height          = 1;
 		t->format          = "RGBA32";
 		buffer_t *b        = buffer_create(4);
-		t->_image = gpu_create_texture_from_bytes(b, t->width, t->height, GPU_TEXTURE_FORMAT_RGBA32);
+		t->_image          = gpu_create_texture_from_bytes(b, t->width, t->height, GPU_TEXTURE_FORMAT_RGBA32);
 		array_free(b);
 		free(b);
 		any_map_set(render_path_render_targets, t->name, t);

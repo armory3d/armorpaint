@@ -59,8 +59,7 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 			parser_material_write(parser_material_kong, string_tmp("float4 %s = sample(%s, sampler_linear, %s.xy);", tex_store, tex_name, uv_name));
 		}
 		else {
-			parser_material_write(parser_material_kong,
-			                      string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
+			parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
 		}
 		if (!ends_with(tex->file, ".jpg")) { // Pre-mult alpha
 			parser_material_write(parser_material_kong, string_tmp("%s.rgb = %s.rgb * %s.a;", tex_store, tex_store, tex_store));

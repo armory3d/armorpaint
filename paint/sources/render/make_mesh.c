@@ -607,16 +607,12 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_add_texture(kong, string_tmp("texpaint_nor%s", i32_to_string(id)), NULL);
 			node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");
 			node_shader_write_frag(kong, string_tmp("float2 sample_matid_coord = %s * constants.texpaint_size;", tex_coord_layer));
-			node_shader_write_frag(kong,
-			                       string_tmp("float4 sample_matid4 = texpaint_nor%s[uint2(uint(sample_matid_coord.x), uint(sample_matid_coord.y))];",
-			                                  i32_to_string(id)));
+			node_shader_write_frag(kong, string_tmp("float4 sample_matid4 = texpaint_nor%s[uint2(uint(sample_matid_coord.x), uint(sample_matid_coord.y))];",
+			                                        i32_to_string(id)));
 			node_shader_write_frag(kong, "float sample_matid = sample_matid4.a + 1.0 / 255.0;");
-			node_shader_write_frag(kong,
-			                       "float matid_r = frac(sin(dot(float2(sample_matid, sample_matid * 20.0), float2(12.9898, 78.233))) * 43758.5453);");
-			node_shader_write_frag(kong,
-			                       "float matid_g = frac(sin(dot(float2(sample_matid * 20.0, sample_matid), float2(12.9898, 78.233))) * 43758.5453);");
-			node_shader_write_frag(kong,
-			                       "float matid_b = frac(sin(dot(float2(sample_matid, sample_matid * 40.0), float2(12.9898, 78.233))) * 43758.5453);");
+			node_shader_write_frag(kong, "float matid_r = frac(sin(dot(float2(sample_matid, sample_matid * 20.0), float2(12.9898, 78.233))) * 43758.5453);");
+			node_shader_write_frag(kong, "float matid_g = frac(sin(dot(float2(sample_matid * 20.0, sample_matid), float2(12.9898, 78.233))) * 43758.5453);");
+			node_shader_write_frag(kong, "float matid_b = frac(sin(dot(float2(sample_matid, sample_matid * 40.0), float2(12.9898, 78.233))) * 43758.5453);");
 			node_shader_write_frag(kong, "output[1] = float4(matid_r, matid_g, matid_b, 1.0);");
 		}
 		else if (g_context->viewport_mode == VIEWPORT_MODE_OBJECT_ID) {
@@ -636,8 +632,8 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		         (slot_layer_get_masks(g_context->layer, true) != NULL || slot_layer_is_mask(g_context->layer))) {
 			if (slot_layer_is_mask(g_context->layer)) {
 				i32 id = g_context->layer->id;
-				node_shader_write_frag(kong, string_tmp("float mask_view = sample_lod(texpaint%s, sampler_linear, %s, 0.0).r;", i32_to_string(id),
-				                                        tex_coord_layer));
+				node_shader_write_frag(kong,
+				                       string_tmp("float mask_view = sample_lod(texpaint%s, sampler_linear, %s, 0.0).r;", i32_to_string(id), tex_coord_layer));
 			}
 			else {
 				node_shader_write_frag(kong, "float mask_view = 1.0;");

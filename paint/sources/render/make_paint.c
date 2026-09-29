@@ -289,8 +289,8 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 			node_shader_write_frag(kong, "float3 wn;");
 			node_shader_write_frag(kong, "wn.z = 1.0 - abs(g0.x) - abs(g0.y);");
 			// node_shader_write_frag(kong, "wn.xy = wn.z >= 0.0 ? g0.xy : octahedron_wrap(g0.xy);");
-			node_shader_write_frag(
-			    kong, "if (wn.z >= 0.0) { wn.x = g0.x; wn.y = g0.y; } else { float2 f2 = octahedron_wrap(g0.xy); wn.x = f2.x; wn.y = f2.y; }");
+			node_shader_write_frag(kong,
+			                       "if (wn.z >= 0.0) { wn.x = g0.x; wn.y = g0.y; } else { float2 f2 = octahedron_wrap(g0.xy); wn.x = f2.x; wn.y = f2.y; }");
 			node_shader_write_frag(kong, "wn = normalize(wn);");
 			kong->frag_n = true;
 			f32 angle    = g_context->brush_angle_reject_dot;
@@ -442,8 +442,8 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong, "float2 mn0 = sample_lod(gbuffer0, sampler_linear, constants.inp.xy, 0.0).rg;");
 		node_shader_write_frag(kong, "float3 mn;");
 		node_shader_write_frag(kong, "mn.z = 1.0 - abs(mn0.x) - abs(mn0.y);");
-		node_shader_write_frag(
-		    kong, "if (mn.z >= 0.0) { mn.x = mn0.x; mn.y = mn0.y; } else { float2 mfw = octahedron_wrap(mn0.xy); mn.x = mfw.x; mn.y = mfw.y; }");
+		node_shader_write_frag(kong,
+		                       "if (mn.z >= 0.0) { mn.x = mn0.x; mn.y = mn0.y; } else { float2 mfw = octahedron_wrap(mn0.xy); mn.x = mfw.x; mn.y = mfw.y; }");
 		node_shader_write_frag(kong, "mn = normalize(mn);");
 		node_shader_write_frag(kong, "float3 mr = constants.camera_right;");
 		node_shader_write_frag(kong, "if (abs(dot(mn, mr)) > 0.999) { mr = float3(0.0, 0.0, 1.0); }");

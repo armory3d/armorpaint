@@ -30,8 +30,7 @@ void make_brush_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "float3 wn;");
 		node_shader_write_frag(kong, "wn.z = 1.0 - abs(g0.x) - abs(g0.y);");
 		// node_shader_write_frag(kong, "wn.xy = wn.z >= 0.0 ? g0.xy : octahedron_wrap(g0.xy);");
-		node_shader_write_frag(kong,
-		                       "if (wn.z >= 0.0) { wn.x = g0.x; wn.y = g0.y; } else { float2 f2 = octahedron_wrap(g0.xy); wn.x = f2.x; wn.y = f2.y; }");
+		node_shader_write_frag(kong, "if (wn.z >= 0.0) { wn.x = g0.x; wn.y = g0.y; } else { float2 f2 = octahedron_wrap(g0.xy); wn.x = f2.x; wn.y = f2.y; }");
 		node_shader_write_frag(kong, "wn = normalize(wn);");
 		node_shader_write_frag(kong, "float plane_dist = dot(wn, winp.xyz - input.wposition);");
 

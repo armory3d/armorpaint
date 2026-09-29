@@ -219,11 +219,11 @@ void export_arm_run_project(char *path) {
 		any_array_push(md, source >= 0 && source < i ? export_arm_linked_mesh_data(p, source) : export_arm_named_mesh_data(p));
 	}
 
-	char *relative_to = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
+	char           *relative_to   = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
 	string_array_t *texture_files = export_arm_assets_to_files(relative_to, g_project->_->assets);
-	string_array_t *font_files  = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
-	string_array_t *sound_files = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
-	string_array_t *mesh_files  = export_arm_meshes_to_files(relative_to);
+	string_array_t *font_files    = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
+	string_array_t *sound_files   = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
+	string_array_t *mesh_files    = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
 	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
@@ -285,7 +285,7 @@ void export_arm_run_project(char *path) {
 	g_project->assets          = texture_files;
 	g_project->packed_assets   = packed_assets;
 	g_project->swatches        = g_project->swatches;
-	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
+	g_project->envmap          = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
 	g_project->envmap_strength = scene_world->strength;
 	g_project->envmap_angle    = g_context->envmap_angle;
 	g_project->envmap_blur     = g_context->show_envmap_blur;
