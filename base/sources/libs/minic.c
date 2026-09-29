@@ -67,35 +67,16 @@ typedef struct {
 	minic_token_t cur;
 } minic_lexer_t;
 
-// Direct-mapped cache of string literals already written into the arena, keyed by
-// the source offset of the opening quote.
-#define MINIC_STR_CACHE_SLOTS 512
+static minic_u8   *minic_active_mem       = NULL;
+static int        *minic_active_mem_used  = NULL;
+static int        *minic_active_mem_frame = NULL;
+static const char *minic_active_src       = NULL;
+static char       *minic_active_str_pool  = NULL;
+static minic_u8   *minic_active_str_done  = NULL;
+static bool        minic_mem_oom          = false;
+static bool        minic_oom_reported     = false; // Every unwinding scope sees the OOM, only the first reports it
 
-static minic_u8 *minic_active_mem       = NULL;
-static int      *minic_active_mem_used  = NULL;
-static int      *minic_active_mem_frame = NULL;
-static int      *minic_active_str_key   = NULL; // Source offset + 1 per slot, 0 when empty
-static int      *minic_active_str_off   = NULL; // Arena offset of that literal
-static bool      minic_mem_oom          = false;
-static bool      minic_oom_reported     = false; // Every unwinding scope sees the OOM, only the first reports it
-
-static char minic_str_empty[1] = ""; // Stand-in when the arena is full
-
-static int minic_str_cache_slot(int src_pos) {
-	return (int)(((unsigned int)src_pos * 2654435761u) % MINIC_STR_CACHE_SLOTS);
-}
-
-// Arena offset of the literal lexed at src_pos, or -1 when it must be written again
-static int minic_str_cache_get(int src_pos) {
-	int slot = minic_str_cache_slot(src_pos);
-	return minic_active_str_key[slot] == src_pos + 1 ? minic_active_str_off[slot] : -1;
-}
-
-static void minic_str_cache_put(int src_pos, int off) {
-	int slot                   = minic_str_cache_slot(src_pos);
-	minic_active_str_key[slot] = src_pos + 1;
-	minic_active_str_off[slot] = off;
-}
+static char minic_str_empty[1] = ""; // Stand-in for a literal outside the context source
 
 static const struct {
 	const char      *kw;
@@ -245,13 +226,15 @@ static void minic_lex_next(minic_lexer_t *l) {
 		}
 
 		if (c == '"') {
-			// Write the string into the active context's arena, unless the same
-			// literal is already there from an earlier evaluation
-			int  key   = l->pos; // Source offset of the opening quote
-			int  hit   = minic_str_cache_get(key);
-			int  start = (*minic_active_mem_used + 7) & ~7;
-			int  wi    = start;
-			bool store = hit < 0;
+			// Literals live in the context's pool at the source offset of their opening quote,
+			// written on first lex and valid for the context's lifetime, like static storage in C.
+			// The decoded text is never longer than its source span, so literals cannot overlap.
+			// Lexers over other text (type names from signatures) never see a literal.
+			int   key    = l->pos;
+			bool  pooled = l->src == minic_active_src;
+			bool  store  = pooled && !(minic_active_str_done[key >> 3] & (1 << (key & 7)));
+			char *dst    = pooled ? minic_active_str_pool + key : minic_str_empty;
+			int   wi     = 0;
 			// Adjacent string literals concatenate into a single string
 			while (l->src[l->pos] == '"') {
 				l->pos++; // Consume opening '"'
@@ -270,10 +253,9 @@ static void minic_lex_next(minic_lexer_t *l) {
 						}
 						ch = (char)minic_escape(esc);
 					}
-					if (store && wi + 1 < *minic_active_mem_frame) {
-						minic_active_mem[wi] = (minic_u8)ch;
+					if (store) {
+						dst[wi++] = ch;
 					}
-					wi++;
 				}
 				if (l->src[l->pos] == '"') {
 					l->pos++; // Consume closing '"'
@@ -281,18 +263,11 @@ static void minic_lex_next(minic_lexer_t *l) {
 				minic_lex_skip_trivia(l); // Whitespace or a comment may separate the literals
 			}
 			if (store) {
-				if (wi + 1 >= *minic_active_mem_frame) { // Arena full, the script stops at the next statement
-					minic_mem_oom = true;
-					l->cur.type   = TOK_STR_LIT;
-					l->cur.val    = minic_val_typed_ptr((void *)minic_str_empty, MINIC_T_CHAR);
-					return;
-				}
-				minic_active_mem[wi++] = '\0';
-				*minic_active_mem_used = (wi + 7) & ~7;
-				minic_str_cache_put(key, start);
+				dst[wi] = '\0';
+				minic_active_str_done[key >> 3] |= (minic_u8)(1 << (key & 7));
 			}
 			l->cur.type = TOK_STR_LIT;
-			l->cur.val  = minic_val_typed_ptr((void *)&minic_active_mem[store ? start : hit], MINIC_T_CHAR);
+			l->cur.val  = minic_val_typed_ptr((void *)dst, MINIC_T_CHAR);
 			return;
 		}
 
@@ -462,8 +437,8 @@ struct minic_ctx_s {
 	minic_u8   *mem;
 	int         mem_used;
 	int         mem_frame; // Top of the call-frame stack, grows down from MINIC_MEM_SIZE
-	int         str_key[MINIC_STR_CACHE_SLOTS];
-	int         str_off[MINIC_STR_CACHE_SLOTS];
+	char       *str_pool;  // String literals, indexed by source offset
+	minic_u8   *str_done;  // Bit per source offset, set once the literal there is in str_pool
 	minic_env_t e;
 	float       result;
 	char       *src_copy;
@@ -651,6 +626,12 @@ static minic_arr_t *minic_arr_get(minic_env_t *e, const char *name) {
 		}
 	}
 	if (e->global_env != NULL) {
+		// A local variable shadows a global array of the same name
+		for (int i = 0; i < e->var_count; ++i) {
+			if (strcmp(e->vars[i].name, name) == 0) {
+				return NULL;
+			}
+		}
 		minic_env_t *g = e->global_env;
 		for (int i = 0; i < g->arr_count; ++i) {
 			if (strcmp(g->arrs[i].name, name) == 0) {
@@ -1016,26 +997,27 @@ static minic_val_t minic_call(minic_env_t *e, minic_func_t *fn, minic_val_t *arg
 }
 
 static minic_val_t minic_call_in_ctx(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int argc) {
-	minic_u8 *prev_mem       = minic_active_mem;
-	int      *prev_mem_used  = minic_active_mem_used;
-	int      *prev_mem_frame = minic_active_mem_frame;
-	int      *prev_str_key   = minic_active_str_key;
-	int      *prev_str_off   = minic_active_str_off;
-	minic_active_mem         = ctx->mem;
-	minic_active_mem_used    = &ctx->mem_used;
-	minic_active_mem_frame   = &ctx->mem_frame;
-	minic_active_str_key     = ctx->str_key;
-	minic_active_str_off     = ctx->str_off;
-	int         saved_used   = ctx->mem_used;
-	minic_val_t r            = minic_call(&ctx->e, fn, args, argc);
-	ctx->mem_used            = saved_used; // Rewind, the arena is free again
-	// The released region may be handed out again, so its cached literals are gone
-	memset(ctx->str_key, 0, sizeof(ctx->str_key));
-	minic_active_mem       = prev_mem;
-	minic_active_mem_used  = prev_mem_used;
-	minic_active_mem_frame = prev_mem_frame;
-	minic_active_str_key   = prev_str_key;
-	minic_active_str_off   = prev_str_off;
+	minic_u8   *prev_mem       = minic_active_mem;
+	int        *prev_mem_used  = minic_active_mem_used;
+	int        *prev_mem_frame = minic_active_mem_frame;
+	const char *prev_src       = minic_active_src;
+	char       *prev_str_pool  = minic_active_str_pool;
+	minic_u8   *prev_str_done  = minic_active_str_done;
+	minic_active_mem           = ctx->mem;
+	minic_active_mem_used      = &ctx->mem_used;
+	minic_active_mem_frame     = &ctx->mem_frame;
+	minic_active_src           = ctx->src_copy;
+	minic_active_str_pool      = ctx->str_pool;
+	minic_active_str_done      = ctx->str_done;
+	int         saved_used     = ctx->mem_used;
+	minic_val_t r              = minic_call(&ctx->e, fn, args, argc);
+	ctx->mem_used              = saved_used; // Rewind, the arena is free again
+	minic_active_mem           = prev_mem;
+	minic_active_mem_used      = prev_mem_used;
+	minic_active_mem_frame     = prev_mem_frame;
+	minic_active_src           = prev_src;
+	minic_active_str_pool      = prev_str_pool;
+	minic_active_str_done      = prev_str_done;
 	return r;
 }
 
@@ -2224,20 +2206,24 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	int src_len   = (int)strlen(src);
 	ctx->src_copy = (char *)malloc(src_len + 1);
 	memcpy(ctx->src_copy, src, src_len + 1);
+	ctx->str_pool = (char *)malloc(src_len + 1);
+	ctx->str_done = (minic_u8 *)calloc(1, (src_len >> 3) + 1);
 
 	// Save and install arena pointers so minic_alloc and the lexer use this context
-	minic_u8 *prev_mem       = minic_active_mem;
-	int      *prev_mem_used  = minic_active_mem_used;
-	int      *prev_mem_frame = minic_active_mem_frame;
-	int      *prev_str_key   = minic_active_str_key;
-	int      *prev_str_off   = minic_active_str_off;
-	minic_active_mem         = ctx->mem;
-	minic_active_mem_used    = &ctx->mem_used;
-	minic_active_mem_frame   = &ctx->mem_frame;
-	minic_active_str_key     = ctx->str_key;
-	minic_active_str_off     = ctx->str_off;
-	minic_mem_oom            = false;
-	minic_oom_reported       = false;
+	minic_u8   *prev_mem       = minic_active_mem;
+	int        *prev_mem_used  = minic_active_mem_used;
+	int        *prev_mem_frame = minic_active_mem_frame;
+	const char *prev_src       = minic_active_src;
+	char       *prev_str_pool  = minic_active_str_pool;
+	minic_u8   *prev_str_done  = minic_active_str_done;
+	minic_active_mem           = ctx->mem;
+	minic_active_mem_used      = &ctx->mem_used;
+	minic_active_mem_frame     = &ctx->mem_frame;
+	minic_active_src           = ctx->src_copy;
+	minic_active_str_pool      = ctx->str_pool;
+	minic_active_str_done      = ctx->str_done;
+	minic_mem_oom              = false;
+	minic_oom_reported         = false;
 
 	minic_env_t *e = &ctx->e;
 	e->lex.src     = ctx->src_copy;
@@ -2274,8 +2260,9 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 	minic_active_mem       = prev_mem;
 	minic_active_mem_used  = prev_mem_used;
 	minic_active_mem_frame = prev_mem_frame;
-	minic_active_str_key   = prev_str_key;
-	minic_active_str_off   = prev_str_off;
+	minic_active_src       = prev_src;
+	minic_active_str_pool  = prev_str_pool;
+	minic_active_str_done  = prev_str_done;
 
 	// A frame or arena overflow deep in a call is reported on that scope's env, which does
 	// not propagate outward, so consult the sticky flag too rather than return a partial value
@@ -2292,6 +2279,8 @@ void minic_ctx_free(minic_ctx_t *ctx) {
 		free(ctx->mem);
 		free(ctx->e.funcs);
 		free(ctx->src_copy);
+		free(ctx->str_pool);
+		free(ctx->str_done);
 		free(ctx);
 	}
 }
