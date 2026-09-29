@@ -1,7 +1,9 @@
 #include "kong.h"
 #include "dir.h"
 #include <assert.h>
+#ifndef IRON_WASM
 #include <setjmp.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -85,7 +87,9 @@ size_t                  allocated_globals_size = 0;
 uint64_t next_variable_id = 1;
 
 bool               kong_error          = false;
+#ifndef IRON_WASM
 static jmp_buf     kong_error_jmp;
+#endif
 static bool        kong_error_jmp_active = false;
 static function   *functions           = NULL;
 static function_id functions_size      = 128;
@@ -1668,17 +1672,21 @@ void error_args(debug_context context, const char *message, va_list args) {
 
 	iron_log_args(IRON_LOG_LEVEL_ERROR, buffer, args);
 	kong_error = true;
+#ifndef IRON_WASM
 	if (kong_error_jmp_active) {
 		longjmp(kong_error_jmp, 1);
 	}
+#endif
 }
 
 void error_args_no_context(const char *message, va_list args) {
 	iron_log_args(IRON_LOG_LEVEL_ERROR, message, args);
 	kong_error = true;
+#ifndef IRON_WASM
 	if (kong_error_jmp_active) {
 		longjmp(kong_error_jmp, 1);
 	}
+#endif
 }
 
 void kong_assert_failed(const char *test, const char *file, int line) {
@@ -6091,6 +6099,14 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	}
 
 	kong_error = false;
+#ifdef IRON_WASM
+#define KONG_CHECK_ERROR()                                          \
+	if (kong_error) {                                               \
+		console_info("Warning: Shader compilation failed");         \
+		return;                                                     \
+	}
+#else
+#define KONG_CHECK_ERROR()
 	if (setjmp(kong_error_jmp) != 0) { // error() while compiling
 		kong_error_jmp_active = false;
 		console_info("Warning: Shader compilation failed");
@@ -6101,16 +6117,23 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		return;
 	}
 	kong_error_jmp_active = true;
+#endif
 
 	char  *from   = "";
 	tokens tokens = tokenize(from, kong);
+	KONG_CHECK_ERROR();
 	parse(from, &tokens);
+	KONG_CHECK_ERROR();
 	resolve_types();
+	KONG_CHECK_ERROR();
 	allocate_globals();
+	KONG_CHECK_ERROR();
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
 		compile_function_block(&get_function(i)->code, get_function(i)->block);
 	}
+	KONG_CHECK_ERROR();
 	analyze();
+	KONG_CHECK_ERROR();
 
 #ifdef _WIN32
 
