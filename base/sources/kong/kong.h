@@ -638,11 +638,11 @@ void                  check_function(bool test, debug_context context, const cha
 #define check(test, context, message, ...) check_function(test, context, message, ##__VA_ARGS__)
 
 void kong_assert_failed(const char *test, const char *file, int line);
-#define kong_assert(test)                                      \
-	do {                                                       \
-		if (!(test)) {                                         \
-			kong_assert_failed(#test, __FILE__, __LINE__);     \
-		}                                                      \
+#define kong_assert(test)                                  \
+	do {                                                   \
+		if (!(test)) {                                     \
+			kong_assert_failed(#test, __FILE__, __LINE__); \
+		}                                                  \
 	} while (0)
 
 void        check_args(bool test, debug_context context, const char *message, va_list args);

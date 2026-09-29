@@ -78,8 +78,8 @@ WINBASEAPI VOID WINAPI   OutputDebugStringA(LPCSTR lpOutputString);
 WINBASEAPI VOID WINAPI   OutputDebugStringW(LPCWSTR lpOutputString);
 WINBASEAPI HANDLE WINAPI GetStdHandle(DWORD nStdHandle);
 int WINAPI               MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCCH lpMultiByteStr, int cbMultiByte, LPWSTR lpWideCharStr, int cchWideChar);
-int WINAPI               WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, CHAR *lpMultiByteStr, int cbMultiByte,
-                                             LPCCH lpDefaultChar, BOOL *lpUsedDefaultChar);
+int WINAPI WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar, CHAR *lpMultiByteStr, int cbMultiByte, LPCCH lpDefaultChar,
+                               BOOL *lpUsedDefaultChar);
 WINBASEAPI DWORD WINAPI  GetFileType(HANDLE hFile);
 WINBASEAPI HANDLE WINAPI CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes,
                                      DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);

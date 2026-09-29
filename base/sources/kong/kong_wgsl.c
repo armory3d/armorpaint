@@ -1037,7 +1037,7 @@ void wgsl_export2(char **vs, char **fs) {
 	check(vertex_id != NO_FUNCTION, context, "vert() missing");
 	check(fragment_id != NO_FUNCTION, context, "frag() missing");
 
-	function *vertex_shader = get_function(vertex_id);
+	function *vertex_shader                 = get_function(vertex_id);
 	vertex_functions[vertex_functions_size] = vertex_id;
 	vertex_functions_size += 1;
 
@@ -1051,7 +1051,7 @@ void wgsl_export2(char **vs, char **fs) {
 		vertex_location_offset += get_type(vertex_shader->parameter_types[parameter_index].type)->members.size;
 	}
 
-	function *fragment_shader = get_function(fragment_id);
+	function *fragment_shader                   = get_function(fragment_id);
 	fragment_functions[fragment_functions_size] = fragment_id;
 	fragment_functions_size += 1;
 

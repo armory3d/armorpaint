@@ -984,14 +984,14 @@ void gpu_raytrace_dispatch_rays() {
 	if (_geometry_textures == nil) {
 		_geometry_textures = [device newBufferWithLength:sizeof(MTLResourceID) * GPU_RAYTRACE_MAX_OBJECTS * 3 options:MTLResourceStorageModeShared];
 	}
-	gpu_texture_t *shared_tex[3]   = {_texpaint0, _texpaint1, _texpaint2};
-	MTLResourceID *texture_ids     = (MTLResourceID *)_geometry_textures.contents;
+	gpu_texture_t *shared_tex[3] = {_texpaint0, _texpaint1, _texpaint2};
+	MTLResourceID *texture_ids   = (MTLResourceID *)_geometry_textures.contents;
 	for (int i = 0; i < GPU_RAYTRACE_MAX_OBJECTS; ++i) {
 		int g = i < vb_count ? i : 0;
 		for (int k = 0; k < 3; ++k) {
-			gpu_texture_t *tex         = geometry_tex[g][k] != NULL ? geometry_tex[g][k] : shared_tex[k];
-			id<MTLTexture> mtl_tex     = (__bridge id<MTLTexture>)tex->impl._tex;
-			texture_ids[i * 3 + k]     = mtl_tex.gpuResourceID;
+			gpu_texture_t *tex     = geometry_tex[g][k] != NULL ? geometry_tex[g][k] : shared_tex[k];
+			id<MTLTexture> mtl_tex = (__bridge id<MTLTexture>)tex->impl._tex;
+			texture_ids[i * 3 + k] = mtl_tex.gpuResourceID;
 			if (i < vb_count) {
 				[compute_encoder useResource:mtl_tex usage:MTLResourceUsageRead];
 			}

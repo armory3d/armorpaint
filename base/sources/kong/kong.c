@@ -86,15 +86,15 @@ size_t                  allocated_globals_size = 0;
 
 uint64_t next_variable_id = 1;
 
-bool               kong_error          = false;
+bool kong_error = false;
 #ifndef IRON_WASM
-static jmp_buf     kong_error_jmp;
+static jmp_buf kong_error_jmp;
 #endif
 static bool        kong_error_jmp_active = false;
-static function   *functions           = NULL;
-static function_id functions_size      = 128;
-static function_id functions_zeroed    = 0;
-function_id        next_function_index = 0;
+static function   *functions             = NULL;
+static function_id functions_size        = 128;
+static function_id functions_zeroed      = 0;
+function_id        next_function_index   = 0;
 
 static void zero_new_function_slots(void) {
 	if (functions_size > functions_zeroed) {
@@ -5401,7 +5401,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 			type_id return_type = resolve_types_function->return_type.type;
 			type_id value_type  = s->expression->type.type;
 			bool    mismatch    = !types_compatible(value_type, return_type) ||
-			                      (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
+			                (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
 			if (value_type != NO_TYPE && return_type != NO_TYPE && mismatch) {
 				debug_context context = {0};
 				error(context, "Return type mismatch %s vs %s in %s", get_name(get_type(value_type)->name), get_name(get_type(return_type)->name),
@@ -6100,10 +6100,10 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 
 	kong_error = false;
 #ifdef IRON_WASM
-#define KONG_CHECK_ERROR()                                          \
-	if (kong_error) {                                               \
-		console_info("Warning: Shader compilation failed");         \
-		return;                                                     \
+#define KONG_CHECK_ERROR()                                  \
+	if (kong_error) {                                       \
+		console_info("Warning: Shader compilation failed"); \
+		return;                                             \
 	}
 #else
 #define KONG_CHECK_ERROR()
