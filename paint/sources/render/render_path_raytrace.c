@@ -51,28 +51,8 @@ static float render_path_raytrace_half_to_float(uint16_t h) {
 	return f;
 }
 
-static bool render_path_raytrace_env_luma(char *file, float *out) {
-	buffer_t *blob = iron_load_blob(data_resolve_path(file));
-	if (blob == NULL) {
-		return false;
-	}
-	int32_t  w    = iron_read_s32le(blob->buffer);
-	int32_t  h    = iron_read_s32le(blob->buffer + 4);
-	bool     f16  = blob->buffer[11] == 'F';
-	int      bpp  = f16 ? 8 : 4;
-	size_t   size = (size_t)w * h * bpp;
-	uint8_t *px   = malloc(size);
-	if (px == NULL) {
-		iron_delete_blob(blob);
-		return false;
-	}
-	int decoded = LZ4_decompress_safe((char *)blob->buffer + 12, (char *)px, blob->length - 12, (int)size);
-	iron_delete_blob(blob);
-	if (decoded != (int)size) {
-		free(px);
-		return false;
-	}
-
+static void render_path_raytrace_env_luma_pixels(uint8_t *px, int32_t w, int32_t h, bool f16, float *out) {
+	int bpp = f16 ? 8 : 4;
 	for (int cy = 0; cy < ENV_CDF_H; ++cy) {
 		int y0 = cy * h / ENV_CDF_H;
 		int y1 = (cy + 1) * h / ENV_CDF_H;
@@ -110,6 +90,51 @@ static bool render_path_raytrace_env_luma(char *file, float *out) {
 			out[cy * ENV_CDF_W + cx] = n > 0 ? (float)(sum / n) * sin_theta : 0.0f;
 		}
 	}
+}
+
+static float *render_path_raytrace_env_imported_weight = NULL;
+static char  *render_path_raytrace_env_imported_file   = NULL;
+
+void render_path_raytrace_set_env_pixels(char *file, buffer_t *pixels, i32 w, i32 h) {
+	if (render_path_raytrace_env_imported_weight == NULL) {
+		render_path_raytrace_env_imported_weight = malloc(sizeof(float) * ENV_CDF_N);
+		if (render_path_raytrace_env_imported_weight == NULL) {
+			return;
+		}
+	}
+	render_path_raytrace_env_luma_pixels(pixels->buffer, w, h, true, render_path_raytrace_env_imported_weight);
+	free(render_path_raytrace_env_imported_file);
+	render_path_raytrace_env_imported_file = strdup(file);
+	free(render_path_raytrace_env_cdf_file);
+	render_path_raytrace_env_cdf_file = NULL;
+}
+
+static bool render_path_raytrace_env_luma(char *file, float *out) {
+	if (render_path_raytrace_env_imported_file != NULL && strcmp(render_path_raytrace_env_imported_file, file) == 0) {
+		memcpy(out, render_path_raytrace_env_imported_weight, sizeof(float) * ENV_CDF_N);
+		return true;
+	}
+	buffer_t *blob = iron_load_blob(data_resolve_path(file));
+	if (blob == NULL) {
+		return false;
+	}
+	int32_t  w    = iron_read_s32le(blob->buffer);
+	int32_t  h    = iron_read_s32le(blob->buffer + 4);
+	bool     f16  = blob->buffer[11] == 'F';
+	int      bpp  = f16 ? 8 : 4;
+	size_t   size = (size_t)w * h * bpp;
+	uint8_t *px   = malloc(size);
+	if (px == NULL) {
+		iron_delete_blob(blob);
+		return false;
+	}
+	int decoded = LZ4_decompress_safe((char *)blob->buffer + 12, (char *)px, blob->length - 12, (int)size);
+	iron_delete_blob(blob);
+	if (decoded != (int)size) {
+		free(px);
+		return false;
+	}
+	render_path_raytrace_env_luma_pixels(px, w, h, f16, out);
 	free(px);
 	return true;
 }

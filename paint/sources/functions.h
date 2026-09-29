@@ -910,6 +910,7 @@ void                      ui_statusbar_init();
 void                      ui_statusbar_render_ui();
 void                      ui_statusbar_draw_version_tab(i32 *htab);
 void                      import_envmap_run(char *path, gpu_texture_t *image);
+void                      render_path_raytrace_set_env_pixels(char *file, buffer_t *pixels, i32 w, i32 h);
 void                      image_texture_node_init();
 char                     *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_name, i32 color_space);
 void                      material_node_init();

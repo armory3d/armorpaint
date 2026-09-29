@@ -121,6 +121,7 @@ void import_envmap_run(char *path, gpu_texture_t *image) {
 	// Irradiance
 	buffer_t *radiance_pixels  = gpu_get_texture_pixels(import_envmap_radiance);
 	scene_world->_->irradiance = import_envmap_get_spherical_harmonics(radiance_pixels, import_envmap_radiance->width, import_envmap_radiance->height);
+	render_path_raytrace_set_env_pixels(path, radiance_pixels, import_envmap_radiance->width, import_envmap_radiance->height);
 
 	// World
 	scene_world->strength            = 1.0;
