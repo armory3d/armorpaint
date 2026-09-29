@@ -14,6 +14,8 @@
 #define UV_OVERLAP_EPS     1e-6f
 #define UV_GRID_MAX        128
 
+float util_uv_unwrap_margin = UV_PACK_MARGIN;
+
 // Position hash map entry for canonical vertex deduplication
 typedef struct {
 	int16_t x, y, z;
@@ -1064,7 +1066,7 @@ void util_uv_unwrap_run(raw_mesh_t *mesh) {
 	float *tmp_x   = (float *)malloc(sizeof(float) * sky_cap);
 	float *tmp_y   = (float *)malloc(sizeof(float) * sky_cap);
 
-	float margin   = UV_PACK_MARGIN;
+	float margin   = util_uv_unwrap_margin;
 	float scale_lo = 0.0f;
 	float scale_hi = total_area > 1e-10f ? (2.0f / sqrtf(total_area)) : 2.0f;
 	float scale    = 0.0f;

@@ -242,6 +242,7 @@ bool                      tab_browser_refresh               = false;
 extern i32                ui_files_selected;
 extern i32                path_point_dragging;
 extern i32                path_layer_last_active;
+extern float              util_uv_unwrap_margin;
 i32                       ui_header_default_h = 30;
 i32                       ui_header_h;
 ui_window_t              *ui_header_handle;

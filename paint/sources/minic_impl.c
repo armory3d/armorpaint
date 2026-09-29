@@ -525,6 +525,17 @@ void script_append_mesh_obj(char *data) {
 	g_context->ddirty = 2;
 }
 
+bool script_packed_asset_save(char *suffix, char *path) {
+	for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+		packed_asset_t *pa = g_project->packed_assets->buffer[i];
+		if (ends_with(pa->name, suffix)) {
+			iron_file_save_bytes(path, (buffer_t *)pa->bytes, ((buffer_t *)pa->bytes)->length);
+			return true;
+		}
+	}
+	return false;
+}
+
 void script_export_mesh(char *path) {
 	if (path == NULL) {
 		return;
