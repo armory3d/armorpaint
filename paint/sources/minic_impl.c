@@ -561,6 +561,28 @@ bool script_packed_asset_save(char *suffix, char *path) {
 	return false;
 }
 
+i32 script_packed_assets_remove(char *search) {
+	if (g_project->packed_assets == NULL || search == NULL) {
+		return 0;
+	}
+	i32 removed = 0;
+	i32 i       = 0;
+	while (i < g_project->packed_assets->length) {
+		if (string_index_of(g_project->packed_assets->buffer[i]->name, search) >= 0) {
+			array_splice(g_project->packed_assets, i, 1);
+			removed++;
+		}
+		else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+void script_set_pack_assets(i32 pack) {
+	g_context->pack_assets_on_save = pack != 0;
+}
+
 void script_export_mesh(char *path) {
 	if (path == NULL) {
 		return;

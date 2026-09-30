@@ -833,6 +833,8 @@ void                      env_add_lobe(f32 dx, f32 dy, f32 dz, f32 power, f32 r,
 void                      env_add_disc(f32 dx, f32 dy, f32 dz, f32 deg, f32 irradiance, f32 r, f32 g, f32 b);
 void                      env_write(char *path);
 bool                      script_packed_asset_save(char *suffix, char *path);
+i32                       script_packed_assets_remove(char *search);
+void                      script_set_pack_assets(i32 pack);
 char                     *make_mesh_context_id(i32 layer_pass);
 node_shader_context_t    *make_mesh_run(material_t *data, i32 layer_pass);
 node_shader_context_t    *make_depth_run(material_t *data);

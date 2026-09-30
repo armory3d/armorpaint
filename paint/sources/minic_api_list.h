@@ -585,6 +585,8 @@ X7(env_add_lobe, "v(f dx,f dy,f dz,f power,f r,f g,f b)", v, f, f, f, f, f, f, f
 X8(env_add_disc, "v(f dx,f dy,f dz,f deg,f irradiance,f r,f g,f b)", v, f, f, f, f, f, f, f, f)
 X1(env_write, "v(p:char path)", v, p)
 X2(script_packed_asset_save, "b(p:char suffix,p:char path)", b, p, p)
+X1(script_packed_assets_remove, "i(p:char search)", i, p)
+X1(script_set_pack_assets, "v(i pack)", v, i)
 X1(util_mesh_get_hierarchy, "p:any_array_t(p:mesh_object_t o)", p, p)
 X2(script_register_text, "v(p:char format,p fn)", v, p, p)
 X1(script_unregister_text, "v(p:char format)", v, p)
