@@ -2248,10 +2248,19 @@ static void minic_scan_top_level(minic_comp_t *c, bool globals) {
 		}
 		minic_ctype_t type;
 		if (!minic_parse_type(c, &c->i, true, &type)) {
+			if (t != TOK_SEMICOLON) {
+				minic_error(c, "unexpected token outside of a function");
+				return;
+			}
 			minic_next(c);
 			continue;
 		}
 		if (minic_cur(c) != TOK_IDENT) {
+			// Qualifiers such as const are parsed as an opaque type, the declared type follows
+			if (!minic_tok_is_type(minic_cur(c)) && minic_cur(c) != TOK_STRUCT) {
+				minic_error(c, "statement outside of a function");
+				return;
+			}
 			continue;
 		}
 		if (minic_peek(c, 1) != TOK_LPAREN) {
