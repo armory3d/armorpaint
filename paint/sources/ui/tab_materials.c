@@ -62,24 +62,37 @@ void tab_materials_draw_slots_duplicate(void *_) {
 	history_duplicate_material();
 }
 
-void tab_materials_update_material_pointers(ui_node_t_array_t *nodes, i32 i) {
+void tab_materials_update_material_pointers(ui_node_t_array_t *nodes, i32 deleted) {
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *n = nodes->buffer[i];
 		if (string_equals(n->type, "MATERIAL")) {
-			if (n->buttons->buffer[0]->default_value->buffer[0] == i) {
+			if (n->buttons->buffer[0]->default_value->buffer[0] == deleted) {
 				n->buttons->buffer[0]->default_value->buffer[0] = 9999; // Material deleted
 			}
-			else if (n->buttons->buffer[0]->default_value->buffer[0] > i) {
+			else if (n->buttons->buffer[0]->default_value->buffer[0] > deleted) {
 				n->buttons->buffer[0]->default_value->buffer[0]--; // Offset by deleted material
 			}
 		}
 	}
 }
 
+static void tab_materials_on_material_removed(slot_material_t *m, i32 deleted) {
+	tab_meshes_on_material_deleted(deleted);
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		tab_materials_update_material_pointers(g_project->_->materials->buffer[i]->canvas->nodes, deleted);
+	}
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		tab_materials_update_material_pointers(g_project->_->material_groups->buffer[i]->canvas->nodes, deleted);
+	}
+	for (i32 i = 0; i < m->canvas->nodes->length; ++i) {
+		ui_viewnodes_on_node_remove(m->canvas->nodes->buffer[i]);
+	}
+}
+
 void tab_materials_delete_material(slot_material_t *m) {
 	i32 i = array_index_of(g_project->_->materials, m);
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		slot_layer_t *l = g_project->_->layers->buffer[i];
+	for (i32 j = 0; j < g_project->_->layers->length; ++j) {
+		slot_layer_t *l = g_project->_->layers->buffer[j];
 		if (l->fill_material == m) {
 			l->fill_material = NULL;
 		}
@@ -87,16 +100,80 @@ void tab_materials_delete_material(slot_material_t *m) {
 	history_delete_material();
 	context_select_material(i == g_project->_->materials->length - 1 ? i - 1 : i + 1);
 	array_splice(g_project->_->materials, i, 1);
-	tab_meshes_on_material_deleted(i);
 	ui_base_hwnds->buffer[1]->redraws = 2;
+	tab_materials_on_material_removed(m, i);
+}
+
+static bool tab_materials_nodes_link_material(ui_node_t_array_t *nodes, i32 index) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		if (string_equals(n->type, "MATERIAL") && n->buttons->buffer[0]->default_value->buffer[0] == index) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool tab_materials_is_used(i32 index) {
+	slot_material_t *m = g_project->_->materials->buffer[index];
+	// Fill or path layer
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (l->fill_material == m || l->path_material == m) {
+			return true;
+		}
+	}
+	// Linked in another material via material node
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-		slot_material_t *m = g_project->_->materials->buffer[i];
-		tab_materials_update_material_pointers(m->canvas->nodes, i);
+		if (i != index && tab_materials_nodes_link_material(g_project->_->materials->buffer[i]->canvas->nodes, index)) {
+			return true;
+		}
 	}
-	for (i32 i = 0; i < m->canvas->nodes->length; ++i) {
-		ui_node_t *n = m->canvas->nodes->buffer[i];
-		ui_viewnodes_on_node_remove(n);
+	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
+		if (tab_materials_nodes_link_material(g_project->_->material_groups->buffer[i]->canvas->nodes, index)) {
+			return true;
+		}
 	}
+	// Override material in meshes tab
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		if (tab_meshes_get_override(g_project->_->paint_objects->buffer[i]) == index) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void tab_materials_delete_unused() {
+	i32   count = g_project->_->materials->length;
+	bool *used  = calloc(count, sizeof(bool));
+	for (i32 i = 0; i < count; ++i) {
+		used[i] = tab_materials_is_used(i);
+	}
+
+	slot_material_t *selected = g_context->material;
+	bool             deleted  = false;
+	// Go backwards so the indices of the remaining materials stay valid
+	for (i32 i = count - 1; i >= 0 && g_project->_->materials->length > 1; --i) {
+		if (used[i]) {
+			continue;
+		}
+		slot_material_t *m  = g_project->_->materials->buffer[i];
+		g_context->material = m; // History stores the selected material
+		history_delete_material();
+		array_splice(g_project->_->materials, i, 1);
+		tab_materials_on_material_removed(m, i);
+		if (m == selected) {
+			selected = NULL;
+		}
+		deleted = true;
+	}
+	free(used);
+
+	if (!deleted) {
+		return;
+	}
+	context_set_material(selected != NULL ? selected : g_project->_->materials->buffer[0]);
+	ui_base_hwnds->buffer[1]->redraws = 2;
 }
 
 void tab_materials_draw_slots_menu() {
@@ -124,6 +201,10 @@ void tab_materials_draw_slots_menu() {
 
 	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_materials_delete_material(m);
+	}
+
+	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete Unused"), "", ICON_DELETE)) {
+		tab_materials_delete_unused();
 	}
 
 	if (g_config->experimental && ui_menu_button(tr("Inspect as Script"), "", ICON_SEARCH)) {
