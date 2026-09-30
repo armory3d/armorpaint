@@ -57,7 +57,7 @@ static size_t kread(void *dst, size_t size, const char *src, size_t *offset, siz
 
 static size_t kwrite(void *src, size_t size, char *dst, size_t *offset, int maxOutputSize) {
 	size_t realSize = MIN(size, maxOutputSize - *offset);
-	memcpy(&dst[*offset], src, size);
+	memcpy(&dst[*offset], src, realSize);
 	*offset += realSize;
 	return realSize;
 }
@@ -271,5 +271,5 @@ int LZ4_decompress_safe(const char *source, char *buf, int compressedSize, int m
 		}
 	}
 
-	return 0;
+	return (int)write_offset;
 }

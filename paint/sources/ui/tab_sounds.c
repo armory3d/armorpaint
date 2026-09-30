@@ -6,6 +6,9 @@ i32 tab_sounds_drag_pos = -1;
 
 void tab_sounds_delete_sound_on_next_frame(slot_sound_t *sound) {
 	i32 i = array_index_of(g_project->_->sounds, sound);
+	if (ui_view2d_sound_playing == sound->sound) {
+		ui_view2d_stop_sound();
+	}
 	context_select_sound(i == g_project->_->sounds->length - 1 ? i - 1 : i + 1);
 	data_delete_sound(g_project->_->sounds->buffer[i]->file);
 	array_splice(g_project->_->sounds, i, 1);
@@ -33,44 +36,50 @@ void tab_sounds_draw_select_sound(void *_) {
 	context_select_sound(i);
 }
 
-void tab_sounds_draw(ui_handle_t *htab) {
+char *tab_sounds_search = "";
+
+void tab_sounds_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Sounds"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
 
-		ui_handle_t *hsearch = ui_handle(__ID__);
-
-		f32_array_t *row = string_equals(hsearch->text, "") ? f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -200,
-		                                                          },
-		                                                          2)
-		                                                    : f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -200,
-		                                                              -40,
-		                                                          },
-		                                                          3);
+		f32_array_t *row = string_equals(tab_sounds_search, "") ? f32_array_create_from_raw(
+		                                                              (f32[]){
+		                                                                  -100,
+		                                                                  -100,
+		                                                                  -200,
+		                                                              },
+		                                                              3)
+		                                                        : f32_array_create_from_raw(
+		                                                              (f32[]){
+		                                                                  -100,
+		                                                                  -100,
+		                                                                  -200,
+		                                                                  -40,
+		                                                              },
+		                                                              4);
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
 			project_import_asset("wav,ogg", true);
 		}
 
-		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
-		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
-			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
+		if (ui_icon_button(tr("2D View"), ICON_WINDOW, UI_ALIGN_CENTER)) {
+			ui_base_show_2d_view(VIEW_2D_TYPE_SOUND);
 		}
-		if (!string_equals(hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
-			hsearch->text = "";
+
+		ui_text_input(&tab_sounds_search, tr("Search"), UI_ALIGN_LEFT, true, true);
+		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
+			ui_start_text_edit(&tab_sounds_search, UI_ALIGN_LEFT);
+		}
+		if (!string_equals(tab_sounds_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
+			tab_sounds_search = "";
 		}
 
 		ui_end_sticky();
 		ui_separator(3, false);
 
-		char *search = to_lower_case(hsearch->text);
+		char *search = to_lower_case(tab_sounds_search);
 
 		i32 slotw = math_floor(51 * UI_SCALE());
 		i32 num   = math_floor(g_ui->_window_w / (float)slotw);
@@ -160,12 +169,11 @@ void tab_sounds_draw(ui_handle_t *htab) {
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
 					base_drag_sound = g_project->_->sounds->buffer[i];
-					// if (sys_time() - g_context->select_time < 0.2) {
-					// 	ui_base_show_2d_view(VIEW_2D_TYPE_FONT);
-					// 	gc_unroot(base_drag_sound);
-					// 	base_drag_sound   = NULL;
-					// 	base_is_dragging = false;
-					// }
+					if (sys_time() - g_context->select_time < 0.2) {
+						ui_base_show_2d_view(VIEW_2D_TYPE_SOUND);
+						base_drag_sound  = NULL;
+						base_is_dragging = false;
+					}
 					g_context->select_time = sys_time();
 				}
 				if (g_ui->is_hovered && g_ui->input_released_r) {

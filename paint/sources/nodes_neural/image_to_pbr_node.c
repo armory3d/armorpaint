@@ -253,17 +253,15 @@ void image_to_pbr_node_depth_done(gpu_texture_t *tex) {
 }
 
 void image_to_pbr_node_button(i32 node_id) {
-	ui_node_canvas_t *canvas    = ui_nodes_get_canvas(true);
-	ui_node_t        *node      = ui_get_node(canvas->nodes, node_id);
-	char             *node_name = string_copy(parser_material_node_name(node, NULL));
-	ui_handle_t      *h         = ui_handle(node_name);
+	ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+	ui_node_t        *node   = ui_get_node(canvas->nodes, node_id);
 
 	string_array_t *models = any_array_create_from_raw(
 	    (void *[]){
 	        "DA3MONO",
 	    },
 	    1);
-	i32 model = ui_combo(ui_nest(h, 0), models, tr("Model"), false, UI_ALIGN_LEFT, true);
+	i32 model = neural_node_model(node, models);
 
 	if (neural_node_button(node, models->buffer[model])) {
 		ui_node_t     *from_node = neural_from_node(node->inputs->buffer[0], 0);

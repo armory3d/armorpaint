@@ -18,7 +18,7 @@ char *attribute_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 char *attribute_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	node_shader_add_constant(parser_material_kong, "time: float", "_time");
+	node_shader_add_constant(parser_material_kong, "float time", "_time");
 	return "constants.time";
 }
 

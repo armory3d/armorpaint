@@ -26,9 +26,9 @@ static void tab_meshes_set_collapsed(mesh_object_t *o, bool collapsed) {
 	collapsed ? i32_array_push(tab_meshes_collapsed, o->base->uid) : i32_array_remove(tab_meshes_collapsed, o->base->uid);
 }
 
-bool         tab_meshes_search_show   = false;
-bool         tab_meshes_search_focus  = false;
-ui_handle_t *tab_meshes_search_handle = NULL;
+bool  tab_meshes_search_show  = false;
+bool  tab_meshes_search_focus = false;
+char *tab_meshes_search       = "";
 
 static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 	object_t *p = o->base->parent;
@@ -45,14 +45,10 @@ static bool tab_meshes_slot_hidden(mesh_object_t *o) {
 		return true;
 	}
 
-	if (!tab_meshes_search_show || tab_meshes_search_handle == NULL) {
+	if (!tab_meshes_search_show || string_equals(tab_meshes_search, "")) {
 		return false;
 	}
-	char *search = tab_meshes_search_handle->text;
-	if (search == NULL || string_equals(search, "")) {
-		return false;
-	}
-	return string_index_of(to_lower_case(o->base->name), to_lower_case(search)) < 0;
+	return string_index_of(to_lower_case(o->base->name), to_lower_case(tab_meshes_search)) < 0;
 }
 
 static bool tab_meshes_has_children(mesh_object_t *o) {
@@ -94,15 +90,11 @@ static i32 tab_meshes_remapped_mask(mesh_object_t **old_order, i32 length, i32 m
 	return index >= 0 ? index + 1 : mask;
 }
 
-void tab_meshes_sort_hierarchy() {
+static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
-	if (objects == NULL || objects->length < 2) {
-		return;
-	}
-
-	i32             length = objects->length;
-	mesh_object_t **sorted = calloc(length, sizeof(mesh_object_t *));
-	i32             count  = 0;
+	i32                    length  = objects->length;
+	mesh_object_t        **sorted  = calloc(length, sizeof(mesh_object_t *));
+	i32                    count   = 0;
 	tab_meshes_collect_children(objects, sorted, &count, NULL);
 
 	// Meshes parented outside of the list
@@ -119,21 +111,19 @@ void tab_meshes_sort_hierarchy() {
 		}
 	}
 
+	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
+	free(sorted);
+
 	bool changed = false;
 	for (i32 i = 0; i < length; ++i) {
-		if (sorted[i] != objects->buffer[i]) {
+		if (old_order[i] != objects->buffer[i]) {
 			changed = true;
 			break;
 		}
 	}
 	if (!changed) {
-		free(sorted);
 		return;
 	}
-
-	mesh_object_t **old_order = malloc(length * sizeof(mesh_object_t *));
-	memcpy(old_order, objects->buffer, length * sizeof(mesh_object_t *));
-	memcpy(objects->buffer, sorted, length * sizeof(mesh_object_t *));
 
 	if (g_project->_->layers != NULL) {
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
@@ -142,9 +132,38 @@ void tab_meshes_sort_hierarchy() {
 		}
 	}
 	g_context->layer_filter = tab_meshes_remapped_mask(old_order, length, g_context->layer_filter);
+}
 
+void tab_meshes_sort_hierarchy() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects == NULL || objects->length < 2) {
+		return;
+	}
+	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	tab_meshes_sort_hierarchy_from(old_order);
 	free(old_order);
-	free(sorted);
+}
+
+static int tab_meshes_sort_by_name_compare(const void *pa, const void *pb) {
+	mesh_object_t *a = *(mesh_object_t **)pa;
+	mesh_object_t *b = *(mesh_object_t **)pb;
+	return strcmp(a->base->name, b->base->name);
+}
+
+void tab_meshes_sort_by_name() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (objects == NULL || objects->length < 2) {
+		return;
+	}
+	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	// Siblings keep the sorted order when regrouped under parents
+	array_sort((any_array_t *)objects, &tab_meshes_sort_by_name_compare);
+	tab_meshes_sort_hierarchy_from(old_order);
+	free(old_order);
+	tab_timeline_sync();
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
 
 void tab_meshes_set_drag_mesh(mesh_object_t *o, f32 off_x, f32 off_y) {
@@ -163,10 +182,14 @@ void tab_meshes_accept_mesh_drop(mesh_object_t *mesh) {
 	if (dest == pos || dest == pos + 1) {
 		return;
 	}
-	array_remove(g_project->_->paint_objects, mesh);
+	mesh_object_t_array_t *objects   = g_project->_->paint_objects;
+	mesh_object_t        **old_order = malloc(objects->length * sizeof(mesh_object_t *));
+	memcpy(old_order, objects->buffer, objects->length * sizeof(mesh_object_t *));
+	array_remove(objects, mesh);
 	i32 new_pos = dest > pos ? dest - 1 : dest;
-	array_insert(g_project->_->paint_objects, new_pos, mesh);
-	tab_meshes_sort_hierarchy();
+	array_insert(objects, new_pos, mesh);
+	tab_meshes_sort_hierarchy_from(old_order);
+	free(old_order);
 	tab_timeline_sync();
 }
 
@@ -213,6 +236,31 @@ void tab_meshes_set_override_data(mesh_object_t *o, i32 mat_index, shader_data_t
 
 void tab_meshes_set_override(mesh_object_t *o, i32 mat_index) {
 	tab_meshes_set_override_data(o, mat_index, NULL);
+}
+
+void tab_meshes_reset_overrides() {
+	shader_data_t *def = g_project->_->materials->buffer[0]->data;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o   = g_project->_->paint_objects->buffer[i];
+		shader_data_t *old = o->material;
+		o->material        = def;
+		if (old != def) {
+			tab_meshes_delete_override_material(old);
+		}
+	}
+
+	if (tab_meshes_override_map == NULL) {
+		return;
+	}
+	any_array_t *keys = map_keys(tab_meshes_override_map);
+	for (i32 i = 0; i < keys->length; ++i) {
+		free(any_map_get(tab_meshes_override_map, keys->buffer[i]));
+		free(keys->buffer[i]);
+	}
+	array_free(keys);
+	free(keys);
+	map_free(tab_meshes_override_map);
+	tab_meshes_override_map = NULL;
 }
 
 i32 tab_meshes_get_override(mesh_object_t *o) {
@@ -340,6 +388,28 @@ void tab_meshes_on_material_reordered(i32 old_index, i32 new_index) {
 	}
 }
 
+static i32 tab_meshes_delete_index = 0;
+
+static mesh_object_t *tab_meshes_select_after_delete() {
+	// Keep the selection on the same row
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	i32                    index   = tab_meshes_delete_index < objects->length ? tab_meshes_delete_index : objects->length - 1;
+	if (index < 0) {
+		index = 0;
+	}
+	for (i32 i = index; i < objects->length; ++i) {
+		if (!tab_meshes_slot_hidden(objects->buffer[i])) {
+			return objects->buffer[i];
+		}
+	}
+	for (i32 i = index - 1; i >= 0; --i) {
+		if (!tab_meshes_slot_hidden(objects->buffer[i])) {
+			return objects->buffer[i];
+		}
+	}
+	return context_main_object();
+}
+
 void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	util_mesh_remove_merged();
 	if (util_mesh_data_owner(o->data) == -1) {
@@ -347,7 +417,7 @@ void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	}
 	mesh_object_remove(o);
 	tab_stages_prune();
-	g_context->paint_object = context_main_object();
+	g_context->paint_object = tab_meshes_select_after_delete();
 	util_mesh_merge(NULL);
 	g_context->ddirty                                 = 2;
 	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
@@ -360,8 +430,37 @@ static void tab_meshes_reparent_keep_world(object_t *child, object_t *parent) {
 	transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
 }
 
+static bool tab_meshes_in_other_stage(stage_t *stage, char *name) {
+	for (i32 i = 0; i < g_project->stages->length; ++i) {
+		stage_t *s = g_project->stages->buffer[i];
+		if (s != stage && string_array_index_of(s->objects, name) >= 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
-	char *mesh_name = o->base->name;
+	char *mesh_name         = o->base->name;
+	tab_meshes_delete_index = array_index_of(g_project->_->paint_objects, o);
+
+	// Mesh is still used by another stage
+	stage_t *stage = tab_stages_get_stage();
+	if (stage != NULL && tab_meshes_in_other_stage(stage, mesh_name)) {
+		i32 idx = string_array_index_of(stage->objects, mesh_name);
+		if (idx >= 0) {
+			array_splice(stage->objects, idx, 1);
+		}
+		tab_stages_set_hidden(stage, mesh_name, false);
+		o->base->visible        = false;
+		g_context->paint_object = tab_meshes_select_after_delete();
+		util_mesh_visibility_changed();
+		util_physics_apply_stage(stage);
+		ui_header_handle->redraws                         = 2;
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		return;
+	}
+
 	array_remove(g_project->_->paint_objects, o);
 	tab_timeline_on_mesh_deleted(mesh_name);
 
@@ -382,47 +481,64 @@ static char *f32_to_string2(float f) {
 }
 
 void tab_meshes_duplicate_next_frame(void *_) {
-	sim_duplicate();
+	util_mesh_duplicate();
 }
 
 void tab_meshes_merge_geometry_next_frame(void *_) {
 	util_mesh_merge_geometry();
 }
 
+static mesh_object_t *tab_meshes_slot_below(mesh_object_t *o) {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	for (i32 i = array_index_of(objects, o) + 1; i > 0 && i < objects->length; ++i) {
+		if (!tab_meshes_slot_hidden(objects->buffer[i])) {
+			return objects->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+void tab_meshes_merge_down_next_frame(mesh_object_t *o) {
+	mesh_object_t *below = tab_meshes_slot_below(o);
+	if (below == NULL) {
+		return;
+	}
+	util_mesh_merge_geometry_down(o, below);
+
+	char          *uid_key = i32_to_string(o->base->uid);
+	gpu_texture_t *preview = tab_meshes_preview_map != NULL ? any_map_get(tab_meshes_preview_map, uid_key) : NULL;
+	if (preview != NULL) {
+		gpu_delete_texture(preview);
+		map_delete(tab_meshes_preview_map, uid_key);
+	}
+}
+
+static bool tab_meshes_float_input(f32 *value, void *id, char *label) {
+	char *text = f32_to_string2(*value);
+	ui_set_next_id((ui_id_t)id);
+	ui_text_input(&text, label, UI_ALIGN_LEFT, true, false);
+	if (!ui_item_changed()) {
+		return false;
+	}
+	*value = parse_float(text);
+	return true;
+}
+
 void tab_meshes_draw_transform_loc(mesh_object_t *o, char *ns) {
 	transform_t *t        = o->base->transform;
 	vec4_t       prev_loc = t->loc;
-	bool         changed  = false;
-	f32          f        = 0.0;
 
-	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text        = string_copy(f32_to_string2(t->loc.x));
-	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->loc.x = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(t->loc.y));
-	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->loc.y = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(t->loc.z));
-	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->loc.z = f;
-	}
+	ui_push_id((ui_id_t)ns);
+	bool changed = tab_meshes_float_input(&t->loc.x, &t->loc.x, "X");
+	changed |= tab_meshes_float_input(&t->loc.y, &t->loc.y, "Y");
+	changed |= tab_meshes_float_input(&t->loc.z, &t->loc.z, "Z");
+	ui_pop_id();
 
 	if (changed) {
 		history_object_transform(o, prev_loc, t->rot, t->scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -431,32 +547,12 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 	transform_t *t   = o->base->transform;
 	vec4_t       rot = quat_get_euler(t->rot);
 	rot              = vec4_mult(rot, 180 / 3.141592);
-	bool changed     = false;
-	f32  f           = 0.0;
 
-	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text        = string_copy(f32_to_string2(rot.x));
-	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed = true;
-		rot.x   = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(rot.y));
-	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed = true;
-		rot.y   = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(rot.z));
-	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed = true;
-		rot.z   = f;
-	}
+	ui_push_id((ui_id_t)ns);
+	bool changed = tab_meshes_float_input(&rot.x, &t->rot.x, "X");
+	changed |= tab_meshes_float_input(&rot.y, &t->rot.y, "Y");
+	changed |= tab_meshes_float_input(&rot.z, &t->rot.z, "Z");
+	ui_pop_id();
 
 	if (changed) {
 		history_object_transform(o, t->loc, t->rot, t->scale);
@@ -464,6 +560,7 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 		t->rot = quat_from_euler(rot.x, rot.y, rot.z);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -471,37 +568,18 @@ void tab_meshes_draw_transform_rot(mesh_object_t *o, char *ns) {
 void tab_meshes_draw_transform_scale(mesh_object_t *o, char *ns) {
 	transform_t *t          = o->base->transform;
 	vec4_t       prev_scale = t->scale;
-	bool         changed    = false;
-	f32          f          = 0.0;
 
-	ui_handle_t *h = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text        = string_copy(f32_to_string2(t->scale.x));
-	f              = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed    = true;
-		t->scale.x = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(t->scale.y));
-	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed    = true;
-		t->scale.y = f;
-	}
-
-	h       = ui_handle(string_tmp("%s%s", __ID__, ns));
-	h->text = string_copy(f32_to_string2(t->scale.z));
-	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed    = true;
-		t->scale.z = f;
-	}
+	ui_push_id((ui_id_t)ns);
+	bool changed = tab_meshes_float_input(&t->scale.x, &t->scale.x, "X");
+	changed |= tab_meshes_float_input(&t->scale.y, &t->scale.y, "Y");
+	changed |= tab_meshes_float_input(&t->scale.z, &t->scale.z, "Z");
+	ui_pop_id();
 
 	if (changed) {
 		history_object_transform(o, t->loc, t->rot, prev_scale);
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 }
@@ -520,10 +598,10 @@ void tab_meshes_draw_context_menu() {
 		return;
 	}
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
-		sim_duplicate();
+		util_mesh_duplicate();
 		return;
 	}
-	if (util_mesh_data_is_shared(o->data) && ui_menu_button(tr("Make Unique"), "", ICON_DUPLICATE)) {
+	if (util_mesh_data_is_shared(o->data) && ui_menu_button(tr("Make Unique"), "", ICON_NONE)) {
 		util_mesh_unshare_data(o);
 		util_mesh_merge(NULL);
 		util_uv_uvmap_cached       = false;
@@ -536,13 +614,95 @@ void tab_meshes_draw_context_menu() {
 		tab_timeline_edit_script(g_project->_->layers->length + i, 0);
 		return;
 	}
-
-#ifdef WITH_PLUGINS
-	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		plugin_uv_unwrap_per_object_button(o);
+	if (ui_menu_button(tr("Edit Timeline"), "", ICON_NONE)) {
+		tab_timeline_edit_mesh(o);
 		return;
 	}
-#endif
+
+	ui_menu_separator();
+
+	if (tab_meshes_slot_below(o) != NULL && ui_menu_button(tr("Merge Down"), "", ICON_NONE)) {
+		sys_notify_on_next_frame(tab_meshes_merge_down_next_frame, o);
+		return;
+	}
+
+	// Geometry actions apply to the mesh and its children
+	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
+		util_mesh_uv_unwrap(util_mesh_get_hierarchy(o));
+		return;
+	}
+
+	if (ui_menu_sub_button(tr("Calculate Normals"))) {
+		ui_menu_sub_begin(2);
+		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
+			util_mesh_calc_normals(util_mesh_get_hierarchy(o), true);
+			g_context->ddirty = 2;
+		}
+		if (ui_menu_button(tr("Flat"), "", ICON_NONE)) {
+			util_mesh_calc_normals(util_mesh_get_hierarchy(o), false);
+			g_context->ddirty = 2;
+		}
+		ui_menu_sub_end();
+	}
+
+	if (ui_menu_button(tr("Flip Normals"), "", ICON_NONE)) {
+		util_mesh_flip_normals(util_mesh_get_hierarchy(o));
+		g_context->ddirty = 2;
+		return;
+	}
+
+	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
+		mesh_object_t_array_t *objects = util_mesh_get_hierarchy(o);
+		util_mesh_apply_displacement(objects, g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);
+		util_mesh_calc_normals(objects, false);
+		g_context->ddirty = 2;
+		return;
+	}
+
+	if (ui_menu_sub_button(tr("Rotate"))) {
+		ui_menu_sub_begin(3);
+		if (ui_menu_button(tr("X"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 1, 2);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		if (ui_menu_button(tr("Y"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 2, 0);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		if (ui_menu_button(tr("Z"), "", ICON_NONE)) {
+			util_mesh_swap_axis(util_mesh_get_hierarchy(o), 0, 1);
+			g_context->ddirty = 2;
+			ui_menu_keep_open = true;
+		}
+		ui_menu_sub_end();
+	}
+
+	if (ui_menu_sub_button(tr("Modifiers"))) {
+		ui_menu_sub_begin(4);
+		if (ui_menu_button(tr("Decimate"), "", ICON_NONE)) {
+			util_mesh_decimate(util_mesh_get_hierarchy(o), 0.5);
+		}
+		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
+			util_mesh_smooth(util_mesh_get_hierarchy(o));
+		}
+		if (ui_menu_button(tr("Subdivide"), "", ICON_NONE)) {
+			util_mesh_subdivide(util_mesh_get_hierarchy(o));
+		}
+		if (ui_menu_button(tr("Bevel"), "", ICON_NONE)) {
+			util_mesh_bevel(util_mesh_get_hierarchy(o), 0.1);
+		}
+		ui_menu_sub_end();
+	}
+
+	if (ui_menu_button(tr("Origin to Geometry"), "", ICON_NONE)) {
+		util_mesh_origin_to_geometry(util_mesh_get_hierarchy(o));
+		g_context->ddirty = 2;
+		return;
+	}
+
+	ui_menu_separator();
 
 	transform_t *t = o->base->transform;
 
@@ -561,37 +721,14 @@ void tab_meshes_draw_context_menu() {
 	ui_row4();
 	ui_text("Dim", UI_ALIGN_LEFT, 0x00000000);
 
-	bool         changed = false;
-	f32          f       = 0.0;
-	ui_handle_t *h;
-
-	h       = ui_handle(__ID__);
-	h->text = string_copy(f32_to_string2(t->dim.x));
-	f       = parse_float(ui_text_input(h, "X", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->dim.x = f;
-	}
-
-	h       = ui_handle(__ID__);
-	h->text = string_copy(f32_to_string2(t->dim.y));
-	f       = parse_float(ui_text_input(h, "Y", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->dim.y = f;
-	}
-
-	h       = ui_handle(__ID__);
-	h->text = string_copy(f32_to_string2(t->dim.z));
-	f       = parse_float(ui_text_input(h, "Z", UI_ALIGN_LEFT, true, false));
-	if (h->changed) {
-		changed  = true;
-		t->dim.z = f;
-	}
+	bool changed = tab_meshes_float_input(&t->dim.x, &t->dim.x, "X");
+	changed |= tab_meshes_float_input(&t->dim.y, &t->dim.y, "Y");
+	changed |= tab_meshes_float_input(&t->dim.z, &t->dim.z, "Z");
 
 	if (changed) {
 		transform_build_matrix(t);
 		transform_compute_dim(t);
+		util_mesh_transform_changed();
 		g_context->ddirty = 2;
 	}
 
@@ -602,13 +739,16 @@ void tab_meshes_draw_context_menu() {
 		string_array_push(mat_combo, g_project->_->materials->buffer[mi]->canvas->name);
 	}
 
-	ui_handle_t *hmat = ui_handle(__ID__);
-	hmat->i           = tab_meshes_get_linked_override(o) + 1; // 0 = none
-	ui_combo(hmat, mat_combo, tr("Material"), true, UI_ALIGN_LEFT, false);
+	ui_push_id((ui_id_t)o);
+
+	i32 mat = tab_meshes_get_linked_override(o) + 1; // 0 = none
+	ui_set_next_id(1);
+	ui_combo(&mat, mat_combo, tr("Material"), true, UI_ALIGN_LEFT, false);
+	bool mat_changed = ui_item_changed();
 	array_free(mat_combo);
 	free(mat_combo);
-	if (hmat->changed) {
-		tab_meshes_set_linked_override(o, hmat->i - 1);
+	if (mat_changed) {
+		tab_meshes_set_linked_override(o, mat - 1);
 		g_context->ddirty         = 2;
 		g_context->rtdirty        = 2;
 		g_project->mesh_materials = i32_array_create(0);
@@ -626,13 +766,13 @@ void tab_meshes_draw_context_menu() {
 		}
 	}
 
-	ui_handle_t *hparent = ui_handle(__ID__);
-	hparent->i           = parent_idx;
-	ui_combo(hparent, parent_combo, tr("Parent"), true, UI_ALIGN_LEFT, false);
+	ui_set_next_id(2);
+	ui_combo(&parent_idx, parent_combo, tr("Parent"), true, UI_ALIGN_LEFT, false);
+	bool parent_changed = ui_item_changed();
 	array_free(parent_combo);
 	free(parent_combo);
-	if (hparent->changed) {
-		object_t *new_parent = hparent->i == 0 ? NULL : g_project->_->paint_objects->buffer[hparent->i - 1]->base;
+	if (parent_changed) {
+		object_t *new_parent = parent_idx == 0 ? NULL : g_project->_->paint_objects->buffer[parent_idx - 1]->base;
 		object_set_parent(o->base, new_parent);
 		tab_meshes_sort_hierarchy();
 		g_project->mesh_parents = i32_array_create(0);
@@ -640,7 +780,7 @@ void tab_meshes_draw_context_menu() {
 	}
 
 	// Physics
-	i32             shape      = sim_physics_get_shape(o->base);
+	i32             shape      = util_physics_get_shape(o->base);
 	string_array_t *phys_combo = string_array_create(0);
 	string_array_push(phys_combo, ""); // Empty = no physics
 	string_array_push(phys_combo, tr("Box"));
@@ -648,28 +788,31 @@ void tab_meshes_draw_context_menu() {
 	string_array_push(phys_combo, tr("Terrain"));
 	string_array_push(phys_combo, tr("Mesh"));
 
-	ui_handle_t *hphys = ui_handle(__ID__);
-	hphys->i           = shape + 1; // 0 = none
-	ui_combo(hphys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
+	i32 phys = shape + 1; // 0 = none
+	ui_set_next_id(3);
+	ui_combo(&phys, phys_combo, tr("Physics"), true, UI_ALIGN_LEFT, false);
+	bool phys_changed = ui_item_changed();
 	array_free(phys_combo);
 	free(phys_combo);
-	if (hphys->changed) {
-		shape        = hphys->i - 1;
+	if (phys_changed) {
+		shape        = phys - 1;
 		bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
-		sim_physics_set(o->base, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
+		util_physics_set(o->base, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 		g_project->mesh_physics_shapes = i32_array_create(0);
 	}
 
 	if (shape >= 0) {
-		ui_handle_t *hmass = ui_handle(__ID__);
-		hmass->f           = sim_physics_get_mass(o->base);
-		ui_slider(hmass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
-		if (hmass->changed) {
-			sim_physics_set_mass(o->base, hmass->f);
+		f32 mass = util_physics_get_mass(o->base);
+		ui_set_next_id(4);
+		ui_slider(&mass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
+		if (ui_item_changed()) {
+			util_physics_set_mass(o->base, mass);
 			g_project->mesh_physics_shapes = i32_array_create(0);
 			ui_menu_keep_open              = true;
 		}
 	}
+
+	ui_pop_id();
 
 	if (g_ui->changed || g_ui->is_typing) {
 		ui_menu_keep_open = true;
@@ -677,36 +820,19 @@ void tab_meshes_draw_context_menu() {
 }
 
 void tab_meshes_draw_edit() {
-
-#ifdef WITH_PLUGINS
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		plugin_uv_unwrap_button();
+		util_mesh_uv_unwrap(NULL);
 	}
-#endif
 
 	if (ui_menu_button(tr("Edit UV Map"), "", ICON_NONE)) {
 		ui_base_show_2d_view(VIEW_2D_TYPE_UVMAP);
 	}
 
+	if (ui_menu_button(tr("Sort"), "", ICON_NONE)) {
+		tab_meshes_sort_by_name();
+	}
+
 	ui_menu_separator();
-
-	if (ui_menu_sub_button(ui_handle(__ID__), tr("Calculate Normals"))) {
-		ui_menu_sub_begin(2);
-		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
-			util_mesh_calc_normals(true);
-			g_context->ddirty = 2;
-		}
-		if (ui_menu_button(tr("Flat"), "", ICON_NONE)) {
-			util_mesh_calc_normals(false);
-			g_context->ddirty = 2;
-		}
-		ui_menu_sub_end();
-	}
-
-	if (ui_menu_button(tr("Flip Normals"), "", ICON_NONE)) {
-		util_mesh_flip_normals();
-		g_context->ddirty = 2;
-	}
 
 	if (ui_menu_button(tr("Geometry to Origin"), "", ICON_NONE)) {
 		util_mesh_to_origin();
@@ -718,51 +844,6 @@ void tab_meshes_draw_edit() {
 		sys_notify_on_next_frame(&tab_meshes_merge_geometry_next_frame, NULL);
 	}
 	g_ui->enabled = true;
-
-	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
-		util_mesh_apply_displacement(g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);
-		util_mesh_calc_normals(false);
-		g_context->ddirty = 2;
-	}
-
-	if (ui_menu_sub_button(ui_handle(__ID__), tr("Rotate"))) {
-		ui_menu_sub_begin(3);
-		if (ui_menu_button(tr("X"), "", ICON_NONE)) {
-			util_mesh_swap_axis(1, 2);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		if (ui_menu_button(tr("Y"), "", ICON_NONE)) {
-			util_mesh_swap_axis(2, 0);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		if (ui_menu_button(tr("Z"), "", ICON_NONE)) {
-			util_mesh_swap_axis(0, 1);
-			g_context->ddirty = 2;
-			ui_menu_keep_open = true;
-		}
-		ui_menu_sub_end();
-	}
-
-	ui_menu_separator();
-
-	if (ui_menu_sub_button(ui_handle(__ID__), tr("Modifiers"))) {
-		ui_menu_sub_begin(4);
-		if (ui_menu_button(tr("Decimate"), "", ICON_NONE)) {
-			util_mesh_decimate(0.5);
-		}
-		if (ui_menu_button(tr("Smooth"), "", ICON_NONE)) {
-			util_mesh_smooth();
-		}
-		if (ui_menu_button(tr("Subdivide"), "", ICON_NONE)) {
-			util_mesh_subdivide();
-		}
-		if (ui_menu_button(tr("Bevel"), "", ICON_NONE)) {
-			util_mesh_bevel(0.1);
-		}
-		ui_menu_sub_end();
-	}
 }
 
 mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
@@ -838,15 +919,6 @@ void tab_meshes_draw_new() {
 	}
 }
 
-void tab_meshes_draw_import() {
-	if (ui_menu_button(tr("Replace Existing"), any_map_get(g_keymap, "file_import_assets"), ICON_NONE)) {
-		project_import_mesh(true, NULL);
-	}
-	if (ui_menu_button(tr("Append"), "", ICON_NONE)) {
-		project_append_mesh();
-	}
-}
-
 static vec4_t aabb_center(mesh_data_t *raw) {
 	vec4_t aabb_min;
 	vec4_t aabb_max;
@@ -855,6 +927,9 @@ static vec4_t aabb_center(mesh_data_t *raw) {
 }
 
 void tab_meshes_make_preview(mesh_object_t *o) {
+	if (array_index_of((any_array_t *)g_project->_->paint_objects, o) < 0) {
+		return;
+	}
 	if (tab_meshes_preview_map == NULL) {
 		tab_meshes_preview_map = any_map_create();
 	}
@@ -1085,15 +1160,15 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 	bool over_name = g_ui->input_x > g_ui->_window_x + name_x && g_ui->input_x < g_ui->_window_x + name_right;
 
 	if (tab_meshes_mesh_name_edit == o->base->uid) {
-		tab_meshes_mesh_name_handle->text = string_copy(o->base->name);
-		char *new_name                    = string_copy(ui_text_input(tab_meshes_mesh_name_handle, "", UI_ALIGN_LEFT, true, false));
+		tab_meshes_mesh_name = string_copy(o->base->name);
+		char *new_name       = string_copy(ui_text_input(&tab_meshes_mesh_name, "", UI_ALIGN_LEFT, true, false));
 		tab_stages_rename_object(o->base->name, new_name);
 		o->base->name = new_name;
 		// Mesh data shared by linked duplicates is named after the object holding it
 		if (util_mesh_data_owner(o->data) == i) {
 			o->data->name = string_copy(o->base->name);
 		}
-		if (g_ui->text_selected_handle != tab_meshes_mesh_name_handle) {
+		if (g_ui->text_selected_id != ui_widget_id(&tab_meshes_mesh_name, UI_ID_TEXT)) {
 			tab_meshes_mesh_name_edit = -1;
 		}
 	}
@@ -1115,9 +1190,9 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 				if (sys_time() - g_context->select_time < 0.2) {
 					if (over_name) {
 						// Double click name to rename
-						tab_meshes_mesh_name_edit         = o->base->uid;
-						tab_meshes_mesh_name_handle->text = string_copy(o->base->name);
-						ui_start_text_edit(tab_meshes_mesh_name_handle, UI_ALIGN_LEFT);
+						tab_meshes_mesh_name_edit = o->base->uid;
+						tab_meshes_mesh_name      = string_copy(o->base->name);
+						ui_start_text_edit(&tab_meshes_mesh_name, UI_ALIGN_LEFT);
 					}
 					else {
 						// Double click to show only this mesh
@@ -1150,12 +1225,12 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 
 	// Panel
 	if (has_children) {
-		g_ui->_x                = uix + uiw * 0.90;
-		g_ui->_y                = uiy + center;
-		g_ui->_w                = uiw * 0.15;
-		ui_handle_t *mesh_panel = ui_nest(ui_handle(__ID__), o->base->uid);
-		mesh_panel->b           = !tab_meshes_is_collapsed(o);
-		tab_meshes_set_collapsed(o, !ui_panel(mesh_panel, "", false, false, true));
+		g_ui->_x      = uix + uiw * 0.90;
+		g_ui->_y      = uiy + center;
+		g_ui->_w      = uiw * 0.15;
+		bool expanded = !tab_meshes_is_collapsed(o);
+		ui_panel(&expanded, "", false, false, true);
+		tab_meshes_set_collapsed(o, !expanded);
 	}
 
 	g_ui->_x = uix;
@@ -1198,7 +1273,22 @@ static void tab_meshes_scroll_to_slot(i32 index) {
 	}
 }
 
-void tab_meshes_draw(ui_handle_t *htab) {
+static mesh_object_t *tab_meshes_reveal_pending = NULL;
+
+void tab_meshes_reveal_slot(mesh_object_t *o) {
+	object_t *p = o->base->parent;
+	for (i32 i = 0; p != NULL && p != _scene_root && i < 4; ++i) {
+		mesh_object_t *po = p->ext_type != NULL && string_equals(p->ext_type, "mesh_object_t") ? p->ext : NULL;
+		if (po != NULL) {
+			tab_meshes_set_collapsed(po, false);
+		}
+		p = p->parent;
+	}
+	tab_meshes_reveal_pending                         = o;
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+}
+
+void tab_meshes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Meshes"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		bool in_window = ui_input_in_rect(g_ui->_window_x, g_ui->_window_y, g_ui->_window_w, g_ui->_window_h);
@@ -1223,7 +1313,7 @@ void tab_meshes_draw(ui_handle_t *htab) {
 			ui_menu_draw(&tab_meshes_draw_new, -1, -1);
 		}
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
-			ui_menu_draw(&tab_meshes_draw_import, -1, -1);
+			project_import_mesh(true, NULL);
 		}
 		if (g_ui->is_hovered)
 			ui_tooltip(tr("Import mesh file"));
@@ -1232,22 +1322,21 @@ void tab_meshes_draw(ui_handle_t *htab) {
 			ui_menu_draw(&tab_meshes_draw_edit, -1, -1);
 		}
 
-		tab_meshes_search_handle = ui_handle(__ID__);
 		if (tab_meshes_search_show) {
-			bool search_selected           = g_ui->text_selected_handle == tab_meshes_search_handle;
-			tab_meshes_search_handle->text = string_copy(ui_text_input(tab_meshes_search_handle, tr("Search"), UI_ALIGN_LEFT, true, true));
+			bool search_selected = g_ui->text_selected_id == ui_widget_id(&tab_meshes_search, UI_ID_TEXT);
+			ui_text_input(&tab_meshes_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 			if (g_ui->is_hovered) {
 				ui_tooltip(tr("esc to cancel"));
 			}
 			if (tab_meshes_search_focus) { // Ctrl+f to open
 				tab_meshes_search_focus = false;
-				ui_start_text_edit(tab_meshes_search_handle, UI_ALIGN_LEFT);
-				g_ui->cursor_x         = string_length(tab_meshes_search_handle->text);
+				ui_start_text_edit(&tab_meshes_search, UI_ALIGN_LEFT);
+				g_ui->cursor_x         = string_length(tab_meshes_search);
 				g_ui->highlight_anchor = 0;
 			}
 			if ((search_selected || in_window) && g_ui->is_escape_down) {
-				tab_meshes_search_show         = false;
-				tab_meshes_search_handle->text = "";
+				tab_meshes_search_show = false;
+				tab_meshes_search      = "";
 			}
 		}
 
@@ -1264,6 +1353,15 @@ void tab_meshes_draw(ui_handle_t *htab) {
 				continue;
 			}
 			tab_meshes_draw_mesh_slot(o, i);
+		}
+
+		if (tab_meshes_reveal_pending != NULL) {
+			i32 i = array_index_of(g_project->_->paint_objects, tab_meshes_reveal_pending);
+			if (i >= 0 && !tab_meshes_slot_hidden(tab_meshes_reveal_pending)) {
+				tab_meshes_scroll_to_slot(i);
+				ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+			}
+			tab_meshes_reveal_pending = NULL;
 		}
 
 		if (in_window && !g_ui->is_typing && g_ui->is_key_pressed && (g_ui->key_code == KEY_CODE_UP || g_ui->key_code == KEY_CODE_DOWN)) {

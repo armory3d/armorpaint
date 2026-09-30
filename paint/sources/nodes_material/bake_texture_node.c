@@ -38,7 +38,7 @@ static void bake_texture_node_check_result(ui_node_t *node) {
 	make_material_parse_paint_material(true);
 
 	if (rgba128) {
-		base_bits_handle->i = _bake_texture_node_bits;
+		base_bits = _bake_texture_node_bits;
 		layers_set_bits();
 	}
 
@@ -82,8 +82,8 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 		rt->format = "RGBA128";
 		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
 
-		_bake_texture_node_bits = base_bits_handle->i;
-		base_bits_handle->i     = TEXTURE_BITS_BITS32;
+		_bake_texture_node_bits = base_bits;
+		base_bits               = TEXTURE_BITS_BITS32;
 		gpu_texture_t *current  = _draw_current;
 		draw_end();
 		layers_set_bits();
@@ -111,9 +111,9 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 }
 
 static void bake_texture_node_button(i32 node_id) {
-	ui_node_t   *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char        *node_name = parser_material_node_name(node, NULL);
-	ui_handle_t *h         = ui_handle(node_name);
+	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	ui_push_id((ui_id_t)ui_nodes_get_nodes());
+	ui_push_id((ui_id_t)node_id); // Shared bake settings still need distinct controls per node
 
 	string_array_t *bakes = any_array_create_from_raw(
 	    (void *[]){
@@ -136,8 +136,15 @@ static void bake_texture_node_button(i32 node_id) {
 		any_array_push(bakes, tr("Thickness"));
 	}
 
-	i32 bake_type = ui_combo(ui_nest(h, 0), bakes, tr("Bake"), false, UI_ALIGN_LEFT, true);
-	i32 height    = 1;
+	f32_array_t *values    = node->buttons->buffer[0]->default_value;
+	i32          bake_type = (i32)values->buffer[0];
+	if (bake_type >= bakes->length) { // Saved on a machine with raytracing
+		bake_type = 0;
+	}
+	ui_set_next_id((ui_id_t)&values->buffer[0]);
+	ui_combo(&bake_type, bakes, tr("Bake"), false, UI_ALIGN_LEFT, true);
+	values->buffer[0] = bake_type;
+	i32 height        = 1;
 
 	bool rt_bake =
 	    bake_type == BAKE_TYPE_OCCLUSION || bake_type == BAKE_TYPE_LIGHTMAP || bake_type == BAKE_TYPE_BENT_NORMAL || bake_type == BAKE_TYPE_THICKNESS;
@@ -152,10 +159,9 @@ static void bake_texture_node_button(i32 node_id) {
 		i32 _BUTTON_COL     = g_theme->BUTTON_COL;
 		g_theme->BUTTON_COL = g_theme->HIGHLIGHT_COL;
 
-		ui_handle_t *bake_h = ui_nest(h, 12);
-		bake_h->f           = progress;
-		char *label         = string_tmp("%d%%", (i32)(progress * 100));
-		ui_slider(bake_h, label, 0.0, 1.0, true, 100, false, UI_ALIGN_CENTER, true);
+		char *label = string_tmp("%d%%", (i32)(progress * 100));
+		ui_set_next_id((ui_id_t)&g_context->pdirty);
+		ui_slider(&progress, label, 0.0, 1.0, true, 100, false, UI_ALIGN_CENTER, true);
 
 		g_theme->BUTTON_COL = _BUTTON_COL;
 
@@ -169,28 +175,24 @@ static void bake_texture_node_button(i32 node_id) {
 	height++;
 
 	if (rt_bake) {
-		ui_handle_t *samples_handle = ui_nest(h, 1);
-		samples_handle->f           = g_context->bake_samples;
-		g_context->bake_samples     = math_floor(ui_slider(samples_handle, tr("Samples"), 1, 512, true, 1, true, UI_ALIGN_RIGHT, true));
+		f32 samples = g_context->bake_samples;
+		ui_set_next_id((ui_id_t)&g_context->bake_samples);
+		g_context->bake_samples = math_floor(ui_slider(&samples, tr("Samples"), 1, 512, true, 1, true, UI_ALIGN_RIGHT, true));
 		height++;
 	}
 
 	if (bake_type == BAKE_TYPE_NORMAL_OBJECT || bake_type == BAKE_TYPE_POSITION || bake_type == BAKE_TYPE_BENT_NORMAL) {
-		ui_handle_t *up_axis_handle   = ui_nest(h, 2);
-		up_axis_handle->i             = g_context->bake_up_axis;
 		string_array_t *up_axis_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Z"),
 		        tr("Y"),
 		    },
 		    2);
-		g_context->bake_up_axis = ui_combo(up_axis_handle, up_axis_combo, tr("Up Axis"), true, UI_ALIGN_LEFT, true);
+		ui_combo((int *)&g_context->bake_up_axis, up_axis_combo, tr("Up Axis"), true, UI_ALIGN_LEFT, true);
 		height++;
 	}
 
 	if (bake_type == BAKE_TYPE_OCCLUSION || bake_type == BAKE_TYPE_CURVATURE) {
-		ui_handle_t *axis_handle   = ui_nest(h, 3);
-		axis_handle->i             = g_context->bake_axis;
 		string_array_t *axis_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("XYZ"),
@@ -202,36 +204,24 @@ static void bake_texture_node_button(i32 node_id) {
 		        tr("-Z"),
 		    },
 		    7);
-		g_context->bake_axis = ui_combo(axis_handle, axis_combo, tr("Axis"), true, UI_ALIGN_LEFT, true);
+		ui_combo((int *)&g_context->bake_axis, axis_combo, tr("Axis"), true, UI_ALIGN_LEFT, true);
 		height++;
 	}
 
 	if (bake_type == BAKE_TYPE_OCCLUSION) {
-		ui_handle_t *strength_handle = ui_nest(h, 4);
-		strength_handle->f           = g_context->bake_ao_strength;
-		g_context->bake_ao_strength  = ui_slider(strength_handle, tr("Strength"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *radius_handle   = ui_nest(h, 5);
-		radius_handle->f             = g_context->bake_ao_radius;
-		g_context->bake_ao_radius    = ui_slider(radius_handle, tr("Radius"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *offset_handle   = ui_nest(h, 6);
-		offset_handle->f             = g_context->bake_ao_offset;
-		g_context->bake_ao_offset    = ui_slider(offset_handle, tr("Offset"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->bake_ao_strength, tr("Strength"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->bake_ao_radius, tr("Radius"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->bake_ao_offset, tr("Offset"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		height += 3;
 	}
 
 	if (bake_type == BAKE_TYPE_CURVATURE) {
-		ui_handle_t *strength_handle  = ui_nest(h, 7);
-		strength_handle->f            = g_context->bake_curv_strength;
-		g_context->bake_curv_strength = ui_slider(strength_handle, tr("Strength"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *radius_handle    = ui_nest(h, 8);
-		radius_handle->f              = g_context->bake_curv_radius;
-		g_context->bake_curv_radius   = ui_slider(radius_handle, tr("Radius"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *offset_handle    = ui_nest(h, 9);
-		offset_handle->f              = g_context->bake_curv_offset;
-		g_context->bake_curv_offset   = ui_slider(offset_handle, tr("Offset"), -2.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *smooth_handle    = ui_nest(h, 10);
-		smooth_handle->f              = g_context->bake_curv_smooth;
-		g_context->bake_curv_smooth   = math_floor(ui_slider(smooth_handle, tr("Smooth"), 0, 5, false, 1, true, UI_ALIGN_RIGHT, true));
+		ui_slider(&g_context->bake_curv_strength, tr("Strength"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->bake_curv_radius, tr("Radius"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->bake_curv_offset, tr("Offset"), -2.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		f32 smooth = g_context->bake_curv_smooth;
+		ui_set_next_id((ui_id_t)&g_context->bake_curv_smooth);
+		g_context->bake_curv_smooth = math_floor(ui_slider(&smooth, tr("Smooth"), 0, 5, false, 1, true, UI_ALIGN_RIGHT, true));
 		height += 4;
 	}
 
@@ -241,13 +231,13 @@ static void bake_texture_node_button(i32 node_id) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 			any_array_push(ar, p->base->name);
 		}
-		ui_handle_t *poly_handle  = ui_nest(h, 11);
-		poly_handle->i            = g_context->bake_high_poly;
-		g_context->bake_high_poly = ui_combo(poly_handle, ar, tr("High Poly"), false, UI_ALIGN_LEFT, true);
+		ui_combo(&g_context->bake_high_poly, ar, tr("High Poly"), false, UI_ALIGN_LEFT, true);
 		height++;
 	}
 
 	node->buttons->buffer[0]->height = height + 0.5;
+	ui_pop_id();
+	ui_pop_id();
 }
 
 static char *bake_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {

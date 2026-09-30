@@ -27,5 +27,7 @@ typedef struct raw_mesh {
 	struct u8_array  *blob; // Source file bytes
 } raw_mesh_t;
 
+extern bool obj_parse_y_to_z_up;
+
 raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim);
 void        obj_destroy(raw_mesh_t *part);

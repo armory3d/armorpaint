@@ -282,7 +282,7 @@ void config_init() {
 		ui_touch_speed = 0.5;
 	}
 #endif
-	base_res_handle->i = g_config->layer_res;
+	base_res = g_config->layer_res;
 	config_set_texture_res(g_config->layer_res);
 	keymap_load();
 }
@@ -370,7 +370,6 @@ iron_window_options_t *config_get_options() {
 }
 
 void config_restore() {
-	ui_children          = any_map_create(); // Reset ui handles
 	config_loaded        = false;
 	i32_array_t *_layout = g_config->layout;
 	config_init();
@@ -387,7 +386,6 @@ void config_import_from(config_t *from) {
 	g_config          = from;
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
-	ui_children       = any_map_create(); // Reset ui handles
 	keymap_load();
 	config_init_layout();
 	translator_load_translations(g_config->locale);
@@ -426,18 +424,18 @@ i32 config_get_layer_res() {
 
 void config_set_texture_res(i32 pos) {
 	if (pos != TEXTURE_RES_CUSTOM) {
-		f32 res              = (f32)config_texture_res_size(pos);
-		base_res_x_handle->f = res;
-		base_res_y_handle->f = res;
+		f32 res    = (f32)config_texture_res_size(pos);
+		base_res_x = res;
+		base_res_y = res;
 	}
 }
 
 i32 config_get_texture_res_x() {
-	return (i32)base_res_x_handle->f;
+	return (i32)base_res_x;
 }
 
 i32 config_get_texture_res_y() {
-	return (i32)base_res_y_handle->f;
+	return (i32)base_res_y;
 }
 
 i32 config_get_texture_res_pos(i32 i) {
@@ -498,14 +496,5 @@ bool config_is_iphone() {
 #endif
 
 bool config_is_raytrace_fast() {
-	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST;
-}
-
-bool config_is_raytrace_multi() {
-	bool multi = g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_QUALITY;
-	return multi && g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE;
-}
-
-void config_apply_raytrace_multi() {
-	gpu_raytrace_multi = config_is_raytrace_multi();
+	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST;
 }

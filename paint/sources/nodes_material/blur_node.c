@@ -9,11 +9,11 @@ char *blur_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *steps    = string_tmp("(%s * 10.0 + 1.0)", strength);
 	char *tex_name = string_tmp("texblur_%s", parser_material_node_name(node, NULL));
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
-	node_shader_add_constant(parser_material_kong, string_tmp("%s_size: float2", tex_name), string_tmp("_size(_%s)", tex_name));
+	node_shader_add_constant(parser_material_kong, string_tmp("float2 %s_size", tex_name), string_tmp("_size(_%s)", tex_name));
 	char *store = parser_material_store_var_name(node);
-	parser_material_write(parser_material_kong, string_tmp("var %s_res: float3 = float3(0.0, 0.0, 0.0);", store));
-	parser_material_write(parser_material_kong, string_tmp("for (var i: int = 0; i <= int(%s * 2.0); i += 1) {", steps));
-	parser_material_write(parser_material_kong, string_tmp("for (var j: int = 0; j <= int(%s * 2.0); j += 1) {", steps));
+	parser_material_write(parser_material_kong, string_tmp("float3 %s_res = float3(0.0, 0.0, 0.0);", store));
+	parser_material_write(parser_material_kong, string_tmp("for (int i = 0; i <= int(%s * 2.0); i += 1) {", steps));
+	parser_material_write(parser_material_kong, string_tmp("for (int j = 0; j <= int(%s * 2.0); j += 1) {", steps));
 	parser_material_write(parser_material_kong,
 	                      string_tmp("%s_res += sample(%s, sampler_linear, tex_coord + float2(float(i) - %s, float(j) - %s) / constants.%s_size).rgb;", store,
 	                                 tex_name, steps, steps, tex_name));

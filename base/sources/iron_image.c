@@ -53,7 +53,7 @@ void _write_image(char *path, buffer_t *bytes, i32 w, i32 h, i32 format, int ima
 		pixels  = (unsigned char *)malloc(w * h * comp);
 		int off = format - 3;
 #ifdef IRON_BGRA
-		off = 2 - off;
+		off = off == 0 ? 2 : off == 2 ? 0 : off; // Alpha stays in place
 #endif
 		for (int i = 0; i < w * h; ++i) {
 			pixels[i] = rgba[i * 4 + off];

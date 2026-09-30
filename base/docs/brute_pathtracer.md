@@ -5,6 +5,6 @@ In ArmorPaint, it is used for rendering the path-traced viewport mode and for ra
 By default, the path-tracer supports 64 unique objects and up to 1024 instances. It has two modes - fast, which has most of the features disabled, and quality, which has features like translucency and emission enabled.
 
 - https://github.com/armory3d/armorpaint/tree/main/base/shaders/raytrace/src
-- https://github.com/armory3d/armorpaint/blob/main/base/sources/render_path_raytrace.c
-- https://github.com/armory3d/armorpaint/blob/main/base/sources/render_path_raytrace_bake.c
+- https://github.com/armory3d/armorpaint/blob/main/paint/sources/render/render_path_raytrace.c
+- https://github.com/armory3d/armorpaint/blob/main/paint/sources/render/render_path_raytrace_bake.c
 - https://github.com/armory3d/armorpaint/blob/main/base/sources/iron_gpu.h

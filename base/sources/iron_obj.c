@@ -21,16 +21,11 @@ static int         ni = 0;
 static uint8_t     buf[128];
 static char        str[256];
 
-static int          vind_off     = 0;
-static int          tind_off     = 0;
-static int          nind_off     = 0;
-static uint8_t     *bytes        = NULL;
-static size_t       bytes_length = 0;
-static f32_array_t *pos_first;
-static f32_array_t *uv_first;
-static f32_array_t *nor_first;
-void                console_info(char *s);
-static bool         check_uvmap = true;
+static uint8_t *bytes        = NULL;
+static size_t   bytes_length = 0;
+void            console_info(char *s);
+static bool     check_uvmap         = true;
+bool            obj_parse_y_to_z_up = true;
 
 static int read_int() {
 	int bi = 0;
@@ -234,22 +229,14 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 
 	bool reading_faces  = false;
 	bool reading_object = false;
-	bool full_attrib    = false;
+	bool full_attrib    = uv_temp.length > 0 && nor_temp.length > 0;
 	check_uvmap         = true;
 
 	if (start_pos == 0) {
-		vind_off = tind_off = nind_off = 0;
-	}
-
-	if (split_code == 'u' && start_pos > 0) {
-		pos_temp = *pos_first;
-		nor_temp = *nor_first;
-		uv_temp  = *uv_first;
-	}
-	else {
 		array_free(&pos_temp);
 		array_free(&uv_temp);
 		array_free(&nor_temp);
+		full_attrib = false;
 	}
 
 	while (part->pos < bytes_length) {
@@ -332,23 +319,18 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 				}
 			}
 			else { // Convex or concave, ear clipping
-				int   _vind_off = split_code == 'u' ? 0 : vind_off;
-				int   _nind_off = split_code == 'u' ? 0 : nind_off;
-				float nx        = 0.0;
-				float ny        = 0.0;
-				float nz        = 0.0;
+				float nx = 0.0;
+				float ny = 0.0;
+				float nz = 0.0;
 				if (nor_temp.length > 0) {
-					nx = nor_temp.buffer[(na[0] - _nind_off) * 3];
-					ny = nor_temp.buffer[(na[0] - _nind_off) * 3 + 1];
-					nz = nor_temp.buffer[(na[0] - _nind_off) * 3 + 2];
+					nx = nor_temp.buffer[na[0] * 3];
+					ny = nor_temp.buffer[na[0] * 3 + 1];
+					nz = nor_temp.buffer[na[0] * 3 + 2];
 				}
 				else {
-					vec4_t n = calc_normal((vec4_t){pos_temp.buffer[(va[0] - _vind_off) * 3], pos_temp.buffer[(va[0] - _vind_off) * 3 + 1],
-					                                pos_temp.buffer[(va[0] - _vind_off) * 3 + 2], 1.0f},
-					                       (vec4_t){pos_temp.buffer[(va[1] - _vind_off) * 3], pos_temp.buffer[(va[1] - _vind_off) * 3 + 1],
-					                                pos_temp.buffer[(va[1] - _vind_off) * 3 + 2], 1.0f},
-					                       (vec4_t){pos_temp.buffer[(va[2] - _vind_off) * 3], pos_temp.buffer[(va[2] - _vind_off) * 3 + 1],
-					                                pos_temp.buffer[(va[2] - _vind_off) * 3 + 2], 1.0f});
+					vec4_t n = calc_normal((vec4_t){pos_temp.buffer[va[0] * 3], pos_temp.buffer[va[0] * 3 + 1], pos_temp.buffer[va[0] * 3 + 2], 1.0f},
+					                       (vec4_t){pos_temp.buffer[va[1] * 3], pos_temp.buffer[va[1] * 3 + 1], pos_temp.buffer[va[1] * 3 + 2], 1.0f},
+					                       (vec4_t){pos_temp.buffer[va[2] * 3], pos_temp.buffer[va[2] * 3 + 1], pos_temp.buffer[va[2] * 3 + 2], 1.0f});
 					nx       = n.x;
 					ny       = n.y;
 					nz       = n.z;
@@ -367,9 +349,9 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 					i         = (i + 1) % vi;
 					int   i1  = (i + 1) % vi;
 					int   i2  = (i + 2) % vi;
-					int   vi0 = (va[i] - _vind_off) * 3;
-					int   vi1 = (va[i1] - _vind_off) * 3;
-					int   vi2 = (va[i2] - _vind_off) * 3;
+					int   vi0 = va[i] * 3;
+					int   vi1 = va[i1] * 3;
+					int   vi2 = va[i2] * 3;
 					float v0x = pos_temp.buffer[vi0 + axis0];
 					float v0y = pos_temp.buffer[vi0 + axis1];
 					float v1x = pos_temp.buffer[vi1 + axis0];
@@ -388,7 +370,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 
 					bool overlap = false; // Other vertex found inside this triangle
 					for (int j = 0; j < vi - 3; ++j) {
-						int   j0 = (va[(i + 3 + j) % vi] - _vind_off) * 3;
+						int   j0 = va[(i + 3 + j) % vi] * 3;
 						float px = pos_temp.buffer[j0 + axis0];
 						float py = pos_temp.buffer[j0 + axis1];
 						if (pnpoly(v0x, v0y, v1x, v1y, v2x, v2y, px, py)) {
@@ -455,36 +437,26 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		next_line();
 	}
 
-	if (start_pos > 0) {
-		if (split_code != 'u') {
-			for (int i = 0; i < pos_indices.length; ++i) {
-				pos_indices.buffer[i] -= vind_off;
-			}
-			for (int i = 0; i < uv_indices.length; ++i) {
-				uv_indices.buffer[i] -= tind_off;
-			}
-			for (int i = 0; i < nor_indices.length; ++i) {
-				nor_indices.buffer[i] -= nind_off;
-			}
+	if (uv_indices.length > 0 && uv_indices.length < pos_indices.length) {
+		int missing = pos_indices.length - uv_indices.length;
+		int length  = uv_indices.length;
+		for (int i = 0; i < missing; ++i) {
+			i32_array_push(&uv_indices, 0);
 		}
+		memmove(uv_indices.buffer + missing, uv_indices.buffer, length * sizeof(int32_t));
+		memset(uv_indices.buffer, 0, missing * sizeof(int32_t));
+		console_info("Warning: Mesh is not fully UV unwrapped");
 	}
-	else {
-		if (split_code == 'u') {
-			pos_first = &pos_temp;
-			nor_first = &nor_temp;
-			uv_first  = &uv_temp;
-		}
-	}
-	vind_off += (int)(pos_temp.length / 3); // Assumes separate vertex data per object
-	tind_off += (int)(uv_temp.length / 2);
-	nind_off += (int)(nor_temp.length / 3);
 
 	// Pack positions to (-1, 1) range
 	part->scale_pos = 0.0;
-	for (int i = 0; i < pos_temp.length; ++i) {
-		float f = (float)fabs(pos_temp.buffer[i]);
-		if (part->scale_pos < f) {
-			part->scale_pos = f;
+	for (int i = 0; i < pos_indices.length; ++i) {
+		float *p = &pos_temp.buffer[pos_indices.buffer[i] * 3];
+		for (int j = 0; j < 3; ++j) {
+			float f = (float)fabs(p[j]);
+			if (part->scale_pos < f) {
+				part->scale_pos = f;
+			}
 		}
 	}
 	float inv = 32767 * (1 / part->scale_pos);
@@ -501,9 +473,10 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 	part->index_count  = pos_indices.length;
 	int inda_length    = pos_indices.length;
 	for (int i = 0; i < pos_indices.length; ++i) {
-		part->posa->buffer[i * 4]     = (int)(pos_temp.buffer[pos_indices.buffer[i] * 3] * inv);
-		part->posa->buffer[i * 4 + 1] = (int)(-pos_temp.buffer[pos_indices.buffer[i] * 3 + 2] * inv);
-		part->posa->buffer[i * 4 + 2] = (int)(pos_temp.buffer[pos_indices.buffer[i] * 3 + 1] * inv);
+		float *p                      = &pos_temp.buffer[pos_indices.buffer[i] * 3];
+		part->posa->buffer[i * 4]     = (int)(p[0] * inv);
+		part->posa->buffer[i * 4 + 1] = (int)((obj_parse_y_to_z_up ? -p[2] : p[1]) * inv);
+		part->posa->buffer[i * 4 + 2] = (int)((obj_parse_y_to_z_up ? p[1] : p[2]) * inv);
 		part->inda->buffer[i]         = i;
 	}
 
@@ -513,9 +486,10 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 		part->nora->buffer                        = malloc(part->nora->capacity * sizeof(int16_t));
 
 		for (int i = 0; i < pos_indices.length; ++i) {
-			part->nora->buffer[i * 2]     = (int)(nor_temp.buffer[nor_indices.buffer[i] * 3] * 32767);
-			part->nora->buffer[i * 2 + 1] = (int)(-nor_temp.buffer[nor_indices.buffer[i] * 3 + 2] * 32767);
-			part->posa->buffer[i * 4 + 3] = (int)(nor_temp.buffer[nor_indices.buffer[i] * 3 + 1] * 32767);
+			float *n                      = &nor_temp.buffer[nor_indices.buffer[i] * 3];
+			part->nora->buffer[i * 2]     = (int)(n[0] * 32767);
+			part->nora->buffer[i * 2 + 1] = (int)((obj_parse_y_to_z_up ? -n[2] : n[1]) * 32767);
+			part->posa->buffer[i * 4 + 3] = (int)((obj_parse_y_to_z_up ? n[1] : n[2]) * 32767);
 		}
 	}
 	else {
@@ -626,7 +600,6 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 
 	bytes = NULL;
 	if (!part->has_next) {
-		pos_first = nor_first = uv_first = NULL;
 		array_free(&pos_temp);
 		array_free(&uv_temp);
 		array_free(&nor_temp);

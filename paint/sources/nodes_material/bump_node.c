@@ -9,8 +9,8 @@ char *bump_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	bool  invert          = node->buttons->buffer[0]->default_value->buffer[0] > 0;
 	char *sign            = invert ? "-" : "";
 	char *sample_bump_res = string_tmp("%s_bump", parser_material_store_var_name(node));
-	parser_material_write(parser_material_kong, string_tmp("var %s_x: float = %sddx(float(%s)) * (%s) * 16.0;", sample_bump_res, sign, height, strength));
-	parser_material_write(parser_material_kong, string_tmp("var %s_y: float = %sddy(float(%s)) * (%s) * 16.0;", sample_bump_res, sign, height, strength));
+	parser_material_write(parser_material_kong, string_tmp("float %s_x = %sddx(float(%s)) * (%s) * 16.0;", sample_bump_res, sign, height, strength));
+	parser_material_write(parser_material_kong, string_tmp("float %s_y = %sddy(float(%s)) * (%s) * 16.0;", sample_bump_res, sign, height, strength));
 	return string_tmp("(normalize(float3(%s_x, %s_y, 1.0) + %s) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5))", sample_bump_res, sample_bump_res, nor);
 }
 

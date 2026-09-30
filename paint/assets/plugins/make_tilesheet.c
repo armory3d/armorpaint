@@ -1,10 +1,10 @@
 #include "global.h"
 
-void        *plugin;
-ui_handle_t *h0;
-ui_handle_t *h1;
-ui_handle_t *h2;
-ui_handle_t *h3;
+void *plugin;
+bool  expanded        = false;
+float tile_size_value = 256;
+float columns_value   = 8;
+float frames_value    = 64;
 
 void *tilesheet;
 int   baking;
@@ -57,22 +57,22 @@ void on_update() {
 		context_t *c            = script_get_context();
 		c->capturing_screenshot = false;
 		c->ddirty               = 2;
-		tilesheet = NULL;
-		baking    = 0;
+		tilesheet               = NULL;
+		baking                  = 0;
 	}
 }
 
 void on_ui() {
-	if (ui_panel(h0, "Make Tilesheet", false, false, false)) {
+	if (ui_panel(&expanded, "Make Tilesheet", false, false, false)) {
 
-		ui_slider(h1, "Tile Size", 0, 512, true, 1, true, UI_ALIGN_LEFT, true);
-		ui_slider(h2, "Columns", 0, 64, true, 1, true, UI_ALIGN_LEFT, true);
-		ui_slider(h3, "Frames", 0, 1024, true, 1, true, UI_ALIGN_LEFT, true);
+		ui_slider(&tile_size_value, "Tile Size", 0, 512, true, 1, true, UI_ALIGN_LEFT, true);
+		ui_slider(&columns_value, "Columns", 0, 64, true, 1, true, UI_ALIGN_LEFT, true);
+		ui_slider(&frames_value, "Frames", 0, 1024, true, 1, true, UI_ALIGN_LEFT, true);
 
 		if (ui_button("Bake", UI_ALIGN_CENTER, "") && !baking) {
-			tile_size = h1->f;
-			columns   = h2->f;
-			frames    = h3->f;
+			tile_size = tile_size_value;
+			columns   = columns_value;
+			frames    = frames_value;
 
 			// Square atlas
 			int size  = tile_size * columns;
@@ -93,13 +93,6 @@ void on_ui() {
 
 void main() {
 	plugin    = plugin_create();
-	h0        = ui_handle_create();
-	h1        = ui_handle_create();
-	h1->f     = 256;
-	h2        = ui_handle_create();
-	h2->f     = 8;
-	h3        = ui_handle_create();
-	h3->f     = 64;
 	tilesheet = NULL;
 	baking    = 0;
 	plugin_notify_on_ui(plugin, on_ui);

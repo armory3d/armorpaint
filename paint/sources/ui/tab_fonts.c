@@ -41,28 +41,28 @@ void tab_fonts_draw_select_font(void *_) {
 	context_select_font(i);
 }
 
-void tab_fonts_draw(ui_handle_t *htab) {
+char *tab_fonts_search = "";
+
+void tab_fonts_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Fonts"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();
 
-		ui_handle_t *hsearch = ui_handle(__ID__);
-
-		f32_array_t *row = string_equals(hsearch->text, "") ? f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -100,
-		                                                              -200,
-		                                                          },
-		                                                          3)
-		                                                    : f32_array_create_from_raw(
-		                                                          (f32[]){
-		                                                              -100,
-		                                                              -100,
-		                                                              -200,
-		                                                              -40,
-		                                                          },
-		                                                          4);
+		f32_array_t *row = string_equals(tab_fonts_search, "") ? f32_array_create_from_raw(
+		                                                             (f32[]){
+		                                                                 -100,
+		                                                                 -100,
+		                                                                 -200,
+		                                                             },
+		                                                             3)
+		                                                       : f32_array_create_from_raw(
+		                                                             (f32[]){
+		                                                                 -100,
+		                                                                 -100,
+		                                                                 -200,
+		                                                                 -40,
+		                                                             },
+		                                                             4);
 		ui_row(row);
 
 		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
@@ -76,18 +76,18 @@ void tab_fonts_draw(ui_handle_t *htab) {
 			ui_base_show_2d_view(VIEW_2D_TYPE_FONT);
 		}
 
-		hsearch->text = string_copy(ui_text_input(hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
+		ui_text_input(&tab_fonts_search, tr("Search"), UI_ALIGN_LEFT, true, true);
 		if (g_ui->is_ctrl_down && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_F) {
-			ui_start_text_edit(hsearch, UI_ALIGN_LEFT);
+			ui_start_text_edit(&tab_fonts_search, UI_ALIGN_LEFT);
 		}
-		if (!string_equals(hsearch->text, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
-			hsearch->text = "";
+		if (!string_equals(tab_fonts_search, "") && (ui_button(tr("X"), UI_ALIGN_CENTER, "") || g_ui->is_escape_down)) {
+			tab_fonts_search = "";
 		}
 
 		ui_end_sticky();
 		ui_separator(3, false);
 
-		char *search = to_lower_case(hsearch->text);
+		char *search = to_lower_case(tab_fonts_search);
 
 		i32 slotw = math_floor(51 * UI_SCALE());
 		i32 num   = math_floor(g_ui->_window_w / (float)slotw);

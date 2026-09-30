@@ -1,6 +1,9 @@
 #include "kong.h"
 #include "dir.h"
 #include <assert.h>
+#ifndef IRON_WASM
+#include <setjmp.h>
+#endif
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,26 +73,28 @@ type_id bool_id;
 type_id bool2_id;
 type_id bool3_id;
 type_id bool4_id;
-type_id function_type_id;
 type_id sampler_type_id;
 type_id ray_type_id;
 type_id bvh_type_id;
+type_id ray_query_type_id;
 
-static render_pipelines       all_render_pipelines;
-static render_pipeline_groups all_render_pipeline_groups;
-static compute_shaders        all_compute_shaders;
-static descriptor_set_groups  all_descriptor_set_groups;
+static compute_shaders       all_compute_shaders;
+static descriptor_set_groups all_descriptor_set_groups;
 
 static allocated_global allocated_globals[1024];
 size_t                  allocated_globals_size = 0;
 
 uint64_t next_variable_id = 1;
 
-bool               kong_error          = false;
-static function   *functions           = NULL;
-static function_id functions_size      = 128;
-static function_id functions_zeroed    = 0;
-function_id        next_function_index = 0;
+bool kong_error = false;
+#ifndef IRON_WASM
+static jmp_buf kong_error_jmp;
+#endif
+static bool        kong_error_jmp_active = false;
+static function   *functions             = NULL;
+static function_id functions_size        = 128;
+static function_id functions_zeroed      = 0;
+function_id        next_function_index   = 0;
 
 static void zero_new_function_slots(void) {
 	if (functions_size > functions_zeroed) {
@@ -281,14 +286,6 @@ void find_used_builtins(function *f) {
 				f->used_builtins.dispatch_thread_id = true;
 			}
 
-			if (func == add_name("group_thread_id")) {
-				f->used_builtins.group_thread_id = true;
-			}
-
-			if (func == add_name("group_id")) {
-				f->used_builtins.group_id = true;
-			}
-
 			if (func == add_name("vertex_id")) {
 				f->used_builtins.vertex_id = true;
 			}
@@ -299,8 +296,6 @@ void find_used_builtins(function *f) {
 					find_used_builtins(f);
 
 					f->used_builtins.dispatch_thread_id |= called->used_builtins.dispatch_thread_id;
-					f->used_builtins.group_thread_id |= called->used_builtins.group_thread_id;
-					f->used_builtins.group_id |= called->used_builtins.group_id;
 					f->used_builtins.vertex_id |= called->used_builtins.vertex_id;
 
 					break;
@@ -352,12 +347,12 @@ void find_used_capabilities(function *f) {
 			type_id  to_type = to.type.type;
 
 			if (is_texture(to_type)) {
-				assert(get_type(to_type)->array_size == 0);
+				kong_assert(get_type(to_type)->array_size == 0);
 
 				f->used_capabilities.image_write = true;
 
 				global *g = find_global_by_var(to);
-				assert(g != NULL);
+				kong_assert(g != NULL);
 			}
 			break;
 		}
@@ -374,7 +369,7 @@ void find_used_capabilities(function *f) {
 				}
 				else {
 					global *g = find_global_by_var(from);
-					assert(g != NULL);
+					kong_assert(g != NULL);
 				}
 			}
 
@@ -389,14 +384,14 @@ void find_used_capabilities(function *f) {
 				global *g = NULL;
 
 				if (tex_parameter.kind == VARIABLE_INTERNAL) {
-					assert(last_base_texture_to.index == tex_parameter.index);
+					kong_assert(last_base_texture_to.index == tex_parameter.index);
 					g = find_global_by_var(last_base_texture_from);
 				}
 				else {
 					g = find_global_by_var(tex_parameter);
 				}
 
-				assert(g != NULL);
+				kong_assert(g != NULL);
 			}
 
 			for (function_id i = 0; get_function(i) != NULL; ++i) {
@@ -530,102 +525,42 @@ static void find_referenced_sets(global_array *globals, descriptor_sets *sets) {
 	}
 }
 
-static render_pipeline extract_render_pipeline_from_type(type *t) {
-	name_id vertex_shader_name   = NO_NAME;
-	name_id fragment_shader_name = NO_NAME;
+bool calls_function(function *f, const char *name) {
+	function *functions[256];
+	size_t    functions_size    = 0;
+	functions[functions_size++] = f;
+	find_referenced_functions(f, functions, &functions_size);
 
-	for (size_t j = 0; j < t->members.size; ++j) {
-		if (t->members.m[j].name == add_name("vertex")) {
-			vertex_shader_name = t->members.m[j].value.identifier;
-		}
-		else if (t->members.m[j].name == add_name("fragment")) {
-			fragment_shader_name = t->members.m[j].value.identifier;
+	name_id func = add_name((char *)name);
+	for (size_t i = 0; i < functions_size; ++i) {
+		size_t index = 0;
+		while (index < functions[i]->code.size) {
+			opcode *o = (opcode *)&functions[i]->code.o[index];
+			if (o->type == OPCODE_CALL && o->op_call.func == func) {
+				return true;
+			}
+			index += o->size;
 		}
 	}
+	return false;
+}
 
-	debug_context context = {0};
-	check(vertex_shader_name != NO_NAME, context, "vertex shader missing");
-	check(fragment_shader_name != NO_NAME, context, "fragment shader missing");
-
-	render_pipeline pipeline = {0};
-
+function_id find_function_id(name_id name) {
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
-		function *f = get_function(i);
-		if (vertex_shader_name != NO_NAME && f->name == vertex_shader_name) {
-			pipeline.vertex_shader = f;
-		}
-		if (f->name == fragment_shader_name) {
-			pipeline.fragment_shader = f;
+		if (get_function(i)->name == name) {
+			return i;
 		}
 	}
-
-	return pipeline;
+	return NO_FUNCTION;
 }
 
-static void find_all_render_pipelines(void) {
-	static_array_init(all_render_pipelines);
-
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			static_array_push(all_render_pipelines, extract_render_pipeline_from_type(t));
-		}
-	}
+// A render pipeline is made of the vert() and frag() entry functions
+function_id find_vertex_function(void) {
+	return find_function_id(add_name("vert"));
 }
 
-static bool same_shader(function *a, function *b) {
-	if (a == NULL && b == NULL) {
-		return false;
-	}
-
-	return a == b;
-}
-
-static void find_render_pipeline_groups(void) {
-	static_array_init(all_render_pipeline_groups);
-
-	render_pipeline_indices remaining_pipelines;
-	static_array_init(remaining_pipelines);
-
-	for (uint32_t index = 0; index < all_render_pipelines.size; ++index) {
-		static_array_push(remaining_pipelines, index);
-	}
-
-	while (remaining_pipelines.size > 0) {
-		render_pipeline_indices next_remaining_pipelines;
-		static_array_init(next_remaining_pipelines);
-
-		render_pipeline_group group;
-		static_array_init(group);
-
-		static_array_push(group, remaining_pipelines.values[0]);
-
-		for (size_t index = 1; index < remaining_pipelines.size; ++index) {
-			uint32_t         pipeline_index = remaining_pipelines.values[index];
-			render_pipeline *pipeline       = &all_render_pipelines.values[pipeline_index];
-
-			bool found = false;
-
-			for (size_t index_in_bucket = 0; index_in_bucket < group.size; ++index_in_bucket) {
-				render_pipeline *pipeline_in_group = &all_render_pipelines.values[group.values[index_in_bucket]];
-				if (same_shader(pipeline->vertex_shader, pipeline_in_group->vertex_shader) ||
-				    same_shader(pipeline->fragment_shader, pipeline_in_group->fragment_shader)) {
-					found = true;
-					break;
-				}
-			}
-
-			if (found) {
-				static_array_push(group, pipeline_index);
-			}
-			else {
-				static_array_push(next_remaining_pipelines, pipeline_index);
-			}
-		}
-
-		remaining_pipelines = next_remaining_pipelines;
-		static_array_push(all_render_pipeline_groups, group);
-	}
+function_id find_fragment_function(void) {
+	return find_function_id(add_name("frag"));
 }
 
 static void find_all_compute_shaders(void) {
@@ -684,35 +619,35 @@ static void update_globals_in_descriptor_set_group(descriptor_set_group *group, 
 }
 
 descriptor_set_group *get_descriptor_set_group(uint32_t descriptor_set_group_index) {
-	assert(descriptor_set_group_index < all_descriptor_set_groups.size);
+	kong_assert(descriptor_set_group_index < all_descriptor_set_groups.size);
 	return &all_descriptor_set_groups.values[descriptor_set_group_index];
 }
 
 static void assign_descriptor_set_group_index(function *f, uint32_t descriptor_set_group_index) {
-	assert(f->descriptor_set_group_index == UINT32_MAX || f->descriptor_set_group_index == descriptor_set_group_index);
+	kong_assert(f->descriptor_set_group_index == UINT32_MAX || f->descriptor_set_group_index == descriptor_set_group_index);
 	f->descriptor_set_group_index = descriptor_set_group_index;
 }
 
 static void find_descriptor_set_groups(void) {
 	static_array_init(all_descriptor_set_groups);
 
-	for (size_t pipeline_group_index = 0; pipeline_group_index < all_render_pipeline_groups.size; ++pipeline_group_index) {
+	function_id vertex_id   = find_vertex_function();
+	function_id fragment_id = find_fragment_function();
+	if ((vertex_id == NO_FUNCTION) != (fragment_id == NO_FUNCTION)) {
+		debug_context context = {0};
+		error(context, vertex_id == NO_FUNCTION ? "vert() missing" : "frag() missing");
+	}
+
+	if (vertex_id != NO_FUNCTION && fragment_id != NO_FUNCTION) {
+		function *vertex_shader   = get_function(vertex_id);
+		function *fragment_shader = get_function(fragment_id);
+
 		descriptor_set_group group;
 		static_array_init(group);
 
 		global_array function_globals = {0};
-
-		render_pipeline_group *pipeline_group = &all_render_pipeline_groups.values[pipeline_group_index];
-		for (size_t pipeline_index = 0; pipeline_index < pipeline_group->size; ++pipeline_index) {
-			render_pipeline *pipeline = &all_render_pipelines.values[pipeline_group->values[pipeline_index]];
-
-			if (pipeline->vertex_shader != NULL) {
-				find_referenced_globals(pipeline->vertex_shader, &function_globals);
-			}
-			if (pipeline->fragment_shader != NULL) {
-				find_referenced_globals(pipeline->fragment_shader, &function_globals);
-			}
-		}
+		find_referenced_globals(vertex_shader, &function_globals);
+		find_referenced_globals(fragment_shader, &function_globals);
 
 		find_referenced_sets(&function_globals, &group);
 
@@ -723,16 +658,8 @@ static void find_descriptor_set_groups(void) {
 		uint32_t descriptor_set_group_index = (uint32_t)all_descriptor_set_groups.size;
 		static_array_push(all_descriptor_set_groups, group);
 
-		for (size_t pipeline_index = 0; pipeline_index < pipeline_group->size; ++pipeline_index) {
-			render_pipeline *pipeline = &all_render_pipelines.values[pipeline_group->values[pipeline_index]];
-
-			if (pipeline->vertex_shader != NULL) {
-				assign_descriptor_set_group_index(pipeline->vertex_shader, descriptor_set_group_index);
-			}
-			if (pipeline->fragment_shader != NULL) {
-				assign_descriptor_set_group_index(pipeline->fragment_shader, descriptor_set_group_index);
-			}
-		}
+		assign_descriptor_set_group_index(vertex_shader, descriptor_set_group_index);
+		assign_descriptor_set_group_index(fragment_shader, descriptor_set_group_index);
 	}
 
 	for (size_t compute_shader_index = 0; compute_shader_index < all_compute_shaders.size; ++compute_shader_index) {
@@ -758,24 +685,6 @@ static void find_descriptor_set_groups(void) {
 	}
 }
 
-descriptor_set_group *find_descriptor_set_group_for_pipe_type(type *t) {
-	if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-		render_pipeline pipeline = extract_render_pipeline_from_type(t);
-
-		if (pipeline.vertex_shader->descriptor_set_group_index != UINT32_MAX) {
-			return &all_descriptor_set_groups.values[pipeline.vertex_shader->descriptor_set_group_index];
-		}
-
-		if (pipeline.fragment_shader->descriptor_set_group_index != UINT32_MAX) {
-			return &all_descriptor_set_groups.values[pipeline.fragment_shader->descriptor_set_group_index];
-		}
-
-		return NULL;
-	}
-
-	return NULL;
-}
-
 descriptor_set_group *find_descriptor_set_group_for_function(function *f) {
 	if (f->descriptor_set_group_index != UINT32_MAX) {
 		return &all_descriptor_set_groups.values[f->descriptor_set_group_index];
@@ -786,8 +695,6 @@ descriptor_set_group *find_descriptor_set_group_for_function(function *f) {
 }
 
 void analyze(void) {
-	find_all_render_pipelines();
-	find_render_pipeline_groups();
 	find_all_compute_shaders();
 	find_descriptor_set_groups();
 }
@@ -864,7 +771,7 @@ variable allocate_variable(type_ref type, variable_kind kind) {
 }
 
 opcode *emit_op(opcodes *code, opcode *o) {
-	assert(code->size + o->size < OPCODES_SIZE);
+	kong_assert(code->size + o->size < OPCODES_SIZE);
 
 	if (code->o == NULL) {
 		code->o = (uint8_t *)malloc(OPCODES_SIZE);
@@ -877,6 +784,37 @@ opcode *emit_op(opcodes *code, opcode *o) {
 	code->size += o->size;
 
 	return (opcode *)location;
+}
+
+static bool is_component_wise(name_id func) {
+	static const char *names[] = {"abs",      "frac", "floor", "ceil", "round", "trunc", "sin",  "cos",  "tan",  "asin",       "acos",     "atan",
+	                              "atan2",    "sinh", "cosh",  "tanh", "exp",   "exp2",  "log",  "sign", "sqrt", "rsqrt",      "radians",  "degrees",
+	                              "saturate", "ddx",  "ddy",   "min",  "max",   "clamp", "step", "pow",  "lerp", "smoothstep", "normalize"};
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+		if (func == add_name((char *)names[i])) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static variable emit_splat(opcodes *code, variable scalar, type_id to) {
+	type_ref t;
+	init_type_ref(&t, NO_NAME);
+	t.type     = to;
+	variable v = allocate_variable(t, VARIABLE_INTERNAL);
+
+	opcode o;
+	o.type                    = OPCODE_CALL;
+	o.size                    = OP_SIZE(o, op_call);
+	o.op_call.func            = get_type(to)->name;
+	o.op_call.var             = v;
+	o.op_call.parameters_size = (uint8_t)vector_size(to);
+	for (uint8_t i = 0; i < o.op_call.parameters_size; ++i) {
+		o.op_call.parameters[i] = scalar;
+	}
+	emit_op(code, &o);
+	return v;
 }
 
 variable emit_expression(opcodes *code, block *parent, expression *e) {
@@ -1097,7 +1035,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 						break;
 					default:
-						assert(false);
+						kong_assert(false);
 						break;
 					}
 
@@ -1195,7 +1133,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 	case EXPRESSION_BOOLEAN: {
 		type_ref t;
 		init_type_ref(&t, NO_NAME);
-		t.type     = float_id;
+		t.type     = bool_id;
 		variable v = allocate_variable(t, VARIABLE_INTERNAL);
 
 		opcode o;
@@ -1257,8 +1195,12 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 		debug_context context = {0};
 		check(e->call.parameters.size <= sizeof(o.op_call.parameters) / sizeof(variable), context, "Call parameters missized");
+		bool splat = is_component_wise(e->call.func_name) && is_vector(t.type);
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			o.op_call.parameters[i] = emit_expression(code, parent, e->call.parameters.e[i]);
+			if (splat && o.op_call.parameters[i].type.type == float_id) {
+				o.op_call.parameters[i] = emit_splat(code, o.op_call.parameters[i], t.type);
+			}
 		}
 		o.op_call.parameters_size = (uint8_t)e->call.parameters.size;
 
@@ -1308,7 +1250,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 
@@ -1347,6 +1289,16 @@ typedef struct block_ids {
 	uint64_t end;
 } block_ids;
 
+// Innermost loops, for break and continue
+typedef struct loop_ids {
+	expression *post;
+	uint64_t    continue_id;
+	uint64_t    end_id;
+} loop_ids;
+
+static loop_ids loops[64];
+static int      loops_size = 0;
+
 static block_ids emit_statement(opcodes *code, block *parent, statement *statement) {
 	switch (statement->kind) {
 	case STATEMENT_EXPRESSION:
@@ -1355,7 +1307,10 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 	case STATEMENT_RETURN_EXPRESSION: {
 		opcode o;
 		o.type     = OPCODE_RETURN;
-		variable v = emit_expression(code, parent, statement->expression);
+		variable v = {0};
+		if (statement->expression != NULL) {
+			v = emit_expression(code, parent, statement->expression);
+		}
 		if (v.index == 0) {
 			o.size = offsetof(opcode, op_return);
 		}
@@ -1371,6 +1326,25 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 		o.type = OPCODE_DISCARD;
 		o.size = offsetof(opcode, op_nothing);
 
+		emit_op(code, &o);
+		break;
+	}
+	case STATEMENT_BREAK:
+	case STATEMENT_CONTINUE: {
+		debug_context context = {0};
+		check(loops_size > 0, context, "break or continue outside of a loop");
+		loop_ids *loop = &loops[loops_size - 1];
+		check(statement->kind == STATEMENT_BREAK || loop->continue_id != 0, context, "continue is not supported in do-while loops");
+
+		if (statement->kind == STATEMENT_CONTINUE && loop->post != NULL) {
+			emit_expression(code, parent, loop->post);
+		}
+
+		opcode o;
+		o.type                     = statement->kind == STATEMENT_BREAK ? OPCODE_BREAK : OPCODE_CONTINUE;
+		o.size                     = OP_SIZE(o, op_loop_jump);
+		o.op_loop_jump.continue_id = loop->continue_id;
+		o.op_loop_jump.end_id      = loop->end_id;
 		emit_op(code, &o);
 		break;
 	}
@@ -1510,7 +1484,9 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			emit_op(code, &o);
 		}
 
+		loops[loops_size++] = (loop_ids){statement->whiley.post, continue_id, end_id};
 		emit_statement(code, parent, statement->whiley.while_block);
+		loops_size -= 1;
 
 		{
 			opcode o;
@@ -1542,7 +1518,9 @@ static block_ids emit_statement(opcodes *code, block *parent, statement *stateme
 			emit_op(code, &o);
 		}
 
+		loops[loops_size++] = (loop_ids){NULL, 0, end_id}; // continue would skip the condition
 		emit_statement(code, parent, statement->whiley.while_block);
+		loops_size -= 1;
 
 		{
 			opcode o;
@@ -1670,6 +1648,7 @@ void compile_function_block(opcodes *code, struct statement *block) {
 		debug_context context = {0};
 		error(context, "Expected a block");
 	}
+	loops_size = 0;
 	for (size_t i = 0; i < block->block.vars.size; ++i) {
 		variable var                       = allocate_variable(block->block.vars.v[i].type, VARIABLE_LOCAL);
 		block->block.vars.v[i].variable_id = var.index;
@@ -1693,11 +1672,26 @@ void error_args(debug_context context, const char *message, va_list args) {
 
 	iron_log_args(IRON_LOG_LEVEL_ERROR, buffer, args);
 	kong_error = true;
+#ifndef IRON_WASM
+	if (kong_error_jmp_active) {
+		longjmp(kong_error_jmp, 1);
+	}
+#endif
 }
 
 void error_args_no_context(const char *message, va_list args) {
 	iron_log_args(IRON_LOG_LEVEL_ERROR, message, args);
 	kong_error = true;
+#ifndef IRON_WASM
+	if (kong_error_jmp_active) {
+		longjmp(kong_error_jmp, 1);
+	}
+#endif
+}
+
+void kong_assert_failed(const char *test, const char *file, int line) {
+	error_no_context("Shader compiler assertion failed: %s (%s:%i)", test, file, line);
+	assert(false); // Not compiling a shader at runtime (amake)
 }
 
 void error(debug_context context, const char *message, ...) {
@@ -1726,85 +1720,8 @@ void check_function(bool test, debug_context context, const char *message, ...) 
 		va_start(args, message);
 		error_args(context, message, args);
 		va_end(args);
+		assert(false); // Not compiling a shader at runtime (amake)
 	}
-}
-
-static void add_func_float2_float2(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float2"));
-	f->return_type.type   = find_type_by_ref(&f->return_type);
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float2"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-	f->parameters_size         = 1;
-	f->block                   = NULL;
-}
-
-static void add_func_float3_float3_float_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float3"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float3_float3_float3_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float3"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float3"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float4_float4_float4_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float4"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float4"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float4"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameter_names[2] = add_name("c");
-	init_type_ref(&f->parameter_types[2], add_name("float"));
-	f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-
-	f->parameters_size = 3;
-	f->block           = NULL;
 }
 
 static void add_func_float3x3_float3x3(char *name) {
@@ -1821,64 +1738,10 @@ static void add_func_float3x3_float3x3(char *name) {
 	f->block           = NULL;
 }
 
-////
-
 static void add_func_int(char *name) {
 	function_id func = add_function(add_name(name));
 	function   *f    = get_function(func);
 	init_type_ref(&f->return_type, add_name("int"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3_float_float_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type   = find_type_by_ref(&f->return_type);
-	f->parameter_names[0] = add_name("a");
-	f->parameter_names[1] = add_name("b");
-	f->parameter_names[2] = add_name("c");
-	for (int i = 0; i < 3; ++i) {
-		init_type_ref(&f->parameter_types[i], add_name("float"));
-		f->parameter_types[i].type = find_type_by_ref(&f->parameter_types[i]);
-	}
-	f->parameters_size = 3;
-	f->block           = NULL;
-}
-
-static void add_func_float(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_float3x3(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float3x3"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
-	f->parameters_size  = 0;
-	f->block            = NULL;
-}
-
-static void add_func_uint(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("uint"));
 	f->return_type.type = find_type_by_ref(&f->return_type);
 	f->parameters_size  = 0;
 	f->block            = NULL;
@@ -2005,40 +1868,46 @@ static void add_func_float3_float3_float3(char *name) {
 	f->block           = NULL;
 }
 
-static void add_func_float4_float4_float4(char *name) {
+static void add_func_types(char *name, char *return_type, char **parameter_types, uint8_t parameters_size) {
 	function_id func = add_function(add_name(name));
 	function   *f    = get_function(func);
-	init_type_ref(&f->return_type, add_name("float4"));
+	init_type_ref(&f->return_type, add_name(return_type));
 	f->return_type.type = find_type_by_ref(&f->return_type);
-
-	f->parameter_names[0] = add_name("a");
-	init_type_ref(&f->parameter_types[0], add_name("float4"));
-	f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-	f->parameter_names[1] = add_name("b");
-	init_type_ref(&f->parameter_types[1], add_name("float4"));
-	f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-	f->parameters_size = 2;
+	for (uint8_t i = 0; i < parameters_size; ++i) {
+		f->parameter_names[i] = add_name("a");
+		init_type_ref(&f->parameter_types[i], add_name(parameter_types[i]));
+		f->parameter_types[i].type = find_type_by_ref(&f->parameter_types[i]);
+	}
+	f->parameters_size = parameters_size;
 	f->block           = NULL;
 }
 
-static void add_func_void_uint_uint(char *name) {
-	function_id func = add_function(add_name(name));
-	function   *f    = get_function(func);
+static void add_raytrace_funcs(void) {
+	char *tex[]           = {"void"};
+	char *query[]         = {"ray_query"};
+	char *query_trace[]   = {"ray_query", "bvh", "ray"};
+	char *query_vertex[]  = {"ray_query", "int"};
+	char *geometry[]      = {"uint"};
+	char *geometry_load[] = {"uint", "uint2"};
 
-	init_type_ref(&f->return_type, add_name("void"));
-	f->return_type.type = find_type_by_ref(&f->return_type);
+	add_func_types("texture_size", "uint2", tex, 1);
 
-	f->parameter_names[0] = add_name("a");
-	f->parameter_names[1] = add_name("b");
-	for (int i = 0; i < 2; ++i) {
-		init_type_ref(&f->parameter_types[i], add_name("uint"));
-		f->parameter_types[i].type = find_type_by_ref(&f->parameter_types[i]);
-	}
-	f->parameters_size = 2;
+	add_func_types("ray_query_trace", "void", query_trace, 3);
+	add_func_types("ray_query_trace_any", "void", query_trace, 3);
+	add_func_types("ray_query_hit", "bool", query, 1);
+	add_func_types("ray_query_distance", "float", query, 1);
+	add_func_types("ray_query_barycentrics", "float2", query, 1);
+	add_func_types("ray_query_front_face", "bool", query, 1);
+	add_func_types("ray_query_object_to_world", "float3x3", query, 1);
 
-	f->block = NULL;
+	add_func_types("ray_query_geometry", "uint", query, 1);
+	add_func_types("ray_query_vertex", "uint4", query_vertex, 2); // Raw posxy, poszw, nor, tex of triangle vertex 0-2
+	add_func_types("geometry_texture0", "float4", geometry_load, 2);
+	add_func_types("geometry_texture1", "float4", geometry_load, 2);
+	add_func_types("geometry_texture2", "float4", geometry_load, 2);
+	add_func_types("geometry_texture0_size", "uint2", geometry, 1);
+	add_func_types("geometry_texture1_size", "uint2", geometry, 1);
+	add_func_types("geometry_texture2_size", "uint2", geometry, 1);
 }
 
 void functions_init(void) {
@@ -2475,75 +2344,9 @@ void functions_init(void) {
 		f->block = NULL;
 	}
 
-	{
-		function_id func = add_function(add_name("trace_ray"));
-		function   *f    = get_function(func);
-
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("scene");
-		init_type_ref(&f->parameter_types[0], add_name("bvh"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-		f->parameters_size += 1;
-
-		f->parameter_names[1] = add_name("ray");
-		init_type_ref(&f->parameter_types[1], add_name("ray"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-		f->parameters_size += 1;
-
-		f->parameter_names[2] = add_name("payload");
-		init_type_ref(&f->parameter_types[2], add_name("void"));
-		f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-		f->parameters_size += 1;
-
-		f->block = NULL;
-	}
-
-	{
-		function_id func = add_function(add_name("dispatch_mesh"));
-		function   *f    = get_function(func);
-
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-		f->parameters_size += 1;
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("uint"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-		f->parameters_size += 1;
-
-		f->parameter_names[2] = add_name("z");
-		init_type_ref(&f->parameter_types[2], add_name("uint"));
-		f->parameter_types[2].type = find_type_by_ref(&f->parameter_types[2]);
-		f->parameters_size += 1;
-
-		f->parameter_names[3] = add_name("payload");
-		init_type_ref(&f->parameter_types[3], add_name("void"));
-		f->parameter_types[3].type = find_type_by_ref(&f->parameter_types[3]);
-		f->parameters_size += 1;
-
-		f->block = NULL;
-	}
-
-	add_func_uint3("group_id");
-	add_func_uint3("group_thread_id");
 	add_func_uint3("dispatch_thread_id");
-	add_func_int("group_index");
-	add_func_int("instance_id");
 	add_func_int("vertex_id");
-
-	////
-	// add_func_float3_float_float_float("lerp");
 	add_func_float_float_float_float("lerp");
-	////
-	add_func_float3("world_ray_origin");
-	add_func_float3("world_ray_direction");
-	add_func_float("ray_length");
 	add_func_float3_float3("normalize");
 	add_func_float_float("sin");
 	add_func_float_float("cos");
@@ -2553,18 +2356,13 @@ void functions_init(void) {
 	add_func_float_float_float("atan2");
 	add_func_float_float2("length");
 	add_func_float_float3_float3("distance");
-	add_func_uint3("ray_index");
-	add_func_float3("ray_dimensions");
 	add_func_float_float("frac");
-	add_func_float3x3("object_to_world3x3");
 	add_func_float3_float3_float3("reflect");
-	add_func_uint("primitive_index");
-	////
-	// add_func_float3_float3("abs");
 	add_func_float_float("abs");
 	add_func_float_float("tan");
 	add_func_float_float("log");
 	add_func_float_float("exp");
+	add_func_float_float("exp2");
 	add_func_float_float("sign");
 	add_func_float_float("trunc");
 	add_func_float_float("sinh");
@@ -2572,7 +2370,6 @@ void functions_init(void) {
 	add_func_float_float("tanh");
 	add_func_float_float("radians");
 	add_func_float_float("degrees");
-	////
 	add_func_float_float_float("floor");
 	add_func_float_float_float("ceil");
 	add_func_float_float_float("round");
@@ -2586,72 +2383,11 @@ void functions_init(void) {
 	add_func_float_float_float("pow");
 	add_func_float_float3_float3("dot");
 	add_func_float3_float3_float3("cross");
-	add_func_float3_float3("saturate3");
 	add_func_float_float("saturate");
 	add_func_float_float("ddx");
 	add_func_float_float("ddy");
-
-	////
-
-	add_func_float2_float2("ddx2");
-	add_func_float2_float2("ddy2");
-	add_func_float3_float3("ddx3");
-	add_func_float3_float3("ddy3");
-	add_func_float3_float3_float_float("clamp3");
-	add_func_float3_float3_float3("min3");
-	add_func_float3_float3_float3("max3");
-	add_func_float4_float4_float4("max4");
-	add_func_float3_float3_float3("step3");
-	add_func_float3_float3_float3("pow3");
-	add_func_float3_float3_float3("floor3");
-	add_func_float3_float3_float3("ceil3");
-	add_func_float3_float3("abs3");
-	add_func_float3_float3("frac3");
-	add_func_float3_float3_float3_float("lerp3");
-	add_func_float4_float4_float4_float("lerp4");
 	add_func_float3x3_float3x3("transpose");
-
-	////
-
-	add_func_void_uint_uint("set_mesh_output_counts");
-
-	{
-		function_id func = add_function(add_name("set_mesh_triangle"));
-		function   *f    = get_function(func);
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("uint3"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-		f->parameters_size = 2;
-
-		f->block = NULL;
-	}
-
-	{
-		function_id func = add_function(add_name("set_mesh_vertex"));
-		function   *f    = get_function(func);
-		init_type_ref(&f->return_type, add_name("void"));
-		f->return_type.type = find_type_by_ref(&f->return_type);
-
-		f->parameter_names[0] = add_name("x");
-		init_type_ref(&f->parameter_types[0], add_name("uint"));
-		f->parameter_types[0].type = find_type_by_ref(&f->parameter_types[0]);
-
-		f->parameter_names[1] = add_name("y");
-		init_type_ref(&f->parameter_types[1], add_name("void"));
-		f->parameter_types[1].type = find_type_by_ref(&f->parameter_types[1]);
-
-		f->parameters_size = 2;
-
-		f->block = NULL;
-	}
+	add_raytrace_funcs();
 }
 
 static void grow_functions_if_needed(uint64_t size) {
@@ -2791,17 +2527,12 @@ char *get_name(name_id id) {
 	return &names[id];
 }
 
-////
 static statement statements_buffer[4096];
 int              statement_index = 0;
-////
 
 static statement *statement_allocate(void) {
-	////
-	// statement    *s       = (statement *)malloc(sizeof(statement));
 	statement *s = &statements_buffer[statement_index];
 	statement_index++;
-	////
 	debug_context context = {0};
 	check(s != NULL, context, "Could not allocate statement");
 	return s;
@@ -2816,26 +2547,17 @@ static void statements_add(statements *statements, statement *statement) {
 	statements->size += 1;
 }
 
-////
 static expression experessions_buffer[8192];
 int               expression_index = 0;
-////
 
 static expression *expression_allocate(void) {
-	////
-	// expression   *e       = (expression *)malloc(sizeof(expression));
 	expression *e = &experessions_buffer[expression_index];
 	expression_index++;
-	////
 	debug_context context = {0};
 	check(e != NULL, context, "Could not allocate expression");
 	init_type_ref(&e->type, NO_NAME);
 	return e;
 }
-
-// static void expression_free(expression *expression) {
-//	free(expression);
-// }
 
 typedef struct state {
 	tokens       *tokens;
@@ -2869,6 +2591,15 @@ static void match_token_identifier(state_t *state) {
 	if (current(state).kind != TOKEN_IDENTIFIER) {
 		error(state->context, "Expected an identifier");
 	}
+}
+
+static token peek(state_t *state, size_t offset) {
+	return tokens_get(state->tokens, state->index + offset);
+}
+
+// Declarations start with a type followed by a name, two identifiers never start an expression
+static bool is_declaration(state_t *state) {
+	return current(state).kind == TOKEN_IDENTIFIER && peek(state, 1).kind == TOKEN_IDENTIFIER;
 }
 
 static definition  parse_definition(state_t *state);
@@ -2933,15 +2664,22 @@ typedef struct modifiers {
 	size_t     size;
 } modifiers_t;
 
+static type_ref   parse_type_ref(state_t *state);
+static uint32_t   parse_array_suffix(state_t *state);
 static definition parse_struct(state_t *state);
-static definition parse_function(state_t *state);
-static definition parse_const(state_t *state, attribute_list attributes);
+static definition parse_cbuffer(state_t *state, attribute_list attributes);
+static definition parse_function(state_t *state, type_ref return_type, token name);
+static definition parse_global(state_t *state, attribute_list attributes, name_id type_name, token name);
 
-static double attribute_parameter_to_number(name_id attribute_name, name_id parameter_name) {
-	if (attribute_name == add_name("topology") && parameter_name == add_name("triangle")) {
-		return 0;
+// All resource globals share a single descriptor set
+static void add_resource_to_set(definition d) {
+	bool is_resource = d.kind != DEFINITION_CONST_BASIC || get_type(get_global(d.global)->type)->array_size > 0;
+	if (is_resource) {
+		add_definition_to_set(create_set(add_name("everything")), d);
 	}
+}
 
+static double attribute_parameter_to_number(name_id parameter_name) {
 	type_id type = find_type_by_name(parameter_name);
 	if (type != NO_TYPE) {
 		return (double)type;
@@ -2953,9 +2691,7 @@ static double attribute_parameter_to_number(name_id attribute_name, name_id para
 }
 
 static definition parse_definition(state_t *state) {
-	attribute_list  attributes = {0};
-	descriptor_set *current_sets[64];
-	size_t          current_sets_count = 0;
+	attribute_list attributes = {0};
 
 	if (current(state).kind == TOKEN_HASH) {
 		advance_state(state);
@@ -2968,12 +2704,6 @@ static definition parse_definition(state_t *state) {
 			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 			current_attribute.name = current(state).identifier;
 
-			if (current_attribute.name == add_name("root_constants")) {
-				current_sets[current_sets_count]                                = create_set(current_attribute.name);
-				current_attribute.parameters[current_attribute.paramters_count] = current_sets[current_sets_count]->index;
-				current_sets_count += 1;
-			}
-
 			advance_state(state);
 
 			if (current(state).kind == TOKEN_LEFT_PAREN) {
@@ -2981,19 +2711,7 @@ static definition parse_definition(state_t *state) {
 
 				while (current(state).kind != TOKEN_RIGHT_PAREN) {
 					if (current(state).kind == TOKEN_IDENTIFIER) {
-						if (current_attribute.name == add_name("set")) {
-							if (current(state).identifier == add_name("root_constants")) {
-								debug_context context = {0};
-								error(context, "Descriptor set can not be called root_constants");
-							}
-							current_sets[current_sets_count]                                = create_set(current(state).identifier);
-							current_attribute.parameters[current_attribute.paramters_count] = current_sets[current_sets_count]->index;
-							current_sets_count += 1;
-						}
-						else {
-							current_attribute.parameters[current_attribute.paramters_count] =
-							    attribute_parameter_to_number(current_attribute.name, current(state).identifier);
-						}
+						current_attribute.parameters[current_attribute.paramters_count] = attribute_parameter_to_number(current(state).identifier);
 						current_attribute.paramters_count += 1;
 						advance_state(state);
 					}
@@ -3028,38 +2746,66 @@ static definition parse_definition(state_t *state) {
 
 	switch (current(state).kind) {
 	case TOKEN_STRUCT: {
-		if (current_sets_count != 0) {
-			debug_context context = {0};
-			error(context, "A struct can not be assigned to a set");
-		}
-
 		definition structy                 = parse_struct(state);
 		get_type(structy.type)->attributes = attributes;
 		return structy;
 	}
-	case TOKEN_FUNCTION: {
-		if (current_sets_count != 0) {
-			debug_context context = {0};
-			error(context, "A function can not be assigned to a set");
-		}
-
-		definition d  = parse_function(state);
-		function  *f  = get_function(d.function);
-		f->attributes = attributes;
+	case TOKEN_CBUFFER: {
+		definition d = parse_cbuffer(state, attributes);
+		add_resource_to_set(d);
 		return d;
 	}
-	case TOKEN_CONST: {
-		definition d = parse_const(state, attributes);
-
-		for (size_t set_index = 0; set_index < current_sets_count; ++set_index) {
-			add_definition_to_set(current_sets[set_index], d);
+	case TOKEN_CONST:
+	case TOKEN_IDENTIFIER: {
+		if (current(state).kind == TOKEN_CONST) {
+			advance_state(state);
 		}
 
+		type_ref type = parse_type_ref(state);
+
+		// Texture formats, as in tex2d<rgba32>
+		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
+			advance_state(state);
+			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+			advance_state(state);
+
+			if (current(state).kind == TOKEN_LEFT_PAREN) {
+				advance_state(state);
+				match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
+				advance_state(state);
+			}
+
+			if (current(state).kind != TOKEN_OPERATOR || current(state).op != OPERATOR_GREATER) {
+				error(state->context, "Expected a greater than");
+			}
+			advance_state(state);
+		}
+
+		// Only functions returning render target arrays put the size after the type, as in float4[2] frag(...)
+		type.unresolved.array_size = parse_array_suffix(state);
+
+		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+		token name = current(state);
+		advance_state(state);
+
+		if (current(state).kind == TOKEN_LEFT_PAREN) {
+			definition d  = parse_function(state, type, name);
+			function  *f  = get_function(d.function);
+			f->attributes = attributes;
+			return d;
+		}
+
+		if (type.unresolved.array_size != 0) {
+			error(state->context, "Array size goes after the name");
+		}
+
+		definition d = parse_global(state, attributes, type.unresolved.name, name);
+		add_resource_to_set(d);
 		return d;
 	}
 	default: {
 		update_debug_context(state);
-		error(state->context, "Expected a struct, a function or a const");
+		error(state->context, "Expected a struct, a cbuffer, a function or a global");
 
 		definition d = {0};
 		return d;
@@ -3067,11 +2813,8 @@ static definition parse_definition(state_t *state) {
 	}
 }
 
-static type_ref parse_type_ref(state_t *state) {
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-	token type_name = current(state);
-	advance_state(state);
-
+// Parses the [N] or [] following a declared name, returns 0 when there is none
+static uint32_t parse_array_suffix(state_t *state) {
 	uint32_t array_size = 0;
 	if (current(state).kind == TOKEN_LEFT_SQUARE) {
 		advance_state(state);
@@ -3088,14 +2831,54 @@ static type_ref parse_type_ref(state_t *state) {
 		match_token(state, TOKEN_RIGHT_SQUARE, "Expected a closing square bracket");
 		advance_state(state);
 	}
+	return array_size;
+}
+
+static type_ref parse_type_ref(state_t *state) {
+	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+	token type_name = current(state);
+	advance_state(state);
 
 	type_ref t;
 	init_type_ref(&t, type_name.identifier);
-	t.unresolved.array_size = array_size;
+	t.unresolved.array_size = 0;
 	return t;
 }
 
+static statement *parse_local_variable(state_t *state) {
+	type_ref type = parse_type_ref(state);
+
+	match_token_identifier(state);
+	token name = current(state);
+	advance_state(state);
+
+	type.unresolved.array_size = parse_array_suffix(state);
+
+	expression *init = NULL;
+
+	if (current(state).kind == TOKEN_OPERATOR) {
+		check(current(state).op == OPERATOR_ASSIGN, state->context, "Expected an assign");
+		advance_state(state);
+		init = parse_expression(state);
+	}
+
+	match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
+	advance_state(state);
+
+	statement *statement                      = statement_allocate();
+	statement->kind                           = STATEMENT_LOCAL_VARIABLE;
+	statement->local_variable.var.name        = name.identifier;
+	statement->local_variable.var.type        = type;
+	statement->local_variable.var.variable_id = 0;
+	statement->local_variable.init            = init;
+	return statement;
+}
+
 static statement *parse_statement(state_t *state, block *parent_block) {
+	if (is_declaration(state)) {
+		return parse_local_variable(state);
+	}
+
 	switch (current(state).kind) {
 	case TOKEN_IF: {
 		advance_state(state);
@@ -3138,7 +2921,7 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 			}
 
 			s->iffy.else_size += 1;
-			assert(s->iffy.else_size < 64);
+			kong_assert(s->iffy.else_size < 64);
 		}
 
 		return s;
@@ -3158,6 +2941,7 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 		s->kind               = STATEMENT_WHILE;
 		s->whiley.test        = test;
 		s->whiley.while_block = while_block;
+		s->whiley.post        = NULL;
 
 		return s;
 	}
@@ -3169,6 +2953,7 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 		statement *s          = statement_allocate();
 		s->kind               = STATEMENT_DO_WHILE;
 		s->whiley.while_block = do_block;
+		s->whiley.post        = NULL;
 
 		match_token(state, TOKEN_WHILE, "Expected \"while\"");
 		advance_state(state);
@@ -3225,6 +3010,7 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 		s->kind               = STATEMENT_WHILE;
 		s->whiley.test        = test;
 		s->whiley.while_block = inner_block;
+		s->whiley.post        = post_expression;
 
 		statements_add(&outer_block->block.statements, s);
 
@@ -3233,41 +3019,13 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 	case TOKEN_LEFT_CURLY: {
 		return parse_block(state, parent_block);
 	}
-	case TOKEN_VAR: {
-		advance_state(state);
-
-		match_token_identifier(state);
-		token name = current(state);
-		advance_state(state);
-
-		match_token(state, TOKEN_COLON, "Expected a colon");
-		advance_state(state);
-
-		type_ref type = parse_type_ref(state);
-
-		expression *init = NULL;
-
-		if (current(state).kind == TOKEN_OPERATOR) {
-			check(current(state).op == OPERATOR_ASSIGN, state->context, "Expected an assign");
-			advance_state(state);
-			init = parse_expression(state);
-		}
-
-		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
-		advance_state(state);
-
-		statement *statement                      = statement_allocate();
-		statement->kind                           = STATEMENT_LOCAL_VARIABLE;
-		statement->local_variable.var.name        = name.identifier;
-		statement->local_variable.var.type        = type;
-		statement->local_variable.var.variable_id = 0;
-		statement->local_variable.init            = init;
-		return statement;
-	}
 	case TOKEN_RETURN: {
 		advance_state(state);
 
-		expression *expr = parse_expression(state);
+		expression *expr = NULL;
+		if (current(state).kind != TOKEN_SEMICOLON) {
+			expr = parse_expression(state);
+		}
 		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
 		advance_state(state);
 
@@ -3284,6 +3042,19 @@ static statement *parse_statement(state_t *state, block *parent_block) {
 
 		statement *statement = statement_allocate();
 		statement->kind      = STATEMENT_DISCARD;
+
+		return statement;
+	}
+	case TOKEN_BREAK:
+	case TOKEN_CONTINUE: {
+		bool is_break = current(state).kind == TOKEN_BREAK;
+		advance_state(state);
+
+		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
+		advance_state(state);
+
+		statement *statement = statement_allocate();
+		statement->kind      = is_break ? STATEMENT_BREAK : STATEMENT_CONTINUE;
 
 		return statement;
 	}
@@ -3717,7 +3488,6 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 
 	token    member_names[MAX_MEMBERS];
 	type_ref type_refs[MAX_MEMBERS];
-	token    member_values[MAX_MEMBERS];
 	size_t   count = 0;
 
 	while (current(state).kind != TOKEN_RIGHT_CURLY) {
@@ -3730,45 +3500,11 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 			break;
 		}
 
+		type_refs[count] = parse_type_ref(state);
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		member_names[count] = current(state);
-
 		advance_state(state);
-
-		if (current(state).kind == TOKEN_COLON) {
-			advance_state(state);
-			type_refs[count] = parse_type_ref(state);
-		}
-		else {
-			type_ref t;
-			t.type                  = NO_TYPE;
-			t.unresolved.name       = NO_NAME;
-			t.unresolved.array_size = 0;
-			type_refs[count]        = t;
-		}
-
-		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_ASSIGN) {
-			advance_state(state);
-			if (current(state).kind == TOKEN_BOOLEAN || current(state).kind == TOKEN_FLOAT || current(state).kind == TOKEN_INT ||
-			    current(state).kind == TOKEN_IDENTIFIER) {
-				member_values[count] = current(state);
-				advance_state(state);
-
-				if (current(state).kind == TOKEN_LEFT_PAREN) {
-					advance_state(state);
-					match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
-					advance_state(state);
-				}
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Unsupported assign in struct");
-			}
-		}
-		else {
-			member_values[count].kind       = TOKEN_NONE;
-			member_values[count].identifier = NO_NAME;
-		}
+		type_refs[count].unresolved.array_size = parse_array_suffix(state);
 
 		match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
 
@@ -3788,41 +3524,20 @@ static definition parse_struct_inner(state_t *state, name_id name) {
 
 	for (size_t i = 0; i < count; ++i) {
 		member member;
-		member.name  = member_names[i].identifier;
-		member.value = member_values[i];
-		if (member.value.kind != TOKEN_NONE) {
-			if (member.value.kind == TOKEN_BOOLEAN) {
-				init_type_ref(&member.type, add_name("bool"));
-			}
-			else if (member.value.kind == TOKEN_FLOAT) {
-				init_type_ref(&member.type, add_name("float"));
-			}
-			else if (member.value.kind == TOKEN_INT) {
-				init_type_ref(&member.type, add_name("int"));
-			}
-			else if (member.value.kind == TOKEN_IDENTIFIER) {
-				global *g = find_global(member.value.identifier);
-				if (g != NULL && g->name != NO_NAME) {
-					init_type_ref(&member.type, get_type(g->type)->name);
-				}
-				else {
-					init_type_ref(&member.type, add_name("fun"));
-				}
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Unsupported value in struct");
-			}
-		}
-		else {
-			member.type = type_refs[i];
-		}
+		member.name = member_names[i].identifier;
+		member.type = type_refs[i];
 
 		s->members.m[i] = member;
 	}
 	s->members.size = count;
 
 	return definition;
+}
+
+static void skip_optional_semicolon(state_t *state) {
+	if (current(state).kind == TOKEN_SEMICOLON) {
+		advance_state(state);
+	}
 }
 
 static definition parse_struct(state_t *state) {
@@ -3832,15 +3547,28 @@ static definition parse_struct(state_t *state) {
 	token name = current(state);
 	advance_state(state);
 
-	return parse_struct_inner(state, name.identifier);
+	definition d = parse_struct_inner(state, name.identifier);
+	skip_optional_semicolon(state);
+	return d;
 }
 
-static definition parse_function(state_t *state) {
+static definition parse_cbuffer(state_t *state, attribute_list attributes) {
 	advance_state(state);
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 
+	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 	token name = current(state);
 	advance_state(state);
+
+	type_id type = parse_struct_inner(state, NO_NAME).type;
+	skip_optional_semicolon(state);
+
+	definition d = {0};
+	d.kind       = DEFINITION_CONST_CUSTOM;
+	d.global     = add_global(type, attributes, name.identifier);
+	return d;
+}
+
+static definition parse_function(state_t *state, type_ref return_type, token name) {
 	match_token(state, TOKEN_LEFT_PAREN, "Expected an opening bracket");
 	advance_state(state);
 
@@ -3862,12 +3590,11 @@ static definition parse_function(state_t *state) {
 			advance_state(state);
 		}
 
+		param_types[parameters_size] = parse_type_ref(state);
 		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
 		param_names[parameters_size] = current(state).identifier;
 		advance_state(state);
-		match_token(state, TOKEN_COLON, "Expected a colon");
-		advance_state(state);
-		param_types[parameters_size] = parse_type_ref(state);
+		param_types[parameters_size].unresolved.array_size = parse_array_suffix(state);
 		if (current(state).kind == TOKEN_COMMA) {
 			advance_state(state);
 		}
@@ -3876,10 +3603,6 @@ static definition parse_function(state_t *state) {
 
 	match_token(state, TOKEN_RIGHT_PAREN, "Expected a closing bracket");
 	advance_state(state);
-	match_token(state, TOKEN_COLON, "Expected a colon");
-	advance_state(state);
-
-	type_ref return_type = parse_type_ref(state);
 
 	statement *block = parse_block(state, NULL);
 
@@ -3899,28 +3622,7 @@ static definition parse_function(state_t *state) {
 	return d;
 }
 
-static definition parse_const(state_t *state, attribute_list attributes) {
-	advance_state(state);
-	match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-
-	token name = current(state);
-	advance_state(state);
-	match_token(state, TOKEN_COLON, "Expected a colon");
-	advance_state(state);
-
-	name_id type_name   = NO_NAME;
-	type_id type        = NO_TYPE;
-	name_id format_name = NO_NAME;
-
-	if (current(state).kind == TOKEN_LEFT_CURLY) {
-		type = parse_struct_inner(state, NO_NAME).type;
-	}
-	else {
-		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-		type_name = current(state).identifier;
-		advance_state(state);
-	}
-
+static definition parse_global(state_t *state, attribute_list attributes, name_id type_name, token name) {
 	bool     array      = false;
 	uint32_t array_size = UINT32_MAX;
 
@@ -3943,45 +3645,12 @@ static definition parse_const(state_t *state, attribute_list attributes) {
 		value = parse_expression(state);
 	}
 
-	if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
-		advance_state(state);
-		match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
-		format_name = current(state).identifier;
-		advance_state(state);
-
-		if (current(state).kind == TOKEN_LEFT_PAREN) {
-			advance_state(state);
-			match_token(state, TOKEN_RIGHT_PAREN, "Expected a right paren");
-			advance_state(state);
-		}
-
-		if (current(state).kind != TOKEN_OPERATOR || current(state).op != OPERATOR_GREATER) {
-			error(state->context, "Expected a greater than");
-		}
-		advance_state(state);
-	}
-
 	match_token(state, TOKEN_SEMICOLON, "Expected a semicolon");
 	advance_state(state);
 
 	definition d = {0};
 
-	name_id tex1d_name        = add_name("tex1d");
-	name_id tex2d_name        = add_name("tex2d");
-	name_id tex3d_name        = add_name("tex3d");
-	name_id texcube_name      = add_name("texcube");
-	name_id tex1darray_name   = add_name("tex1darray");
-	name_id tex2darray_name   = add_name("tex2darray");
-	name_id texcubearray_name = add_name("texcubearray");
-
-	if (type_name == NO_NAME) {
-		debug_context context = {0};
-		check(type != NO_TYPE, context, "Const has no type");
-		d.kind   = DEFINITION_CONST_CUSTOM;
-		d.global = add_global(type, attributes, name.identifier);
-	}
-	else if (type_name == tex1d_name || type_name == tex2d_name || type_name == tex3d_name || type_name == texcube_name || type_name == tex1darray_name ||
-	         type_name == tex2darray_name || type_name == texcubearray_name) {
+	if (type_name == add_name("tex2d")) {
 		struct type tex_type;
 		tex_type.name                        = type_name;
 		tex_type.attributes.attributes_count = 0;
@@ -4023,6 +3692,18 @@ static definition parse_const(state_t *state, attribute_list attributes) {
 
 		d.kind   = DEFINITION_CONST_BASIC;
 		d.global = add_global_with_value(float_id, attributes, name.identifier, float_value);
+	}
+	else if (type_name == add_name("int")) {
+		debug_context context = {0};
+		check(value != NULL, context, "const int requires an initialization value");
+		check(value->kind == EXPRESSION_INT, context, "const int requires an integer");
+
+		global_value int_value;
+		int_value.kind          = GLOBAL_VALUE_INT;
+		int_value.value.ints[0] = (int)value->number;
+
+		d.kind   = DEFINITION_CONST_BASIC;
+		d.global = add_global_with_value(int_id, attributes, name.identifier, int_value);
 	}
 	else if (type_name == add_name("float2")) {
 		debug_context context = {0};
@@ -4138,7 +3819,7 @@ size_t get_sets_count(void) {
 }
 
 void add_definition_to_set(descriptor_set *set, definition def) {
-	assert(def.kind != DEFINITION_FUNCTION && def.kind != DEFINITION_STRUCT);
+	kong_assert(def.kind != DEFINITION_FUNCTION && def.kind != DEFINITION_STRUCT);
 
 	for (size_t global_index = 0; global_index < set->globals.size; ++global_index) {
 		if (set->globals.globals[global_index] == def.global) {
@@ -4316,11 +3997,8 @@ static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokeni
 	else if (tokenizer_buffer_equals(buffer, "struct")) {
 		token = token_create(TOKEN_STRUCT, state);
 	}
-	else if (tokenizer_buffer_equals(buffer, "fun")) {
-		token = token_create(TOKEN_FUNCTION, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "var")) {
-		token = token_create(TOKEN_VAR, state);
+	else if (tokenizer_buffer_equals(buffer, "cbuffer")) {
+		token = token_create(TOKEN_CBUFFER, state);
 	}
 	else if (tokenizer_buffer_equals(buffer, "const")) {
 		token = token_create(TOKEN_CONST, state);
@@ -4330,6 +4008,12 @@ static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokeni
 	}
 	else if (tokenizer_buffer_equals(buffer, "discard")) {
 		token = token_create(TOKEN_DISCARD, state);
+	}
+	else if (tokenizer_buffer_equals(buffer, "break")) {
+		token = token_create(TOKEN_BREAK, state);
+	}
+	else if (tokenizer_buffer_equals(buffer, "continue")) {
+		token = token_create(TOKEN_CONTINUE, state);
 	}
 	else {
 		token            = token_create(TOKEN_IDENTIFIER, state);
@@ -4379,9 +4063,7 @@ tokens tokenize(const char *filename, const char *source) {
 			}
 
 			tokens_add(&tokens, token_create(TOKEN_NONE, &state));
-			////
 			free(buffer.buf);
-			////
 			return tokens;
 		}
 		else {
@@ -4666,7 +4348,7 @@ static void copy_opcode(opcode *o) {
 
 	uint8_t *new_data = &new_code.o[new_code.size];
 
-	assert(new_code.size + o->size < OPCODES_SIZE);
+	kong_assert(new_code.size + o->size < OPCODES_SIZE);
 
 	memcpy(new_data, o, o->size);
 
@@ -4695,7 +4377,7 @@ void transform(uint32_t flags) {
 				kong_access a = o->op_store_access_list.access_list[o->op_store_access_list.access_list_size - 1];
 
 				if ((flags & TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE) != 0 && a.kind == ACCESS_SWIZZLE && a.access_swizzle.swizzle.size > 1) {
-					assert(is_vector(o->op_store_access_list.from.type.type));
+					kong_assert(is_vector(o->op_store_access_list.from.type.type));
 
 					type_id from_base_type = vector_base_type(o->op_store_access_list.from.type.type);
 
@@ -4752,7 +4434,7 @@ void transform(uint32_t flags) {
 				kong_access a = o->op_load_access_list.access_list[o->op_load_access_list.access_list_size - 1];
 
 				if ((flags & TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE) != 0 && a.kind == ACCESS_SWIZZLE && a.access_swizzle.swizzle.size > 1) {
-					assert(is_vector(o->op_load_access_list.to.type.type));
+					kong_assert(is_vector(o->op_load_access_list.to.type.type));
 
 					type_id to_type = vector_base_type(o->op_load_access_list.to.type.type);
 
@@ -5012,7 +4694,7 @@ static void resolve_types_in_element(statement *parent_block, expression *elemen
 
 	type_id of_type = element->element.of->type.type;
 
-	assert(of_type != NO_TYPE);
+	kong_assert(of_type != NO_TYPE);
 
 	type *of = get_type(of_type);
 
@@ -5036,7 +4718,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 	type_id of_type     = member->member.of->type.type;
 	name_id member_name = member->member.member_name;
 
-	assert(of_type != NO_TYPE);
+	kong_assert(of_type != NO_TYPE);
 
 	if (is_vector_or_scalar(of_type)) {
 		expression *of = member->member.of;
@@ -5102,7 +4784,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = float4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5121,7 +4803,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = int4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5140,7 +4822,7 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = uint4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
@@ -5159,12 +4841,12 @@ static void resolve_types_in_member(statement *parent_block, expression *member)
 				member->type.type = bool4_id;
 				break;
 			default:
-				assert(false);
+				kong_assert(false);
 				break;
 			}
 		}
 		else {
-			assert(false);
+			kong_assert(false);
 		}
 	}
 	else {
@@ -5381,7 +5063,103 @@ static type_ref upgrade_type(type_ref left_type, type_ref right_type) {
 	return left_type;
 }
 
+// SPIR-V and WGSL have no implicit int -> float conversion, make it explicit
+static bool needs_float_conversion(type_id from, type_id to) {
+	if (!is_vector_or_scalar(from) || !is_vector_or_scalar(to) || vector_base_type(to) != float_id) {
+		return false;
+	}
+	type_id from_base = vector_base_type(from);
+	return (from_base == int_id || from_base == uint_id) && vector_size(from) == vector_size(to);
+}
+
+static void convert_to_float(expression *e, type_ref to) {
+	if (!needs_float_conversion(e->type.type, to.type)) {
+		return;
+	}
+	if (e->kind == EXPRESSION_INT) {
+		e->kind = EXPRESSION_FLOAT;
+	}
+	else if (e->kind == EXPRESSION_UNARY && e->unary.op == OPERATOR_MINUS) {
+		convert_to_float(e->unary.right, to);
+	}
+	else if (e->kind == EXPRESSION_GROUPING) {
+		convert_to_float(e->grouping, to);
+	}
+	else {
+		expression *inner       = expression_allocate();
+		*inner                  = *e;
+		e->kind                 = EXPRESSION_CALL;
+		e->call.func_name       = get_type(to.type)->name; // float(), float2(), ..
+		e->call.parameters.e[0] = inner;
+		e->call.parameters.size = 1;
+	}
+	e->type = to;
+}
+
+static void convert_operands_to_float(expression *e) {
+	convert_to_float(e->binary.left, e->binary.right->type);
+	convert_to_float(e->binary.right, e->binary.left->type);
+}
+
+static void resolve_multiply_type(expression *e) {
+	if (e->binary.op == OPERATOR_MULTIPLY_ASSIGN) {
+		convert_to_float(e->binary.right, e->binary.left->type);
+	}
+	else {
+		convert_operands_to_float(e);
+	}
+	type_id left_type  = e->binary.left->type.type;
+	type_id right_type = e->binary.right->type.type;
+	if ((left_type == float4x4_id && right_type == float4_id) || (left_type == float3x3_id && right_type == float3_id)) {
+		e->type = e->binary.right->type;
+	}
+	else if (right_type == float_id && (left_type == float2_id || left_type == float3_id || left_type == float4_id)) {
+		e->type = e->binary.left->type;
+	}
+	else if (types_compatible(left_type, right_type)) {
+		e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
+	}
+	else {
+		debug_context context = {0};
+		error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
+	}
+}
+
+// HLSL style mul(a, b), turned into a * b
+static void resolve_mul_call(statement *parent, expression *e) {
+	if (e->call.parameters.size != 2) {
+		debug_context context = {0};
+		error(context, "mul() takes two parameters");
+		return;
+	}
+
+	expression *left  = e->call.parameters.e[0];
+	expression *right = e->call.parameters.e[1];
+	resolve_types_in_expression(parent, left);
+	resolve_types_in_expression(parent, right);
+
+	if (is_vector(left->type.type) && is_matrix(right->type.type)) {
+		debug_context context = {0};
+		error(context, "mul(vector, matrix) is not supported, use mul(matrix, vector) with a transposed matrix");
+	}
+	if (is_vector(left->type.type) && is_vector(right->type.type)) {
+		debug_context context = {0};
+		error(context, "mul(vector, vector) is not supported, use dot() or *");
+	}
+
+	e->kind         = EXPRESSION_BINARY;
+	e->binary.left  = left;
+	e->binary.op    = OPERATOR_MULTIPLY;
+	e->binary.right = right;
+	resolve_multiply_type(e);
+}
+
 void resolve_types_in_expression(statement *parent, expression *e) {
+	if (e->kind == EXPRESSION_CALL && e->call.func_name == add_name("mul")) {
+		resolve_mul_call(parent, e);
+		return;
+	}
+
 	switch (e->kind) {
 	case EXPRESSION_BINARY: {
 		resolve_types_in_expression(parent, e->binary.left);
@@ -5393,6 +5171,9 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		case OPERATOR_GREATER_EQUAL:
 		case OPERATOR_LESS:
 		case OPERATOR_LESS_EQUAL:
+			convert_operands_to_float(e);
+			e->type.type = bool_id;
+			break;
 		case OPERATOR_OR:
 		case OPERATOR_AND: {
 			e->type.type = bool_id;
@@ -5408,21 +5189,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		}
 		case OPERATOR_MULTIPLY:
 		case OPERATOR_MULTIPLY_ASSIGN: {
-			type_id left_type  = e->binary.left->type.type;
-			type_id right_type = e->binary.right->type.type;
-			if ((left_type == float4x4_id && right_type == float4_id) || (left_type == float3x3_id && right_type == float3_id)) {
-				e->type = e->binary.right->type;
-			}
-			else if (right_type == float_id && (left_type == float2_id || left_type == float3_id || left_type == float4_id)) {
-				e->type = e->binary.left->type;
-			}
-			else if (types_compatible(left_type, right_type)) {
-				e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
-			}
-			else {
-				debug_context context = {0};
-				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
-			}
+			resolve_multiply_type(e);
 			break;
 		}
 		case OPERATOR_MINUS:
@@ -5435,6 +5202,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				debug_context context = {0};
 				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
 			}
+			convert_operands_to_float(e);
 			e->type = upgrade_type(e->binary.left->type, e->binary.right->type);
 			break;
 		}
@@ -5448,6 +5216,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				debug_context context = {0};
 				error(context, "Type mismatch %s vs %s", get_name(get_type(left_type)->name), get_name(get_type(right_type)->name));
 			}
+			convert_to_float(e->binary.right, e->binary.left->type);
 			e->type = e->binary.left->type;
 			break;
 		}
@@ -5530,10 +5299,11 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		break;
 	}
 	case EXPRESSION_CALL: {
+		function *called = NULL;
 		if (e->call.func_name == add_name("sample") || e->call.func_name == add_name("sample_lod")) {
 			if (e->call.parameters.e[0]->kind == EXPRESSION_VARIABLE) {
 				global *g = find_global(e->call.parameters.e[0]->variable);
-				assert(g != NULL);
+				kong_assert(g != NULL);
 				e->type.type = float4_id;
 			}
 			else {
@@ -5545,13 +5315,43 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 				function *f = get_function(i);
 				if (f->name == e->call.func_name) {
 					e->type = f->return_type;
+					called  = f;
 					break;
 				}
 			}
 		}
 
+		if (called != NULL && is_component_wise(e->call.func_name)) {
+			uint32_t size = 1;
+			for (size_t i = 0; i < e->call.parameters.size; ++i) {
+				resolve_types_in_expression(parent, e->call.parameters.e[i]);
+				type_id t = e->call.parameters.e[i]->type.type;
+				if (is_vector_or_scalar(t) && vector_size(t) > size) {
+					size = vector_size(t);
+				}
+			}
+			for (size_t i = 0; i < e->call.parameters.size; ++i) {
+				expression *p = e->call.parameters.e[i];
+				type_id     t = p->type.type;
+				if (!is_vector_or_scalar(t) || (vector_size(t) != 1 && vector_size(t) != size)) {
+					debug_context context = {0};
+					error(context, "Parameter %zu of %s has type %s, expected a scalar or a vector of size %u", i, get_name(e->call.func_name),
+					      t == NO_TYPE ? "unknown" : get_name(get_type(t)->name), size);
+				}
+				type_ref to;
+				init_type_ref(&to, NO_NAME);
+				to.type = vector_to_size(float_id, vector_size(t));
+				convert_to_float(p, to);
+			}
+			e->type.type = vector_to_size(float_id, size);
+			break;
+		}
+
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			resolve_types_in_expression(parent, e->call.parameters.e[i]);
+			if (called != NULL && i < called->parameters_size) {
+				convert_to_float(e->call.parameters.e[i], called->parameter_types[i]);
+			}
 		}
 		break;
 	}
@@ -5564,7 +5364,7 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 		break;
 	}
 	case EXPRESSION_SWIZZLE:
-		assert(false); // swizzle is created in the typer
+		kong_assert(false); // swizzle is created in the typer
 		break;
 	}
 
@@ -5575,6 +5375,8 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 	}
 }
 
+static function *resolve_types_function = NULL;
+
 void resolve_types_in_block(statement *parent, statement *block) {
 	debug_context context = {0};
 	check(block->kind == STATEMENT_BLOCK, context, "Malformed block");
@@ -5583,13 +5385,28 @@ void resolve_types_in_block(statement *parent, statement *block) {
 		statement *s = block->block.statements.s[i];
 		switch (s->kind) {
 		case STATEMENT_DISCARD:
+		case STATEMENT_BREAK:
+		case STATEMENT_CONTINUE:
 			break;
 		case STATEMENT_EXPRESSION: {
 			resolve_types_in_expression(block, s->expression);
 			break;
 		}
 		case STATEMENT_RETURN_EXPRESSION: {
+			if (s->expression == NULL) {
+				break;
+			}
 			resolve_types_in_expression(block, s->expression);
+			convert_to_float(s->expression, resolve_types_function->return_type);
+			type_id return_type = resolve_types_function->return_type.type;
+			type_id value_type  = s->expression->type.type;
+			bool    mismatch    = !types_compatible(value_type, return_type) ||
+			                (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
+			if (value_type != NO_TYPE && return_type != NO_TYPE && mismatch) {
+				debug_context context = {0};
+				error(context, "Return type mismatch %s vs %s in %s", get_name(get_type(value_type)->name), get_name(get_type(return_type)->name),
+				      get_name(resolve_types_function->name));
+			}
 			break;
 		}
 		case STATEMENT_IF: {
@@ -5628,6 +5445,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 
 			if (s->local_variable.init != NULL) {
 				resolve_types_in_expression(block, s->local_variable.init);
+				convert_to_float(s->local_variable.init, s->local_variable.var.type);
 			}
 
 			block->block.vars.v[block->block.vars.size].name = var_name;
@@ -5692,6 +5510,7 @@ void resolve_types(void) {
 			++f->block->block.vars.size;
 		}
 
+		resolve_types_function = f;
 		resolve_types_in_block(NULL, f->block);
 	}
 }
@@ -5816,8 +5635,8 @@ void types_init(void) {
 	}
 
 	{
-		function_type_id                     = add_type(add_name("fun"));
-		get_type(function_type_id)->built_in = true;
+		ray_query_type_id                     = add_type(add_name("ray_query"));
+		get_type(ray_query_type_id)->built_in = true;
 	}
 }
 
@@ -5974,7 +5793,7 @@ uint32_t vector_size(type_id t) {
 		return 4u;
 	}
 
-	assert(false);
+	kong_assert(false);
 	return 0;
 }
 
@@ -5992,7 +5811,7 @@ type_id vector_base_type(type_id vector_type) {
 		return bool_id;
 	}
 
-	assert(false);
+	kong_assert(false);
 	return float_id;
 }
 
@@ -6009,7 +5828,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return float4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return float_id;
 		}
 	}
@@ -6024,7 +5843,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return int4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return int_id;
 		}
 	}
@@ -6039,7 +5858,7 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return uint4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return uint_id;
 		}
 	}
@@ -6054,14 +5873,121 @@ type_id vector_to_size(type_id vector_type, uint32_t size) {
 		case 4u:
 			return bool4_id;
 		default:
-			assert(false);
+			kong_assert(false);
 			return bool_id;
 		}
 	}
 	else {
-		assert(false);
+		kong_assert(false);
 		return float_id;
 	}
+}
+
+typedef struct define_name {
+	const char *name;
+	size_t      length;
+} define_name;
+
+static bool is_define_char(char c) {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+// Handles #define NAME, #ifdef NAME, #ifndef NAME, #else and #endif
+char *kong_preprocess(const char *source, char **defines, int defines_count) {
+	define_name names[256];
+	int         names_count = 0;
+	for (int i = 0; i < defines_count; ++i) {
+		names[names_count++] = (define_name){defines[i], strlen(defines[i])};
+	}
+
+	bool   parent_active[32];
+	bool   condition[32];
+	int    depth  = 0;
+	bool   active = true;
+	char  *out    = malloc(strlen(source) + 1);
+	size_t offset = 0;
+
+	debug_context context = {0};
+	const char   *line    = source;
+	while (*line != 0) {
+		const char *end = line;
+		while (*end != 0 && *end != '\n') {
+			++end;
+		}
+		const char *c = line;
+		while (c < end && (*c == ' ' || *c == '\t')) {
+			++c;
+		}
+
+		bool        directive = false;
+		const char *keyword   = NULL;
+		if (*c == '#') {
+			const char *keywords[] = {"define", "ifdef", "ifndef", "else", "endif"};
+			for (int i = 0; i < 5; ++i) {
+				size_t length = strlen(keywords[i]);
+				if ((size_t)(end - c - 1) >= length && strncmp(c + 1, keywords[i], length) == 0 && !is_define_char(c[1 + length])) {
+					keyword   = keywords[i];
+					directive = true;
+					c += 1 + length;
+					break;
+				}
+			}
+		}
+
+		if (directive) {
+			while (c < end && (*c == ' ' || *c == '\t')) {
+				++c;
+			}
+			const char *name = c;
+			while (c < end && is_define_char(*c)) {
+				++c;
+			}
+			size_t name_length = c - name;
+
+			bool defined = false;
+			for (int i = 0; i < names_count; ++i) {
+				if (names[i].length == name_length && strncmp(names[i].name, name, name_length) == 0) {
+					defined = true;
+				}
+			}
+
+			if (strcmp(keyword, "define") == 0) {
+				check(name_length > 0 && names_count < 256, context, "Invalid #define");
+				if (active && !defined) {
+					names[names_count++] = (define_name){name, name_length};
+				}
+			}
+			else if (strcmp(keyword, "ifdef") == 0 || strcmp(keyword, "ifndef") == 0) {
+				check(name_length > 0 && depth < 32, context, "Invalid #ifdef");
+				parent_active[depth] = active;
+				condition[depth]     = strcmp(keyword, "ifdef") == 0 ? defined : !defined;
+				active               = active && condition[depth];
+				depth += 1;
+			}
+			else if (strcmp(keyword, "else") == 0) {
+				check(depth > 0, context, "#else without #ifdef");
+				active = parent_active[depth - 1] && !condition[depth - 1];
+			}
+			else {
+				check(depth > 0, context, "#endif without #ifdef");
+				depth -= 1;
+				active = parent_active[depth];
+			}
+		}
+		else if (active) {
+			memcpy(&out[offset], line, end - line);
+			offset += end - line;
+		}
+
+		if (*end == '\n') {
+			out[offset++] = '\n';
+			++end;
+		}
+		line = end;
+	}
+	check(depth == 0, context, "Missing #endif");
+	out[offset] = 0;
+	return out;
 }
 
 void indent(char *code, size_t *offset, int indentation) {
@@ -6172,13 +6098,17 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		statement_index  = _statement_index;
 	}
 
-	kong_error    = false;
-	char  *from   = "";
-	tokens tokens = tokenize(from, kong);
-	parse(from, &tokens);
-	resolve_types();
-
-	if (kong_error) {
+	kong_error = false;
+#ifdef IRON_WASM
+#define KONG_CHECK_ERROR()                                  \
+	if (kong_error) {                                       \
+		console_info("Warning: Shader compilation failed"); \
+		return;                                             \
+	}
+#else
+#define KONG_CHECK_ERROR()
+	if (setjmp(kong_error_jmp) != 0) { // error() while compiling
+		kong_error_jmp_active = false;
 		console_info("Warning: Shader compilation failed");
 #if defined(__APPLE__)
 		*vs = "";
@@ -6186,11 +6116,24 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 #endif
 		return;
 	}
+	kong_error_jmp_active = true;
+#endif
+
+	char  *from   = "";
+	tokens tokens = tokenize(from, kong);
+	KONG_CHECK_ERROR();
+	parse(from, &tokens);
+	KONG_CHECK_ERROR();
+	resolve_types();
+	KONG_CHECK_ERROR();
 	allocate_globals();
+	KONG_CHECK_ERROR();
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
 		compile_function_block(&get_function(i)->code, get_function(i)->block);
 	}
+	KONG_CHECK_ERROR();
 	analyze();
+	KONG_CHECK_ERROR();
 
 #ifdef _WIN32
 
@@ -6199,11 +6142,11 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 #elif defined(__APPLE__)
 
 	static char vs_temp[1024 * 128];
-	strcpy(vs_temp, "//>kong_vert\n");
+	strcpy(vs_temp, "//>vert\n");
 	char *metal = metal_export("");
 	strcat(vs_temp, metal);
 	*vs = &vs_temp[0];
-	*fs = "//>kong_frag\n";
+	*fs = "//>frag\n";
 	free(metal);
 
 #elif defined(IRON_WASM)
@@ -6217,4 +6160,6 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	spirv_export2(vs, fs, vs_size, fs_size, false);
 
 #endif
+
+	kong_error_jmp_active = false;
 }

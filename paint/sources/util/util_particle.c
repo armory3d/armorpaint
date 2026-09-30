@@ -12,17 +12,12 @@ void util_particle_init_mesh() {
 	g_context->paint_body = physics_body_create(g_context->merged_object->base, PHYSICS_SHAPE_MESH, 0.0);
 }
 
-void util_particle_init_physics() {
-	sim_init();
-	util_particle_init_mesh();
-}
-
 void util_particle_update() {
 	if (g_context->tool != TOOL_TYPE_PARTICLE) {
 		return;
 	}
 
-	util_particle_init_physics();
+	util_particle_init_mesh();
 	make_particle_get_bullet_material();
 	physics_world_update();
 

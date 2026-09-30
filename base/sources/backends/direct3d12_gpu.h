@@ -49,7 +49,13 @@ typedef struct {
 typedef struct {
 	uint8_t *data;
 	int      length;
+	bool     is_source; // hlsl
 } gpu_shader_impl_t;
+
+struct gpu_shader;
+#ifdef WITH_D3DCOMPILER
+void gpu_shader_compile(struct gpu_shader *shader, bool vertex);
+#endif
 
 typedef struct {
 	struct ID3D12Resource *image;

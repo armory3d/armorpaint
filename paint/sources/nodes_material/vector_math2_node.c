@@ -36,7 +36,7 @@ char *vector_math2_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	else if (string_equals(op, "DIVIDE")) {
 		char *store = string_tmp("%s_vec2", parser_material_store_var_name(node));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s;", store, vec2));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s = %s;", store, vec2));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.x == 0.0) { %s.x = 0.000001; }", store, store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.y == 0.0) { %s.y = 0.000001; }", store, store));
 		parser_material_write(parser_material_kong, string_tmp("if (%s.z == 0.0) { %s.z = 0.000001; }", store, store));
@@ -52,7 +52,7 @@ char *vector_math2_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		return string_tmp("(%s.x * %s)", vec2, vec1);
 	}
 	else if (string_equals(op, "ABSOLUTE")) {
-		return string_tmp("abs3(%s)", vec1);
+		return string_tmp("abs(%s)", vec1);
 	}
 	else if (string_equals(op, "POWER")) {
 		return string_tmp("float3(pow(%s.x, %s.x), pow(%s.y, %s.y), pow(%s.z, %s.z))", vec1, vec2, vec1, vec2, vec1, vec2);
@@ -61,25 +61,25 @@ char *vector_math2_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		return string_tmp("float3(sign(%s.x), sign(%s.y), sign(%s.z))", vec1, vec1, vec1);
 	}
 	else if (string_equals(op, "MINIMUM")) {
-		return string_tmp("min3(%s, %s)", vec1, vec2);
+		return string_tmp("min(%s, %s)", vec1, vec2);
 	}
 	else if (string_equals(op, "MAXIMUM")) {
-		return string_tmp("max3(%s, %s)", vec1, vec2);
+		return string_tmp("max(%s, %s)", vec1, vec2);
 	}
 	else if (string_equals(op, "FLOOR")) {
-		return string_tmp("floor3(%s)", vec1);
+		return string_tmp("floor(%s)", vec1);
 	}
 	else if (string_equals(op, "CEIL")) {
-		return string_tmp("ceil3(%s)", vec1);
+		return string_tmp("ceil(%s)", vec1);
 	}
 	else if (string_equals(op, "FRACTION")) {
-		return string_tmp("frac3(%s)", vec1);
+		return string_tmp("frac(%s)", vec1);
 	}
 	else if (string_equals(op, "MODULO")) {
 		return string_tmp("(%s %% %s)", vec1, vec2);
 	}
 	else if (string_equals(op, "SNAP")) {
-		return string_tmp("(floor3(%s / %s) * %s)", vec1, vec2, vec2);
+		return string_tmp("(floor(%s / %s) * %s)", vec1, vec2, vec2);
 	}
 	else if (string_equals(op, "SINE")) {
 		return string_tmp("float3(sin(%s.x), sin(%s.y), sin(%s.z))", vec1, vec1, vec1);

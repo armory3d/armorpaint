@@ -9,7 +9,7 @@ char *script_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char     *str    = sys_buffer_to_string(script);
 	char     *link   = parser_material_node_name(node, NULL);
 	any_map_set(parser_material_script_links, string_copy(link), str);
-	node_shader_add_constant(parser_material_kong, string_tmp("%s: float", link), string_tmp("_%s", link));
+	node_shader_add_constant(parser_material_kong, string_tmp("float %s", link), string_tmp("_%s", link));
 	return string_tmp("constants.%s", link);
 }
 
@@ -23,9 +23,7 @@ void script_node_draw_snippets() {
 }
 
 void script_node_button(i32 node_id) {
-	ui_node_t   *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char        *node_name = parser_material_node_name(node, NULL);
-	ui_handle_t *h         = ui_handle(node_name);
+	ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
 
 	if (ui_button(tr("Snippets"), UI_ALIGN_CENTER, "")) {
 		script_node_draw_snippets_node = node;

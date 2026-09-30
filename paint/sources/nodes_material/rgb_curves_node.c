@@ -40,23 +40,23 @@ char *rgb_curves_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *gg = vector_curves_eval(string_tmp("%s_gg", name), cg, curves->buffer + 32 * 2, ng);
 	char *bb = vector_curves_eval(string_tmp("%s_bb", name), cb, curves->buffer + 32 * 3, nb);
 
-	return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
+	return string_tmp("lerp(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
 }
 
 void nodes_material_rgb_curves_button(i32 node_id) {
-	ui_node_t        *node    = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	ui_node_button_t *but     = node->buttons->buffer[0];
-	ui_handle_t      *nhandle = ui_nest(ui_handle(__ID__), node->id);
-	f32_array_t      *val     = but->default_value;
-	f32               sw      = g_ui->_w / (float)UI_NODES_SCALE();
+	ui_node_t               *node  = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	ui_node_button_t        *but   = node->buttons->buffer[0];
+	ui_nodes_editor_state_t *state = ui_nodes_editor_state(node);
+	f32_array_t             *val   = but->default_value;
+	f32                      sw    = g_ui->_w / (float)UI_NODES_SCALE();
 
 	// Channel selector: C, R, G, B
 	ui_row4();
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 0, "C", "");
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 1, "R", "");
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 2, "G", "");
-	ui_radio(ui_nest(ui_nest(nhandle, 0), 1), 3, "B", "");
-	i32 ch = ui_nest(ui_nest(nhandle, 0), 1)->i;
+	ui_radio(&state->channel, 0, "C", "");
+	ui_radio(&state->channel, 1, "R", "");
+	ui_radio(&state->channel, 2, "G", "");
+	ui_radio(&state->channel, 3, "B", "");
+	i32 ch = state->channel;
 
 	// Initialize on first use
 	if (val->buffer[128 + ch] == 0.0f) {
@@ -117,18 +117,15 @@ void nodes_material_rgb_curves_button(i32 node_id) {
 		num--;
 		val->buffer[128 + ch] = (f32)num;
 	}
-	ui_handle_t *ihandle = ui_nest(ui_nest(ui_nest(nhandle, 0), 2), ch);
-	i32          i       = math_floor(ui_slider(ihandle, "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
+	i32 i = math_floor(ui_slider(&state->index[ch], "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
 	if (i >= num || i < 0) {
-		ihandle->f = i = num - 1;
+		state->index[ch] = i = num - 1;
 	}
 	ui_row2();
-	ui_handle_t *h1                  = ui_nest(ui_nest(nhandle, 0), 3);
-	ui_handle_t *h2                  = ui_nest(ui_nest(nhandle, 0), 4);
-	h1->f                            = val->buffer[ch * 32 + i * 2 + 0];
-	h2->f                            = val->buffer[ch * 32 + i * 2 + 1];
-	val->buffer[ch * 32 + i * 2 + 0] = ui_slider(h1, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-	val->buffer[ch * 32 + i * 2 + 1] = ui_slider(h2, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	state->x                         = val->buffer[ch * 32 + i * 2 + 0];
+	state->y                         = val->buffer[ch * 32 + i * 2 + 1];
+	val->buffer[ch * 32 + i * 2 + 0] = ui_slider(&state->x, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	val->buffer[ch * 32 + i * 2 + 1] = ui_slider(&state->y, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
 }
 
 void rgb_curves_node_init() {

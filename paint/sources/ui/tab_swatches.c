@@ -79,30 +79,20 @@ static bool tab_swatches_color_equals(swatch_color_t *a, swatch_color_t *b) {
 	       a->normal == b->normal && a->emission == b->emission && a->height == b->height && a->subsurface == b->subsurface;
 }
 
+static ui_color_state_t tab_swatches_color_state;
+
 void tab_swatches_draw_edit_menu() {
-	g_ui->changed  = false;
-	ui_handle_t *h = ui_handle(__ID__);
-	h->color       = g_context->swatch->base;
+	g_ui->changed = false;
+	ui_color_wheel((u32 *)&g_context->swatch->base, &tab_swatches_color_state, false, -1, 11 * g_theme->ELEMENT_H * UI_SCALE(), true,
+	               &tab_swatches_draw_color_picker, NULL);
 
-	g_context->swatch->base = ui_color_wheel(h, false, -1, 11 * g_theme->ELEMENT_H * UI_SCALE(), true, &tab_swatches_draw_color_picker, NULL);
-
-	ui_handle_t *hopacity      = ui_handle(__ID__);
-	hopacity->f                = g_context->swatch->opacity;
-	g_context->swatch->opacity = ui_slider(hopacity, "Opacity", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	ui_slider(&g_context->swatch->opacity, "Opacity", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
 
 	if (g_config->workflow == WORKFLOW_PBR) {
-		ui_handle_t *hocclusion      = ui_handle(__ID__);
-		hocclusion->f                = g_context->swatch->occlusion;
-		g_context->swatch->occlusion = ui_slider(hocclusion, "Occlusion", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *hroughness      = ui_handle(__ID__);
-		hroughness->f                = g_context->swatch->roughness;
-		g_context->swatch->roughness = ui_slider(hroughness, "Roughness", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *hmetallic       = ui_handle(__ID__);
-		hmetallic->f                 = g_context->swatch->metallic;
-		g_context->swatch->metallic  = ui_slider(hmetallic, "Metallic", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		ui_handle_t *hheight         = ui_handle(__ID__);
-		hheight->f                   = g_context->swatch->height;
-		g_context->swatch->height    = ui_slider(hheight, "Height", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->swatch->occlusion, "Occlusion", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->swatch->roughness, "Roughness", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->swatch->metallic, "Metallic", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->swatch->height, "Height", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
 	}
 
 	if (g_ui->changed || g_ui->is_typing) {
@@ -131,7 +121,7 @@ void tab_swatches_draw_import() {
 	}
 }
 
-void tab_swatches_draw(ui_handle_t *htab) {
+void tab_swatches_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Swatches"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
 		ui_begin_sticky();

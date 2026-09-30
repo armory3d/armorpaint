@@ -3,9 +3,12 @@
 
 static i32 text_to_text_node_backend = CONSOLE_MODEL_QWEN;
 
-static char *text_to_text_node_guide = "Reply with C code only wrapped in a ```c markdown fence. Place the code inside 'void main()' function. "
-                                       "Do not chain statements - declare intermediary variables. Do not use preprocessor. "
-                                       "Do not use casts - casting is implicit. Do not use comma operator. Do not use multi-dimensional arrays.\n";
+static char *text_to_text_node_guide = "Reply with C code only wrapped in a ```c markdown fence. "
+                                       "Place the code inside 'void main()' function. "
+                                       "Do not use preprocessor. "
+                                       "Do not use multi-dimensional arrays. "
+                                       "Do not use double pointers. "
+                                       "Use 'char *string(fmt, ...)' to format strings.\n";
 
 static char *text_to_text_node_grok_dir(void) {
 #ifndef NDEBUG
@@ -90,8 +93,11 @@ static char *text_to_text_node_scene_bounds(void) {
 }
 
 static char *text_to_text_node_project_contents(void) {
-	buffer_t *encoded = util_encode_project(g_project);
-	char     *json    = armpack_decode_to_json_omit_large_arrays(encoded);
+	swatch_color_t_array_t *swatches = g_project->swatches;
+	g_project->swatches              = NULL;
+	buffer_t *encoded                = util_encode_project(g_project);
+	g_project->swatches              = swatches;
+	char *json                       = armpack_decode_to_json_omit_large_arrays(encoded);
 	array_free(encoded);
 	free(encoded);
 	return string("/* Current project state:\n%s\n%s%s*/\n", json, text_to_text_node_scene_bounds(), text_to_text_node_shapes());
@@ -123,6 +129,10 @@ static void text_to_text_node_write_node(buffer_t *sb, ui_node_t *n) {
 			}
 		}
 		string_buffer_append(sb, "\n");
+	}
+
+	if (string_equals(n->type, "SHADER_GPU")) {
+		string_buffer_append(sb, shader_node_reference());
 	}
 }
 

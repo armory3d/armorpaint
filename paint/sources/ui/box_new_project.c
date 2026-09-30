@@ -25,9 +25,7 @@ void project_fetch_default_meshes() {
 void project_new_box_draw() {
 	project_fetch_default_meshes();
 
-	ui_handle_t *h_project_type = ui_handle(__ID__);
-	h_project_type->i           = g_context->project_type;
-	g_context->project_type     = ui_combo(h_project_type, project_default_mesh_list, tr("Template"), true, UI_ALIGN_LEFT, true);
+	ui_combo(&g_context->project_type, project_default_mesh_list, tr("Template"), true, UI_ALIGN_LEFT, true);
 	ui_end_element();
 	ui_row2();
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {

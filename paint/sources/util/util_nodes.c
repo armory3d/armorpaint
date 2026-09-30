@@ -160,12 +160,12 @@ i32 ui_nodes_get_node_y() {
 }
 
 bool ui_nodes_is_tab_selected() {
-	return ui_nodes_htab->i > 0 && ui_nodes_htab->i % 2 == 1 && // [tab0, tab1, x, tab2, x, +]
-	       ui_nodes_tabs->length >= ui_nodes_htab->i / 2.0;
+	return ui_nodes_tab > 0 && ui_nodes_tab % 2 == 1 && // [tab0, tab1, x, tab2, x, +]
+	       ui_nodes_tabs->length >= ui_nodes_tab / 2.0;
 }
 
 i32 ui_nodes_tab_index() {
-	return (int)(ui_nodes_htab->i / 2.0);
+	return (int)(ui_nodes_tab / 2.0);
 }
 
 ui_node_canvas_t *ui_nodes_get_canvas(bool groups) {

@@ -116,15 +116,12 @@ void export_player_run(char *path) {
 
 	char *path_base = path_base_dir(path);
 
-	char *_project_filepath        = string_copy(g_project->_->filepath);
-	g_project->_->filepath         = string("%s/%s", path_base, "start.arm");
 	bool _pack_assets_on_save      = g_context->pack_assets_on_save;
 	g_context->pack_assets_on_save = true;
-	export_arm_run_project();
+	export_arm_run_project(string("%s/%s", path_base, "start.arm"));
 	g_context->pack_assets_on_save = _pack_assets_on_save;
-	g_project->_->filepath         = _project_filepath;
 
-	if (box_export_h_export_player_target->i == PLAYER_TARGET_WEB) {
+	if (box_export_player_target == PLAYER_TARGET_WEB) {
 		char *start_js = string("%s/start.js", path_base);
 		iron_file_download("https://armorpaint.app/start.js", &export_player_run_on_download, 0, start_js);
 
@@ -137,17 +134,17 @@ void export_player_run(char *path) {
 		char *index_html = string("%s/index.html", path_base);
 		iron_file_save_bytes(index_html, sys_string_to_buffer(export_player_index), 0);
 	}
-	else if (box_export_h_export_player_target->i == PLAYER_TARGET_WINDOWS) {
+	else if (box_export_player_target == PLAYER_TARGET_WINDOWS) {
 		char *player_bin_src = string("%s%s%s", iron_internal_files_location(), PATH_SEP, "ArmorPaint.exe");
 		char *player_bin_to  = string("%s/player.exe", path_base);
 		file_copy(player_bin_src, player_bin_to);
 	}
-	else if (box_export_h_export_player_target->i == PLAYER_TARGET_LINUX) {
+	else if (box_export_player_target == PLAYER_TARGET_LINUX) {
 		char *player_bin_src = string("%s%s%s", iron_internal_files_location(), PATH_SEP, "ArmorPaint");
 		char *player_bin_to  = string("%s/player", path_base);
 		file_copy(player_bin_src, player_bin_to);
 	}
-	else if (box_export_h_export_player_target->i == PLAYER_TARGET_MACOS) {
+	else if (box_export_player_target == PLAYER_TARGET_MACOS) {
 		console_error(tr("Not implemented"));
 	}
 }

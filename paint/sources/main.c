@@ -104,7 +104,6 @@
 #include "nodes_material/wireframe_node.c"
 
 #include "nodes_neural/edit_image_node.c"
-#include "nodes_neural/image_to_3d_mesh_node.c"
 #include "nodes_neural/image_to_pbr_node.c"
 #include "nodes_neural/neural_node.c"
 #include "nodes_neural/neural_node_models.c"
@@ -112,7 +111,6 @@
 #include "nodes_neural/save_image_node.c"
 #include "nodes_neural/text_to_image_node.c"
 #include "nodes_neural/text_to_text_node.c"
-#include "nodes_neural/texture_mesh_node.c"
 #include "nodes_neural/upscale_image_node.c"
 
 #include "render/make_bake.c"
@@ -141,6 +139,12 @@
 #include "render/render_path_raytrace.c"
 #include "render/render_path_raytrace_bake.c"
 #include "render/render_pathsphere.c"
+
+#include "slots/slot_brush.c"
+#include "slots/slot_font.c"
+#include "slots/slot_layer.c"
+#include "slots/slot_material.c"
+#include "slots/slot_sound.c"
 
 #include "traits/trait_point_and_click_controller.c"
 #include "traits/trait_third_person_controller.c"
@@ -183,12 +187,14 @@
 #include "util/util_clone.c"
 #include "util/util_cursor.c"
 #include "util/util_encode.c"
+#include "util/util_env.c"
 #include "util/util_geom.c"
 #include "util/util_layer.c"
 #include "util/util_mesh.c"
 #include "util/util_nodes.c"
 #include "util/util_particle.c"
 #include "util/util_path.c"
+#include "util/util_physics.c"
 #include "util/util_raycast.c"
 #include "util/util_render.c"
 #include "util/util_resize.c"
@@ -200,6 +206,7 @@
 #include "util/util_touch.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
+#include "util/util_uv_unwrap.c"
 
 #include "args.c"
 #include "base.c"
@@ -221,12 +228,6 @@
 #include "plugin.c"
 #include "project.c"
 #include "resource.c"
-#include "sim.c"
-#include "slot_brush.c"
-#include "slot_font.c"
-#include "slot_layer.c"
-#include "slot_material.c"
-#include "slot_sound.c"
 #include "strings.c"
 #include "trait.c"
 #include "translator.c"
@@ -239,11 +240,7 @@ void plugins_init();
 
 void _kickstart() {
 	_render_path_cached_shader_contexts = any_map_create();
-	ui_children                         = any_map_create();
 	ui_nodes_custom_buttons             = any_map_create();
-	box_export_htab                     = ui_handle_create();
-	box_export_mesh_handle              = ui_handle_create();
-	box_export_hpreset                  = ui_handle_create();
 
 	box_export_channels = any_array_create_from_raw(
 	    (void *[]){
@@ -259,19 +256,14 @@ void _kickstart() {
 	    },
 	    2);
 
-	box_export_h_export_player_target = ui_handle_create();
-	import_texture_importers          = any_map_create();
-	import_text_importers             = any_map_create();
-	ui_files_path                     = ui_files_default_path;
-	base_res_handle                   = ui_handle_create();
-	base_res_x_handle                 = ui_handle_create();
-	base_res_y_handle                 = ui_handle_create();
-	base_bits_handle                  = ui_handle_create();
-	base_drop_paths                   = any_array_create_from_raw((void *[]){}, 0);
-	ui_base_hwnds                     = ui_base_init_hwnds();
-	ui_base_htabs                     = ui_base_init_htabs();
-	ui_base_hwnd_tabs                 = ui_base_init_hwnd_tabs();
-	ui_toolbar_handle                 = ui_handle_create();
+	import_texture_importers = any_map_create();
+	import_text_importers    = any_map_create();
+	ui_files_path            = ui_files_default_path;
+	base_drop_paths          = any_array_create_from_raw((void *[]){}, 0);
+	ui_base_hwnds            = ui_base_init_hwnds();
+	ui_base_tabs             = ui_base_init_tabs();
+	ui_base_hwnd_tabs        = ui_base_init_hwnd_tabs();
+	ui_toolbar_handle        = ui_window_create();
 
 	ui_toolbar_tool_names = any_array_create_from_raw(
 	    (void *[]){
@@ -312,13 +304,9 @@ void _kickstart() {
 	    13);
 
 	uniforms_ext_ortho_p    = mat4_ortho(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
-	box_projects_htab       = ui_handle_create();
-	box_projects_hsearch    = ui_handle_create();
-	tab_scripts_hscript     = ui_handle_create();
 	import_mesh_importers   = any_map_create();
-	ui_menubar_hwnd         = ui_handle_create();
-	ui_menubar_menu_handle  = ui_handle_create();
-	ui_menubar_tab          = ui_handle_create();
+	ui_menubar_hwnd         = ui_window_create();
+	ui_menubar_menu_handle  = ui_window_create();
 	ui_menubar_w            = ui_menubar_default_w;
 	translator_translations = any_map_create();
 
@@ -334,30 +322,17 @@ void _kickstart() {
 	g_project->_->fonts           = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->sounds          = any_array_create_from_raw((void *[]){}, 0);
 
-	ui_view2d_hwnd               = ui_handle_create();
-	ui_view2d_htab               = ui_handle_create();
+	ui_view2d_hwnd               = ui_window_create();
 	parser_material_node_values  = any_map_create();
 	parser_material_node_vectors = any_map_create();
 	parser_material_custom_nodes = any_map_create();
-	tab_browser_hpath            = ui_handle_create();
-	tab_browser_hsearch          = ui_handle_create();
-	util_mesh_unwrappers         = any_map_create();
 	ui_header_h                  = ui_header_default_h;
-	ui_header_handle             = ui_handle_create();
+	ui_header_handle             = ui_window_create();
 	g_plugins                    = any_map_create();
 	parser_logic_custom_nodes    = any_map_create();
 	resource_bundled             = any_map_create();
-	ui_nodes_hwnd                = ui_handle_create();
+	ui_nodes_hwnd                = ui_window_create();
 	ui_nodes_group_stack         = any_array_create_from_raw((void *[]){}, 0);
-	ui_nodes_htab                = ui_handle_create();
-	_ui_nodes_htype              = ui_handle_create();
-	_ui_nodes_hname              = ui_handle_create();
-	_ui_nodes_hmin               = ui_handle_create();
-	_ui_nodes_hmax               = ui_handle_create();
-	_ui_nodes_hval0              = ui_handle_create();
-	_ui_nodes_hval1              = ui_handle_create();
-	_ui_nodes_hval2              = ui_handle_create();
-	_ui_nodes_hval3              = ui_handle_create();
 
 	nodes_brush_categories = any_array_create_from_raw(
 	    (void *[]){
@@ -394,13 +369,10 @@ void _kickstart() {
 	ui_sidebar_default_w = ui_sidebar_default_w_full;
 #endif
 
-	ui_sidebar_hminimized         = ui_handle_create();
+	ui_sidebar_hminimized         = ui_window_create();
 	ui_sidebar_w_mini             = ui_sidebar_default_w_mini;
 	console_last_traces           = any_array_create(0);
-	box_preferences_htab          = ui_handle_create();
-	ui_box_hwnd                   = ui_handle_create();
-	tab_layers_layer_name_handle  = ui_handle_create();
-	tab_meshes_mesh_name_handle   = ui_handle_create();
+	ui_box_hwnd                   = ui_window_create();
 	render_path_raytrace_f32a     = f32_array_create(24);
 	render_path_raytrace_help_mat = mat4_identity();
 	neural_node_results           = any_imap_create();

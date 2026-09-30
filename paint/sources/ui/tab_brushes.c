@@ -52,7 +52,7 @@ void tab_brushes_draw_context_menu() {
 	}
 }
 
-void tab_brushes_draw(ui_handle_t *htab) {
+void tab_brushes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Brushes"), false, -1, false)) {
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw_tmp(

@@ -1,0 +1,33 @@
+
+cbuffer constants {
+	float taa_blend;
+};
+
+sampler sampler_linear;
+
+tex2d tex;
+
+tex2d tex2;
+
+struct vert_in {
+	float2 pos;
+};
+
+struct vert_out {
+	float4 pos;
+	float2 tex;
+};
+
+vert_out vert(vert_in input) {
+	vert_out output;
+	output.tex = input.pos.xy * 0.5 + 0.5;
+	output.tex.y = 1.0 - output.tex.y;
+	output.pos = float4(input.pos.xy, 0.0, 1.0);
+	return output;
+}
+
+float4 frag(vert_out input) {
+	float4 current = sample_lod(tex, sampler_linear, input.tex, 0.0);
+	float4 previous = sample_lod(tex2, sampler_linear, input.tex, 0.0);
+	return float4(lerp(current.rgb, previous.rgb, constants.taa_blend), 1.0);
+}

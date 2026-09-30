@@ -52,11 +52,10 @@ void util_brush_update() {
 				util_brush_clone_source_down = true;
 			}
 			else {
-				if (g_context->brush_time == 0 && !base_is_dragging && !base_is_resizing && g_ui->combo_selected_handle == NULL) { // Paint started
+				if (g_context->brush_time == 0 && !base_is_dragging && !base_is_resizing && g_ui->combo_selected_id == 0) { // Paint started
 
 					// Draw line
-					if (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")),
-					                      SHORTCUT_TYPE_DOWN)) {
+					if (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN)) {
 						g_context->last_paint_vec_x = g_context->last_paint_x;
 						g_context->last_paint_vec_y = g_context->last_paint_y;
 					}

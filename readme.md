@@ -54,7 +54,7 @@ cd armorpaint/paint
 
 **Generating a locale file**
 ```bash
-./base/make --js base/tools/extract_locales.js <locale code>
+./base/make --c base/tools/extract_locales.c <locale code>
 # Generates a `paint/assets/locale/<locale code>.json` file
 ```
 

@@ -6,14 +6,6 @@ project_t   *box_append_project           = NULL;
 i32_array_t *box_append_mesh_selected     = NULL;
 i32_array_t *box_append_material_selected = NULL;
 
-static i32_array_t *box_append_zeros(i32 count) {
-	i32_array_t *a = i32_array_create(count);
-	for (i32 i = 0; i < count; ++i) {
-		a->buffer[i] = 0;
-	}
-	return a;
-}
-
 static bool box_append_has_selection() {
 	if (box_append_mesh_selected != NULL) {
 		for (i32 i = 0; i < box_append_mesh_selected->length; ++i) {
@@ -105,20 +97,18 @@ void box_append_draw() {
 
 	if (box_append_mesh_selected != NULL && box_append_mesh_selected->length > 0) {
 		ui_text(tr("Meshes"), UI_ALIGN_LEFT, 0);
-		ui_handle_t *hmeshes = ui_handle(__ID__);
 		for (i32 i = 0; i < box_append_mesh_selected->length; ++i) {
 			bool exists = box_append_mesh_exists(i);
 			if (exists) {
 				box_append_mesh_selected->buffer[i] = 0;
 			}
-			ui_handle_t *h = ui_nest(hmeshes, i);
-			h->b           = box_append_mesh_selected->buffer[i] != 0;
-			g_ui->enabled  = !exists;
-			ui_check(h, box_append_mesh_name(box_append_project->mesh_datas->buffer[i], i), "");
+			bool selected = box_append_mesh_selected->buffer[i] != 0;
+			g_ui->enabled = !exists;
+			ui_check(&selected, box_append_mesh_name(box_append_project->mesh_datas->buffer[i], i), "");
 			g_ui->enabled = true;
-			if (!exists && h->changed) {
-				box_append_mesh_selected->buffer[i] = h->b ? 1 : 0;
-				if (h->b) {
+			if (!exists && ui_item_changed()) {
+				box_append_mesh_selected->buffer[i] = selected ? 1 : 0;
+				if (selected) {
 					box_append_select_mesh_material(i);
 				}
 			}
@@ -127,19 +117,17 @@ void box_append_draw() {
 
 	if (box_append_material_selected != NULL && box_append_material_selected->length > 0) {
 		ui_text(tr("Materials"), UI_ALIGN_LEFT, 0);
-		ui_handle_t *hmats = ui_handle(__ID__);
 		for (i32 i = 0; i < box_append_material_selected->length; ++i) {
 			bool exists = box_append_material_exists(i);
 			if (exists) {
 				box_append_material_selected->buffer[i] = 0;
 			}
-			ui_handle_t *h = ui_nest(hmats, i);
-			h->b           = box_append_material_selected->buffer[i] != 0;
-			g_ui->enabled  = !exists;
-			ui_check(h, box_append_material_name(box_append_project->material_nodes->buffer[i], i), "");
+			bool selected = box_append_material_selected->buffer[i] != 0;
+			g_ui->enabled = !exists;
+			ui_check(&selected, box_append_material_name(box_append_project->material_nodes->buffer[i], i), "");
 			g_ui->enabled = true;
-			if (!exists && h->changed) {
-				box_append_material_selected->buffer[i] = h->b ? 1 : 0;
+			if (!exists && ui_item_changed()) {
+				box_append_material_selected->buffer[i] = selected ? 1 : 0;
 			}
 		}
 	}
@@ -184,7 +172,7 @@ void box_append_show(char *path) {
 
 	i32 mesh_count               = box_append_project->mesh_datas != NULL ? box_append_project->mesh_datas->length : 0;
 	i32 mat_count                = box_append_project->material_nodes != NULL ? box_append_project->material_nodes->length : 0;
-	box_append_mesh_selected     = box_append_zeros(mesh_count);
-	box_append_material_selected = box_append_zeros(mat_count);
+	box_append_mesh_selected     = i32_array_create(mesh_count);
+	box_append_material_selected = i32_array_create(mat_count);
 	ui_box_show_custom(&box_append_draw, 600, 420, &box_append_on_hide, true, tr("Append"));
 }

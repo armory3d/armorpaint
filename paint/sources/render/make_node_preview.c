@@ -27,11 +27,11 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	node_shader_t *kong = node_shader_context_make_kong(con_mesh);
 
 	node_shader_write_attrib_vert(kong, "output.pos = float4(input.pos.xy * 3.0, 0.0, 1.0);");
-	node_shader_write_attrib_vert(kong, "var madd: float2 = float2(0.5, 0.5);");
-	node_shader_add_out(kong, "tex_coord: float2");
+	node_shader_write_attrib_vert(kong, "float2 madd = float2(0.5, 0.5);");
+	node_shader_add_out(kong, "float2 tex_coord");
 	node_shader_write_attrib_vert(kong, "output.tex_coord = output.pos.xy * madd + madd;");
 	node_shader_write_attrib_vert(kong, "output.tex_coord.y = 1.0 - output.tex_coord.y;");
-	node_shader_write_attrib_frag(kong, "var tex_coord: float2 = input.tex_coord;");
+	node_shader_write_attrib_frag(kong, "float2 tex_coord = input.tex_coord;");
 
 	parser_material_init();
 	parser_material_canvases = any_array_create_from_raw(
@@ -65,7 +65,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	array_remove(links, link);
 
 	kong->frag_out = "float4";
-	node_shader_write_frag(kong, string_tmp("var basecol: float3 = %s;", res));
+	node_shader_write_frag(kong, string_tmp("float3 basecol = %s;", res));
 	node_shader_write_frag(kong, "output = float4(basecol.rgb, 1.0);");
 
 	parser_material_finalize(con_mesh);

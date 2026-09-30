@@ -8,7 +8,7 @@
 static any_array_t *_tween_anims      = NULL;
 static bool         _tween_registered = false;
 
-f32  sys_delta(void);
+f64  sys_delta(void);
 void sys_notify_on_update(void (*f)(void *data), void *data);
 
 static void _tween_register(void) {

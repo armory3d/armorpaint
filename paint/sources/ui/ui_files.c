@@ -21,7 +21,7 @@ i32             ui_files_num_cols        = 1;
 char           *ui_files_select_pending  = NULL;
 bool            ui_files_show_extensions = false;
 bool            ui_files_offline         = false;
-ui_handle_t    *_ui_files_file_browser_handle;
+char          **_ui_files_file_browser_path;
 
 void ui_files_release_keys() {
 	// File dialog may prevent firing key up events
@@ -84,7 +84,7 @@ void ui_files_file_browser_on_cache_cloud_done_on_next_frame(draw_cloud_icon_dat
 	draw_image(data->image, 0, 0);
 	draw_set_pipeline(NULL);
 	draw_end();
-	any_map_set(ui_files_icon_map, string("%s%s%s", _ui_files_file_browser_handle->text, PATH_SEP, data->f), icon);
+	any_map_set(ui_files_icon_map, string("%s%s%s", *_ui_files_file_browser_path, PATH_SEP, data->f), icon);
 	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 3;
 }
 
@@ -177,19 +177,20 @@ void ui_files_make_icon(ui_files_make_icon_t *args) {
 	}
 }
 
-char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, bool refresh, void (*context_menu)(char *)) {
+char *ui_files_file_browser(char **path, bool drag_files, char *search, bool refresh, void (*context_menu)(char *)) {
 	gpu_texture_t *icons       = resource_get("icons.k");
 	rect_t        *folder      = resource_tile50(icons, ICON_FOLDER_FULL);
 	rect_t        *file        = resource_tile50(icons, ICON_FILE);
 	rect_t        *cube        = resource_tile50(icons, ICON_CUBE);
 	rect_t        *downloading = resource_tile50(icons, ICON_DOWNLOADING);
-	bool           is_cloud    = starts_with(handle->text, "cloud");
+	bool           is_cloud    = starts_with(*path, "cloud");
+	bool           changed     = false;
 
 	if (is_cloud && file_cloud == NULL) {
 		file_init_cloud(&ui_files_file_browser_on_init_cloud_done, g_config->server);
 	}
 	if (is_cloud && file_read_directory("cloud")->length == 0) {
-		return handle->text;
+		return *path;
 	}
 
 #ifdef IRON_IOS
@@ -197,18 +198,18 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 	document_directory       = string_copy(substring(document_directory, 0, string_length(document_directory) - 8)); // Strip /"untitled"
 #endif
 
-	if (string_equals(handle->text, "")) {
-		handle->text = string_copy(ui_files_default_path);
+	if (string_equals(*path, "")) {
+		*path = string_copy(ui_files_default_path);
 	}
 
-	if (!string_equals(handle->text, ui_files_last_path)) {
+	if (!string_equals(*path, ui_files_last_path)) {
 		ui_files_clear_icon_map();
 	}
 
-	if (!string_equals(handle->text, ui_files_last_path) || !string_equals(search, ui_files_last_search) || refresh) {
+	if (!string_equals(*path, ui_files_last_path) || !string_equals(search, ui_files_last_search) || refresh) {
 		ui_files_files = any_array_create_from_raw((void *[]){}, 0);
 
-		char *dir_path = handle->text;
+		char *dir_path = *path;
 #ifdef IRON_IOS
 		if (!is_cloud) {
 			dir_path = string("%s%s", document_directory, dir_path);
@@ -238,9 +239,8 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 		}
 	}
 
-	ui_files_last_path   = string_copy(handle->text);
+	ui_files_last_path   = string_copy(*path);
 	ui_files_last_search = string_copy(search);
-	handle->changed      = false;
 
 	if (ui_files_select_pending != NULL) {
 		ui_files_selected = -1;
@@ -256,7 +256,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 	i32 slotw = math_floor(70 * UI_SCALE());
 	i32 num   = math_floor(g_ui->_w / (float)slotw);
 	if (num == 0) {
-		return handle->text;
+		return *path;
 	}
 	ui_files_num_cols = num;
 
@@ -287,7 +287,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				is_folder = string_index_of(f, ".") == -1;
 			}
 			else {
-				is_folder = iron_is_directory(path_join(handle->text, f));
+				is_folder = iron_is_directory(path_join(*path, f));
 			}
 
 			rect_t *rect = is_folder ? folder : file;
@@ -318,22 +318,22 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				if (ui_files_icon_file_map == NULL) {
 					ui_files_icon_file_map = any_map_create();
 				}
-				icon = any_map_get(ui_files_icon_map, string_tmp("%s%s%s", handle->text, PATH_SEP, f));
+				icon = any_map_get(ui_files_icon_map, string_tmp("%s%s%s", *path, PATH_SEP, f));
 				if (icon == NULL) {
 					i32 dot = string_last_index_of(f, ".");
 					if (dot > -1) {
-						string_array_t *files_all = file_read_directory(handle->text);
+						string_array_t *files_all = file_read_directory(*path);
 						char           *icon_file = string("%s_icon.jpg", substring(f, 0, dot));
 						if (string_array_index_of(files_all, icon_file) < 0) {
 							icon_file = string("%s_icon.png", substring(f, 0, dot));
 						}
 						if (string_array_index_of(files_all, icon_file) >= 0) {
-							any_map_set(ui_files_icon_map, string("%s%s%s", handle->text, PATH_SEP, f), icons);
+							any_map_set(ui_files_icon_map, string("%s%s%s", *path, PATH_SEP, f), icons);
 
-							_ui_files_file_browser_handle = handle;
+							_ui_files_file_browser_path = path;
 							any_map_set(ui_files_icon_file_map, icon_file, f);
 
-							file_cache_cloud(string("%s%s%s", handle->text, PATH_SEP, icon_file), &ui_files_file_browser_on_cache_cloud_done, g_config->server);
+							file_cache_cloud(string("%s%s%s", *path, PATH_SEP, icon_file), &ui_files_file_browser_on_cache_cloud_done, g_config->server);
 						}
 					}
 				}
@@ -358,7 +358,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				if (ui_files_icon_map == NULL) {
 					ui_files_icon_map = any_map_create();
 				}
-				char *key = string("%s%s%s", handle->text, PATH_SEP, f);
+				char *key = string("%s%s%s", *path, PATH_SEP, f);
 				icon      = any_map_get(ui_files_icon_map, key);
 				if (icon == NULL) {
 					char *blob_path = key;
@@ -372,9 +372,9 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					bool       is_blob = false;
 
 #ifdef IRON_WINDOWS
-					bool is_cloud_cache = string_index_of(handle->text, "\\cloud\\") >= 0;
+					bool is_cloud_cache = string_index_of(*path, "\\cloud\\") >= 0;
 #else
-					bool is_cloud_cache = string_index_of(handle->text, "/cloud/") >= 0;
+					bool is_cloud_cache = string_index_of(*path, "/cloud/") >= 0;
 #endif
 
 					if (import_arm_is_old(buffer) && !is_cloud_cache) {
@@ -448,7 +448,7 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 				if (ui_files_icon_map == NULL) {
 					ui_files_icon_map = any_map_create();
 				}
-				char *shandle = string("%s%s%s", handle->text, PATH_SEP, f);
+				char *shandle = string("%s%s%s", *path, PATH_SEP, f);
 #ifdef IRON_IOS
 				shandle = string("%s%s", document_directory, shandle);
 #endif
@@ -481,14 +481,14 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 			}
 
 			if (g_ui->is_hovered && g_ui->input_released_r && context_menu != NULL) {
-				context_menu(string("%s%s%s", handle->text, PATH_SEP, f));
+				context_menu(string("%s%s%s", *path, PATH_SEP, f));
 			}
 
 			if (state == UI_STATE_STARTED) {
 				if (drag_files) {
 					base_drag_off_x = -(mouse_x - uix - g_ui->_window_x - 3);
 					base_drag_off_y = -(mouse_y - uiy - g_ui->_window_y + 1);
-					base_drag_file  = string_copy(handle->text);
+					base_drag_file  = string_copy(*path);
 #ifdef IRON_IOS
 					if (!is_cloud) {
 						base_drag_file = string("%s%s", document_directory, base_drag_file);
@@ -506,11 +506,11 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 					base_drag_file      = NULL;
 					base_drag_file_icon = NULL;
 					base_is_dragging    = false;
-					handle->changed = g_ui->changed = true;
-					if (!string_equals(char_at(handle->text, string_length(handle->text) - 1), PATH_SEP)) {
-						handle->text = string("%s%s", handle->text, PATH_SEP);
+					changed = g_ui->changed = true;
+					if (!string_equals(char_at(*path, string_length(*path) - 1), PATH_SEP)) {
+						*path = string("%s%s", *path, PATH_SEP);
 					}
-					handle->text      = string("%s%s", handle->text, f);
+					*path             = string("%s%s", *path, f);
 					ui_files_selected = -1;
 				}
 				g_context->select_time = sys_time();
@@ -544,28 +544,27 @@ char *ui_files_file_browser(ui_handle_t *handle, bool drag_files, char *search, 
 
 			g_ui->_y -= slotw * 0.75;
 
-			if (handle->changed) {
+			if (changed) {
 				break;
 			}
 		}
-		if (handle->changed) {
+		if (changed) {
 			break;
 		}
 	}
 	g_ui->_y += slotw * 0.8;
-	return handle->text;
+	return *path;
 }
 
-void ui_files_enter_selected(ui_handle_t *handle) {
+void ui_files_enter_selected(char **path) {
 	if (ui_files_files == NULL || ui_files_selected < 0 || ui_files_selected >= ui_files_files->length) {
 		return;
 	}
 	char *f = ui_files_files->buffer[ui_files_selected];
-	if (!string_equals(char_at(handle->text, string_length(handle->text) - 1), PATH_SEP)) {
-		handle->text = string("%s%s", handle->text, PATH_SEP);
+	if (!string_equals(char_at(*path, string_length(*path) - 1), PATH_SEP)) {
+		*path = string("%s%s", *path, PATH_SEP);
 	}
-	handle->text      = string("%s%s", handle->text, f);
-	handle->changed   = true;
+	*path             = string("%s%s", *path, f);
 	ui_files_selected = -1;
 }
 
@@ -583,12 +582,12 @@ void ui_files_navigate(i32 dx, i32 dy) {
 	}
 }
 
-void ui_files_go_up(ui_handle_t *handle) {
-	i32 sep                 = string_last_index_of(handle->text, PATH_SEP);
-	ui_files_select_pending = string_copy(substring(handle->text, sep + 1, string_length(handle->text)));
-	handle->text            = string_copy(substring(handle->text, 0, sep));
+void ui_files_go_up(char **path) {
+	i32 sep                 = string_last_index_of(*path, PATH_SEP);
+	ui_files_select_pending = string_copy(substring(*path, sep + 1, string_length(*path)));
+	*path                   = string_copy(substring(*path, 0, sep));
 	// Drive root
-	if (string_length(handle->text) == 2 && string_equals(char_at(handle->text, 1), ":")) {
-		handle->text = string("%s%s", handle->text, PATH_SEP);
+	if (string_length(*path) == 2 && string_equals(char_at(*path, 1), ":")) {
+		*path = string("%s%s", *path, PATH_SEP);
 	}
 }

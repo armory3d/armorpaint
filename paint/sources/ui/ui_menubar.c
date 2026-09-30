@@ -18,6 +18,7 @@ typedef struct update_info {
 
 i32 ui_menubar_category                 = 0;
 int ui_menubar_capture_screenshot_frame = 0;
+i32 ui_menubar_about_line               = 0;
 
 void ui_menubar_init() {
 	ui_menubar_hwnd->layout        = UI_LAYOUT_HORIZONTAL;
@@ -97,11 +98,11 @@ void ui_menubar_draw_tab_header() {
 			ui_fill(0, 0, g_ui->_window_w, g_ui->_window_h + 4, g_theme->SEPARATOR_COL);
 		}
 		else {
-			bool a = ui_tab(ui_menubar_tab, tr("3D View"), false, -1, false);
-			bool b = ui_tab(ui_menubar_tab, base_view3d_show ? ">" : "<", false, -2, false);
+			bool a = ui_tab(&ui_menubar_tab, tr("3D View"), false, -1, false);
+			bool b = ui_tab(&ui_menubar_tab, base_view3d_show ? ">" : "<", false, -2, false);
 			if ((a && !base_view3d_show) || b) {
-				base_view3d_show  = !base_view3d_show;
-				ui_menubar_tab->i = base_view3d_show ? 0 : -1;
+				base_view3d_show = !base_view3d_show;
+				ui_menubar_tab   = base_view3d_show ? 0 : -1;
 				base_resize();
 			}
 		}
@@ -113,11 +114,7 @@ void ui_menubar_draw_category_items_about_box() {
 	ui_image(img, 0xffffffff, -1.0);
 	ui_end_element();
 
-	ui_handle_t *h = ui_handle(__ID__);
-	if (h->init) {
-		h->text = string_copy(_ui_menu_render_msg);
-	}
-	ui_text_area(h, UI_ALIGN_LEFT, false, "", false);
+	ui_text_area(&_ui_menu_render_msg, &ui_menubar_about_line, UI_ALIGN_LEFT, false, "", false);
 
 	ui_row3();
 
@@ -271,16 +268,14 @@ void ui_menubar_draw_category_items() {
 			project_save_as(false);
 		}
 
-		g_ui->changed                  = false;
-		ui_handle_t *h_pack_assets     = ui_handle(__ID__);
-		h_pack_assets->b               = g_context->pack_assets_on_save;
-		g_context->pack_assets_on_save = ui_check(h_pack_assets, tr("Pack Assets"), "");
+		g_ui->changed = false;
+		ui_check(&g_context->pack_assets_on_save, tr("Pack Assets"), "");
 		if (g_ui->changed) {
 			ui_menu_keep_open = true;
 		}
 
 		ui_menu_separator();
-		if (ui_menu_sub_button(ui_handle(__ID__), tr("Import"))) {
+		if (ui_menu_sub_button(tr("Import"))) {
 			ui_menu_sub_begin(7);
 			if (ui_menu_button(tr("Texture..."), any_map_get(g_keymap, "file_import_assets"), ICON_IMAGE)) {
 				project_import_asset(string_array_join(path_texture_formats(), ","), false);
@@ -312,7 +307,7 @@ void ui_menubar_draw_category_items() {
 			project_reimport_textures();
 		}
 		ui_menu_separator();
-		if (ui_menu_sub_button(ui_handle(__ID__), tr("Export"))) {
+		if (ui_menu_sub_button(tr("Export"))) {
 			ui_menu_sub_begin(4);
 			if (ui_menu_button(tr("Textures..."), any_map_get(g_keymap, "file_export_textures_as"), ICON_IMAGE)) {
 				g_context->layers_export = EXPORT_MODE_VISIBLE;
@@ -370,22 +365,23 @@ void ui_menubar_draw_category_items() {
 		ui_menu_separator();
 
 		// History steps
-		i32          history_max    = g_config->undo_steps + 1;
-		ui_handle_t *history_handle = ui_handle(__ID__);
-		history_handle->i           = history_steps->length - 1 - history_redos;
+		i32  history_max     = g_config->undo_steps + 1;
+		i32  history_active  = history_steps->length - 1 - history_redos;
+		i32  history_index   = history_active;
+		bool history_changed = false;
 		for (i32 i = 0; i < history_max; ++i) {
 			if (i < history_steps->length) {
-				ui_radio(history_handle, i, history_steps->buffer[i]->name, "");
+				ui_radio(&history_index, i, history_steps->buffer[i]->name, "");
 			}
 			else {
 				g_ui->enabled = false;
-				ui_radio(history_handle, i, tr("History"), "");
+				ui_radio(&history_index, i, tr("History"), "");
 				g_ui->enabled = true;
 			}
+			history_changed |= ui_item_changed();
 		}
-		if (history_handle->changed) {
-			i32 active = history_steps->length - 1 - history_redos;
-			i32 diff   = history_handle->i - active;
+		if (history_changed) {
+			i32 diff = history_index - history_active;
 			while (diff > 0) {
 				diff--;
 				history_redo();
@@ -416,53 +412,47 @@ void ui_menubar_draw_category_items() {
 
 		g_ui->changed = false;
 
-		world_data_t *p          = scene_world;
-		ui_handle_t  *env_handle = ui_handle(__ID__);
-		env_handle->f            = p->strength;
+		world_data_t *p = scene_world;
 		ui_menu_align();
-		p->strength = ui_slider(env_handle, tr("Environment"), 0.0, 4.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		if (env_handle->changed) {
+		ui_slider(&p->strength, tr("Environment"), 0.0, 4.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		if (ui_item_changed()) {
 			g_context->ddirty = 2;
 		}
 
-		ui_handle_t *enva_handle = ui_handle(__ID__);
-		enva_handle->f           = g_context->envmap_angle / (float)math_pi() * 180.0;
-		if (enva_handle->f < 0) {
-			enva_handle->f += (math_floor(-enva_handle->f / 360.0) + 1) * 360;
+		f32 envmap_angle = g_context->envmap_angle / (float)math_pi() * 180.0;
+		if (envmap_angle < 0) {
+			envmap_angle += (math_floor(-envmap_angle / 360.0) + 1) * 360;
 		}
-		else if (enva_handle->f > 360) {
-			enva_handle->f -= math_floor(enva_handle->f / 360.0) * 360;
+		else if (envmap_angle > 360) {
+			envmap_angle -= math_floor(envmap_angle / 360.0) * 360;
 		}
 		ui_menu_align();
-		g_context->envmap_angle = ui_slider(enva_handle, tr("Environment Angle"), 0.0, 360.0, true, 1, true, UI_ALIGN_RIGHT, true) / 180.0 * math_pi();
+		ui_set_next_id((ui_id_t)&g_context->envmap_angle);
+		ui_slider(&envmap_angle, tr("Environment Angle"), 0.0, 360.0, true, 1, true, UI_ALIGN_RIGHT, true);
+		bool envmap_angle_changed = ui_item_changed();
+		g_context->envmap_angle   = envmap_angle / 180.0 * math_pi();
 		if (g_ui->is_hovered) {
 			any_map_t *vars = any_map_create();
 			any_map_set(vars, "shortcut", any_map_get(g_keymap, "rotate_envmap"));
 			ui_tooltip(vtr("{shortcut} and move mouse", vars));
 			map_free(vars);
 		}
-		if (enva_handle->changed) {
+		if (envmap_angle_changed) {
 			g_context->ddirty = 2;
 		}
 
-		ui_handle_t *split_view_handle = ui_handle(__ID__);
-		split_view_handle->b           = g_context->split_view;
-		g_context->split_view          = ui_check(split_view_handle, string_tmp(" %s", tr("Split View")), "");
-		if (split_view_handle->changed) {
+		ui_check(&g_context->split_view, string_tmp(" %s", tr("Split View")), "");
+		if (ui_item_changed()) {
 			base_resize();
 		}
 
-		ui_handle_t *cull_handle  = ui_handle(__ID__);
-		cull_handle->b            = g_context->cull_backfaces;
-		g_context->cull_backfaces = ui_check(cull_handle, string_tmp(" %s", tr("Cull Backfaces")), "");
-		if (cull_handle->changed) {
+		ui_check(&g_context->cull_backfaces, string_tmp(" %s", tr("Cull Backfaces")), "");
+		if (ui_item_changed()) {
 			make_material_parse_mesh_material();
 		}
 
-		ui_handle_t *wireframe_handle = ui_handle(__ID__);
-		wireframe_handle->b           = g_context->draw_wireframe;
-		g_context->draw_wireframe     = ui_check(wireframe_handle, string_tmp(" %s", tr("Wireframe")), "");
-		if (wireframe_handle->changed) {
+		ui_check(&g_context->draw_wireframe, string_tmp(" %s", tr("Wireframe")), "");
+		if (ui_item_changed()) {
 			gpu_texture_t *current = _draw_current;
 			draw_end();
 			util_uv_cache_uv_map();
@@ -470,39 +460,29 @@ void ui_menubar_draw_category_items() {
 			make_material_parse_mesh_material();
 		}
 
-		ui_handle_t *texels_handle = ui_handle(__ID__);
-		texels_handle->b           = g_context->draw_texels;
-		g_context->draw_texels     = ui_check(texels_handle, string_tmp(" %s", tr("Texels")), "");
-		if (texels_handle->changed) {
+		ui_check(&g_context->draw_texels, string_tmp(" %s", tr("Texels")), "");
+		if (ui_item_changed()) {
 			make_material_parse_mesh_material();
 		}
 
-		ui_handle_t *compass_handle = ui_handle(__ID__);
-		compass_handle->b           = g_context->show_compass;
-		g_context->show_compass     = ui_check(compass_handle, string_tmp(" %s", tr("Compass")), "");
-		if (compass_handle->changed) {
+		ui_check(&g_context->show_compass, string_tmp(" %s", tr("Compass")), "");
+		if (ui_item_changed()) {
 			g_context->ddirty = 2;
 		}
 
-		ui_handle_t *show_envmap_handle = ui_handle(__ID__);
-		show_envmap_handle->b           = g_context->show_envmap;
-		g_context->show_envmap          = ui_check(show_envmap_handle, string_tmp(" %s", tr("Envmap")), "");
-		if (show_envmap_handle->changed) {
+		ui_check(&g_context->show_envmap, string_tmp(" %s", tr("Envmap")), "");
+		if (ui_item_changed()) {
 			context_load_envmap();
 			g_context->ddirty = 2;
 		}
 
-		ui_handle_t *show_envmap_blur_handle = ui_handle(__ID__);
-		show_envmap_blur_handle->b           = g_context->show_envmap_blur;
-		g_context->show_envmap_blur          = ui_check(show_envmap_blur_handle, string_tmp(" %s", tr("Blur Envmap")), "");
-		if (show_envmap_blur_handle->changed) {
+		ui_check(&g_context->show_envmap_blur, string_tmp(" %s", tr("Blur Envmap")), "");
+		if (ui_item_changed()) {
 			g_context->ddirty = 2;
 		}
 
-		ui_handle_t *show_envmap_spheres_handle = ui_handle(__ID__);
-		show_envmap_spheres_handle->b           = g_context->show_envmap_spheres;
-		g_context->show_envmap_spheres          = ui_check(show_envmap_spheres_handle, string_tmp(" %s", tr("Envmap Spheres")), "");
-		if (show_envmap_spheres_handle->changed) {
+		ui_check(&g_context->show_envmap_spheres, string_tmp(" %s", tr("Envmap Spheres")), "");
+		if (ui_item_changed()) {
 			g_context->ddirty = 2;
 		}
 
@@ -519,9 +499,7 @@ void ui_menubar_draw_category_items() {
 		}
 
 		// if (g_config->experimental) {
-		// 	ui_handle_t *h = ui_handle(__ID__);
-		// 	h->b = g_context->capture_background;
-		// 	g_context->capture_background = ui_check(h, tr("Capture Background"), "");
+		// 	ui_check(&g_context->capture_background, tr("Capture Background"), "", NULL);
 		// }
 
 		if (g_config->experimental && !viewport_recording && ui_menu_button(tr("Capture Video"), "", ICON_MOVIE)) {
@@ -545,10 +523,10 @@ void ui_menubar_draw_category_items() {
 		}
 	}
 	else if (ui_menubar_category == MENUBAR_CATEGORY_MODE) {
-		ui_handle_t *mode_handle  = ui_handle(__ID__);
-		mode_handle->i            = g_context->viewport_mode;
-		string_array_t *modes     = base_get_viewport_modes();
-		string_array_t *shortcuts = base_get_viewport_mode_shortcuts();
+		i32             mode         = g_context->viewport_mode;
+		bool            mode_changed = false;
+		string_array_t *modes        = base_get_viewport_modes();
+		string_array_t *shortcuts    = base_get_viewport_mode_shortcuts();
 
 		if (g_config->workflow == WORKFLOW_BASE) {
 			array_splice(modes, 9, 1);
@@ -565,16 +543,17 @@ void ui_menubar_draw_category_items() {
 			array_splice(shortcuts, 4, 1);
 			array_splice(shortcuts, 3, 1);
 			array_splice(shortcuts, 2, 1);
-			mode_handle->i = string_array_index_of(modes, ui_menubar_viewport_mode_to_string(mode_handle->i));
+			mode = string_array_index_of(modes, ui_menubar_viewport_mode_to_string(mode));
 		}
 
 		for (i32 i = 0; i < modes->length; ++i) {
 			char *shortcut = g_config->touch_ui ? "" : string_tmp("%s, %s", any_map_get(g_keymap, "viewport_mode"), shortcuts->buffer[i]);
-			ui_radio(mode_handle, i, modes->buffer[i], shortcut);
+			ui_radio(&mode, i, modes->buffer[i], shortcut);
+			mode_changed |= ui_item_changed();
 		}
 
-		if (mode_handle->changed) {
-			viewport_mode_t m = ui_menubar_string_to_viewport_mode(modes->buffer[mode_handle->i]);
+		if (mode_changed) {
+			viewport_mode_t m = ui_menubar_string_to_viewport_mode(modes->buffer[mode]);
 			context_set_viewport_mode(m);
 			ui_menu_keep_open = true;
 		}
@@ -596,7 +575,7 @@ void ui_menubar_draw_category_items() {
 
 		if (full) {
 
-			if (ui_menu_sub_button(ui_handle(__ID__), tr("View"))) {
+			if (ui_menu_sub_button(tr("View"))) {
 				ui_menu_sub_begin(6);
 				if (ui_menu_button(tr("Front"), any_map_get(g_keymap, "view_front"), ICON_NONE)) {
 					viewport_set_view(0, -1, 0, math_pi() / 2.0, 0, 0);
@@ -621,7 +600,7 @@ void ui_menubar_draw_category_items() {
 
 			g_ui->changed = false;
 
-			if (ui_menu_sub_button(ui_handle(__ID__), tr("Orbit"))) {
+			if (ui_menu_sub_button(tr("Orbit"))) {
 				ui_menu_sub_begin(5);
 				if (ui_menu_button(tr("Left"), any_map_get(g_keymap, "view_orbit_left"), ICON_ARROW_LEFT)) {
 					viewport_orbit(-math_pi() / 12.0, 0);
@@ -650,10 +629,8 @@ void ui_menubar_draw_category_items() {
 		}
 
 		ui_menu_align();
-		ui_handle_t *fov_handle = ui_handle(__ID__);
-		fov_handle->f           = math_floor(scene_camera->data->fov * 100) / 100.0;
-		scene_camera->data->fov = ui_slider(fov_handle, tr("FoV"), 0.3, 1.4, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		if (fov_handle->changed) {
+		ui_slider(&scene_camera->data->fov, tr("FoV"), 0.3, 1.4, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		if (ui_item_changed()) {
 			viewport_update_camera_type(g_context->camera_type);
 		}
 
@@ -661,22 +638,18 @@ void ui_menubar_draw_category_items() {
 		ui_menu_align();
 		ui_menu_label(tr("Pivot"), any_map_get(g_keymap, "view_pivot_center"));
 		ui_menu_align();
-		ui_handle_t *camera_pivot_handle   = ui_handle(__ID__);
-		camera_pivot_handle->i             = g_context->camera_pivot;
 		string_array_t *pivot_center_items = any_array_create_from_raw(
 		    (void *[]){
 		        tr("Cursor"),
 		        tr("Center"),
 		    },
 		    2);
-		g_context->camera_pivot = ui_inline_radio(camera_pivot_handle, pivot_center_items, UI_ALIGN_LEFT);
+		ui_inline_radio((int *)&g_context->camera_pivot, pivot_center_items, UI_ALIGN_LEFT);
 
 		ui_menu_separator();
 		ui_menu_align();
 		ui_menu_label(tr("Mode"), NULL);
 		ui_menu_align();
-		ui_handle_t *camera_controls_handle   = ui_handle(__ID__);
-		camera_controls_handle->i             = g_context->camera_controls;
 		string_array_t *camera_controls_items = any_array_create_from_raw(
 		    (void *[]){
 		        tr("Orbit"),
@@ -684,7 +657,7 @@ void ui_menubar_draw_category_items() {
 		        tr("Fly"),
 		    },
 		    3);
-		g_context->camera_controls = ui_inline_radio(camera_controls_handle, camera_controls_items, UI_ALIGN_LEFT);
+		ui_inline_radio((int *)&g_context->camera_controls, camera_controls_items, UI_ALIGN_LEFT);
 
 		any_map_t *vars = any_map_create();
 		any_map_set(vars, "rotate_shortcut", any_map_get(g_keymap, "action_rotate"));
@@ -711,10 +684,8 @@ void ui_menubar_draw_category_items() {
 		        tr("Orthographic"),
 		    },
 		    2);
-		ui_handle_t *cam_handle = ui_handle(__ID__);
-		cam_handle->i           = g_context->camera_type;
-		g_context->camera_type  = ui_inline_radio(cam_handle, camera_type_items, UI_ALIGN_LEFT);
-		if (cam_handle->changed) {
+		ui_inline_radio((int *)&g_context->camera_type, camera_type_items, UI_ALIGN_LEFT);
+		if (ui_item_changed()) {
 			viewport_update_camera_type(g_context->camera_type);
 		}
 
@@ -782,9 +753,8 @@ void ui_menubar_draw_category_items() {
 		}
 	}
 	else if (ui_menubar_category == MENUBAR_CATEGORY_WORKSPACE) {
-		ui_handle_t *workspace_handle = ui_handle(__ID__);
-		workspace_handle->i           = g_config->workspace;
-		string_array_t *modes         = any_array_create_from_raw(
+		bool            workspace_changed = false;
+		string_array_t *modes             = any_array_create_from_raw(
             (void *[]){
                 tr("Paint 3D"),
                 tr("Paint 2D"),
@@ -798,11 +768,11 @@ void ui_menubar_draw_category_items() {
 		}
 
 		for (i32 i = 0; i < modes->length; ++i) {
-			ui_radio(workspace_handle, i, modes->buffer[i], "");
+			ui_radio((int *)&g_config->workspace, i, modes->buffer[i], "");
+			workspace_changed |= ui_item_changed();
 		}
 
-		if (workspace_handle->changed) {
-			g_config->workspace = workspace_handle->i;
+		if (workspace_changed) {
 			config_save();
 			base_update_workspace();
 		}
@@ -811,8 +781,6 @@ void ui_menubar_draw_category_items() {
 		ui_menu_align();
 		ui_menu_label(tr("Workflow"), NULL);
 		ui_menu_align();
-		ui_handle_t *workflow_handle   = ui_handle(__ID__);
-		workflow_handle->i             = g_config->workflow;
 		string_array_t *workflow_items = any_array_create_from_raw(
 		    (void *[]){
 		        tr("PBR"),
@@ -821,9 +789,8 @@ void ui_menubar_draw_category_items() {
 		    },
 		    3);
 
-		g_config->workflow = ui_inline_radio(workflow_handle, workflow_items, UI_ALIGN_LEFT);
-		if (workflow_handle->changed) {
-			g_config->workflow = workflow_handle->i;
+		ui_inline_radio((int *)&g_config->workflow, workflow_items, UI_ALIGN_LEFT);
+		if (ui_item_changed()) {
 			config_save();
 			base_update_workflow();
 		}

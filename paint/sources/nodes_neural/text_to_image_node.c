@@ -13,11 +13,9 @@ string_array_t *text_to_image_node_flux_klein_args(char *dir, char *prompt) {
 }
 
 void text_to_image_node_run(ui_node_t *node, void (*callback)(ui_node_t *)) {
-	char        *node_name = string_copy(parser_material_node_name(node, NULL));
-	ui_handle_t *h         = ui_handle(node_name);
-	i32          model     = ui_nest(h, 0)->i;
-	char        *prompt    = ui_nest(h, 1)->text;
-	char        *dir       = neural_node_dir();
+	i32   model  = (i32)neural_node_values(node, 1)[0];
+	char *prompt = neural_node_prompt(node);
+	char *dir    = neural_node_dir();
 
 	string_array_t *argv;
 	if (model == 0) {
@@ -47,16 +45,14 @@ void text_to_image_node_run(ui_node_t *node, void (*callback)(ui_node_t *)) {
 }
 
 void text_to_image_node_button(i32 node_id) {
-	ui_node_t      *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char           *node_name = string_copy(parser_material_node_name(node, NULL));
-	ui_handle_t    *h         = ui_handle(node_name);
-	string_array_t *models    = any_array_create_from_raw(
-        (void *[]){
-            "FLUX 2 klein",
-        },
-        1);
-	i32   model                      = ui_combo(ui_nest(h, 0), models, tr("Model"), false, UI_ALIGN_LEFT, true);
-	char *prompt                     = ui_text_area(ui_nest(h, 1), UI_ALIGN_LEFT, true, tr("prompt"), true);
+	ui_node_t      *node   = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	string_array_t *models = any_array_create_from_raw(
+	    (void *[]){
+	        "FLUX 2 klein",
+	    },
+	    1);
+	i32   model                      = neural_node_model(node, models);
+	char *prompt                     = neural_node_prompt_area(node);
 	node->buttons->buffer[0]->height = string_split(prompt, "\n")->length + 2;
 
 	if (neural_node_button(node, models->buffer[model])) {

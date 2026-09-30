@@ -15,10 +15,10 @@ char *mapping_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 		char *rx   = string_tmp("%s_rx", name);
 		char *ry   = string_tmp("%s_ry", name);
 		char *rz   = string_tmp("%s_rz", name);
-		parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s;", v, out));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s.x * (3.14159265 / 180.0);", rx, node_rotation));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s.y * (3.14159265 / 180.0);", ry, node_rotation));
-		parser_material_write(parser_material_kong, string_tmp("var %s: float = %s.z * (3.14159265 / 180.0);", rz, node_rotation));
+		parser_material_write(parser_material_kong, string_tmp("float3 %s = %s;", v, out));
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s.x * (3.14159265 / 180.0);", rx, node_rotation));
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s.y * (3.14159265 / 180.0);", ry, node_rotation));
+		parser_material_write(parser_material_kong, string_tmp("float %s = %s.z * (3.14159265 / 180.0);", rz, node_rotation));
 		parser_material_write(parser_material_kong, string_tmp("%s = float3(%s.x * cos(%s) - %s.y * sin(%s), %s.x * sin(%s) + %s.y * cos(%s), %s.z);", v, v, rz,
 		                                                       v, rz, v, rz, v, rz, v));
 		parser_material_write(parser_material_kong, string_tmp("%s = float3(%s.x * cos(%s) + %s.z * sin(%s), %s.y, -%s.x * sin(%s) + %s.z * cos(%s));", v, v,

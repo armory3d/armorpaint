@@ -34,41 +34,34 @@ static void input_node_grid_snap() {
 		return;
 	}
 
-	f32 wx;
-	f32 wy;
-	f32 ww;
-	f32 wh;
-	f32 pan_x;
-	f32 pan_y;
-	f32 pan_scale;
+	f32 tx;
+	f32 ty;
+	f32 tw;
+	f32 th;
 	if (in_2d) {
 		i32 headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
-		wh          = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
+		i32 apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
 		if (!base_view3d_show) {
-			wh = base_h();
+			apph = base_h();
 		}
-		wx        = ui_view2d_wx;
-		wy        = ui_view2d_wy;
-		ww        = ui_view2d_ww;
-		pan_x     = ui_view2d_pan_x;
-		pan_y     = ui_view2d_pan_y;
-		pan_scale = ui_view2d_pan_scale;
+		i32 wm  = fmin(ui_view2d_ww, ui_view2d_wh);
+		i32 itw = wm * 0.9 * ui_view2d_pan_scale;
+		i32 ith = itw * (tex->height / (float)tex->width);
+		i32 itx = ui_view2d_ww / 2.0 - itw / 2.0 + ui_view2d_pan_x;
+		i32 ity = apph / 2.0 - ith / 2.0 + ui_view2d_pan_y;
+		tw      = itw;
+		th      = ith;
+		tx      = ui_view2d_wx + itx;
+		ty      = ui_view2d_wy + ity;
 	}
 	else {
-		wx        = base_x();
-		wy        = base_y();
-		ww        = base_w();
-		wh        = base_h();
-		pan_x     = 0.0;
-		pan_y     = 0.0;
-		pan_scale = 1.0;
+		f32 wm = fmin(base_w(), base_h());
+		tw     = wm * 0.9;
+		th     = tw * (tex->height / (float)tex->width);
+		tx     = base_x() + base_w() / 2.0 - tw / 2.0;
+		ty     = base_y() + base_h() / 2.0 - th / 2.0;
 	}
 
-	f32 wm = fmin(ww, wh);
-	f32 tw = wm * 0.9 * pan_scale;
-	f32 th = tw * (tex->height / (float)tex->width);
-	f32 tx = wx + ww / 2.0 - tw / 2.0 + pan_x;
-	f32 ty = wy + wh / 2.0 - th / 2.0 + pan_y;
 	f32 sx = input_node_coords.x * base_w() + base_x();
 	f32 sy = input_node_coords.y * base_h() + base_y();
 

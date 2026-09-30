@@ -16,6 +16,7 @@
 #include "iron_system.h"
 #include "iron_ui.h"
 #include "minic.h"
+#include <limits.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -40,76 +41,78 @@ static int minic_vformat(const char *fmt, minic_val_t *args, int argc, char *buf
 	int pos = 0;
 	int arg = 0;
 	while (*fmt != '\0') {
-		if (*fmt != '%') {
-			if (buf && pos < bufsize - 1)
+		if (*fmt != '%' || fmt[1] == '%') {
+			if (buf && pos < bufsize - 1) {
 				buf[pos] = *fmt;
+			}
 			pos++;
-			fmt++;
+			fmt += *fmt == '%' ? 2 : 1;
 			continue;
 		}
-		fmt++;
-		char spec = *fmt++;
-		if (spec == '\0') {
+		char spec[40];
+		int  sp    = 0;
+		spec[sp++] = *fmt++;
+		while (*fmt != '\0' && strchr("-+ #0123456789.*", *fmt) && sp < 24) {
+			if (*fmt == '*') {
+				sp += snprintf(spec + sp, 12, "%d", arg < argc ? (int)minic_val_to_d(args[arg++]) : 0);
+				fmt++;
+			}
+			else {
+				spec[sp++] = *fmt++;
+			}
+		}
+		while (*fmt != '\0' && strchr("hlLzjt", *fmt)) {
+			fmt++;
+		}
+		char c = *fmt;
+		if (c == '\0') {
 			break;
 		}
-		char tmp[64];
-		int  n = 0;
-		if (spec == 'd' || spec == 'i') {
-			int iv = arg < argc ? (int)minic_val_to_d(args[arg++]) : 0;
-			n      = snprintf(tmp, sizeof(tmp), "%d", iv);
+		fmt++;
+		spec[sp++] = c;
+		spec[sp]   = '\0';
+
+		char       *out  = buf && pos < bufsize ? buf + pos : NULL;
+		size_t      room = out ? (size_t)(bufsize - pos) : 0;
+		minic_val_t v    = strchr("diucxXoeEfFgGaAsp", c) && arg < argc ? args[arg++] : minic_val_int(0);
+		int         n;
+		switch (c) {
+		case 'd':
+		case 'i':
+		case 'c':
+			n = snprintf(out, room, spec, (int)minic_val_to_d(v));
+			break;
+		case 'u':
+		case 'x':
+		case 'X':
+		case 'o':
+			n = snprintf(out, room, spec, (unsigned)(int)minic_val_to_d(v));
+			break;
+		case 'e':
+		case 'E':
+		case 'f':
+		case 'F':
+		case 'g':
+		case 'G':
+		case 'a':
+		case 'A':
+			n = snprintf(out, room, spec, minic_val_to_d(v));
+			break;
+		case 's':
+			n = snprintf(out, room, spec, minic_read_str(v));
+			break;
+		case 'p':
+			n = snprintf(out, room, spec, minic_val_to_ptr(v));
+			break;
+		default:
+			n = snprintf(out, room, "%s", spec);
+			break;
 		}
-		else if (spec == 'u') {
-			unsigned uv = arg < argc ? (unsigned)(int)minic_val_to_d(args[arg++]) : 0u;
-			n           = snprintf(tmp, sizeof(tmp), "%u", uv);
-		}
-		else if (spec == 'f' || spec == 'g' || spec == 'e') {
-			double     dv       = arg < argc ? minic_val_to_d(args[arg++]) : 0.0;
-			const char fspec[3] = {'%', spec, '\0'};
-			n                   = snprintf(tmp, sizeof(tmp), fspec, dv);
-		}
-		else if (spec == 's') {
-			const char *sv   = arg < argc ? minic_read_str(args[arg++]) : "";
-			int         slen = (int)strlen(sv);
-			if (buf) {
-				int copy = slen < bufsize - 1 - pos ? slen : bufsize - 1 - pos;
-				if (copy > 0)
-					memcpy(buf + pos, sv, copy);
-			}
-			pos += slen;
-			continue;
-		}
-		else if (spec == 'p') {
-			void *pv = (arg < argc && args[arg].type == MINIC_T_PTR) ? args[arg++].p : (void *)(uintptr_t)(uint64_t)minic_val_to_d(args[arg++]);
-			n        = snprintf(tmp, sizeof(tmp), "%p", pv);
-		}
-		else if (spec == 'c') {
-			if (buf && pos < bufsize - 1)
-				buf[pos] = (char)(arg < argc ? (int)minic_val_to_d(args[arg++]) : 0);
-			pos++;
-			continue;
-		}
-		else {
-			if (buf && pos < bufsize - 1)
-				buf[pos] = '%';
-			pos++;
-			if (spec != '%') {
-				if (buf && pos < bufsize - 1)
-					buf[pos] = spec;
-				pos++;
-			}
-			continue;
-		}
-		if (n > 0) {
-			if (buf) {
-				int copy = n < bufsize - 1 - pos ? n : bufsize - 1 - pos;
-				if (copy > 0)
-					memcpy(buf + pos, tmp, copy);
-			}
-			pos += n;
-		}
+		pos += n > 0 ? n : 0;
 	}
-	if (buf && pos < bufsize)
-		buf[pos] = '\0';
+	if (buf && bufsize > 0) {
+		buf[pos < bufsize ? pos : bufsize - 1] = '\0';
+	}
 	return pos;
 }
 
@@ -125,6 +128,14 @@ static minic_val_t minic_printf_native(minic_val_t *args, int argc) {
 	return minic_val_int(len);
 }
 
+static minic_val_t minic_sprintf_native(minic_val_t *args, int argc) {
+	if (argc < 2 || args[0].type != MINIC_T_PTR || args[0].p == NULL)
+		return minic_val_int(0);
+	char       *dst = (char *)args[0].p;
+	const char *fmt = minic_read_str(args[1]);
+	return minic_val_int(minic_vformat(fmt, args + 2, argc - 2, dst, INT_MAX));
+}
+
 static minic_val_t minic_string_native(minic_val_t *args, int argc) {
 	if (argc < 1 || args[0].type != MINIC_T_PTR)
 		return minic_val_ptr(NULL);
@@ -135,48 +146,45 @@ static minic_val_t minic_string_native(minic_val_t *args, int argc) {
 	return minic_val_ptr(buf);
 }
 
-// iron_math wrappers: scripts store math types as arrays of boxed minic_val_t floats,
-// the C functions take and return them by value
-static void minic_box(minic_val_t *dst, const float *src, int n) {
-	for (int i = 0; i < n; ++i) {
-		dst[i] = minic_val_float(src[i]);
+static vec2_t minic_get_vec2(void *p) {
+	vec2_t value = {0};
+	if (p != NULL) {
+		memcpy(&value, p, sizeof(value));
 	}
+	return value;
 }
 
-static void minic_unbox(float *dst, const minic_val_t *src, int n) {
-	for (int i = 0; i < n; ++i) {
-		dst[i] = src[i].f;
+static vec4_t minic_get_vec4(void *p) {
+	vec4_t value = {0};
+	if (p != NULL) {
+		memcpy(&value, p, sizeof(value));
 	}
+	return value;
 }
 
-// Normalize math-type representation into raw floats: arena pointers are script values
-// stored as boxed minic_val_t, anything else is a native C struct field
-static void minic_read_floats(float *dst, void *p, int n) {
-	if (p == NULL) {
-		for (int i = 0; i < n; ++i) {
-			dst[i] = 0.0f;
-		}
+static quat_t minic_get_quat(void *p) {
+	quat_t value = {0};
+	if (p != NULL) {
+		memcpy(&value, p, sizeof(value));
 	}
-	else if (minic_in_arena(p)) {
-		minic_unbox(dst, (minic_val_t *)p, n);
-	}
-	else {
-		memcpy(dst, p, n * sizeof(float));
-	}
+	return value;
 }
 
-// clang-format off
-static vec2_t minic_get_vec2(void *p) { vec2_t v; minic_read_floats(&v.x, p, 2); return v; }
-static vec4_t minic_get_vec4(void *p) { vec4_t v; minic_read_floats(&v.x, p, 4); return v; }
-static quat_t minic_get_quat(void *p) { quat_t q; minic_read_floats(&q.x, p, 4); return q; }
-static mat3_t minic_get_mat3(void *p) { mat3_t m; minic_read_floats(m.m, p, 9); return m; }
-static mat4_t minic_get_mat4(void *p) { mat4_t m; minic_read_floats(m.m, p, 16); return m; }
-static void minic_set_vec2(minic_val_t *o, vec2_t v) { minic_box(o, &v.x, 2); }
-static void minic_set_vec4(minic_val_t *o, vec4_t v) { minic_box(o, &v.x, 4); }
-static void minic_set_quat(minic_val_t *o, quat_t q) { minic_box(o, &q.x, 4); }
-static void minic_set_mat3(minic_val_t *o, mat3_t m) { minic_box(o, m.m, 9); }
-static void minic_set_mat4(minic_val_t *o, mat4_t m) { minic_box(o, m.m, 16); }
-// clang-format on
+static mat3_t minic_get_mat3(void *p) {
+	mat3_t value = {0};
+	if (p != NULL) {
+		memcpy(&value, p, sizeof(value));
+	}
+	return value;
+}
+
+static mat4_t minic_get_mat4(void *p) {
+	mat4_t value = {0};
+	if (p != NULL) {
+		memcpy(&value, p, sizeof(value));
+	}
+	return value;
+}
 
 // A call may pass too few arguments or the wrong kind
 static void *minic_arg_ptr(minic_val_t *a, int c, int i) {
@@ -196,98 +204,98 @@ static float minic_arg_float(minic_val_t *a, int c, int i) {
 #define AF(i) minic_arg_float(_a, _c, i)
 #define AP(i) minic_arg_ptr(_a, _c, i)
 
-// One X(return-kind, name, call) line per math function; expanded twice:
+// One X(return-kind, name, sig, call) line per math function; expanded twice:
 // once to define the mn_* wrappers, once to register them
-#define MINIC_MATH_API                                                         \
-	X(F, vec2_len, vec2_len(V2(0)))                                            \
-	X(V2, vec2_set_len, vec2_set_len(V2(0), AF(1)))                            \
-	X(V2, vec2_mult, vec2_mult(V2(0), AF(1)))                                  \
-	X(V2, vec2_add, vec2_add(V2(0), V2(1)))                                    \
-	X(V2, vec2_sub, vec2_sub(V2(0), V2(1)))                                    \
-	X(F, vec2_cross, vec2_cross(V2(0), V2(1)))                                 \
-	X(V2, vec2_norm, vec2_norm(V2(0)))                                         \
-	X(F, vec2_dot, vec2_dot(V2(0), V2(1)))                                     \
-	X(V2, vec2_nan, vec2_nan())                                                \
-	X(I, vec2_isnan, vec2_isnan(V2(0)))                                        \
-	X(V4, vec4_cross, vec4_cross(V4(0), V4(1)))                                \
-	X(V4, vec4_add, vec4_add(V4(0), V4(1)))                                    \
-	X(V4, vec4_fadd, vec4_fadd(V4(0), AF(1), AF(2), AF(3), AF(4)))             \
-	X(V4, vec4_norm, vec4_norm(V4(0)))                                         \
-	X(V4, vec4_mult, vec4_mult(V4(0), AF(1)))                                  \
-	X(F, vec4_dot, vec4_dot(V4(0), V4(1)))                                     \
-	X(V4, vec4_apply_proj, vec4_apply_proj(V4(0), M4(1)))                      \
-	X(V4, vec4_apply_mat4, vec4_apply_mat4(V4(0), M4(1)))                      \
-	X(V4, vec4_apply_axis_angle, vec4_apply_axis_angle(V4(0), V4(1), AF(2)))   \
-	X(V4, vec4_apply_quat, vec4_apply_quat(V4(0), QT(1)))                      \
-	X(I, vec4_equals, vec4_equals(V4(0), V4(1)))                               \
-	X(I, vec4_almost_equals, vec4_almost_equals(V4(0), V4(1), AF(2)))          \
-	X(F, vec4_len, vec4_len(V4(0)))                                            \
-	X(V4, vec4_sub, vec4_sub(V4(0), V4(1)))                                    \
-	X(F, vec4_dist, vec4_dist(V4(0), V4(1)))                                   \
-	X(V4, vec4_reflect, vec4_reflect(V4(0), V4(1)))                            \
-	X(V4, vec4_clamp, vec4_clamp(V4(0), AF(1), AF(2)))                         \
-	X(V4, vec4_x_axis, vec4_x_axis())                                          \
-	X(V4, vec4_y_axis, vec4_y_axis())                                          \
-	X(V4, vec4_z_axis, vec4_z_axis())                                          \
-	X(V4, vec4_nan, vec4_nan())                                                \
-	X(I, vec4_isnan, vec4_isnan(V4(0)))                                        \
-	X(Q, quat_from_axis_angle, quat_from_axis_angle(V4(0), AF(1)))             \
-	X(Q, quat_from_mat, quat_from_mat(M4(0)))                                  \
-	X(Q, quat_from_rot_mat, quat_from_rot_mat(M4(0)))                          \
-	X(Q, quat_mult, quat_mult(QT(0), QT(1)))                                   \
-	X(Q, quat_norm, quat_norm(QT(0)))                                          \
-	X(V4, quat_get_euler, quat_get_euler(QT(0)))                               \
-	X(Q, quat_from_euler, quat_from_euler(AF(0), AF(1), AF(2)))                \
-	X(F, quat_dot, quat_dot(QT(0), QT(1)))                                     \
-	X(Q, quat_from_to, quat_from_to(V4(0), V4(1)))                             \
-	X(Q, quat_inv, quat_inv(QT(0)))                                            \
-	X(M3, mat3_identity, mat3_identity())                                      \
-	X(M3, mat3_translation, mat3_translation(AF(0), AF(1)))                    \
-	X(M3, mat3_rotation, mat3_rotation(AF(0)))                                 \
-	X(M3, mat3_scale, mat3_scale(M3(0), V4(1)))                                \
-	X(M3, mat3_set_from4, mat3_set_from4(M4(0)))                               \
-	X(M3, mat3_multmat, mat3_multmat(M3(0), M3(1)))                            \
-	X(M3, mat3_transpose, mat3_transpose(M3(0)))                               \
-	X(M3, mat3_nan, mat3_nan())                                                \
-	X(I, mat3_isnan, mat3_isnan(M3(0)))                                        \
-	X(M4, mat4_identity, mat4_identity())                                      \
-	X(M4, mat4_persp, mat4_persp(AF(0), AF(1), AF(2), AF(3)))                  \
-	X(M4, mat4_ortho, mat4_ortho(AF(0), AF(1), AF(2), AF(3), AF(4), AF(5)))    \
-	X(M4, mat4_rot_z, mat4_rot_z(AF(0)))                                       \
-	X(M4, mat4_compose, mat4_compose(V4(0), QT(1), V4(2)))                     \
-	X(M4, mat4_set_loc, mat4_set_loc(M4(0), V4(1)))                            \
-	X(M4, mat4_from_quat, mat4_from_quat(QT(0)))                               \
-	X(M4, mat4_translate, mat4_translate(M4(0), AF(1), AF(2), AF(3)))          \
-	X(M4, mat4_scale, mat4_scale(M4(0), V4(1)))                                \
-	X(M4, mat4_mult_mat3x4, mat4_mult_mat3x4(M4(0), M4(1)))                    \
-	X(M4, mat4_mult_mat, mat4_mult_mat(M4(0), M4(1)))                          \
-	X(M4, mat4_inv, mat4_inv(M4(0)))                                           \
-	X(M4, mat4_transpose, mat4_transpose(M4(0)))                               \
-	X(M4, mat4_transpose3, mat4_transpose3(M4(0)))                             \
-	X(V4, mat4_get_loc, mat4_get_loc(M4(0)))                                   \
-	X(V4, mat4_get_scale, mat4_get_scale(M4(0)))                               \
-	X(M4, mat4_mult, mat4_mult(M4(0), AF(1)))                                  \
-	X(M4, mat4_to_rot, mat4_to_rot(M4(0)))                                     \
-	X(V4, mat4_right, mat4_right(M4(0)))                                       \
-	X(V4, mat4_look, mat4_look(M4(0)))                                         \
-	X(V4, mat4_up, mat4_up(M4(0)))                                             \
-	X(P, mat4_to_f32_array, mat4_to_f32_array(M4(0)))                          \
-	X(F, mat4_determinant, mat4_determinant(M4(0)))                            \
-	X(M4, mat4_nan, mat4_nan())                                                \
-	X(I, mat4_isnan, mat4_isnan(M4(0)))                                        \
-	X(VOID, transform_set_matrix, transform_set_matrix(AP(0), M4(1)))          \
-	X(VOID, transform_rotate, transform_rotate(AP(0), V4(1), AF(2)))           \
-	X(VOID, transform_move, transform_move(AP(0), V4(1), AF(2)))               \
-	X(V4, transform_look, transform_look(AP(0)))                               \
-	X(V4, transform_right, transform_right(AP(0)))                             \
-	X(V4, transform_up, transform_up(AP(0)))                                   \
-	X(V4, raycast_aabb_mouse, raycast_aabb_mouse((object_t *)AP(0)))           \
-	X(I, point_in_aabb, point_in_aabb((object_t *)AP(0), V4(1)))               \
-	X(VOID, script_tween_to, script_tween_to((object_t *)AP(0), V4(1), AF(2))) \
-	X(VOID, line_draw_render, line_draw_render(M4(0)))                         \
-	X(VOID, line_draw_bounds, line_draw_bounds(M4(0), V4(1)))                  \
-	X(VOID, shape_draw_sphere, shape_draw_sphere(M4(0)))                       \
-	X(VOID, draw_set_transform, draw_set_transform(M3(0)))
+#define MINIC_MATH_API                                                                                                                \
+	X(F, vec2_len, "f(s:vec2_t v)", vec2_len(V2(0)))                                                                                  \
+	X(V2, vec2_set_len, "s:vec2_t(s:vec2_t v,f length)", vec2_set_len(V2(0), AF(1)))                                                  \
+	X(V2, vec2_mult, "s:vec2_t(s:vec2_t a,f f)", vec2_mult(V2(0), AF(1)))                                                             \
+	X(V2, vec2_add, "s:vec2_t(s:vec2_t a,s:vec2_t b)", vec2_add(V2(0), V2(1)))                                                        \
+	X(V2, vec2_sub, "s:vec2_t(s:vec2_t a,s:vec2_t b)", vec2_sub(V2(0), V2(1)))                                                        \
+	X(F, vec2_cross, "f(s:vec2_t a,s:vec2_t b)", vec2_cross(V2(0), V2(1)))                                                            \
+	X(V2, vec2_norm, "s:vec2_t(s:vec2_t v)", vec2_norm(V2(0)))                                                                        \
+	X(F, vec2_dot, "f(s:vec2_t a,s:vec2_t b)", vec2_dot(V2(0), V2(1)))                                                                \
+	X(V2, vec2_nan, "s:vec2_t()", vec2_nan())                                                                                         \
+	X(I, vec2_isnan, "b(s:vec2_t v)", vec2_isnan(V2(0)))                                                                              \
+	X(V4, vec4_cross, "s:vec4_t(s:vec4_t a,s:vec4_t b)", vec4_cross(V4(0), V4(1)))                                                    \
+	X(V4, vec4_add, "s:vec4_t(s:vec4_t a,s:vec4_t b)", vec4_add(V4(0), V4(1)))                                                        \
+	X(V4, vec4_fadd, "s:vec4_t(s:vec4_t a,f x,f y,f z,f w)", vec4_fadd(V4(0), AF(1), AF(2), AF(3), AF(4)))                            \
+	X(V4, vec4_norm, "s:vec4_t(s:vec4_t a)", vec4_norm(V4(0)))                                                                        \
+	X(V4, vec4_mult, "s:vec4_t(s:vec4_t v,f f)", vec4_mult(V4(0), AF(1)))                                                             \
+	X(F, vec4_dot, "f(s:vec4_t a,s:vec4_t b)", vec4_dot(V4(0), V4(1)))                                                                \
+	X(V4, vec4_apply_proj, "s:vec4_t(s:vec4_t a,s:mat4_t m)", vec4_apply_proj(V4(0), M4(1)))                                          \
+	X(V4, vec4_apply_mat4, "s:vec4_t(s:vec4_t a,s:mat4_t m)", vec4_apply_mat4(V4(0), M4(1)))                                          \
+	X(V4, vec4_apply_axis_angle, "s:vec4_t(s:vec4_t a,s:vec4_t axis,f angle)", vec4_apply_axis_angle(V4(0), V4(1), AF(2)))            \
+	X(V4, vec4_apply_quat, "s:vec4_t(s:vec4_t a,s:quat_t q)", vec4_apply_quat(V4(0), QT(1)))                                          \
+	X(I, vec4_equals, "b(s:vec4_t a,s:vec4_t b)", vec4_equals(V4(0), V4(1)))                                                          \
+	X(I, vec4_almost_equals, "b(s:vec4_t a,s:vec4_t b,f prec)", vec4_almost_equals(V4(0), V4(1), AF(2)))                              \
+	X(F, vec4_len, "f(s:vec4_t a)", vec4_len(V4(0)))                                                                                  \
+	X(V4, vec4_sub, "s:vec4_t(s:vec4_t a,s:vec4_t b)", vec4_sub(V4(0), V4(1)))                                                        \
+	X(F, vec4_dist, "f(s:vec4_t v1,s:vec4_t v2)", vec4_dist(V4(0), V4(1)))                                                            \
+	X(V4, vec4_reflect, "s:vec4_t(s:vec4_t a,s:vec4_t n)", vec4_reflect(V4(0), V4(1)))                                                \
+	X(V4, vec4_clamp, "s:vec4_t(s:vec4_t a,f min,f max)", vec4_clamp(V4(0), AF(1), AF(2)))                                            \
+	X(V4, vec4_x_axis, "s:vec4_t()", vec4_x_axis())                                                                                   \
+	X(V4, vec4_y_axis, "s:vec4_t()", vec4_y_axis())                                                                                   \
+	X(V4, vec4_z_axis, "s:vec4_t()", vec4_z_axis())                                                                                   \
+	X(V4, vec4_nan, "s:vec4_t()", vec4_nan())                                                                                         \
+	X(I, vec4_isnan, "b(s:vec4_t v)", vec4_isnan(V4(0)))                                                                              \
+	X(Q, quat_from_axis_angle, "s:quat_t(s:vec4_t axis,f angle)", quat_from_axis_angle(V4(0), AF(1)))                                 \
+	X(Q, quat_from_mat, "s:quat_t(s:mat4_t m)", quat_from_mat(M4(0)))                                                                 \
+	X(Q, quat_from_rot_mat, "s:quat_t(s:mat4_t m)", quat_from_rot_mat(M4(0)))                                                         \
+	X(Q, quat_mult, "s:quat_t(s:quat_t a,s:quat_t b)", quat_mult(QT(0), QT(1)))                                                       \
+	X(Q, quat_norm, "s:quat_t(s:quat_t q)", quat_norm(QT(0)))                                                                         \
+	X(V4, quat_get_euler, "s:vec4_t(s:quat_t q)", quat_get_euler(QT(0)))                                                              \
+	X(Q, quat_from_euler, "s:quat_t(f x,f y,f z)", quat_from_euler(AF(0), AF(1), AF(2)))                                              \
+	X(F, quat_dot, "f(s:quat_t a,s:quat_t b)", quat_dot(QT(0), QT(1)))                                                                \
+	X(Q, quat_from_to, "s:quat_t(s:vec4_t v0,s:vec4_t v1)", quat_from_to(V4(0), V4(1)))                                               \
+	X(Q, quat_inv, "s:quat_t(s:quat_t q)", quat_inv(QT(0)))                                                                           \
+	X(M3, mat3_identity, "s:mat3_t()", mat3_identity())                                                                               \
+	X(M3, mat3_translation, "s:mat3_t(f x,f y)", mat3_translation(AF(0), AF(1)))                                                      \
+	X(M3, mat3_rotation, "s:mat3_t(f alpha)", mat3_rotation(AF(0)))                                                                   \
+	X(M3, mat3_scale, "s:mat3_t(s:mat3_t m,s:vec4_t v)", mat3_scale(M3(0), V4(1)))                                                    \
+	X(M3, mat3_set_from4, "s:mat3_t(s:mat4_t m4)", mat3_set_from4(M4(0)))                                                             \
+	X(M3, mat3_multmat, "s:mat3_t(s:mat3_t a,s:mat3_t b)", mat3_multmat(M3(0), M3(1)))                                                \
+	X(M3, mat3_transpose, "s:mat3_t(s:mat3_t m)", mat3_transpose(M3(0)))                                                              \
+	X(M3, mat3_nan, "s:mat3_t()", mat3_nan())                                                                                         \
+	X(I, mat3_isnan, "b(s:mat3_t m)", mat3_isnan(M3(0)))                                                                              \
+	X(M4, mat4_identity, "s:mat4_t()", mat4_identity())                                                                               \
+	X(M4, mat4_persp, "s:mat4_t(f fov_y,f aspect,f zn,f zf)", mat4_persp(AF(0), AF(1), AF(2), AF(3)))                                 \
+	X(M4, mat4_ortho, "s:mat4_t(f left,f right,f bottom,f top,f znear,f zfar)", mat4_ortho(AF(0), AF(1), AF(2), AF(3), AF(4), AF(5))) \
+	X(M4, mat4_rot_z, "s:mat4_t(f alpha)", mat4_rot_z(AF(0)))                                                                         \
+	X(M4, mat4_compose, "s:mat4_t(s:vec4_t loc,s:quat_t rot,s:vec4_t scl)", mat4_compose(V4(0), QT(1), V4(2)))                        \
+	X(M4, mat4_set_loc, "s:mat4_t(s:mat4_t m,s:vec4_t v)", mat4_set_loc(M4(0), V4(1)))                                                \
+	X(M4, mat4_from_quat, "s:mat4_t(s:quat_t q)", mat4_from_quat(QT(0)))                                                              \
+	X(M4, mat4_translate, "s:mat4_t(s:mat4_t m,f x,f y,f z)", mat4_translate(M4(0), AF(1), AF(2), AF(3)))                             \
+	X(M4, mat4_scale, "s:mat4_t(s:mat4_t m,s:vec4_t v)", mat4_scale(M4(0), V4(1)))                                                    \
+	X(M4, mat4_mult_mat3x4, "s:mat4_t(s:mat4_t a,s:mat4_t b)", mat4_mult_mat3x4(M4(0), M4(1)))                                        \
+	X(M4, mat4_mult_mat, "s:mat4_t(s:mat4_t a,s:mat4_t b)", mat4_mult_mat(M4(0), M4(1)))                                              \
+	X(M4, mat4_inv, "s:mat4_t(s:mat4_t a)", mat4_inv(M4(0)))                                                                          \
+	X(M4, mat4_transpose, "s:mat4_t(s:mat4_t m)", mat4_transpose(M4(0)))                                                              \
+	X(M4, mat4_transpose3, "s:mat4_t(s:mat4_t m)", mat4_transpose3(M4(0)))                                                            \
+	X(V4, mat4_get_loc, "s:vec4_t(s:mat4_t m)", mat4_get_loc(M4(0)))                                                                  \
+	X(V4, mat4_get_scale, "s:vec4_t(s:mat4_t m)", mat4_get_scale(M4(0)))                                                              \
+	X(M4, mat4_mult, "s:mat4_t(s:mat4_t m,f s)", mat4_mult(M4(0), AF(1)))                                                             \
+	X(M4, mat4_to_rot, "s:mat4_t(s:mat4_t m)", mat4_to_rot(M4(0)))                                                                    \
+	X(V4, mat4_right, "s:vec4_t(s:mat4_t m)", mat4_right(M4(0)))                                                                      \
+	X(V4, mat4_look, "s:vec4_t(s:mat4_t m)", mat4_look(M4(0)))                                                                        \
+	X(V4, mat4_up, "s:vec4_t(s:mat4_t m)", mat4_up(M4(0)))                                                                            \
+	X(P, mat4_to_f32_array, "p:f32_array_t(s:mat4_t m)", mat4_to_f32_array(M4(0)))                                                    \
+	X(F, mat4_determinant, "f(s:mat4_t m)", mat4_determinant(M4(0)))                                                                  \
+	X(M4, mat4_nan, "s:mat4_t()", mat4_nan())                                                                                         \
+	X(I, mat4_isnan, "b(s:mat4_t m)", mat4_isnan(M4(0)))                                                                              \
+	X(VOID, transform_set_matrix, "v(p:transform_t raw,s:mat4_t mat)", transform_set_matrix(AP(0), M4(1)))                            \
+	X(VOID, transform_rotate, "v(p:transform_t raw,s:vec4_t axis,f f)", transform_rotate(AP(0), V4(1), AF(2)))                        \
+	X(VOID, transform_move, "v(p:transform_t raw,s:vec4_t axis,f f)", transform_move(AP(0), V4(1), AF(2)))                            \
+	X(V4, transform_look, "s:vec4_t(p:transform_t raw)", transform_look(AP(0)))                                                       \
+	X(V4, transform_right, "s:vec4_t(p:transform_t raw)", transform_right(AP(0)))                                                     \
+	X(V4, transform_up, "s:vec4_t(p:transform_t raw)", transform_up(AP(0)))                                                           \
+	X(V4, raycast_aabb_mouse, "s:vec4_t(p:object_t object)", raycast_aabb_mouse((object_t *)AP(0)))                                   \
+	X(I, point_in_aabb, "b(p:object_t object,s:vec4_t point)", point_in_aabb((object_t *)AP(0), V4(1)))                               \
+	X(VOID, script_tween_to, "v(p:object_t o,s:vec4_t to,f speed)", script_tween_to((object_t *)AP(0), V4(1), AF(2)))                 \
+	X(VOID, line_draw_render, "v(s:mat4_t matrix)", line_draw_render(M4(0)))                                                          \
+	X(VOID, line_draw_bounds, "v(s:mat4_t mat,s:vec4_t dim)", line_draw_bounds(M4(0), V4(1)))                                         \
+	X(VOID, shape_draw_sphere, "v(s:mat4_t mat)", shape_draw_sphere(M4(0)))                                                           \
+	X(VOID, draw_set_transform, "v(s:mat3_t matrix)", draw_set_transform(M3(0)))
 
 // Wrapper generators per return kind
 #define MN_HEAD(n)                                       \
@@ -311,25 +319,29 @@ static float minic_arg_float(minic_val_t *a, int c, int i) {
 	e;                       \
 	return minic_val_void(); \
 	}
-#define MN_BOX(n, e, setter, count)                                                 \
-	MN_HEAD(n)                                                                      \
-	minic_val_t *_o = (minic_val_t *)minic_alloc(count * (int)sizeof(minic_val_t)); \
-	setter(_o, e);                                                                  \
-	return minic_val_ptr(_o);                                                       \
+// Return a native-layout value owned by the script arena.
+#define MN_VALUE(n, e, type)                               \
+	MN_HEAD(n)                                             \
+	type *result = (type *)minic_alloc((int)sizeof(type)); \
+	if (result == NULL) {                                  \
+		return minic_val_ptr(NULL);                        \
+	}                                                      \
+	*result = e;                                           \
+	return minic_val_ptr(result);                          \
 	}
-#define MN_V2(n, e) MN_BOX(n, e, minic_set_vec2, 2)
-#define MN_V4(n, e) MN_BOX(n, e, minic_set_vec4, 4)
-#define MN_Q(n, e)  MN_BOX(n, e, minic_set_quat, 4)
-#define MN_M3(n, e) MN_BOX(n, e, minic_set_mat3, 9)
-#define MN_M4(n, e) MN_BOX(n, e, minic_set_mat4, 16)
+#define MN_V2(n, e) MN_VALUE(n, e, vec2_t)
+#define MN_V4(n, e) MN_VALUE(n, e, vec4_t)
+#define MN_Q(n, e)  MN_VALUE(n, e, quat_t)
+#define MN_M3(n, e) MN_VALUE(n, e, mat3_t)
+#define MN_M4(n, e) MN_VALUE(n, e, mat4_t)
 
-#define X(kind, n, e) MN_##kind(n, e)
+#define X(kind, n, sig, e) MN_##kind(n, e)
 MINIC_MATH_API
 #undef X
 
 // All array types share the buffer/length/capacity layout
 static void minic_register_array_struct(const char *name, int size, minic_type_t buffer_deref) {
-	minic_struct_begin(name, size);
+	minic_struct_begin(name, size, MINIC_ALIGNOF(u8_array_t));
 	minic_struct_field("buffer", (int)offsetof(u8_array_t, buffer), MINIC_T_PTR, buffer_deref, NULL);
 	minic_struct_field("length", (int)offsetof(u8_array_t, length), MINIC_T_INT, MINIC_T_INT, NULL);
 	minic_struct_field("capacity", (int)offsetof(u8_array_t, capacity), MINIC_T_INT, MINIC_T_INT, NULL);
@@ -341,11 +353,25 @@ static const char *minic_api_sig_names[MINIC_API_MAX_SIGS];
 static const char *minic_api_sig_hints[MINIC_API_MAX_SIGS];
 static int         minic_api_sig_count = 0;
 
+static void minic_api_sig_add(const char *name, const char *sig) {
+	if (minic_api_sig_count < MINIC_API_MAX_SIGS) {
+		minic_api_sig_names[minic_api_sig_count] = name;
+		minic_api_sig_hints[minic_api_sig_count] = sig;
+		minic_api_sig_count++;
+	}
+}
+
 static void minic_api_register(const char *name, const char *sig, minic_native_fn_t fn) {
-	char stripped[MINIC_MAX_SIG];
-	int  n    = 0;
-	bool skip = false;
-	for (const char *p = sig; *p != '\0' && n < MINIC_MAX_SIG - 1; ++p) {
+	char        stripped[MINIC_MAX_SIG];
+	int         n    = 0;
+	bool        skip = false;
+	const char *p    = sig;
+	if (strncmp(sig, "p:", 2) == 0) {
+		for (; *p != '\0' && *p != '(' && n < MINIC_MAX_SIG - 1; ++p) {
+			stripped[n++] = *p;
+		}
+	}
+	for (; *p != '\0' && n < MINIC_MAX_SIG - 1; ++p) {
 		if (*p == ' ' || *p == ':') {
 			skip = true;
 		}
@@ -358,12 +384,7 @@ static void minic_api_register(const char *name, const char *sig, minic_native_f
 	}
 	stripped[n] = '\0';
 	minic_register(name, stripped, fn);
-
-	if (minic_api_sig_count < MINIC_API_MAX_SIGS) {
-		minic_api_sig_names[minic_api_sig_count] = name;
-		minic_api_sig_hints[minic_api_sig_count] = sig;
-		minic_api_sig_count++;
-	}
+	minic_api_sig_add(name, sig);
 }
 
 static const char *minic_api_sig_hint(const char *name) {
@@ -383,6 +404,7 @@ static const char *minic_api_sig_hint(const char *name) {
 
 #define MINIC_RET_i(call) return minic_val_int((int)(call))
 #define MINIC_RET_f(call) return minic_val_float(call)
+#define MINIC_RET_d(call) return minic_val_double(call)
 #define MINIC_RET_p(call) return minic_val_ptr(call)
 #define MINIC_RET_b(call) return minic_val_int((call) ? 1 : 0)
 #define MINIC_RET_c(call) return minic_val_int((int)(call))
@@ -438,6 +460,11 @@ static const char *minic_api_sig_hint(const char *name) {
 		MINIC_RET_##r(name(MINIC_ARG_##t0(0), MINIC_ARG_##t1(1), MINIC_ARG_##t2(2), MINIC_ARG_##t3(3), MINIC_ARG_##t4(4), MINIC_ARG_##t5(5), \
 		                   MINIC_ARG_##t6(6), MINIC_ARG_##t7(7), MINIC_ARG_##t8(8)));                                                        \
 	}
+#define X10(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9)                                                                            \
+	static minic_val_t mw_##name(minic_val_t *a, int n) {                                                                                    \
+		MINIC_RET_##r(name(MINIC_ARG_##t0(0), MINIC_ARG_##t1(1), MINIC_ARG_##t2(2), MINIC_ARG_##t3(3), MINIC_ARG_##t4(4), MINIC_ARG_##t5(5), \
+		                   MINIC_ARG_##t6(6), MINIC_ARG_##t7(7), MINIC_ARG_##t8(8), MINIC_ARG_##t9(9)));                                     \
+	}
 #include "minic_api_list.h"
 #undef X0
 #undef X1
@@ -449,6 +476,7 @@ static const char *minic_api_sig_hint(const char *name) {
 #undef X7
 #undef X8
 #undef X9
+#undef X10
 
 // Pass 2: the registration table, in declaration order
 typedef struct {
@@ -468,6 +496,7 @@ typedef struct {
 #define X8(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7)     {#name, sig, mw_##name},
 #define X9(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8) {#name, sig, mw_##name},
 static const minic_api_entry_t minic_api_entries[] = {
+#define X10(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9) {#name, sig, mw_##name},
 #include "minic_api_list.h"
 };
 #undef X0
@@ -480,12 +509,17 @@ static const minic_api_entry_t minic_api_entries[] = {
 #undef X7
 #undef X8
 #undef X9
+#undef X10
 
 void minic_register_builtins() {
 	minic_api_sig_count = 0;
 
 	minic_register_native("printf", minic_printf_native);
+	minic_register_native("sprintf", minic_sprintf_native);
 	minic_register_native("string", minic_string_native);
+	minic_api_sig_add("printf", "i(p:char fmt,...)");
+	minic_api_sig_add("sprintf", "i(p:char dst,p:char fmt,...)");
+	minic_api_sig_add("string", "p:char(p:char fmt,...)");
 
 	// iron_array
 	minic_register_array_struct("i8_array_t", (int)sizeof(i8_array_t), MINIC_T_CHAR);
@@ -525,11 +559,17 @@ void minic_register_builtins() {
 	MINIC_F(w);
 	MINIC_END();
 
-	// Script-layout matrices (boxed fields)
+	// Matrices expose named entries over their native float-array storage.
 	static const char *mat3_fields[] = {"m00", "m01", "m02", "m10", "m11", "m12", "m20", "m21", "m22"};
 	static const char *mat4_fields[] = {"m00", "m01", "m02", "m03", "m10", "m11", "m12", "m13", "m20", "m21", "m22", "m23", "m30", "m31", "m32", "m33"};
-	minic_register_struct("mat3_t", mat3_fields, 9);
-	minic_register_struct("mat4_t", mat4_fields, 16);
+	minic_struct_begin("mat3_t", sizeof(mat3_t), MINIC_ALIGNOF(mat3_t));
+	for (int i = 0; i < 9; ++i) {
+		minic_struct_field(mat3_fields[i], (int)offsetof(mat3_t, m) + i * (int)sizeof(float), MINIC_T_FLOAT, MINIC_T_FLOAT, NULL);
+	}
+	minic_struct_begin("mat4_t", sizeof(mat4_t), MINIC_ALIGNOF(mat4_t));
+	for (int i = 0; i < 16; ++i) {
+		minic_struct_field(mat4_fields[i], (int)offsetof(mat4_t, m) + i * (int)sizeof(float), MINIC_T_FLOAT, MINIC_T_FLOAT, NULL);
+	}
 
 	// iron_ui
 	MINIC_ENUM("ui_layout_t", "UI_LAYOUT_VERTICAL", "UI_LAYOUT_HORIZONTAL");
@@ -542,20 +582,24 @@ void minic_register_builtins() {
 	MINIC_ENUM("tool_type_t", "TOOL_TYPE_BRUSH", "TOOL_TYPE_ERASER", "TOOL_TYPE_FILL", "TOOL_TYPE_DECAL", "TOOL_TYPE_TEXT", "TOOL_TYPE_CLONE", "TOOL_TYPE_BLUR",
 	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_BAKE");
 
-	MINIC_STRUCT(ui_handle_t);
-	MINIC_I(i);
-	MINIC_F(f);
-	MINIC_I(b);
+	MINIC_STRUCT(ui_window_t);
 	MINIC_I(layout);
 	MINIC_F(scroll_offset);
-	MINIC_I(color);
 	MINIC_I(redraws);
 	MINIC_S(text);
-	MINIC_I(scroll_enabled);
-	MINIC_I(drag_enabled);
-	MINIC_I(changed);
-	MINIC_I(init);
-	MINIC_O(children, any_array_t);
+	MINIC_B(scroll_enabled);
+	MINIC_B(drag_enabled);
+	MINIC_END();
+
+	MINIC_STRUCT(ui_color_state_t);
+	MINIC_F(hue);
+	MINIC_F(sat);
+	MINIC_F(val);
+	MINIC_F(red);
+	MINIC_F(green);
+	MINIC_F(blue);
+	MINIC_F(alpha);
+	MINIC_I(mode);
 	MINIC_END();
 
 	MINIC_STRUCT(ui_node_socket_t);
@@ -830,10 +874,13 @@ void minic_register_builtins() {
 	MINIC_P(layer_datas);
 	MINIC_P(mesh_datas);
 	MINIC_O(script_datas, string_array_t);
+	MINIC_O(script_names, string_array_t);
 	MINIC_END();
 
 	// iron_math wrappers
-#define X(kind, n, e) minic_register_native(#n, mn_##n);
+#define X(kind, n, sig, e)             \
+	minic_register_native(#n, mn_##n); \
+	minic_api_sig_add(#n, sig);
 	MINIC_MATH_API
 #undef X
 
@@ -850,6 +897,9 @@ void minic_register_builtins() {
 static const char *minic_api_type_name(minic_type_t t, minic_type_t deref, const char *struct_name) {
 	if (t == MINIC_T_INT) {
 		return "int";
+	}
+	if (t == MINIC_T_DOUBLE) {
+		return "double";
 	}
 	if (t == MINIC_T_FLOAT) {
 		return "float";
@@ -882,6 +932,8 @@ static const char *minic_api_sig_type(char c) {
 	switch (c) {
 	case 'f':
 		return "float";
+	case 'd':
+		return "double";
 	case 'p':
 		return "void *";
 	case 'b':
@@ -906,7 +958,8 @@ static const char *minic_api_sig_read_type(const char **p, char *buf, int buf_si
 	while (**p != '\0' && **p != ' ' && **p != '(' && **p != ',' && **p != ')') {
 		(*p)++;
 	}
-	snprintf(buf, buf_size, "%.*s *", (int)(*p - type), type);
+	// s:name is a struct passed by value
+	snprintf(buf, buf_size, c == 's' ? "%.*s" : "%.*s *", (int)(*p - type), type);
 	return buf;
 }
 
@@ -931,6 +984,12 @@ static void minic_api_func_write(buffer_t *sb, const char *name, const char *sig
 		}
 		if (arg > 0) {
 			string_buffer_append(sb, ", ");
+		}
+		if (strncmp(p, "...", 3) == 0) {
+			string_buffer_append(sb, "...");
+			p += 3;
+			arg++;
+			continue;
 		}
 		char        type_buf[MINIC_MAX_NAME + 4];
 		const char *type     = minic_api_sig_read_type(&p, type_buf, sizeof(type_buf));

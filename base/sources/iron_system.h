@@ -344,7 +344,7 @@ string_array_t *iron_open_dialog(char *filter_list, char *default_path, bool ope
 char           *iron_save_dialog(char *filter_list, char *default_path);
 
 extern any_map_t   *_sys_shaders;
-extern f32          _sys_start_time;
+extern f64          _sys_start_time;
 extern any_array_t *_sys_on_next_frames;
 extern any_array_t *_sys_on_end_frames;
 extern any_array_t *_sys_on_updates;
@@ -375,9 +375,9 @@ typedef struct callback {
 } callback_t;
 
 void          sys_start(iron_window_options_t *ops);
-f32           sys_time(void);
-f32           sys_delta(void);
-f32           sys_real_delta(void);
+f64           sys_time(void);
+f64           sys_delta(void);
+f64           sys_real_delta(void);
 i32           sys_w(void);
 i32           sys_h(void);
 i32           sys_x(void);

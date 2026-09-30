@@ -28,6 +28,10 @@ static void *alloc_no_free(void *ptr, size_t old_size, size_t new_size) {
 	return buffer;
 }
 
+static void *array_realloc(void *ptr, size_t size) {
+	return ptr == NULL ? calloc(1, size) : realloc(ptr, size);
+}
+
 static void array_alloc(void *a, uint8_t element_size) {
 	u8_array_t *tmp = (u8_array_t *)a;
 	if (tmp->length >= tmp->capacity) {
@@ -92,52 +96,52 @@ void string_array_push(string_array_t *a, void *e) {
 
 void i8_array_resize(i8_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(int8_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int8_t));
 }
 
 void u8_array_resize(u8_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(uint8_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint8_t));
 }
 
 void i16_array_resize(i16_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(int16_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int16_t));
 }
 
 void u16_array_resize(u16_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(uint16_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint16_t));
 }
 
 void i32_array_resize(i32_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(int32_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int32_t));
 }
 
 void u32_array_resize(u32_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(uint32_t));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint32_t));
 }
 
 void f32_array_resize(f32_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(float));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(float));
 }
 
 void any_array_resize(any_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(void *));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(void *));
 }
 
 void string_array_resize(string_array_t *a, uint32_t size) {
 	a->capacity = size;
-	a->buffer   = realloc(a->buffer, a->capacity * sizeof(void *));
+	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(void *));
 }
 
 void buffer_resize(buffer_t *b, uint32_t size) {
 	b->length = size;
-	b->buffer = realloc(b->buffer, b->length * sizeof(uint8_t));
+	b->buffer = array_realloc(b->buffer, b->length * sizeof(uint8_t));
 }
 
 static int _array_sort_alpha(const void *a, const void *b) {

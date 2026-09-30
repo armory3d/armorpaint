@@ -1,11 +1,11 @@
 
 #include "../global.h"
 
-bool         ui_menu_hide_flag  = false;
-i32          ui_menu_sub_x      = 0;
-i32          ui_menu_sub_y      = 0;
-ui_handle_t *ui_menu_sub_handle = NULL;
-char        *_ui_menu_render_msg;
+bool  ui_menu_hide_flag     = false;
+i32   ui_menu_sub_x         = 0;
+i32   ui_menu_sub_y         = 0;
+char  ui_menu_sub_text[128] = ""; // Label of the open sub menu
+char *_ui_menu_render_msg;
 
 void ui_menu_hide() {
 	ui_menu_show = false;
@@ -58,14 +58,14 @@ void ui_menu_render() {
 
 	draw_begin(NULL, false, 0);
 	ui_begin_region(g_ui, ui_menu_x, ui_menu_y, menu_w);
-	g_ui->input_enabled = g_ui->combo_selected_handle == NULL;
+	g_ui->input_enabled = g_ui->combo_selected_id == 0;
 	ui_menu_begin();
 
 	if (ui_menu_commands != NULL) {
 		ui_menu_commands();
 	}
 
-	ui_menu_hide_flag = g_ui->combo_selected_handle == NULL && !ui_menu_keep_open && !ui_menu_show_first &&
+	ui_menu_hide_flag = g_ui->combo_selected_id == 0 && !ui_menu_keep_open && !ui_menu_show_first &&
 	                    (g_ui->changed || g_ui->input_released || g_ui->input_released_r || g_ui->is_escape_down);
 	ui_menu_keep_open = false;
 
@@ -202,16 +202,21 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 	return result;
 }
 
-bool ui_menu_sub_button(ui_handle_t *handle, char *text) {
+bool ui_menu_sub_left() {
+	return g_ui->_x + g_ui->_w * 2 + 2 > iron_window_width() && g_ui->_x - g_ui->_w - 2 >= 0;
+}
+
+bool ui_menu_sub_button(char *text) {
 	g_ui->is_hovered = false;
 	ui_menu_button(text, ">", ICON_NONE);
+	f32 dx = ui_menu_sub_left() ? -g_ui->input_dx : g_ui->input_dx;
 	if (g_ui->is_hovered) {
-		ui_menu_sub_handle = handle;
+		snprintf(ui_menu_sub_text, sizeof(ui_menu_sub_text), "%s", text);
 	}
-	else if (math_abs(g_ui->input_dy) > g_ui->input_dx && g_ui->input_x < g_ui->_x + g_ui->_w) {
-		ui_menu_sub_handle = NULL;
+	else if (math_abs(g_ui->input_dy) > dx && g_ui->input_x >= g_ui->_x && g_ui->input_x < g_ui->_x + g_ui->_w) {
+		ui_menu_sub_text[0] = '\0';
 	}
-	return ui_menu_sub_handle == handle;
+	return string_equals(ui_menu_sub_text, text);
 }
 
 void ui_menu_label(char *text, char *shortcut) {
@@ -251,7 +256,7 @@ void ui_menu_end() {}
 void ui_menu_sub_begin(i32 items) {
 	ui_menu_sub_x = g_ui->_x;
 	ui_menu_sub_y = g_ui->_y;
-	g_ui->_x += g_ui->_w + 2;
+	g_ui->_x += ui_menu_sub_left() ? -g_ui->_w - 2 : g_ui->_w + 2;
 	g_ui->_y -= UI_ELEMENT_H();
 	ui_draw_shadow(g_ui->_x, g_ui->_y, g_ui->_w, UI_ELEMENT_H() * items);
 	draw_set_color(g_theme->SEPARATOR_COL);

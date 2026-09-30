@@ -205,7 +205,7 @@ static void render_path_paint_ref_snapshot(i32 tid, bool is_mask) {
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 		return;
 	}
-	char *format = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
 	render_path_paint_ref_target("texpaint_ref", format);
 	render_path_paint_ref_target("texpaint_nor_ref", format);
 	render_path_paint_ref_target("texpaint_pack_ref", format);
@@ -441,6 +441,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				if (index >= 0 && index < g_project->_->paint_objects->length) {
 					g_context->paint_object   = g_project->_->paint_objects->buffer[index];
 					ui_header_handle->redraws = 2;
+					tab_meshes_reveal_slot(g_context->paint_object);
 
 					// g_context->layer->object_mask = index + 1;
 					// context_set_layer(g_context->layer);
@@ -844,6 +845,10 @@ bool render_path_paint_paint_enabled() {
 }
 
 void render_path_paint_begin() {
+	if (render_path_paint_live_layer_drawn > 0) {
+		render_path_paint_live_layer_drawn--;
+	}
+
 	if (g_context->layer->texpaint_sculpt != NULL) {
 		render_path_sculpt_begin();
 		return;
@@ -866,10 +871,6 @@ void render_path_paint_begin() {
 
 	if (g_context->paint2d) {
 		render_path_paint_set_plane_mesh();
-	}
-
-	if (render_path_paint_live_layer_drawn > 0) {
-		render_path_paint_live_layer_drawn--;
 	}
 
 	if (g_config->brush_live && g_context->pdirty <= 0 && g_context->ddirty <= 0 && g_context->brush_time == 0) {
@@ -1195,7 +1196,7 @@ void render_path_paint_dilate(bool base, bool nor_pack) {
 		layers_make_temp_img();
 		i32 tid = g_context->layer->id;
 
-		char *format      = base_bits_handle->i == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits_handle->i == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char *format      = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
 		char *copy_pass   = string_equals(format, "RGBA64") ? "copyRGBA64_pass" : string_equals(format, "RGBA128") ? "copyRGBA128_pass" : "copy_pass";
 		char *dilate_pass = string_equals(format, "RGBA64") ? "dilateRGBA64_pass" : string_equals(format, "RGBA128") ? "dilateRGBA128_pass" : "dilate_pass";
 

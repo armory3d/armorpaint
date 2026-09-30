@@ -865,10 +865,11 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 		buffer->stride += gpu_vertex_data_size(structure->elements[i].data);
 	}
 
-	WGPUBufferDescriptor desc   = {.size = buffer->count * buffer->stride, .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst};
+	uint32_t             size   = gpu_buffer_alloc_size(buffer->count, buffer->stride);
+	WGPUBufferDescriptor desc   = {.size = size, .usage = WGPUBufferUsage_Vertex | WGPUBufferUsage_CopyDst};
 	buffer->impl.buf            = wgpuDeviceCreateBuffer(device, &desc);
-	buffer->impl.mem            = malloc(buffer->count * buffer->stride);
-	buffer->impl.allocated_size = buffer->count * buffer->stride;
+	buffer->impl.mem            = malloc(size);
+	buffer->impl.allocated_size = size;
 }
 
 void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
@@ -876,6 +877,7 @@ void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 }
 
 void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
+	buffer->version = ++gpu_buffer_versions;
 	wgpuQueueWriteBuffer(queue, buffer->impl.buf, 0, buffer->impl.mem, buffer->count * buffer->stride);
 }
 
@@ -883,10 +885,11 @@ void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
 	buffer->count  = count;
 	buffer->stride = sizeof(uint32_t);
 
-	WGPUBufferDescriptor desc   = {.size = buffer->count * buffer->stride, .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst};
+	uint32_t             size   = gpu_buffer_alloc_size(buffer->count, buffer->stride);
+	WGPUBufferDescriptor desc   = {.size = size, .usage = WGPUBufferUsage_Index | WGPUBufferUsage_CopyDst};
 	buffer->impl.buf            = wgpuDeviceCreateBuffer(device, &desc);
-	buffer->impl.mem            = malloc(buffer->count * buffer->stride);
-	buffer->impl.allocated_size = buffer->count * buffer->stride;
+	buffer->impl.mem            = malloc(size);
+	buffer->impl.allocated_size = size;
 }
 
 void *gpu_index_buffer_lock(gpu_buffer_t *buffer) {
@@ -894,6 +897,7 @@ void *gpu_index_buffer_lock(gpu_buffer_t *buffer) {
 }
 
 void gpu_index_buffer_unlock(gpu_buffer_t *buffer) {
+	buffer->version = ++gpu_buffer_versions;
 	wgpuQueueWriteBuffer(queue, buffer->impl.buf, 0, buffer->impl.mem, buffer->count * buffer->stride);
 }
 
@@ -941,8 +945,9 @@ bool gpu_raytrace_supported(void) {
 void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader, int shader_size, gpu_buffer_t *constant_buffer) {}
 void gpu_raytrace_pipeline_destroy(gpu_raytrace_pipeline_t *pipeline) {}
 void gpu_raytrace_acceleration_structure_init(gpu_acceleration_structure_t *accel) {}
-void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb, gpu_buffer_t *ib, mat4_t transform) {}
-void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel, gpu_buffer_t *_vb_full, gpu_buffer_t *_ib_full) {}
+void gpu_raytrace_acceleration_structure_add(gpu_acceleration_structure_t *accel, gpu_buffer_t *vb, gpu_buffer_t *ib, mat4_t transform,
+                                             gpu_texture_t **textures) {}
+void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *accel) {}
 void gpu_raytrace_acceleration_structure_destroy(gpu_acceleration_structure_t *accel) {}
 void gpu_raytrace_set_textures(gpu_texture_t *texpaint0, gpu_texture_t *texpaint1, gpu_texture_t *texpaint2, gpu_texture_t *texenv, gpu_texture_t *texsobol,
                                gpu_texture_t *texscramble, gpu_texture_t *texrank, gpu_texture_t *texenv_cdf) {}

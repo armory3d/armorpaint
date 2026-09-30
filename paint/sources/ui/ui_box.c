@@ -27,7 +27,7 @@ void ui_box_render() {
 	}
 
 	if (!ui_menu_show) {
-		bool in_use    = g_ui->combo_selected_handle != NULL;
+		bool in_use    = g_ui->combo_selected_id != 0;
 		bool is_escape = g_ui->is_escape_down;
 		bool released  = g_ui->input_released;
 		if (released && ui_box_ignore_release) {
@@ -80,14 +80,13 @@ void ui_box_render() {
 		ui_begin(g_ui);
 		if (ui_window(ui_box_hwnd, left, top, mw, mh, ui_box_draggable)) {
 			g_ui->_y += 10;
-			ui_handle_t *htext = ui_handle(__ID__);
-			htext->text        = string_copy(ui_box_text);
 			if (ui_box_copyable) {
+				static i32   text_line  = 0;
 				draw_font_t *_font      = g_font;
 				i32          _font_size = g_ui->font_size;
 				ui_set_font(g_ui, data_get_font("font_mono.ttf"));
 				g_ui->font_size = math_floor(15 * UI_SCALE());
-				ui_text_area(htext, UI_ALIGN_LEFT, false, "", false);
+				ui_text_area(&ui_box_text, &text_line, UI_ALIGN_LEFT, false, "", false);
 				ui_set_font(g_ui, _font);
 				g_ui->font_size = _font_size;
 			}
@@ -134,7 +133,7 @@ void ui_box_render() {
 	}
 	else {
 		ui_begin(g_ui);
-		g_ui->input_enabled = !ui_menu_show && g_ui->combo_selected_handle == NULL;
+		g_ui->input_enabled = !ui_menu_show && g_ui->combo_selected_id == 0;
 		if (ui_window(ui_box_hwnd, left, top, mw, mh, ui_box_draggable)) {
 			g_ui->_y += 10;
 			ui_box_commands();

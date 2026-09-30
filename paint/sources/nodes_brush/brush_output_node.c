@@ -148,7 +148,7 @@ void brush_output_node_run() {
 		return;
 	}
 
-	if (g_ui->is_hovered || base_is_dragging || base_is_resizing || g_ui->is_scrolling || g_ui->combo_selected_handle != NULL) {
+	if (g_ui->is_hovered || base_is_dragging || base_is_resizing || g_ui->is_scrolling || g_ui->combo_selected_id != 0) {
 		return;
 	}
 
@@ -199,7 +199,7 @@ void brush_output_node_run() {
 
 	if (g_context->painted <= 1) {
 		g_context->pdirty = 1;
-		slot_layer_t *l = g_context->layer;
+		slot_layer_t *l   = g_context->layer;
 		if (l->texpaint_sculpt != NULL || (l->parent != NULL && l->parent->texpaint_sculpt != NULL)) {
 			g_context->ddirty = 2;
 		}

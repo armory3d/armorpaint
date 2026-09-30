@@ -20,10 +20,8 @@ static void repeat_node_on_done(ui_node_t *node) {
 }
 
 void repeat_node_button(i32 node_id) {
-	ui_node_t   *node      = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	char        *node_name = string_copy(parser_material_node_name(node, NULL));
-	ui_handle_t *h         = ui_handle(node_name);
-	i32          count     = (i32)ui_slider(ui_nest(h, 0), tr("Count"), 1.0, 100.0, true, 1.0, true, UI_ALIGN_LEFT, true);
+	ui_node_t *node  = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	i32        count = (i32)ui_slider(&neural_node_values(node, 1)[0], tr("Count"), 1.0, 100.0, true, 1.0, true, UI_ALIGN_LEFT, true);
 
 	if (iron_exec_async_done == 0) {
 		g_ui->enabled = false;

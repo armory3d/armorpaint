@@ -252,9 +252,7 @@ void history_swap_object_transform(history_step_t *step) {
 	if (pb != NULL) {
 		physics_body_sync_transform(pb);
 	}
-	if (config_is_raytrace_multi()) {
-		render_path_raytrace_ready = false;
-	}
+	util_mesh_transform_changed();
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);
 	ui_header_handle->redraws = 2;
 }
@@ -589,9 +587,9 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_path_bind_target(string("texpaint_nor%s", from_id_s), "tex1");
 		render_path_bind_target(string("texpaint_pack%s", from_id_s), "tex2");
 
-		gpu_texture_format_t format = base_bits_handle->i == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-		                              : base_bits_handle->i == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-		                                                                           : GPU_TEXTURE_FORMAT_RGBA128;
+		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
+		                              : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
+		                                                                 : GPU_TEXTURE_FORMAT_RGBA128;
 
 		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32   ? "copy_mrt3_pass"
 		             : format == GPU_TEXTURE_FORMAT_RGBA64 ? "copy_mrt3RGBA64_pass"

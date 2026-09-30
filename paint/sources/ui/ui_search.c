@@ -56,18 +56,20 @@ static void ui_search_run(char *shortcut) {
 	sys_notify_on_next_frame(&ui_search_press_keys, NULL);
 }
 
+static char *_ui_search_text = "";
+
 void ui_base_operator_search_menu_draw() {
-	ui_menu_h                  = UI_ELEMENT_H() * 8;
-	ui_handle_t *search_handle = ui_handle(__ID__);
-	char        *search        = to_lower_case(ui_text_input(search_handle, "", UI_ALIGN_LEFT, true, true));
-	g_ui->changed              = false;
+	ui_menu_h            = UI_ELEMENT_H() * 8;
+	char *search         = to_lower_case(ui_text_input(&_ui_search_text, "", UI_ALIGN_LEFT, true, true));
+	bool  search_changed = ui_item_changed();
+	g_ui->changed        = false;
 	if (_ui_search_first) {
-		_ui_search_first    = false;
-		search_handle->text = "";
-		ui_start_text_edit(search_handle, UI_ALIGN_LEFT); // Focus search bar
+		_ui_search_first = false;
+		_ui_search_text  = "";
+		ui_start_text_edit(&_ui_search_text, UI_ALIGN_LEFT); // Focus search bar
 	}
 
-	if (search_handle->changed) {
+	if (search_changed) {
 		_ui_search_offset = 0;
 	}
 
@@ -108,8 +110,8 @@ void ui_base_operator_search_menu_draw() {
 	free(keys);
 
 	if (enter && count == 0) { // Hide popup on enter when command is not found
-		g_ui->changed       = true;
-		search_handle->text = "";
+		g_ui->changed   = true;
+		_ui_search_text = "";
 	}
 	g_theme->BUTTON_COL     = _BUTTON_COL;
 	g_theme->FILL_BUTTON_BG = _FILL_BUTTON_BG;

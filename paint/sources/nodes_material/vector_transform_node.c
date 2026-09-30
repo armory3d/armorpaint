@@ -9,16 +9,16 @@ char *vector_transform_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 
 	if (string_equals(from, "OBJECT") && string_equals(to, "WORLD")) {
 		if (string_equals(type, "NORMAL")) {
-			node_shader_add_constant(parser_material_kong, "N: float3x3", "_normal_matrix");
+			node_shader_add_constant(parser_material_kong, "float3x3 N", "_normal_matrix");
 			return string_tmp("normalize(constants.N * %s)", vec);
 		}
-		node_shader_add_constant(parser_material_kong, "W: float4x4", "_world_matrix");
+		node_shader_add_constant(parser_material_kong, "float4x4 W", "_world_matrix");
 		char *w = string_equals(type, "POINT") ? "1.0" : "0.0";
 		return string_tmp("(constants.W * float4(%s, %s)).xyz", vec, w);
 	}
 
 	if (string_equals(from, "OBJECT") && string_equals(to, "CAMERA")) {
-		node_shader_add_constant(parser_material_kong, "WV: float4x4", "_world_view_matrix");
+		node_shader_add_constant(parser_material_kong, "float4x4 WV", "_world_view_matrix");
 		if (string_equals(type, "NORMAL")) {
 			return string_tmp("normalize((constants.WV * float4(%s, 0.0)).xyz)", vec);
 		}

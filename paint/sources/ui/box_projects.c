@@ -34,7 +34,7 @@ void box_projects_draw_badge() {
 }
 
 void box_projects_tab() {
-	if (ui_tab(box_projects_htab, tr("Projects"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Projects"), true, -1, false)) {
 		ui_begin_sticky();
 
 		ui_separator(UI_ELEMENT_H(), false);
@@ -167,7 +167,7 @@ void box_projects_tab() {
 }
 
 void box_projects_get_started_tab() {
-	if (ui_tab(box_projects_htab, tr("Get Started"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Get Started"), true, -1, false)) {
 
 		ui_separator(UI_ELEMENT_H(), false);
 
@@ -248,15 +248,15 @@ void box_projects_recent_load(char *path) {
 }
 
 void box_projects_recent_tab() {
-	if (ui_tab(box_projects_htab, tr("Recent"), true, -1, false)) {
+	if (ui_tab(&box_projects_tab_index, tr("Recent"), true, -1, false)) {
 
 		box_projects_draw_badge();
 
-		g_ui->enabled              = g_config->recent_projects->length > 0;
-		bool was_typing            = g_ui->is_typing;
-		box_projects_hsearch->text = string_copy(ui_text_input(box_projects_hsearch, tr("Search"), UI_ALIGN_LEFT, true, true));
-		g_ui->enabled              = true;
-		char *first_path           = NULL; // Most recent project that passes the search filter
+		g_ui->enabled       = g_config->recent_projects->length > 0;
+		bool was_typing     = g_ui->is_typing;
+		box_projects_search = string_copy(ui_text_input(&box_projects_search, tr("Search"), UI_ALIGN_LEFT, true, true));
+		g_ui->enabled       = true;
+		char *first_path    = NULL; // Most recent project that passes the search filter
 		for (i32 i = 0; i < g_config->recent_projects->length; ++i) {
 			char *path = g_config->recent_projects->buffer[i];
 #ifdef IRON_WINDOWS
@@ -266,7 +266,7 @@ void box_projects_recent_tab() {
 #endif
 			char *file = substring(path, string_last_index_of(path, PATH_SEP) + 1, string_length(path));
 
-			if (string_index_of(to_lower_case(file), to_lower_case(box_projects_hsearch->text)) < 0) {
+			if (string_index_of(to_lower_case(file), to_lower_case(box_projects_search)) < 0) {
 				continue; // Search filter
 			}
 			if (first_path == NULL) {

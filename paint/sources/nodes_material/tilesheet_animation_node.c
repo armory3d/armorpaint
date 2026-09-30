@@ -1,39 +1,39 @@
 
 #include "../global.h"
 
-static i32  _ts_anim_node_id    = -1;
-static i32  _ts_anim_modify_idx = -1; // -1: add a new animation, >= 0: modify existing at this index
-static bool _ts_anim_prefill    = false;
+static i32   _ts_anim_node_id    = -1;
+static i32   _ts_anim_modify_idx = -1; // -1: add a new animation, >= 0: modify existing at this index
+static bool  _ts_anim_prefill    = false;
+static i32   _ts_anim_tab        = 0;
+static char *_ts_anim_name       = "";
+static f32   _ts_anim_start      = 0.0;
+static f32   _ts_anim_end        = 0.0;
 
 static void tilesheet_animation_node_edit_box() {
 	bool  modify = _ts_anim_modify_idx >= 0;
 	char *title  = modify ? tr("Modify Animation") : tr("Add Animation");
-	if (ui_tab(ui_handle(__ID__), title, g_config->touch_ui, -1, false)) {
-		ui_handle_t *hname  = ui_handle(__ID__);
-		ui_handle_t *hstart = ui_handle(__ID__);
-		ui_handle_t *hend   = ui_handle(__ID__);
-
+	if (ui_tab(&_ts_anim_tab, title, g_config->touch_ui, -1, false)) {
 		if (_ts_anim_prefill) {
 			ui_node_t *node = ui_get_node(ui_nodes_get_canvas(true)->nodes, _ts_anim_node_id);
 			if (modify && node != NULL) {
 				ui_node_button_t *data_but = node->buttons->buffer[3];
 				ui_node_button_t *enum_but = node->buttons->buffer[4];
 				string_array_t   *parts    = string_split(u8_array_to_string(enum_but->data), "\n");
-				hname->text                = _ts_anim_modify_idx < (i32)parts->length ? parts->buffer[_ts_anim_modify_idx] : tr("Animation");
-				hstart->f                  = data_but->default_value->buffer[_ts_anim_modify_idx * 2];
-				hend->f                    = data_but->default_value->buffer[_ts_anim_modify_idx * 2 + 1];
+				_ts_anim_name              = _ts_anim_modify_idx < (i32)parts->length ? parts->buffer[_ts_anim_modify_idx] : tr("Animation");
+				_ts_anim_start             = data_but->default_value->buffer[_ts_anim_modify_idx * 2];
+				_ts_anim_end               = data_but->default_value->buffer[_ts_anim_modify_idx * 2 + 1];
 			}
 			else {
-				hname->text = tr("Animation");
-				hstart->f   = 0.0;
-				hend->f     = 1.0;
+				_ts_anim_name  = tr("Animation");
+				_ts_anim_start = 0.0;
+				_ts_anim_end   = 1.0;
 			}
 			_ts_anim_prefill = false;
 		}
 
-		char *name        = ui_text_input(hname, tr("Name"), UI_ALIGN_LEFT, true, false);
-		i32   start_frame = (i32)ui_slider(hstart, tr("Start Frame"), 0.0, 4095.0, true, 1.0, true, UI_ALIGN_LEFT, true);
-		i32   end_frame   = (i32)ui_slider(hend, tr("End Frame"), 0.0, 4095.0, true, 1.0, true, UI_ALIGN_LEFT, true);
+		char *name        = ui_text_input(&_ts_anim_name, tr("Name"), UI_ALIGN_LEFT, true, false);
+		i32   start_frame = (i32)ui_slider(&_ts_anim_start, tr("Start Frame"), 0.0, 4095.0, true, 1.0, true, UI_ALIGN_LEFT, true);
+		i32   end_frame   = (i32)ui_slider(&_ts_anim_end, tr("End Frame"), 0.0, 4095.0, true, 1.0, true, UI_ALIGN_LEFT, true);
 
 		ui_row2();
 		if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
@@ -195,13 +195,13 @@ char *tilesheet_animation_node_vector(ui_node_t *node, ui_node_socket_t *socket)
 	if (anim_len < 1)
 		anim_len = 1;
 
-	node_shader_add_constant(parser_material_kong, "tilesheet_anim_time: float", "_time");
+	node_shader_add_constant(parser_material_kong, "float tilesheet_anim_time", "_time");
 
 	char *base = parser_material_store_var_name(node);
-	parser_material_write(parser_material_kong, string_tmp("var %s_frame: int = int(%d.0 + (float(int(constants.tilesheet_anim_time * %d.0)) %% %d.0));", base,
+	parser_material_write(parser_material_kong, string_tmp("int %s_frame = int(%d.0 + (float(int(constants.tilesheet_anim_time * %d.0)) %% %d.0));", base,
 	                                                       start_frame, framerate, anim_len));
-	parser_material_write(parser_material_kong, string_tmp("var %s_tx: float = float(int(float(%s_frame) %% %d.0));", base, base, tiles_x));
-	parser_material_write(parser_material_kong, string_tmp("var %s_ty: float = float(int(float(%s_frame) / %d.0));", base, base, tiles_x));
+	parser_material_write(parser_material_kong, string_tmp("float %s_tx = float(int(float(%s_frame) %% %d.0));", base, base, tiles_x));
+	parser_material_write(parser_material_kong, string_tmp("float %s_ty = float(int(float(%s_frame) / %d.0));", base, base, tiles_x));
 
 	return string_tmp("float3((%s_tx + tex_coord.x) / %d.0, (%s_ty + tex_coord.y) / %d.0, 0.0)", base, tiles_x, base, tiles_y);
 }

@@ -174,7 +174,7 @@ typedef struct slot_material {
 } slot_material_t;
 
 typedef struct tab_draw {
-	void (*f)(struct ui_handle *);
+	void (*f)(i32 *);
 } tab_draw_t;
 
 typedef struct tab_draw_t_array *tab_draw_array_t;
@@ -214,7 +214,7 @@ typedef struct context {
 	export_destination_t        layers_destination;
 	bool                        export_padding;
 	split_type_t                split_by;
-	f32                         select_time;
+	f64                         select_time;
 	viewport_mode_t             viewport_mode;
 	void                       *viewport_shader;
 	bool                        hscale_was_changed;
@@ -227,7 +227,7 @@ typedef struct context {
 	f32                         last_paint_y;
 	bool                        foreground_event;
 	i32                         painted;
-	f32                         brush_time;
+	f64                         brush_time;
 	f32                         clone_start_x;
 	f32                         clone_start_y;
 	f32                         clone_delta_x;
@@ -538,6 +538,7 @@ typedef struct {
 	string_array_t *objects;
 	string_array_t *layers;
 	string_array_t *hidden;
+	char           *nested_mesh;
 } stage_t;
 
 typedef struct {
@@ -674,6 +675,7 @@ typedef struct timeline_layer_keyframe_data {
 } timeline_layer_keyframe_data_t;
 
 typedef struct timeline_mesh_keyframe_data {
+	i32               stage_index;
 	i32               frame;
 	i32               mesh_index;
 	struct f32_array *transform;
@@ -728,6 +730,7 @@ typedef struct neural_node_model {
 	struct string_array *urls;
 	char                *web;
 	char                *license;
+	bool                 expanded; // Preferences panel
 } neural_node_model_t;
 
 typedef struct float_node {
@@ -771,12 +774,6 @@ typedef struct mesh_object_t_array {
 	int             length;
 	int             capacity;
 } mesh_object_t_array_t;
-
-typedef struct ui_handle_t_array {
-	ui_handle_t **buffer;
-	int           length;
-	int           capacity;
-} ui_handle_t_array_t;
 
 typedef struct ui_node_canvas_t_array {
 	ui_node_canvas_t **buffer;
@@ -976,3 +973,14 @@ typedef struct stage_t_array {
 	int       length;
 	int       capacity;
 } stage_t_array_t;
+
+// Per node ui state of the custom node editors (ui_nodes_editor_state())
+typedef struct ui_nodes_editor_state {
+	i32              channel;
+	f32              index[4];
+	f32              x;
+	f32              y;
+	i32              interp;
+	ui_color_state_t color_state;
+	i32              line;
+} ui_nodes_editor_state_t;

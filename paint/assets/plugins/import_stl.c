@@ -70,15 +70,15 @@ void *import_stl(char *path) {
 	a = string_split(s, ".");
 	char *name = a->buffer[0];
 
-	return plugin_make_raw_mesh(name, posa, nora, inda, scale_pos);
+	return script_make_raw_mesh(name, posa, nora, inda, scale_pos);
 }
 
 void on_delete() {
-	plugin_unregister_mesh("stl");
+	script_unregister_mesh("stl");
 }
 
 void main() {
 	plugin = plugin_create();
 	plugin_notify_on_delete(plugin, on_delete);
-	plugin_register_mesh("stl", import_stl);
+	script_register_mesh("stl", import_stl);
 }

@@ -41,8 +41,18 @@ void iron_log_args(iron_log_level_t level, const char *format, va_list args) {
 	iron_microsoft_format(format, args, buffer);
 	wcscat(buffer, L"\r\n");
 	OutputDebugStringW(buffer);
-	DWORD written;
-	WriteConsoleW(GetStdHandle(level == IRON_LOG_LEVEL_INFO ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE), buffer, (DWORD)wcslen(buffer), &written, NULL);
+	HANDLE out = GetStdHandle(level == IRON_LOG_LEVEL_INFO ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
+	DWORD  written;
+	if (GetFileType(out) == FILE_TYPE_CHAR) {
+		WriteConsoleW(out, buffer, (DWORD)wcslen(buffer), &written, NULL);
+	}
+	else {
+		char utf8[4096 * 3];
+		int  len = WideCharToMultiByte(CP_UTF8, 0, buffer, (int)wcslen(buffer), utf8, sizeof(utf8), NULL, NULL);
+		if (len > 0) {
+			WriteFile(out, utf8, (DWORD)len, &written, NULL);
+		}
+	}
 #else
 	char buffer[4096];
 	vsnprintf(buffer, 4090, format, args);
@@ -754,7 +764,7 @@ void iron_set_gamepad_button_callback(void (*callback)(int, int, float));
 #endif
 
 any_map_t   *_sys_shaders    = NULL;
-f32          _sys_start_time = 0.0f;
+f64          _sys_start_time = 0.0;
 char         _sys_window_title[1024];
 any_array_t *_sys_foreground_listeners = NULL;
 any_array_t *_sys_background_listeners = NULL;
@@ -772,8 +782,8 @@ i32 (*sys_on_h)(void)       = NULL;
 i32 (*sys_on_x)(void)       = NULL;
 i32 (*sys_on_y)(void)       = NULL;
 
-static f32 _sys_time_last       = 0.0f;
-static f32 _sys_time_real_delta = 0.0f;
+static f64 _sys_time_last       = 0.0;
+static f64 _sys_time_real_delta = 0.0;
 static i32 _sys_time_frequency  = -1;
 
 static sys_callback_t *_sys_callback_create(void (*f)(void)) {
@@ -801,7 +811,7 @@ void sys_start(iron_window_options_t *ops) {
 
 	_iron_init(ops);
 
-	_sys_start_time = (f32)iron_time();
+	_sys_start_time = iron_time();
 
 	char *dp  = data_path();
 	char *ext = sys_shader_ext();
@@ -917,8 +927,8 @@ void sys_drop_files(char *file_path) {
 	}
 }
 
-f32 sys_time(void) {
-	return (f32)iron_time() - _sys_start_time;
+f64 sys_time(void) {
+	return iron_time() - _sys_start_time;
 }
 
 void sys_drop_files_callback(char *file_path) {
@@ -1093,14 +1103,14 @@ i32 sys_y(void) {
 	return 0;
 }
 
-f32 sys_delta(void) {
+f64 sys_delta(void) {
 	if (_sys_time_frequency < 0) {
 		_sys_time_frequency = sys_display_frequency();
 	}
-	return 1.0f / (f32)_sys_time_frequency;
+	return 1.0 / (f64)_sys_time_frequency;
 }
 
-f32 sys_real_delta(void) {
+f64 sys_real_delta(void) {
 	return _sys_time_real_delta;
 }
 

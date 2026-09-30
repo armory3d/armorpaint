@@ -29,11 +29,11 @@ char *float_curve_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 }
 
 void nodes_material_float_curve_button(i32 node_id) {
-	ui_node_t        *node    = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
-	ui_node_button_t *but     = node->buttons->buffer[0];
-	ui_handle_t      *nhandle = ui_nest(ui_handle(__ID__), node->id);
-	f32_array_t      *val     = but->default_value;
-	f32               sw      = g_ui->_w / (float)UI_NODES_SCALE();
+	ui_node_t               *node  = ui_get_node(ui_nodes_get_canvas(true)->nodes, node_id);
+	ui_node_button_t        *but   = node->buttons->buffer[0];
+	ui_nodes_editor_state_t *state = ui_nodes_editor_state(node);
+	f32_array_t             *val   = but->default_value;
+	f32                      sw    = g_ui->_w / (float)UI_NODES_SCALE();
 
 	if (val->buffer[32] == 0.0f) {
 		float_curve_init(val);
@@ -89,18 +89,15 @@ void nodes_material_float_curve_button(i32 node_id) {
 		num--;
 		val->buffer[32] = (f32)num;
 	}
-	ui_handle_t *ihandle = ui_nest(ui_nest(nhandle, 0), 2);
-	i32          i       = math_floor(ui_slider(ihandle, "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
+	i32 i = math_floor(ui_slider(&state->index[0], "Index", 0, num - 1, false, 1, true, UI_ALIGN_LEFT, true));
 	if (i >= num || i < 0) {
-		ihandle->f = i = num - 1;
+		state->index[0] = i = num - 1;
 	}
 	ui_row2();
-	ui_handle_t *h1        = ui_nest(ui_nest(nhandle, 0), 3);
-	ui_handle_t *h2        = ui_nest(ui_nest(nhandle, 0), 4);
-	h1->f                  = val->buffer[i * 2 + 0];
-	h2->f                  = val->buffer[i * 2 + 1];
-	val->buffer[i * 2 + 0] = ui_slider(h1, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
-	val->buffer[i * 2 + 1] = ui_slider(h2, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	state->x               = val->buffer[i * 2 + 0];
+	state->y               = val->buffer[i * 2 + 1];
+	val->buffer[i * 2 + 0] = ui_slider(&state->x, "X", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
+	val->buffer[i * 2 + 1] = ui_slider(&state->y, "Y", 0, 1, true, 100, true, UI_ALIGN_LEFT, true);
 }
 
 void float_curve_node_init() {
