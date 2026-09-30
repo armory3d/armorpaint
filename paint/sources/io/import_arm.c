@@ -2,6 +2,8 @@
 #include "../global.h"
 
 scene_t *scene_raw_gc;
+static f64 import_arm_progress_last     = 0.0;
+static i32 import_arm_progress_unpacked = 0;
 
 void import_arm_run_project_on_next_frame(void *_) {
 	// Once envmap is imported
@@ -380,6 +382,7 @@ void import_arm_unpack_asset(project_t *project, char *abs, char *file, bool cop
 	if (pa == NULL) {
 		return;
 	}
+	import_arm_progress_unpacked += ((buffer_t *)pa->bytes)->length;
 	gpu_texture_t *image = gpu_create_texture_from_encoded_bytes(pa->bytes, ends_with(pa->name, ".jpg") ? ".jpg" : ".png");
 	any_map_set(data_cached_textures, abs, image);
 }
@@ -389,6 +392,7 @@ void import_arm_unpack_sound(project_t *project, char *abs, char *file, bool cop
 	if (pa == NULL) {
 		return;
 	}
+	import_arm_progress_unpacked += ((buffer_t *)pa->bytes)->length;
 	sound_t *sound = iron_load_sound_from_bytes(pa->bytes, ends_with(pa->name, ".wav") ? ".wav" : ".ogg");
 	if (data_cached_sounds == NULL) {
 		data_cached_sounds = any_map_create();
@@ -527,6 +531,30 @@ void import_arm_run_swatches_from_project(project_t *project, char *path, bool r
 	data_delete_blob(path);
 }
 
+static void import_arm_progress(f32 progress) {
+	if (gpu_in_use) {
+		return;
+	}
+	f64 t = iron_time();
+	if (progress > 0.0 && progress < 1.0 && t - import_arm_progress_last < 1.0 / 30.0) {
+		return;
+	}
+	import_arm_progress_last = t;
+	i32 w  = iron_window_width();
+	i32 h  = iron_window_height();
+	i32 bw = w / 4;
+	i32 bh = h / 180 > 2 ? h / 180 : 2;
+	i32 bx = (w - bw) / 2;
+	i32 by = (ui_header_h - bh) / 2;
+	draw_begin(NULL, args_player, 0xff000000);
+	draw_set_color(g_theme->BUTTON_COL);
+	draw_filled_rect(bx, by, bw, bh);
+	draw_set_color(g_theme->HIGHLIGHT_COL);
+	draw_filled_rect(bx, by, bw * progress, bh);
+	draw_end();
+	gpu_present();
+}
+
 static void import_arm_sculpt_init(void *_) {
 	if (history_undo_layers == NULL) {
 		return;
@@ -536,6 +564,7 @@ static void import_arm_sculpt_init(void *_) {
 }
 
 void import_arm_run_project(char *path) {
+	import_arm_progress(0.0);
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
 		console_error(string("Could not open file %s.", path));
@@ -579,6 +608,18 @@ void import_arm_run_project(char *path) {
 
 	g_context->layers_preview_dirty = true;
 	g_context->layer_filter         = 0;
+	import_arm_progress(0.1);
+
+	i32 progress_assets = project->assets->length + (project->sound_assets != NULL ? project->sound_assets->length : 0);
+	i32 progress_loaded = 0;
+	i32 progress_bytes  = 1;
+	if (project->packed_assets != NULL) {
+		for (i32 i = 0; i < project->packed_assets->length; ++i) {
+			packed_asset_t *pa = project->packed_assets->buffer[i];
+			progress_bytes += ((buffer_t *)pa->bytes)->length;
+		}
+	}
+	import_arm_progress_unpacked = 0;
 
 	project_new(import_as_mesh);
 	g_project->_->filepath = string_copy(path);
@@ -658,6 +699,8 @@ void import_arm_run_project(char *path) {
 		}
 		bool hdr_as_envmap = ends_with(abs, ".hdr") && g_project->envmap != NULL && string_equals(g_project->envmap, path_normalize(abs));
 		import_texture_run(abs, hdr_as_envmap);
+		progress_loaded++;
+		import_arm_progress(0.1 + 0.7 * (0.8 * import_arm_progress_unpacked / (f32)progress_bytes + 0.2 * progress_loaded / (f32)progress_assets));
 	}
 
 	if (g_project->font_assets != NULL) {
@@ -693,12 +736,15 @@ void import_arm_run_project(char *path) {
 			if (iron_file_exists(abs) || (data_cached_sounds != NULL && any_map_get(data_cached_sounds, abs) != NULL)) {
 				import_sound_run(abs);
 			}
+			progress_loaded++;
+			import_arm_progress(0.1 + 0.7 * (0.8 * import_arm_progress_unpacked / (f32)progress_bytes + 0.2 * progress_loaded / (f32)progress_assets));
 		}
 	}
 
 	string_array_t      *mesh_names = string_array_create(0);
 	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(g_project, mesh_names);
 
+	import_arm_progress(0.8);
 	mesh_data_t *md = mesh_datas->buffer[0];
 
 	mesh_object_set_data(g_context->paint_object, md);
@@ -874,6 +920,8 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
+	import_arm_progress(0.85);
+
 	// Assign parents to groups and masks
 	for (i32 i = 0; i < g_project->layer_datas->length; ++i) {
 		layer_data_t *ld = g_project->layer_datas->buffer[i];
@@ -967,6 +1015,7 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
+	import_arm_progress(0.9);
 	if (g_project->mesh_materials != NULL) {
 		i32             mat_count = g_project->_->materials->length;
 		shader_data_t **mat_cache = calloc(mat_count, sizeof(shader_data_t *));
@@ -1006,6 +1055,7 @@ void import_arm_run_project(char *path) {
 		}
 	}
 
+	import_arm_progress(0.95);
 	tab_meshes_sort_hierarchy();
 
 	tab_stages_init();
@@ -1026,6 +1076,7 @@ void import_arm_run_project(char *path) {
 		g_context->merged_object->base->visible = true;
 	}
 
+	import_arm_progress(1.0);
 	sys_notify_on_next_frame(&import_arm_run_project_on_next_frame, NULL);
 
 	base_update_workflow();

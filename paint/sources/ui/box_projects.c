@@ -5,6 +5,8 @@ any_map_t *box_projects_icon_map = NULL;
 char      *_box_projects_path;
 char      *_box_projects_icon_path;
 i32        _box_projects_i;
+char      *_box_projects_load_path;
+i32        _box_projects_load_frames;
 
 void box_projects_tab_menu_on_next_frame(void *_) {
 	iron_delete_file(_box_projects_path);
@@ -22,9 +24,23 @@ void box_projects_tab_menu() {
 	}
 }
 
-void box_projects_tab_on_next_frame(char *path) {
+void box_projects_load_on_next_frame(void *_) {
+	if (--_box_projects_load_frames > 0) {
+		sys_notify_on_next_frame(&box_projects_load_on_next_frame, NULL);
+		return;
+	}
+	import_arm_run_project(_box_projects_load_path);
+}
+
+void box_projects_load(char *path) {
 	ui_box_hide();
-	import_arm_run_project(path);
+	_box_projects_load_path   = string_copy(path);
+	_box_projects_load_frames = GPU_FRAMEBUFFER_COUNT + 1;
+	sys_notify_on_next_frame(&box_projects_load_on_next_frame, NULL);
+}
+
+void box_projects_tab_on_next_frame(char *path) {
+	box_projects_load(path);
 }
 
 void box_projects_draw_badge() {
@@ -235,16 +251,7 @@ void box_projects_recent_load(char *path) {
 	if (!iron_file_exists(path)) {
 		return;
 	}
-	gpu_texture_t *current = _draw_current;
-	bool           in_use  = gpu_in_use;
-	if (in_use)
-		draw_end();
-
-	import_arm_run_project(path);
-
-	if (in_use)
-		draw_begin(current, false, 0);
-	ui_box_hide();
+	box_projects_load(path);
 }
 
 void box_projects_recent_tab() {
