@@ -927,6 +927,132 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 	free(shader->impl.data);
 }
 
+#ifdef WITH_BC7
+
+// Gpu bc7 encoder: rgba8 pixels in the upload buffer -> compute shader -> bc7 blocks buffer -> texture
+// Root parameters follow kong's registers in gpu_bc7.shader: constant buffer b0, src t0, dst u0
+#include "direct3d12_bc7.h"
+
+static bool                 bc7_compute_checked = false;
+static bool                 bc7_compute_ready   = false;
+static ID3D12RootSignature *bc7_root_signature;
+static ID3D12PipelineState *bc7_pipeline;
+static ID3D12Resource      *bc7_constants;
+static float               *bc7_constants_data;
+static ID3D12Resource      *bc7_buffer      = NULL;
+static UINT64               bc7_buffer_size = 0;
+
+static bool bc7_compute_init() {
+	D3D12_ROOT_PARAMETER parameters[3] = {
+	    {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV, .Descriptor = {0, 0}, .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+	    {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV, .Descriptor = {0, 0}, .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+	    {.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV, .Descriptor = {0, 0}, .ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL},
+	};
+	D3D12_ROOT_SIGNATURE_DESC root_signature_desc = {
+	    .NumParameters = 3,
+	    .pParameters   = parameters,
+	};
+	ID3DBlob *blob  = NULL;
+	ID3DBlob *error = NULL;
+	if (FAILED(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error))) {
+		return false;
+	}
+	HRESULT result = device->lpVtbl->CreateRootSignature(device, 0, blob->lpVtbl->GetBufferPointer(blob), blob->lpVtbl->GetBufferSize(blob),
+	                                                     &IID_ID3D12RootSignature, &bc7_root_signature);
+	blob->lpVtbl->Release(blob);
+	if (FAILED(result)) {
+		return false;
+	}
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc = {
+	    .pRootSignature     = bc7_root_signature,
+	    .CS.pShaderBytecode = direct3d12_bc7_dxil,
+	    .CS.BytecodeLength  = sizeof(direct3d12_bc7_dxil),
+	    .Flags              = D3D12_PIPELINE_STATE_FLAG_NONE,
+	};
+	if (FAILED(device->lpVtbl->CreateComputePipelineState(device, &pso_desc, &IID_ID3D12PipelineState, (void **)&bc7_pipeline))) {
+		return false;
+	}
+
+	// float4 size: width, height, blocks_x, blocks_y, in a 256-byte aligned constant buffer
+	D3D12_HEAP_PROPERTIES heap_properties = {.Type = D3D12_HEAP_TYPE_UPLOAD, .CreationNodeMask = 1, .VisibleNodeMask = 1};
+	D3D12_RESOURCE_DESC   resource_desc   = {
+	        .Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
+	        .Width            = 256,
+	        .Height           = 1,
+	        .DepthOrArraySize = 1,
+	        .MipLevels        = 1,
+	        .Format           = DXGI_FORMAT_UNKNOWN,
+	        .SampleDesc.Count = 1,
+	        .Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+    };
+	if (FAILED(device->lpVtbl->CreateCommittedResource(device, &heap_properties, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_GENERIC_READ, NULL,
+	                                                   &IID_ID3D12Resource, &bc7_constants))) {
+		return false;
+	}
+	return SUCCEEDED(bc7_constants->lpVtbl->Map(bc7_constants, 0, NULL, (void **)&bc7_constants_data));
+}
+
+static bool bc7_compute_available() {
+	if (!bc7_compute_checked) {
+		bc7_compute_checked = true;
+		bc7_compute_ready   = bc7_compute_init();
+		if (!bc7_compute_ready) {
+			iron_log("Gpu bc7 encoder unavailable, using cpu");
+		}
+	}
+	return bc7_compute_ready;
+}
+
+static bool bc7_compute_ensure_buffer(UINT64 size) {
+	if (bc7_buffer_size >= size) {
+		return true;
+	}
+	if (bc7_buffer != NULL) {
+		bc7_buffer->lpVtbl->Release(bc7_buffer);
+		bc7_buffer      = NULL;
+		bc7_buffer_size = 0;
+	}
+	D3D12_HEAP_PROPERTIES heap_properties = {.Type = D3D12_HEAP_TYPE_DEFAULT, .CreationNodeMask = 1, .VisibleNodeMask = 1};
+	D3D12_RESOURCE_DESC   resource_desc   = {
+	        .Dimension        = D3D12_RESOURCE_DIMENSION_BUFFER,
+	        .Width            = size,
+	        .Height           = 1,
+	        .DepthOrArraySize = 1,
+	        .MipLevels        = 1,
+	        .Format           = DXGI_FORMAT_UNKNOWN,
+	        .SampleDesc.Count = 1,
+	        .Layout           = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+	        .Flags            = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+    };
+	if (FAILED(device->lpVtbl->CreateCommittedResource(device, &heap_properties, D3D12_HEAP_FLAG_NONE, &resource_desc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+	                                                   NULL, &IID_ID3D12Resource, &bc7_buffer))) {
+		return false;
+	}
+	bc7_buffer_size = size;
+	return true;
+}
+
+static void bc7_compute_encode(uint32_t width, uint32_t height) {
+	uint32_t blocks_x     = (width + 3) / 4;
+	uint32_t blocks_y     = (height + 3) / 4;
+	bc7_constants_data[0] = (float)width;
+	bc7_constants_data[1] = (float)height;
+	bc7_constants_data[2] = (float)blocks_x;
+	bc7_constants_data[3] = (float)blocks_y;
+
+	command_list->lpVtbl->SetComputeRootSignature(command_list, bc7_root_signature);
+	command_list->lpVtbl->SetPipelineState(command_list, bc7_pipeline);
+	command_list->lpVtbl->SetComputeRootConstantBufferView(command_list, 0, bc7_constants->lpVtbl->GetGPUVirtualAddress(bc7_constants));
+	command_list->lpVtbl->SetComputeRootShaderResourceView(command_list, 1, upload_buffer->lpVtbl->GetGPUVirtualAddress(upload_buffer));
+	command_list->lpVtbl->SetComputeRootUnorderedAccessView(command_list, 2, bc7_buffer->lpVtbl->GetGPUVirtualAddress(bc7_buffer));
+	command_list->lpVtbl->Dispatch(command_list, (blocks_x + 63) / 64, blocks_y, 1);
+
+	_gpu_barrier(bc7_buffer, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+}
+
+#endif
+
 void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress) {
 	texture->width            = width;
 	texture->height           = height;
@@ -939,10 +1065,14 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	void       *original_data = data;
 
 #ifdef WITH_BC7
+	bool bc7_gpu = false;
 	if (compress && gpu_bc7_supported(width, height, format)) {
 		texture->format = GPU_TEXTURE_FORMAT_RGBA32_BC7;
 		dxgi_format     = DXGI_FORMAT_BC7_UNORM;
-		data            = gpu_bc7_compress(data, width, height);
+		bc7_gpu         = bc7_compute_available() && bc7_compute_ensure_buffer((UINT64)((width + 3) / 4) * ((height + 3) / 4) * 16);
+		if (!bc7_gpu) {
+			data = gpu_bc7_compress(data, width, height);
+		}
 	}
 #endif
 
@@ -988,6 +1118,11 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	device->lpVtbl->GetCopyableFootprints(device, &resource_desc, 0, 1, 0, &footprint, NULL, NULL, &upload_size);
 
 	int new_upload_buffer_size = upload_size;
+#ifdef WITH_BC7
+	if (bc7_gpu) {
+		new_upload_buffer_size = width * height * 4; // Raw pixels for the encoder
+	}
+#endif
 	if (new_upload_buffer_size < (1024 * 1024 * 4)) {
 		new_upload_buffer_size = (1024 * 1024 * 4);
 	}
@@ -1027,7 +1162,10 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	upload_buffer->lpVtbl->Map(upload_buffer, 0, NULL, (void **)&pixel);
 	UINT row_pitch = footprint.Footprint.RowPitch;
 #ifdef WITH_BC7
-	if (data != original_data) {
+	if (bc7_gpu) {
+		memcpy(pixel, data, width * height * 4);
+	}
+	else if (data != original_data) {
 		memcpy(pixel, data, ((width + 3) / 4) * ((height + 3) / 4) * 16); // BC7ENC_BLOCK_SIZE
 	}
 	else
@@ -1066,6 +1204,12 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	    .Type            = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
 	    .PlacedFootprint = footprint,
 	};
+#ifdef WITH_BC7
+	if (bc7_gpu) {
+		bc7_compute_encode(width, height);
+		source.pResource = bc7_buffer;
+	}
+#endif
 
 	D3D12_TEXTURE_COPY_LOCATION destination = {
 	    .pResource        = texture->impl.image,
@@ -1077,6 +1221,11 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 
 	barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST, barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 	command_list->lpVtbl->ResourceBarrier(command_list, 1, &barrier);
+#ifdef WITH_BC7
+	if (bc7_gpu) {
+		_gpu_barrier(bc7_buffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	}
+#endif
 
 	gpu_execute_and_wait(); ////
 
