@@ -770,12 +770,17 @@ gpu_texture_t *gpu_create_texture_from_bytes_raw(buffer_t *data, i32 width, i32 
 	return texture;
 }
 
-gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *format) {
+typedef struct iron_image_pixels {
+	unsigned char       *data;
+	int                  width;
+	int                  height;
+	gpu_texture_format_t format;
+} iron_image_pixels_t;
+
+bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 	if (data == NULL || data->length == 0) {
-		return NULL;
+		return false;
 	}
-	gpu_texture_t *texture = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
-	texture->buffer        = NULL;
 	unsigned char       *texture_data;
 	gpu_texture_format_t texture_format;
 	int                  width;
@@ -806,7 +811,10 @@ gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *forma
 	}
 	else if (ends_with(format, "hdr")) {
 		int comp;
-		texture_data   = (unsigned char *)stbi_loadf_from_memory(data->buffer, data->length, &width, &height, &comp, 4);
+		texture_data = (unsigned char *)stbi_loadf_from_memory(data->buffer, data->length, &width, &height, &comp, 4);
+		if (texture_data == NULL) {
+			return false;
+		}
 		texture_format = GPU_TEXTURE_FORMAT_RGBA64;
 		// F32 to F16
 		float    *f32_data = (float *)texture_data;
@@ -821,12 +829,28 @@ gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *forma
 		texture_format = GPU_TEXTURE_FORMAT_RGBA32;
 	}
 
-	// double t = iron_time(); ////
-	gpu_texture_init_from_bytes(texture, texture_data, width, height, texture_format, true);
-	// iron_log("gpu_texture_init_from_bytes in %fs\n", iron_time() - t); ////
-	free(texture_data);
+	out->data   = texture_data;
+	out->width  = width;
+	out->height = height;
+	out->format = texture_format;
+	return texture_data != NULL;
+}
 
+gpu_texture_t *gpu_create_texture_from_pixels(iron_image_pixels_t *pixels) {
+	gpu_texture_t *texture = (gpu_texture_t *)malloc(sizeof(gpu_texture_t));
+	texture->buffer        = NULL;
+	gpu_texture_init_from_bytes(texture, pixels->data, pixels->width, pixels->height, pixels->format, true);
+	free(pixels->data);
+	pixels->data = NULL;
 	return texture;
+}
+
+gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *format) {
+	iron_image_pixels_t pixels;
+	if (!iron_decode_image(data, format, &pixels)) {
+		return NULL;
+	}
+	return gpu_create_texture_from_pixels(&pixels);
 }
 
 void gpu_delete_texture(gpu_texture_t *texture) {
