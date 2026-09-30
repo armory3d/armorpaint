@@ -767,6 +767,12 @@ void minic_register_builtins() {
 	MINIC_P(_);
 	MINIC_END();
 
+	MINIC_STRUCT(gpu_texture_t);
+	MINIC_I(width);
+	MINIC_I(height);
+	MINIC_I(format);
+	MINIC_END();
+
 	MINIC_STRUCT(render_target_t);
 	MINIC_S(name);
 	MINIC_I(width);

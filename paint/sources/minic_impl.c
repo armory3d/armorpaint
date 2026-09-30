@@ -264,6 +264,19 @@ gpu_texture_t *script_get_texture(char *s) {
 	return NULL;
 }
 
+void script_texture_delete(char *s) {
+	if (s == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->assets == NULL) {
+		return;
+	}
+	for (int i = 0; i < g_project->_->assets->length; ++i) {
+		asset_t *asset = g_project->_->assets->buffer[i];
+		if (string_equals(asset->name, s)) {
+			tab_textures_delete_texture(asset);
+			return;
+		}
+	}
+}
+
 static bool script_paint_active = false;
 static bool script_paint_first  = true;
 
@@ -418,6 +431,18 @@ static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	if (in_use) {
 		draw_begin(current, false, 0);
 	}
+}
+
+buffer_t *script_get_texture_pixels(gpu_texture_t *texture) {
+	if (texture == NULL || texture->format == GPU_TEXTURE_FORMAT_D32) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	buffer_t *b = gpu_get_texture_pixels(texture);
+	script_gpu_end(current, in_use);
+	return b;
 }
 
 static void script_bake_lightmap_done(void *fn) {
