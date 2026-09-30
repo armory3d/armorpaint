@@ -410,7 +410,14 @@ void iron_delete_file(char *path) {
 	//   3. a path containing a double quote closed the argument and let the rest run
 	//      as a command.
 	// DeleteFileW has none of these, accepts '/', and does not spawn a process.
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, 1024);
+	// temp_wstring is shared global scratch of 1024 * 32 wide chars; pass its real
+	// capacity rather than the 1024 that iron_file_save_bytes() below happens to use.
+	// On an insufficient count MultiByteToWideChar returns 0 and does not promise to
+	// terminate the buffer, which would leave DeleteFileW reading a fresh prefix
+	// followed by a stale tail from an earlier call -- worse than refusing the delete.
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
+		return;
+	}
 	// del's /f switch force-deletes read-only files; DeleteFileW refuses them. Clear the
 	// flag first so the behaviour stays identical to what this function did before.
 	DWORD attribs = GetFileAttributesW(temp_wstring);
