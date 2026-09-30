@@ -1766,6 +1766,8 @@ static int geometry_texture_slot(name_id func) {
 	return name[16] - '0';
 }
 
+static spirv_id storage_buffer_uint_pointer_type; // Element of a uint name[] storage buffer
+
 static bool is_storage_image(uint64_t var_index) {
 	for (size_t i = 0; i < storage_image_vars_count; ++i) {
 		if (storage_image_vars[i] == var_index) {
@@ -1797,6 +1799,12 @@ static bool is_global_const(uint64_t index) {
 		}
 	}
 	return false;
+}
+
+// uint name[]: access chain to element index of the runtime array in member 0
+static spirv_id storage_buffer_element(instructions_buffer *instructions, uint64_t var_index, variable index) {
+	spirv_id indices[2] = {get_int_constant(0), convert_kong_index_to_spirv_id(index.index)};
+	return write_op_access_chain(instructions, storage_buffer_uint_pointer_type, convert_kong_index_to_spirv_id(var_index), indices, 2);
 }
 
 static spirv_id get_var(instructions_buffer *instructions, variable param) {
@@ -1960,6 +1968,13 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 
 				hmput(index_map, o->op_load_access_list.to.index, value);
+			}
+			else if (o->op_load_access_list.from.kind == VARIABLE_GLOBAL && is_storage_buffer(o->op_load_access_list.from.type.type)) {
+				kong_assert(indices_size == 1);
+				kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
+				spirv_id pointer =
+				    storage_buffer_element(instructions, o->op_load_access_list.from.index, o->op_load_access_list.access_list[0].access_element.index);
+				hmput(index_map, o->op_load_access_list.to.index, write_op_load(instructions, spirv_uint_type, pointer));
 			}
 			else if (o->op_load_access_list.from.kind == VARIABLE_INTERNAL) {
 				uint32_t indices[256];
@@ -2764,6 +2779,13 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id texel          = get_var(instructions, o->op_store_access_list.from);
 
 				write_op_image_write(instructions, image, coordinate, texel);
+			}
+			else if (o->op_store_access_list.to.kind == VARIABLE_GLOBAL && is_storage_buffer(o->op_store_access_list.to.type.type)) {
+				kong_assert(o->type == OPCODE_STORE_ACCESS_LIST && indices_size == 1);
+				kong_assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
+				spirv_id pointer =
+				    storage_buffer_element(instructions, o->op_store_access_list.to.index, o->op_store_access_list.access_list[0].access_element.index);
+				write_op_store(instructions, pointer, get_var(instructions, o->op_store_access_list.from));
 			}
 			else {
 				for (uint16_t i = 0; i < indices_size; ++i) {
@@ -3649,6 +3671,23 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 				write_op_decorate_value(decorations, spirv_var_id, DECORATION_BINDING, binding);
 			}
 		}
+		else if (is_storage_buffer(g->type)) {
+			spirv_id uint_array = allocate_index();
+			write_instruction(aggregate_types_block, 3, SPIRV_OPCODE_TYPE_RUNTIME_ARRAY, (uint32_t[]){uint_array.id, spirv_uint_type.id});
+			write_op_decorate_value(decorations, uint_array, DECORATION_ARRAY_STRIDE, 4);
+			spirv_id buffer_type = write_type_struct(aggregate_types_block, &uint_array, 1);
+			write_op_decorate(decorations, buffer_type, DECORATION_BLOCK);
+			write_op_member_decorate_value(decorations, buffer_type, 0, DECORATION_OFFSET, 0);
+			if (storage_buffer_uint_pointer_type.id == 0) {
+				storage_buffer_uint_pointer_type = write_type_pointer(aggregate_types_block, STORAGE_CLASS_STORAGE_BUFFER, spirv_uint_type);
+			}
+
+			spirv_id spirv_var_id = convert_kong_index_to_spirv_id(g->var_index);
+			write_op_variable_preallocated(global_vars_block, write_type_pointer(aggregate_types_block, STORAGE_CLASS_STORAGE_BUFFER, buffer_type),
+			                               spirv_var_id, STORAGE_CLASS_STORAGE_BUFFER);
+			write_op_decorate_value(decorations, spirv_var_id, DECORATION_DESCRIPTOR_SET, 0);
+			write_op_decorate_value(decorations, spirv_var_id, DECORATION_BINDING, binding);
+		}
 		else if (base_type == bvh_type_id) {
 			if (acceleration_structure_type.id == 0) {
 				acceleration_structure_type = allocate_index();
@@ -3797,9 +3836,10 @@ void init_maps(void) {
 	init_function_map();
 	init_int_constants();
 	init_float_constants();
-	storage_image_type          = (spirv_id){0};
-	storage_image_vars_count    = 0;
-	acceleration_structure_type = (spirv_id){0};
+	storage_image_type               = (spirv_id){0};
+	storage_image_vars_count         = 0;
+	acceleration_structure_type      = (spirv_id){0};
+	storage_buffer_uint_pointer_type = (spirv_id){0};
 }
 
 static char *write_bytecode2(char *buffer, int *size_out, instructions_buffer *header, instructions_buffer *decorations, instructions_buffer *base_types,

@@ -199,6 +199,16 @@ static void assign_register_indices(uint32_t *register_indices, function *shader
 				register_indices[global_index] = srv_index;
 				srv_index += 1;
 			}
+			else if (is_storage_buffer(g->type)) {
+				if (writable) {
+					register_indices[global_index] = uav_index;
+					uav_index += 1;
+				}
+				else {
+					register_indices[global_index] = srv_index;
+					srv_index += 1;
+				}
+			}
 			else if (get_type(g->type)->built_in) {
 				if (get_type(g->type)->array_size > 0) {
 					register_indices[global_index] = uav_index;
@@ -270,6 +280,10 @@ static void write_globals(char *hlsl, size_t *offset, function *main) {
 		}
 		else if (base_type == bvh_type_id) {
 			*offset += sprintf(&hlsl[*offset], "RaytracingAccelerationStructure  _%" PRIu64 " : register(t%i);\n\n", g->var_index, register_index);
+		}
+		else if (is_storage_buffer(g->type)) {
+			*offset += sprintf(&hlsl[*offset], "%sStructuredBuffer<uint> _%" PRIu64 " : register(%c%i);\n\n", writable ? "RW" : "", g->var_index,
+			                   writable ? 'u' : 't', register_index);
 		}
 		else if (base_type == float_id) {
 			char number[64];

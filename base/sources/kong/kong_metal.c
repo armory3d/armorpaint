@@ -340,6 +340,7 @@ static void assign_resource_bindings(function *kernel) {
 			}
 			else {
 				resource_bindings[id] = buffer_index++;
+				resource_writable[id] = set->globals.writable[i];
 			}
 		}
 	}
@@ -362,6 +363,10 @@ static void write_resource_parameter(char *code, size_t *offset, global_id id, b
 	else if (g->type == bvh_type_id) {
 		sprintf(binding, " [[buffer(%u)]]", index);
 		*offset += sprintf(&code[*offset], "instance_acceleration_structure _%" PRIu64 "%s", g->var_index, kernel ? binding : "");
+	}
+	else if (is_storage_buffer(g->type)) {
+		sprintf(binding, " [[buffer(%u)]]", index);
+		*offset += sprintf(&code[*offset], "%sdevice uint *_%" PRIu64 "%s", resource_writable[id] ? "" : "const ", g->var_index, kernel ? binding : "");
 	}
 	else {
 		char name[256];

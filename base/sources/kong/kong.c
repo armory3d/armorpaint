@@ -154,6 +154,11 @@ static void find_referenced_global_for_var(variable v, global_array *globals, bo
 	}
 }
 
+bool is_storage_buffer(type_id t) {
+	type *tt = get_type(t);
+	return tt->array_size == UINT32_MAX && tt->base == uint_id;
+}
+
 void find_referenced_globals(function *f, global_array *globals) {
 	if (f->block == NULL) {
 		return; // built-in
@@ -3679,6 +3684,18 @@ static definition parse_global(state_t *state, attribute_list attributes, name_i
 	else if (type_name == add_name("bvh")) {
 		d.kind   = DEFINITION_BVH;
 		d.global = add_global(bvh_type_id, attributes, name.identifier);
+	}
+	else if (type_name == add_name("uint") && array) {
+		// Storage buffer, uint name[];
+		debug_context context = {0};
+		check(array_size == UINT32_MAX && value == NULL, context, "uint[] globals are storage buffers, use uint name[];");
+		type_id array_type_id               = add_type(get_type(uint_id)->name);
+		get_type(array_type_id)->base       = uint_id;
+		get_type(array_type_id)->built_in   = true;
+		get_type(array_type_id)->array_size = UINT32_MAX;
+
+		d.kind   = DEFINITION_CONST_BASIC;
+		d.global = add_global(array_type_id, attributes, name.identifier);
 	}
 	else if (type_name == add_name("float")) {
 		debug_context context = {0};

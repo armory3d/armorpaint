@@ -620,6 +620,7 @@ variable              allocate_variable(type_ref type, variable_kind kind);
 void                  find_referenced_functions(function *f, function **functions, size_t *functions_size);
 void                  find_referenced_types(function *f, type_id *types, size_t *types_size);
 void                  find_referenced_globals(function *f, global_array *globals);
+bool                  is_storage_buffer(type_id t); // uint name[];
 void                  find_used_builtins(function *f);
 void                  find_used_capabilities(function *f);
 bool                  calls_function(function *f, const char *name);
