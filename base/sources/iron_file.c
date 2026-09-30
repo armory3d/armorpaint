@@ -410,12 +410,13 @@ void iron_delete_file(char *path) {
 	//   3. a path containing a double quote closed the argument and let the rest run
 	//      as a command.
 	// DeleteFileW has none of these, accepts '/', and does not spawn a process.
-	// temp_wstring is shared global scratch of 1024 * 32 wide chars; pass its real
-	// capacity rather than the 1024 that iron_file_save_bytes() below happens to use.
-	// On an insufficient count MultiByteToWideChar returns 0 and does not promise to
-	// terminate the buffer, which would leave DeleteFileW reading a fresh prefix
-	// followed by a stale tail from an earlier call -- worse than refusing the delete.
+	// temp_wstring is shared global scratch of 1024 * 32 wide chars. Pass its real
+	// capacity, and refuse the delete if the conversion fails: on an insufficient
+	// count MultiByteToWideChar fills the buffer WITHOUT a terminator and returns 0,
+	// so proceeding would hand DeleteFileW an unterminated string. iron_file_save_bytes()
+	// below shares this buffer and must move with it -- see the note there.
 	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
+		iron_log("Could not delete file %s.", path);
 		return;
 	}
 	// del's /f switch force-deletes read-only files; DeleteFileW refuses them. Clear the
@@ -441,7 +442,16 @@ void iron_file_save_bytes(char *path, buffer_t *bytes, u64 length) {
 	}
 
 #ifdef IRON_WINDOWS
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, 1024);
+	// Shares temp_wstring with iron_delete_file() above, so the two counts must move
+	// together. temp_wstring has static storage and every writer used to cap at 1024,
+	// so everything past index 1023 was permanently NUL and an over-long path here
+	// merely truncated. Once that function can write up to 32767, this site capped at
+	// 1024 and ignoring the result would hand _wfopen() a fresh prefix followed by the
+	// earlier call's tail -- and L"wb" creates and truncates whatever that names.
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
+		iron_log("Could not save file %s.", path);
+		return;
+	}
 	FILE *file = _wfopen(temp_wstring, L"wb");
 #else
 	FILE *file = fopen(path, "wb");
