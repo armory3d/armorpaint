@@ -26,11 +26,16 @@ void tab_textures_draw_export_on_next_frame2(gpu_texture_t *target) {
 	if (string_equals(f, "")) {
 		f = string_copy(tr("untitled"));
 	}
-	if (!ends_with(f, ".png")) {
+	if (!ends_with(f, ".jpg") && !ends_with(f, ".png")) {
 		f = string("%s.png", f);
 	}
 	buffer_t *buf = gpu_get_texture_pixels(target);
-	iron_write_png(string("%s%s%s", path, PATH_SEP, f), buf, target->width, target->height, 0);
+	if (ends_with(f, ".jpg")) {
+		iron_write_jpg(string("%s%s%s", path, PATH_SEP, f), buf, target->width, target->height, 0, 80);
+	}
+	else {
+		iron_write_png(string("%s%s%s", path, PATH_SEP, f), buf, target->width, target->height, 0);
+	}
 	gpu_delete_texture(target);
 }
 
@@ -120,7 +125,7 @@ void tab_textures_delete_texture(asset_t *asset) {
 
 void tab_textures_draw_context_menu() {
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
-		ui_files_show("png", true, false, &tab_textures_draw_export);
+		ui_files_show("png,jpg", true, false, &tab_textures_draw_export);
 	}
 	if (ui_menu_button(tr("Reimport"), "", ICON_SYNC)) {
 		project_reimport_texture(_tab_textures_draw_asset);
