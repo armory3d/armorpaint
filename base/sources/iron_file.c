@@ -416,7 +416,10 @@ void iron_delete_file(char *path) {
 	// so proceeding would hand DeleteFileW an unterminated string. iron_file_save_bytes()
 	// below shares this buffer and must move with it -- see the note there.
 	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
-		iron_log("Could not delete file %s.", path);
+		// Bound the argument: iron_log() formats through iron_microsoft_format(), which
+		// is an unbounded vsprintf() into a 4096-byte stack buffer on Windows, and this
+		// branch is reached precisely when the path is too long to convert.
+		iron_log("Could not delete file %.512s.", path != NULL ? path : "(null)");
 		return;
 	}
 	// del's /f switch force-deletes read-only files; DeleteFileW refuses them. Clear the
@@ -449,7 +452,8 @@ void iron_file_save_bytes(char *path, buffer_t *bytes, u64 length) {
 	// 1024 and ignoring the result would hand _wfopen() a fresh prefix followed by the
 	// earlier call's tail -- and L"wb" creates and truncates whatever that names.
 	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
-		iron_log("Could not save file %s.", path);
+		// Bounded for the same reason as iron_delete_file() above.
+		iron_log("Could not save file %.512s.", path != NULL ? path : "(null)");
 		return;
 	}
 	FILE *file = _wfopen(temp_wstring, L"wb");
