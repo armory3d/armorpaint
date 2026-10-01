@@ -255,6 +255,18 @@ sound_t *script_get_sound(char *s) {
 	return NULL;
 }
 
+i32 script_sound_remove(char *s) {
+	for (int i = 0; i < g_project->_->sounds->length; ++i) {
+		slot_sound_t *sound = g_project->_->sounds->buffer[i];
+		if (string_equals(sound->name, s)) {
+			data_delete_sound(sound->file);
+			array_splice(g_project->_->sounds, i, 1);
+			return 1;
+		}
+	}
+	return 0;
+}
+
 gpu_texture_t *script_get_texture(char *s) {
 	for (int i = 0; i < g_project->_->assets->length; ++i) {
 		if (string_equals(g_project->_->assets->buffer[i]->name, s)) {
@@ -570,6 +582,25 @@ i32 script_packed_assets_remove(char *search) {
 	while (i < g_project->packed_assets->length) {
 		if (string_index_of(g_project->packed_assets->buffer[i]->name, search) >= 0) {
 			array_splice(g_project->packed_assets, i, 1);
+			removed++;
+		}
+		else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+i32 script_assets_remove(char *search) {
+	if (search == NULL) {
+		return 0;
+	}
+	i32 removed = 0;
+	i32 i       = 0;
+	while (i < g_project->_->assets->length) {
+		asset_t *a = g_project->_->assets->buffer[i];
+		if (string_index_of(a->file, search) >= 0) {
+			tab_textures_delete_texture(a);
 			removed++;
 		}
 		else {
