@@ -142,7 +142,10 @@ typedef struct geom {
 	u32 *ind; // triangles
 	i32  icount;
 	i32  icap;
-	f32 *uv; // uv per index (face corner), NULL until unwrapped
+	f32 *uv;   // uv per index (face corner), NULL until unwrapped
+	f32 *wt;   // 4 bone weights per vertex, NULL until set by geom_weights
+	u16 *jt;   // 4 bone indices per vertex
+	u8  *part; // color atlas part per triangle, NULL = part 0
 } geom_t;
 
 enum {
@@ -725,7 +728,10 @@ geom_t *geom_copy(geom_t *g) {
 	c->ind    = malloc(sizeof(u32) * g->icap);
 	memcpy(c->pos, g->pos, sizeof(f32) * 3 * g->vcount);
 	memcpy(c->ind, g->ind, sizeof(u32) * g->icount);
-	c->uv = NULL;
+	c->uv   = NULL;
+	c->wt   = NULL;
+	c->jt   = NULL;
+	c->part = NULL;
 	return c;
 }
 
@@ -741,6 +747,9 @@ void geom_keep(geom_t *g, i32 axis, f32 lo, f32 hi) {
 		if (c < lo || c > hi) {
 			continue;
 		}
+		if (g->part != NULL) {
+			g->part[icount / 3] = g->part[i / 3];
+		}
 		for (i32 k = 0; k < 3; ++k) {
 			g->ind[icount++]     = g->ind[i + k];
 			remap[g->ind[i + k]] = 0;
@@ -751,6 +760,10 @@ void geom_keep(geom_t *g, i32 axis, f32 lo, f32 hi) {
 		if (remap[v] == 0) {
 			remap[v] = vcount;
 			memmove(&g->pos[vcount * 3], &g->pos[v * 3], sizeof(f32) * 3);
+			if (g->wt != NULL) {
+				memmove(&g->wt[vcount * 4], &g->wt[v * 4], sizeof(f32) * 4);
+				memmove(&g->jt[vcount * 4], &g->jt[v * 4], sizeof(u16) * 4);
+			}
 			vcount++;
 		}
 	}
@@ -863,6 +876,654 @@ void geom_unwrap(geom_t *g, f32 margin) {
 	free(mesh->texa);
 	free(mesh);
 	free(n);
+}
+
+geom_t *geom_ellipsoid(f32 x, f32 y, f32 z, f32 rx, f32 ry, f32 rz, i32 segs, i32 rings) {
+	geom_t *g   = geom_create();
+	i32     top = geom_add_vert(g, x, y, z + rz);
+	for (i32 k = 1; k < rings; ++k) {
+		f32 phi = 3.14159265f * k / rings;
+		for (i32 i = 0; i < segs; ++i) {
+			f32 a = 2.0f * 3.14159265f * i / segs;
+			geom_add_vert(g, x + cosf(a) * sinf(phi) * rx, y + sinf(a) * sinf(phi) * ry, z + cosf(phi) * rz);
+		}
+	}
+	i32 bottom = geom_add_vert(g, x, y, z - rz);
+	for (i32 i = 0; i < segs; ++i) {
+		i32 n = (i + 1) % segs;
+		geom_add_tri(g, top, 1 + i, 1 + n);
+		for (i32 k = 0; k < rings - 2; ++k) {
+			i32 a = 1 + k * segs;
+			i32 b = a + segs;
+			geom_add_quad(g, a + i, b + i, b + n, a + n);
+		}
+		i32 last = 1 + (rings - 2) * segs;
+		geom_add_tri(g, bottom, last + n, last + i);
+	}
+	return g;
+}
+
+// Maps local coordinates to p + x * u + y * (w x u) + z * w, u and w orthonormal
+void geom_basis(geom_t *g, f32 ux, f32 uy, f32 uz, f32 wx, f32 wy, f32 wz, f32 px, f32 py, f32 pz) {
+	f32 n[3] = {wy * uz - wz * uy, wz * ux - wx * uz, wx * uy - wy * ux};
+	for (i32 v = 0; v < g->vcount; ++v) {
+		f32 *p = &g->pos[v * 3];
+		f32  x = p[0], y = p[1], z = p[2];
+		p[0] = px + x * ux + y * n[0] + z * wx;
+		p[1] = py + x * uy + y * n[1] + z * wy;
+		p[2] = pz + x * uz + y * n[2] + z * wz;
+	}
+}
+
+void geom_scale(geom_t *g, f32 s) {
+	for (i32 i = 0; i < g->vcount * 3; ++i) {
+		g->pos[i] *= s;
+	}
+}
+
+static f32 *geom_tube_pts   = NULL; // x, y, z, radius
+static i32  geom_tube_count = 0;
+static i32  geom_tube_cap   = 0;
+
+void geom_tube_begin() {
+	geom_tube_count = 0;
+}
+
+void geom_tube_point(f32 x, f32 y, f32 z, f32 r) {
+	if (geom_tube_count == geom_tube_cap) {
+		geom_tube_cap = geom_tube_cap == 0 ? 64 : geom_tube_cap * 2;
+		geom_tube_pts = realloc(geom_tube_pts, sizeof(f32) * 4 * geom_tube_cap);
+	}
+	f32 *p = &geom_tube_pts[geom_tube_count++ * 4];
+	p[0]   = x;
+	p[1]   = y;
+	p[2]   = z;
+	p[3]   = r;
+}
+
+static f32 geom_catmull(f32 p0, f32 p1, f32 p2, f32 p3, f32 t) {
+	return 0.5f * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
+}
+
+static void geom_normalize(f32 *v) {
+	f32 l = geom_len3(v[0], v[1], v[2]);
+	if (l > 0.0f) {
+		v[0] /= l;
+		v[1] /= l;
+		v[2] /= l;
+	}
+}
+
+static void geom_cross(f32 *a, f32 *b, f32 *out) {
+	f32 c[3] = {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+	memcpy(out, c, sizeof(c));
+}
+
+geom_t *geom_tube_end(i32 sides, i32 steps, f32 squash, i32 curve_steps, i32 transport) {
+	i32  n   = geom_tube_count;
+	f32 *pts = geom_tube_pts;
+	f32 *res = NULL;
+	if (curve_steps > 0 && n >= 2) {
+		// Ends extended by reflection, radii by repetition
+		f32 *ext = malloc(sizeof(f32) * 4 * (n + 2));
+		memcpy(&ext[4], pts, sizeof(f32) * 4 * n);
+		for (i32 k = 0; k < 3; ++k) {
+			ext[k]               = pts[k] * 2 - pts[4 + k];
+			ext[(n + 1) * 4 + k] = pts[(n - 1) * 4 + k] * 2 - pts[(n - 2) * 4 + k];
+		}
+		ext[3]               = pts[3];
+		ext[(n + 1) * 4 + 3] = pts[(n - 1) * 4 + 3];
+		i32 m                = 0;
+		res                  = malloc(sizeof(f32) * 4 * ((n - 1) * curve_steps + 1));
+		for (i32 i = 1; i < n; ++i) {
+			i32 count = i < n - 1 ? curve_steps : curve_steps + 1;
+			for (i32 s = 0; s < count; ++s) {
+				f32  t = (f32)s / curve_steps;
+				f32 *o = &res[m++ * 4];
+				for (i32 k = 0; k < 4; ++k) {
+					o[k] = geom_catmull(ext[(i - 1) * 4 + k], ext[i * 4 + k], ext[(i + 1) * 4 + k], ext[(i + 2) * 4 + k], t);
+				}
+				o[3] = fmaxf(0.002f, o[3]);
+			}
+		}
+		free(ext);
+		pts = res;
+		n   = m;
+	}
+
+	geom_t *g = geom_create();
+	if (n < 2) {
+		free(res);
+		return g;
+	}
+	// Rings: center, radius, direction
+	i32  ring_count = (n - 1) * steps + 1;
+	f32 *rings      = malloc(sizeof(f32) * 7 * ring_count);
+	i32  r          = 0;
+	for (i32 i = 0; i < n - 1; ++i) {
+		f32 *a     = &pts[i * 4];
+		f32 *b     = &pts[(i + 1) * 4];
+		f32  d[3]  = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+		i32  count = i < n - 2 ? steps : steps + 1;
+		geom_normalize(d);
+		for (i32 s = 0; s < count; ++s) {
+			f32  t = (f32)s / steps;
+			f32 *o = &rings[r++ * 7];
+			for (i32 k = 0; k < 4; ++k) {
+				o[k] = a[k] + (b[k] - a[k]) * t;
+			}
+			memcpy(&o[4], d, sizeof(d));
+		}
+	}
+	i32 *ring_first = malloc(sizeof(i32) * ring_count);
+	f32  side[3]    = {0, 0, 0};
+	for (i32 i = 0; i < ring_count; ++i) {
+		f32 *c = &rings[i * 7];
+		f32 *d = &c[4];
+		if (i == 0 || !transport) {
+			f32 up[3] = {0, 0, 1};
+			if (fabsf(d[2]) >= 0.9f) {
+				up[1] = 1;
+				up[2] = 0;
+			}
+			geom_cross(d, up, side);
+		}
+		else {
+			f32 dot = side[0] * d[0] + side[1] * d[1] + side[2] * d[2];
+			for (i32 k = 0; k < 3; ++k) {
+				side[k] -= d[k] * dot;
+			}
+		}
+		geom_normalize(side);
+		f32 up2[3];
+		geom_cross(side, d, up2);
+		geom_normalize(up2);
+		ring_first[i] = g->vcount;
+		for (i32 k = 0; k < sides; ++k) {
+			f32 a  = 2.0f * 3.14159265f * k / sides;
+			f32 ca = cosf(a) * c[3];
+			f32 sa = sinf(a) * c[3] * squash;
+			geom_add_vert(g, c[0] + side[0] * ca + up2[0] * sa, c[1] + side[1] * ca + up2[1] * sa, c[2] + side[2] * ca + up2[2] * sa);
+		}
+	}
+	// Ring runs clockwise around d, so this order faces outward
+	for (i32 i = 0; i < ring_count - 1; ++i) {
+		i32 r0 = ring_first[i];
+		i32 r1 = ring_first[i + 1];
+		for (i32 k = 0; k < sides; ++k) {
+			i32 m = (k + 1) % sides;
+			geom_add_quad(g, r0 + k, r1 + k, r1 + m, r0 + m);
+		}
+	}
+	// Rounded caps: three quarter-circle rings and a tip
+	for (i32 e = 0; e < 2; ++e) {
+		i32  end  = e == 0 ? 0 : ring_count - 1;
+		f32  sign = e == 0 ? -1.0f : 1.0f;
+		f32 *c    = &rings[end * 7];
+		f32 *d    = &c[4];
+		i32  ring = ring_first[end];
+		i32  prev = ring;
+		for (i32 j = 1; j < 4; ++j) {
+			f32 ang   = j / 4.0f * 3.14159265f / 2;
+			i32 first = g->vcount;
+			for (i32 k = 0; k < sides; ++k) {
+				f32 p[3];
+				for (i32 m = 0; m < 3; ++m) {
+					p[m] = c[m] + (g->pos[(ring + k) * 3 + m] - c[m]) * cosf(ang) + d[m] * sign * c[3] * sinf(ang);
+				}
+				geom_add_vert(g, p[0], p[1], p[2]);
+			}
+			for (i32 k = 0; k < sides; ++k) {
+				i32 m = (k + 1) % sides;
+				if (sign > 0) {
+					geom_add_quad(g, first + k, first + m, prev + m, prev + k);
+				}
+				else {
+					geom_add_quad(g, prev + k, prev + m, first + m, first + k);
+				}
+			}
+			prev = first;
+		}
+		i32 tip = geom_add_vert(g, c[0] + d[0] * sign * c[3], c[1] + d[1] * sign * c[3], c[2] + d[2] * sign * c[3]);
+		for (i32 k = 0; k < sides; ++k) {
+			i32 m = (k + 1) % sides;
+			if (sign > 0) {
+				geom_add_tri(g, tip, prev + m, prev + k);
+			}
+			else {
+				geom_add_tri(g, prev + k, prev + m, tip);
+			}
+		}
+	}
+	free(ring_first);
+	free(rings);
+	free(res);
+	return g;
+}
+
+i32 geom_vertex_count(geom_t *g) {
+	return g->vcount;
+}
+
+f32 geom_vertex_get(geom_t *g, i32 v, i32 axis) {
+	return g->pos[v * 3 + axis];
+}
+
+void geom_vertex_set(geom_t *g, i32 v, f32 x, f32 y, f32 z) {
+	g->pos[v * 3]     = x;
+	g->pos[v * 3 + 1] = y;
+	g->pos[v * 3 + 2] = z;
+}
+
+void geom_weights(geom_t *g, i32 v, i32 b0, f32 w0, i32 b1, f32 w1, i32 b2, f32 w2) {
+	if (g->wt == NULL) {
+		g->wt = calloc(g->vcount * 4, sizeof(f32));
+		g->jt = calloc(g->vcount * 4, sizeof(u16));
+	}
+	i32 bones[3]   = {b0, b1, b2};
+	f32 weights[3] = {w0, w1, w2};
+	i32 from       = v < 0 ? 0 : v;
+	i32 to         = v < 0 ? g->vcount : v + 1;
+	for (i32 i = from; i < to; ++i) {
+		i32 n = 0;
+		memset(&g->wt[i * 4], 0, sizeof(f32) * 4);
+		memset(&g->jt[i * 4], 0, sizeof(u16) * 4);
+		for (i32 k = 0; k < 3; ++k) {
+			if (bones[k] >= 0 && weights[k] > 0.0001f) {
+				g->wt[i * 4 + n] = weights[k];
+				g->jt[i * 4 + n] = (u16)bones[k];
+				n++;
+			}
+		}
+	}
+}
+
+void geom_weights_blend(geom_t *g, i32 a, i32 b, f32 ax, f32 ay, f32 az, f32 bx, f32 by, f32 bz) {
+	f32 d[3] = {bx - ax, by - ay, bz - az};
+	f32 dd   = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+	for (i32 v = 0; v < g->vcount; ++v) {
+		f32 *p = &g->pos[v * 3];
+		f32  t = ((p[0] - ax) * d[0] + (p[1] - ay) * d[1] + (p[2] - az) * d[2]) / dd;
+		t      = fminf(fmaxf(t, 0.0f), 1.0f);
+		t      = t * t * (3 - 2 * t);
+		geom_weights(g, v, a, 1.0f - t, b, t, -1, 0.0f);
+	}
+}
+
+void geom_part(geom_t *g, i32 part) {
+	free(g->part);
+	g->part = malloc(g->icount / 3);
+	memset(g->part, part, g->icount / 3);
+}
+
+geom_t *geom_merge(geom_t *dst, geom_t *src) {
+	if (dst == NULL) {
+		dst = geom_create();
+	}
+	i32 v0 = dst->vcount;
+	i32 t0 = dst->icount / 3;
+	if (dst->wt != NULL || src->wt != NULL) {
+		f32 *wt = calloc((v0 + src->vcount) * 4, sizeof(f32));
+		u16 *jt = calloc((v0 + src->vcount) * 4, sizeof(u16));
+		if (dst->wt != NULL) {
+			memcpy(wt, dst->wt, sizeof(f32) * 4 * v0);
+			memcpy(jt, dst->jt, sizeof(u16) * 4 * v0);
+		}
+		if (src->wt != NULL) {
+			memcpy(&wt[v0 * 4], src->wt, sizeof(f32) * 4 * src->vcount);
+			memcpy(&jt[v0 * 4], src->jt, sizeof(u16) * 4 * src->vcount);
+		}
+		free(dst->wt);
+		free(dst->jt);
+		dst->wt = wt;
+		dst->jt = jt;
+	}
+	if (dst->part != NULL || src->part != NULL) {
+		u8 *part = calloc(t0 + src->icount / 3, 1);
+		if (dst->part != NULL) {
+			memcpy(part, dst->part, t0);
+		}
+		if (src->part != NULL) {
+			memcpy(part + t0, src->part, src->icount / 3);
+		}
+		free(dst->part);
+		dst->part = part;
+	}
+	for (i32 v = 0; v < src->vcount; ++v) {
+		geom_add_vert(dst, src->pos[v * 3], src->pos[v * 3 + 1], src->pos[v * 3 + 2]);
+	}
+	for (i32 i = 0; i < src->icount; i += 3) {
+		geom_add_tri(dst, src->ind[i] + v0, src->ind[i + 1] + v0, src->ind[i + 2] + v0);
+	}
+	free(dst->uv);
+	dst->uv = NULL;
+	free(src->pos);
+	free(src->ind);
+	free(src->uv);
+	free(src->wt);
+	free(src->jt);
+	free(src->part);
+	free(src);
+	return dst;
+}
+
+void geom_displace(geom_t *g, f32 freq0, f32 amp0, f32 freq1, f32 amp1) {
+	f32 *n = geom_normals(g);
+	for (i32 v = 0; v < g->vcount; ++v) {
+		f32 *p = &g->pos[v * 3];
+		f32  d = geom_noise(p[0] * freq0, p[1] * freq0, p[2] * freq0) * amp0 + geom_noise(p[0] * freq1, p[1] * freq1, p[2] * freq1) * amp1;
+		for (i32 k = 0; k < 3; ++k) {
+			p[k] += n[v * 3 + k] * d;
+		}
+	}
+	free(n);
+}
+
+// Color atlas
+
+static u8 geom_palette_rgb[256][3];
+
+void geom_palette(i32 part, i32 r, i32 g, i32 b) {
+	geom_palette_rgb[part & 255][0] = (u8)r;
+	geom_palette_rgb[part & 255][1] = (u8)g;
+	geom_palette_rgb[part & 255][2] = (u8)b;
+}
+
+static void geom_tex(geom_t *g, i32 i, f32 *u, f32 *v) {
+	*u = 1.0f - g->uv[i * 2];
+	*v = g->uv[i * 2 + 1];
+}
+
+static u32 geom_rng_state;
+
+static f32 geom_rng_uniform() {
+	geom_rng_state = geom_rng_state * 1664525u + 1013904223u;
+	return ((geom_rng_state >> 8) + 0.5f) / 16777216.0f;
+}
+
+static f32 geom_rng_normal() {
+	f32 u = geom_rng_uniform();
+	f32 v = geom_rng_uniform();
+	return sqrtf(-2.0f * logf(u)) * cosf(2.0f * 3.14159265f * v);
+}
+
+int stbi_write_png(char const *filename, int w, int h, int comp, const void *data, int stride_in_bytes);
+
+void geom_atlas(geom_t *g, i32 size, i32 seed, char *path) {
+	if (g->uv == NULL) {
+		return;
+	}
+	f32 *img = malloc(sizeof(f32) * 3 * size * size);
+	for (i32 i = 0; i < size * size; ++i) {
+		for (i32 k = 0; k < 3; ++k) {
+			img[i * 3 + k] = geom_palette_rgb[0][k];
+		}
+	}
+	for (i32 t = 0; t < g->icount / 3; ++t) {
+		f32 px[3], py[3];
+		for (i32 k = 0; k < 3; ++k) {
+			geom_tex(g, t * 3 + k, &px[k], &py[k]);
+			px[k] *= size;
+			py[k] *= size;
+		}
+		i32 x0   = (i32)fmaxf(floorf(fminf(px[0], fminf(px[1], px[2])) - 2), 0);
+		i32 y0   = (i32)fmaxf(floorf(fminf(py[0], fminf(py[1], py[2])) - 2), 0);
+		i32 x1   = (i32)fminf(ceilf(fmaxf(px[0], fmaxf(px[1], px[2])) + 2), size);
+		i32 y1   = (i32)fminf(ceilf(fmaxf(py[0], fmaxf(py[1], py[2])) + 2), size);
+		f32 area = (px[1] - px[0]) * (py[2] - py[0]) - (px[2] - px[0]) * (py[1] - py[0]);
+		f32 sgn  = area > 0 ? 1.0f : area < 0 ? -1.0f : 0.0f;
+		u8 *col  = geom_palette_rgb[g->part != NULL ? g->part[t] : 0];
+		for (i32 y = y0; y < y1; ++y) {
+			for (i32 x = x0; x < x1; ++x) {
+				bool inside = true;
+				for (i32 k = 0; k < 3 && inside; ++k) {
+					i32 m  = (k + 1) % 3;
+					f32 ex = px[m] - px[k];
+					f32 ey = py[m] - py[k];
+					f32 l  = sqrtf(ex * ex + ey * ey);
+					if (l > 0) {
+						inside = (ex * (y + 0.5f - py[k]) - ey * (x + 0.5f - px[k])) * sgn / l >= -1.5f;
+					}
+				}
+				if (inside) {
+					for (i32 k = 0; k < 3; ++k) {
+						img[(y * size + x) * 3 + k] = col[k];
+					}
+				}
+			}
+		}
+	}
+	i32  cells     = size / 16;
+	f32 *noise     = malloc(sizeof(f32) * cells * cells);
+	geom_rng_state = (u32)seed * 2654435761u + 1;
+	for (i32 i = 0; i < cells * cells; ++i) {
+		noise[i] = geom_rng_normal();
+	}
+	u8 *out = malloc(3 * size * size);
+	for (i32 y = 0; y < size; ++y) {
+		f32 ty = (y + 0.5f) / 16 - 0.5f;
+		i32 j0 = (i32)fminf(fmaxf(floorf(ty), 0), cells - 1);
+		i32 j1 = j0 + 1 < cells ? j0 + 1 : cells - 1;
+		f32 fy = fminf(fmaxf(ty - j0, 0), 1);
+		for (i32 x = 0; x < size; ++x) {
+			f32 tx = (x + 0.5f) / 16 - 0.5f;
+			i32 i0 = (i32)fminf(fmaxf(floorf(tx), 0), cells - 1);
+			i32 i1 = i0 + 1 < cells ? i0 + 1 : cells - 1;
+			f32 fx = fminf(fmaxf(tx - i0, 0), 1);
+			f32 a  = noise[j0 * cells + i0] * (1 - fx) + noise[j0 * cells + i1] * fx;
+			f32 b  = noise[j1 * cells + i0] * (1 - fx) + noise[j1 * cells + i1] * fx;
+			f32 n  = a * (1 - fy) + b * fy;
+			for (i32 k = 0; k < 3; ++k) {
+				f32 c                       = img[(y * size + x) * 3 + k] * (1.0f + 0.035f * n);
+				out[(y * size + x) * 3 + k] = (u8)(fminf(fmaxf(c, 0), 255) + 0.5f);
+			}
+		}
+	}
+	stbi_write_png(path, size, size, 3, out, size * 3);
+	free(out);
+	free(noise);
+	free(img);
+}
+
+// Skeleton
+
+#define SKEL_MAX_BONES 64
+
+typedef struct skel_bone {
+	i32 parent;
+	f32 rest[12];  // Bone to object space, 3 rows of 4: columns are the x, y (head to tail), z axes and the head
+	f32 world[12]; // Posed bone to object space
+	f32 rot[3];
+	f32 loc[3];
+} skel_bone_t;
+
+static skel_bone_t skel_bones[SKEL_MAX_BONES];
+static i32         skel_bone_count  = 0;
+static f32        *skel_mats        = NULL;
+static i32         skel_frame_count = 0;
+static i32         skel_frame_cap   = 0;
+
+// out = a * b for 3x4 affine matrices
+static void skel_mul(f32 *a, f32 *b, f32 *out) {
+	f32 m[12];
+	for (i32 r = 0; r < 3; ++r) {
+		for (i32 c = 0; c < 4; ++c) {
+			m[r * 4 + c] = a[r * 4] * b[c] + a[r * 4 + 1] * b[4 + c] + a[r * 4 + 2] * b[8 + c] + (c == 3 ? a[r * 4 + 3] : 0.0f);
+		}
+	}
+	memcpy(out, m, sizeof(m));
+}
+
+static void skel_inverse(f32 *a, f32 *out) {
+	f32 m[12];
+	for (i32 r = 0; r < 3; ++r) {
+		for (i32 c = 0; c < 3; ++c) {
+			m[r * 4 + c] = a[c * 4 + r];
+		}
+		m[r * 4 + 3] = -(a[3] * a[r] + a[7] * a[4 + r] + a[11] * a[8 + r]);
+	}
+	memcpy(out, m, sizeof(m));
+}
+
+void skel_begin() {
+	skel_bone_count  = 0;
+	skel_frame_count = 0;
+}
+
+// Adds a bone from head to tail
+i32 skel_bone(i32 parent, f32 hx, f32 hy, f32 hz, f32 tx, f32 ty, f32 tz, f32 zx, f32 zy, f32 zz) {
+	if (skel_bone_count == SKEL_MAX_BONES) {
+		return -1;
+	}
+	skel_bone_t *b = &skel_bones[skel_bone_count];
+	memset(b, 0, sizeof(skel_bone_t));
+	b->parent = parent;
+	f32 y[3]  = {tx - hx, ty - hy, tz - hz};
+	geom_normalize(y);
+	f32 d    = zx * y[0] + zy * y[1] + zz * y[2];
+	f32 z[3] = {zx - y[0] * d, zy - y[1] * d, zz - y[2] * d};
+	geom_normalize(z);
+	f32 x[3];
+	geom_cross(y, z, x);
+	f32 h[3] = {hx, hy, hz};
+	for (i32 r = 0; r < 3; ++r) {
+		b->rest[r * 4]     = x[r];
+		b->rest[r * 4 + 1] = y[r];
+		b->rest[r * 4 + 2] = z[r];
+		b->rest[r * 4 + 3] = h[r];
+	}
+	return skel_bone_count++;
+}
+
+void skel_clip_begin() {
+	skel_frame_count = 0;
+}
+
+void skel_pose(i32 bone, f32 rx, f32 ry, f32 rz, f32 lx, f32 ly, f32 lz) {
+	if (bone < 0 || bone >= skel_bone_count) {
+		return;
+	}
+	skel_bone_t *b = &skel_bones[bone];
+	b->rot[0]      = rx;
+	b->rot[1]      = ry;
+	b->rot[2]      = rz;
+	b->loc[0]      = lx;
+	b->loc[1]      = ly;
+	b->loc[2]      = lz;
+}
+
+void skel_frame() {
+	if (skel_frame_count == skel_frame_cap) {
+		skel_frame_cap = skel_frame_cap == 0 ? 64 : skel_frame_cap * 2;
+		skel_mats      = realloc(skel_mats, sizeof(f32) * 12 * SKEL_MAX_BONES * skel_frame_cap);
+	}
+	f32 *out = &skel_mats[skel_frame_count * skel_bone_count * 12];
+	for (i32 i = 0; i < skel_bone_count; ++i) {
+		skel_bone_t *b = &skel_bones[i];
+		// Basis = translation * Rz * Ry * Rx
+		f32 rx[9], ry[9], rz[9], m[9], r[9];
+		geom_rotation(0, b->rot[0], rx);
+		geom_rotation(1, b->rot[1], ry);
+		geom_rotation(2, b->rot[2], rz);
+		for (i32 k = 0; k < 9; ++k) {
+			m[k] = rz[(k / 3) * 3] * ry[k % 3] + rz[(k / 3) * 3 + 1] * ry[3 + k % 3] + rz[(k / 3) * 3 + 2] * ry[6 + k % 3];
+		}
+		for (i32 k = 0; k < 9; ++k) {
+			r[k] = m[(k / 3) * 3] * rx[k % 3] + m[(k / 3) * 3 + 1] * rx[3 + k % 3] + m[(k / 3) * 3 + 2] * rx[6 + k % 3];
+		}
+		f32 basis[12];
+		for (i32 row = 0; row < 3; ++row) {
+			basis[row * 4]     = r[row * 3];
+			basis[row * 4 + 1] = r[row * 3 + 1];
+			basis[row * 4 + 2] = r[row * 3 + 2];
+			basis[row * 4 + 3] = b->loc[row];
+		}
+		// World = parent world * (parent rest^-1 * rest) * basis
+		if (b->parent >= 0) {
+			skel_bone_t *p = &skel_bones[b->parent];
+			f32          local[12];
+			skel_inverse(p->rest, local);
+			skel_mul(local, b->rest, local);
+			skel_mul(p->world, local, b->world);
+		}
+		else {
+			memcpy(b->world, b->rest, sizeof(b->rest));
+		}
+		skel_mul(b->world, basis, b->world);
+		// Skinning matrix = world * rest^-1
+		f32 inv[12];
+		skel_inverse(b->rest, inv);
+		skel_mul(b->world, inv, &out[i * 12]);
+	}
+	for (i32 i = 0; i < skel_bone_count; ++i) {
+		memset(skel_bones[i].rot, 0, sizeof(f32) * 3);
+		memset(skel_bones[i].loc, 0, sizeof(f32) * 3);
+	}
+	skel_frame_count++;
+}
+
+// Writes the unwrapped, weighted mesh with the frames of the current clip as a skin file
+bool skel_write(geom_t *g, char *name, char *path) {
+	if (g->uv == NULL || g->wt == NULL || skel_frame_count == 0) {
+		return false;
+	}
+	i32 *head = malloc(sizeof(i32) * g->vcount);
+	i32 *next = malloc(sizeof(i32) * g->icount);
+	i32 *src  = malloc(sizeof(i32) * g->icount); // Source vertex of each output vertex
+	i32 *corn = malloc(sizeof(i32) * g->icount); // First corner of each output vertex
+	u32 *ind  = malloc(sizeof(u32) * g->icount);
+	i32  vc   = 0;
+	for (i32 v = 0; v < g->vcount; ++v) {
+		head[v] = -1;
+	}
+	for (i32 i = 0; i < g->icount; ++i) {
+		i32 v = g->ind[i];
+		i32 o = head[v];
+		while (o >= 0 && (g->uv[corn[o] * 2] != g->uv[i * 2] || g->uv[corn[o] * 2 + 1] != g->uv[i * 2 + 1])) {
+			o = next[o];
+		}
+		if (o < 0) {
+			o       = vc++;
+			src[o]  = v;
+			corn[o] = i;
+			next[o] = head[v];
+			head[v] = o;
+		}
+		ind[i] = o;
+	}
+	f32 *n       = geom_normals(g);
+	f32 *pos     = malloc(sizeof(f32) * 3 * vc);
+	f32 *nor     = malloc(sizeof(f32) * 3 * vc);
+	f32 *tex     = malloc(sizeof(f32) * 2 * vc);
+	u16 *joints  = malloc(sizeof(u16) * 4 * vc);
+	f32 *weights = malloc(sizeof(f32) * 4 * vc);
+	for (i32 o = 0; o < vc; ++o) {
+		i32 v = src[o];
+		memcpy(&pos[o * 3], &g->pos[v * 3], sizeof(f32) * 3);
+		memcpy(&nor[o * 3], &n[v * 3], sizeof(f32) * 3);
+		geom_tex(g, corn[o], &tex[o * 2], &tex[o * 2 + 1]);
+		memcpy(&joints[o * 4], &g->jt[v * 4], sizeof(u16) * 4);
+		f32 sum = g->wt[v * 4] + g->wt[v * 4 + 1] + g->wt[v * 4 + 2] + g->wt[v * 4 + 3];
+		for (i32 k = 0; k < 4; ++k) {
+			weights[o * 4 + k] = sum > 0 ? g->wt[v * 4 + k] / sum : 0;
+		}
+	}
+	buffer_t *blob = util_skin_blob_create(name, vc, pos, nor, tex, g->icount, ind, joints, weights, skel_bone_count, skel_frame_count, skel_mats);
+	iron_file_save_bytes(path, blob, blob->length);
+	free(blob->buffer);
+	free(blob);
+	free(n);
+	free(pos);
+	free(nor);
+	free(tex);
+	free(joints);
+	free(weights);
+	free(head);
+	free(next);
+	free(src);
+	free(corn);
+	free(ind);
+	return true;
 }
 
 // OBJ export
