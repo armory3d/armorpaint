@@ -355,6 +355,11 @@ iron_a1_sound_t *iron_a1_sound_create_from_bytes(uint8_t *filedata, int filedata
 	if (strncmp(format, ".ogg", 4) == 0) {
 		int channels, sample_rate;
 		int samples               = stb_vorbis_decode_memory(filedata, (int)filedata_size, &channels, &sample_rate, (short **)&data);
+		if (samples <= 0) {
+			free(data);
+			sound->in_use = false;
+			return NULL;
+		}
 		sound->channel_count      = (uint8_t)channels;
 		sound->samples_per_second = (uint32_t)sample_rate;
 		sound->size               = samples * 2 * sound->channel_count;
@@ -571,48 +576,48 @@ float *iron_a1_sound_stream_next_frame(iron_a1_sound_stream_t *stream) {
 	return stream->samples;
 }
 
-static iron_mutex_t mutex;
+static iron_mutex_t a2_mutex;
 
 static void (*a2_callback)(iron_a2_buffer_t *buffer, uint32_t samples, void *userdata) = NULL;
 static void *a2_userdata                                                               = NULL;
 
 void iron_a2_set_callback(void (*iron_a2_audio_callback)(iron_a2_buffer_t *buffer, uint32_t samples, void *userdata), void *userdata) {
-	iron_mutex_lock(&mutex);
+	iron_mutex_lock(&a2_mutex);
 	a2_callback = iron_a2_audio_callback;
 	a2_userdata = userdata;
-	iron_mutex_unlock(&mutex);
+	iron_mutex_unlock(&a2_mutex);
 }
 
 static void (*a2_sample_rate_callback)(void *userdata) = NULL;
 static void *a2_sample_rate_userdata                   = NULL;
 
 void iron_a2_set_sample_rate_callback(void (*iron_a2_sample_rate_callback)(void *userdata), void *userdata) {
-	iron_mutex_lock(&mutex);
+	iron_mutex_lock(&a2_mutex);
 	a2_sample_rate_callback = iron_a2_sample_rate_callback;
 	a2_sample_rate_userdata = userdata;
-	iron_mutex_unlock(&mutex);
+	iron_mutex_unlock(&a2_mutex);
 }
 
 void iron_a2_internal_init(void) {
-	iron_mutex_init(&mutex);
+	iron_mutex_init(&a2_mutex);
 }
 
 bool iron_a2_internal_callback(iron_a2_buffer_t *buffer, int samples) {
-	iron_mutex_lock(&mutex);
+	iron_mutex_lock(&a2_mutex);
 	bool has_callback = a2_callback != NULL;
 	if (has_callback) {
 		a2_callback(buffer, samples, a2_userdata);
 	}
-	iron_mutex_unlock(&mutex);
+	iron_mutex_unlock(&a2_mutex);
 	return has_callback;
 }
 
 void iron_a2_internal_sample_rate_callback(void) {
-	iron_mutex_lock(&mutex);
+	iron_mutex_lock(&a2_mutex);
 	if (a2_sample_rate_callback != NULL) {
 		a2_sample_rate_callback(a2_sample_rate_userdata);
 	}
-	iron_mutex_unlock(&mutex);
+	iron_mutex_unlock(&a2_mutex);
 }
 
 #endif

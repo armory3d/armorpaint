@@ -1548,7 +1548,7 @@ void export_solution(project_t *project) {
 		char *compiler = "clang --target=wasm32 -nostdlib -matomics -mbulk-memory";
 		char *linker =
 		    "--target=wasm32 -nostdlib -matomics -mbulk-memory "
-		    "\"-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=671088640,--max-memory=671088640,-z,stack-size=256000\"";
+		    "\"-Wl,--import-memory,--shared-memory,--allow-undefined,--no-entry,--initial-memory=268435456,--max-memory=4294967296,-z,stack-size=256000\"";
 		if (!goptions.debug) {
 			linker = string("%s -Wl,--strip-all", linker);
 		}

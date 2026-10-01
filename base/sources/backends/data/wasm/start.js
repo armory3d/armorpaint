@@ -180,17 +180,22 @@ function id_to_filter_mode(id) {
 		return "linear";
 }
 
-async function init() {
-	let   wasm_bytes = null;
-	await fetch("./start.wasm").then(res => res.arrayBuffer()).then(buffer => wasm_bytes = new Uint8Array(buffer));
-
-	memory  = new WebAssembly.Memory({initial : 10240, maximum : 10240, shared : true}); // * 65536 = 671088640 (amake --initial-memory)
+function update_heap_views() {
 	heapu8  = new Uint8Array(memory.buffer);
 	heapu16 = new Uint16Array(memory.buffer);
 	heapu32 = new Uint32Array(memory.buffer);
 	heapi32 = new Int32Array(memory.buffer);
 	heapf32 = new Float32Array(memory.buffer);
 	heapf64 = new Float64Array(memory.buffer);
+}
+
+async function init() {
+	let   wasm_bytes = null;
+	await fetch("./start.wasm").then(res => res.arrayBuffer()).then(buffer => wasm_bytes = new Uint8Array(buffer));
+
+	// * 65536 = amake --initial-memory=268435456, --max-memory=4294967296, malloc grows it
+	memory = new WebAssembly.Memory({initial : 4096, maximum : 65536, shared : true});
+	update_heap_views();
 
 	if (!navigator.gpu) {
 		throw new Error('WebGPU not supported');
@@ -716,6 +721,9 @@ async function init() {
 		        surface.configure(config);
 			},
 
+			js_memory_grow : function() {
+		        update_heap_views();
+			},
 			js_printf : function(format) {
 		        console.log(read_string(format));
 			},
@@ -775,8 +783,8 @@ async function init() {
 			js_time : function() {
 		        return window.performance.now();
 			},
-			js_pow : function(x) {
-		        return Math.pow(x);
+			js_pow : function(base, exponent) {
+		        return Math.pow(base, exponent);
 			},
 			js_sin : function(x) {
 		        return Math.sin(x);
@@ -787,8 +795,8 @@ async function init() {
 			js_tan : function(x) {
 		        return Math.tan(x);
 			},
-			js_log : function(base, exponent) {
-		        return Math.log(base, exponent);
+			js_log : function(x) {
+		        return Math.log(x);
 			},
 			js_exp : function(x) {
 		        return Math.exp(x);
