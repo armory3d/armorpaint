@@ -28,6 +28,8 @@ typedef enum {
 	MINIC_T_VOID   = 5, // void return only; stored as INT/0 in vals
 	MINIC_T_EMBED  = 6, // struct storage; expression values carry its address
 	MINIC_T_DOUBLE = 7,
+	MINIC_T_I16    = 8, // int16_t, stored as INT in vals
+	MINIC_T_U16    = 9, // uint16_t, stored as INT in vals
 } minic_type_t;
 
 typedef struct {

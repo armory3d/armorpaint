@@ -26,6 +26,8 @@
 	X(TOK_CHAR, "'char'")                                                                                                                                     \
 	X(TOK_DOUBLE, "'double'")                                                                                                                                 \
 	X(TOK_BOOL, "'bool'")                                                                                                                                     \
+	X(TOK_INT16, "'int16_t'")                                                                                                                                 \
+	X(TOK_UINT16, "'uint16_t'")                                                                                                                               \
 	X(TOK_VOID, "'void'")                                                                                                                                     \
 	X(TOK_RETURN, "'return'")                                                                                                                                 \
 	X(TOK_IF, "'if'")                                                                                                                                         \
@@ -81,6 +83,7 @@ static const struct {
 	minic_tok_type_t tok;
 } minic_keywords[] = {
     {"int", TOK_INT},           {"float", TOK_FLOAT},   {"char", TOK_CHAR},       {"double", TOK_DOUBLE}, {"bool", TOK_BOOL}, {"void", TOK_VOID},
+    {"int16_t", TOK_INT16},     {"short", TOK_INT16},   {"uint16_t", TOK_UINT16},
     {"return", TOK_RETURN},     {"if", TOK_IF},         {"else", TOK_ELSE},       {"while", TOK_WHILE},   {"for", TOK_FOR},   {"break", TOK_BREAK},
     {"continue", TOK_CONTINUE}, {"struct", TOK_STRUCT}, {"typedef", TOK_TYPEDEF}, {"enum", TOK_ENUM},
 };
@@ -406,7 +409,7 @@ static bool minic_tok_is_type(minic_tok_type_t t) {
 }
 
 static minic_type_t minic_tok_to_type(minic_tok_type_t t) {
-	static const minic_type_t types[] = {MINIC_T_INT, MINIC_T_FLOAT, MINIC_T_CHAR, MINIC_T_DOUBLE, MINIC_T_BOOL, MINIC_T_VOID};
+	static const minic_type_t types[] = {MINIC_T_INT, MINIC_T_FLOAT, MINIC_T_CHAR, MINIC_T_DOUBLE, MINIC_T_BOOL, MINIC_T_I16, MINIC_T_U16, MINIC_T_VOID};
 	return types[t - TOK_INT];
 }
 
@@ -430,6 +433,11 @@ static minic_ctype_t minic_scalar_type(minic_type_t kind) {
 	case MINIC_T_CHAR:
 		type.size      = sizeof(char);
 		type.alignment = MINIC_ALIGNOF(char);
+		break;
+	case MINIC_T_I16:
+	case MINIC_T_U16:
+		type.size      = sizeof(int16_t);
+		type.alignment = MINIC_ALIGNOF(int16_t);
 		break;
 	case MINIC_T_BOOL:
 		type.size      = sizeof(bool);
@@ -598,6 +606,16 @@ static minic_val_t minic_mem_load(void *p, minic_type_t kind, minic_type_t deref
 		return minic_val_int(*(bool *)p);
 	case MINIC_T_CHAR:
 		return minic_val_int(*(minic_u8 *)p);
+	case MINIC_T_I16: {
+		int16_t n;
+		memcpy(&n, p, sizeof(n));
+		return minic_val_int(n);
+	}
+	case MINIC_T_U16: {
+		uint16_t n;
+		memcpy(&n, p, sizeof(n));
+		return minic_val_int(n);
+	}
 	case MINIC_T_VOID:
 		return minic_val_int(0);
 	default: {
@@ -639,6 +657,12 @@ static void minic_mem_store(void *p, minic_val_t v, minic_type_t kind, int size)
 	case MINIC_T_CHAR:
 		*(minic_u8 *)p = (minic_u8)minic_val_to_i(v);
 		break;
+	case MINIC_T_I16:
+	case MINIC_T_U16: {
+		uint16_t n = (uint16_t)minic_val_to_i(v);
+		memcpy(p, &n, sizeof(n));
+		break;
+	}
 	default: {
 		int32_t n = minic_val_to_i(v);
 		memcpy(p, &n, sizeof(n));
@@ -647,8 +671,8 @@ static void minic_mem_store(void *p, minic_val_t v, minic_type_t kind, int size)
 	}
 }
 
-// Variables live in minic_val_t slots whose tag is set when they are declared: int, char
-// and bool use an INT tag, struct variables hold a pointer to their storage. The union
+// Variables live in minic_val_t slots whose tag is set when they are declared: int, char,
+// int16_t, uint16_t and bool use an INT tag, struct variables hold a pointer to their storage. The union
 // is the variable's native storage, so '&x' points at it. MINIC_T_VOID is a variable
 // typed by its first value.
 static void minic_slot_store(minic_val_t *s, minic_val_t v, minic_type_t kind, int size) {
@@ -658,6 +682,12 @@ static void minic_slot_store(minic_val_t *s, minic_val_t v, minic_type_t kind, i
 		break;
 	case MINIC_T_CHAR:
 		s->i = (minic_u8)minic_val_to_i(v);
+		break;
+	case MINIC_T_I16:
+		s->i = (int16_t)minic_val_to_i(v);
+		break;
+	case MINIC_T_U16:
+		s->i = (uint16_t)minic_val_to_i(v);
 		break;
 	case MINIC_T_BOOL:
 		s->i = minic_val_is_true(v);
@@ -690,7 +720,7 @@ static void minic_slot_init(minic_val_t *s, minic_val_t v, minic_type_t kind, mi
 		*s = v;
 		return;
 	}
-	s->type       = kind == MINIC_T_CHAR || kind == MINIC_T_BOOL ? MINIC_T_INT : kind;
+	s->type       = kind == MINIC_T_CHAR || kind == MINIC_T_BOOL || kind == MINIC_T_I16 || kind == MINIC_T_U16 ? MINIC_T_INT : kind;
 	s->deref_type = deref;
 	s->d          = 0.0;
 	minic_slot_store(s, v, kind, 0);
@@ -825,6 +855,10 @@ static minic_val_t minic_cast(minic_val_t v, minic_type_t kind) {
 		return minic_val_cast(v, kind);
 	case MINIC_T_CHAR:
 		return minic_val_int((minic_u8)minic_val_to_i(v));
+	case MINIC_T_I16:
+		return minic_val_int((int16_t)minic_val_to_i(v));
+	case MINIC_T_U16:
+		return minic_val_int((uint16_t)minic_val_to_i(v));
 	case MINIC_T_BOOL:
 		return minic_val_int(minic_val_is_true(v));
 	case MINIC_T_EMBED:

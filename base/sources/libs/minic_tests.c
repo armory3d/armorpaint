@@ -531,6 +531,21 @@ void minic_tests() {
 	                  "enum { T34_A = (1 << 2), T34_B, T34_C = -1, T34_D, T34_E = T34_A | 0x10, T34_F = 1 << 3 + 1 };"
 	                  "float main() { return T34_A + T34_B + T34_C + T34_D + T34_E + T34_F - 44; }",
 	                  0.0f);
+	MINIC_TEST_EXPECT(35,
+	                  "int16_t neg(int16_t x) { return -x; }"
+	                  "float main() {"
+	                  "  int16_t a[3]; a[0] = -2; a[1] = 70000; a[2] = 7;"
+	                  "  if (a[0] != -2 || a[1] != 4464) { return 1; }"
+	                  "  int16_t *p = a; p++; if (*p != 4464 || p[1] != 7) { return 2; }"
+	                  "  char c[4]; int16_t *q = c; q[0] = -2; q[1] = 0x1234;"
+	                  "  if (c[0] != 254 || c[1] != 255 || c[2] != 0x34 || c[3] != 0x12) { return 3; }"
+	                  "  uint16_t *u = c; if (u[0] != 65535 - 1) { return 4; }"
+	                  "  short s = 40000; uint16_t w = -1; if (s != -25536 || w != 65535) { return 5; }"
+	                  "  if ((uint16_t)-1 != 65535 || (int16_t)65535 != -1 || neg(-32768) != -32768) { return 6; }"
+	                  "  w++; if (w != 0) { return 7; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
 	MINIC_TEST_EXPECT(17, "float main() { int a[2]; return a[2]; }", -1.0f);
 	MINIC_TEST_EXPECT(18, "float main() { test_get_context()->buffer[2] = 99; return 0; }", -1.0f);
 	MINIC_TEST_EXPECT(19, "float main() { minic_test_context_t *p = NULL; return p->ddirty; }", -1.0f);
