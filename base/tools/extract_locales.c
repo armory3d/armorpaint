@@ -41,11 +41,13 @@ int main() {
 	    "paint/sources",        "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/io",
 	    "paint/sources/render", "paint/sources/slots",          "paint/sources/traits",      "paint/sources/ui",           "paint/sources/util"};
 
+	bool found = false;
 	for (int i = 0; i < 10; ++i) {
 		char *path = source_paths[i];
 		if (!fs_exists(path)) {
 			continue;
 		}
+		found = true;
 
 		string_array_t *files = fs_readdir(path);
 		for (int j = 0; j < files->length; ++j) {
@@ -90,6 +92,11 @@ int main() {
 				map_set(out, val, translated != NULL ? translated : "");
 			}
 		}
+	}
+
+	if (!found) {
+		print("No source paths found - run this script from the repository root.");
+		return 1;
 	}
 
 	fs_writefile(locale_path, json_stringify_map(out, 4));
