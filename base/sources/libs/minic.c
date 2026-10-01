@@ -149,10 +149,15 @@ static int minic_lex(const char *src, int pos, char *str_pool, minic_token_t *t)
 		}
 
 		if (c == '0' && (src[pos + 1] == 'x' || src[pos + 1] == 'X')) {
-			char *end;
-			t->val  = minic_val_int((int)(unsigned int)strtoull(src + pos, &end, 16));
+			pos += 2;
+			unsigned int n = 0;
+			while (isxdigit((unsigned char)src[pos])) {
+				char h = src[pos++];
+				n      = n * 16 + (isdigit((unsigned char)h) ? h - '0' : (h | 0x20) - 'a' + 10);
+			}
+			t->val  = minic_val_int((int)n);
 			t->type = TOK_NUMBER;
-			return (int)(end - src);
+			return pos;
 		}
 
 		// Also accept a leading-dot float like .5
