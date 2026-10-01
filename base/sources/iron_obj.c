@@ -210,6 +210,91 @@ static vec4_t calc_normal(vec4_t a, vec4_t b, vec4_t c) {
 	return cb;
 }
 
+static void obj_shrink(i16_array_t *a, int length) {
+	a->length = a->capacity = length;
+	a->buffer               = realloc(a->buffer, length * sizeof(int16_t));
+}
+
+static void obj_weld(raw_mesh_t *part) {
+	int n = part->vertex_count;
+	if (n == 0) {
+		return;
+	}
+	int16_t  *pa  = part->posa->buffer;
+	int16_t  *na  = part->nora->buffer;
+	int16_t  *ta  = part->texa != NULL ? part->texa->buffer : NULL;
+	uint32_t *ind = part->inda->buffer;
+
+	uint32_t cap = 1;
+	while (cap < (uint32_t)n * 2) {
+		cap <<= 1;
+	}
+	int32_t *table = malloc(cap * sizeof(int32_t));
+	memset(table, -1, cap * sizeof(int32_t));
+	uint32_t *remap = malloc(n * sizeof(uint32_t));
+	int       count = 0;
+	for (int i = 0; i < n; ++i) {
+		uint64_t p;
+		uint32_t q;
+		uint32_t t = 0;
+		memcpy(&p, pa + i * 4, 8);
+		memcpy(&q, na + i * 2, 4);
+		if (ta != NULL) {
+			memcpy(&t, ta + i * 2, 4);
+		}
+		uint64_t h = p * 0x9E3779B97F4A7C15ull ^ (((uint64_t)q << 32) | t) * 0xC2B2AE3D27D4EB4Full;
+		h ^= h >> 29;
+		uint32_t s = (uint32_t)h & (cap - 1);
+		while (true) {
+			int32_t e = table[s];
+			if (e < 0) {
+				table[s] = count;
+				memmove(pa + count * 4, pa + i * 4, 8);
+				memmove(na + count * 2, na + i * 2, 4);
+				if (ta != NULL) {
+					memmove(ta + count * 2, ta + i * 2, 4);
+				}
+				remap[i] = count++;
+				break;
+			}
+			uint64_t p2;
+			uint32_t q2;
+			uint32_t t2 = 0;
+			memcpy(&p2, pa + e * 4, 8);
+			memcpy(&q2, na + e * 2, 4);
+			if (ta != NULL) {
+				memcpy(&t2, ta + e * 2, 4);
+			}
+			if (p2 == p && q2 == q && t2 == t) {
+				remap[i] = e;
+				break;
+			}
+			s = (s + 1) & (cap - 1);
+		}
+	}
+	free(table);
+
+	for (int i = 0; i < part->inda->length; ++i) {
+		ind[i] = remap[ind[i]];
+	}
+	if (part->udims != NULL) {
+		for (int i = 0; i < part->udims->length; ++i) {
+			u32_array_t *a = part->udims->buffer[i];
+			for (int j = 0; j < a->length; ++j) {
+				a->buffer[j] = remap[a->buffer[j]];
+			}
+		}
+	}
+	free(remap);
+
+	part->vertex_count = count;
+	obj_shrink(part->posa, count * 4);
+	obj_shrink(part->nora, count * 2);
+	if (ta != NULL) {
+		obj_shrink(part->texa, count * 2);
+	}
+}
+
 // 'o' for object split, 'g' for groups, 'u'semtl for materials
 raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos, bool udim) {
 	bytes        = file_bytes->buffer;
@@ -597,6 +682,8 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			part->texa->buffer[i * 2 + 1] = (int)((1.0 - uvy) * 32767);
 		}
 	}
+
+	obj_weld(part);
 
 	bytes = NULL;
 	if (!part->has_next) {
