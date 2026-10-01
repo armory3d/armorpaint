@@ -38,8 +38,9 @@ static mesh_data_t_array_t *import_arm_get_mesh_datas(project_t *project, string
 			string_array_push(mesh_names, object_name);
 		}
 		else {
-			mesh_data_t *md  = mesh_data_create(raw);
-			md->_->skin_blob = import_arm_get_mesh_skin(project, i);
+			mesh_data_t *md   = mesh_data_create(raw);
+			md->_->skin_blob  = import_arm_get_mesh_skin(project, i);
+			md->_->skin_frame = -1;
 			any_array_push(mesh_datas, md);
 			string_array_push(mesh_names, md->name);
 		}

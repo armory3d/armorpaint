@@ -214,6 +214,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->skin_blob   = mesh->blob;
+	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 
 	g_context->paint_object = context_main_object();
@@ -291,6 +292,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->skin_blob   = mesh->blob;
+	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 
 	object_t      *parent = import_mesh_append ? NULL : g_context->paint_object->base;

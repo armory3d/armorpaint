@@ -389,33 +389,35 @@ i32 project_skin_frames() {
 	i32 frames = 0;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
-		if (md->_->skin_frames > frames) {
-			frames = md->_->skin_frames;
-		}
+		frames          = math_max(frames, util_skin_frame_count(md->_->skin_blob));
 	}
 	return frames;
 }
 
+// Poses the skinned meshes at a frame
 bool project_reskin_mesh(int frame) {
-#ifdef WITH_PLUGINS
 	bool any = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
-		if (md->_->skin_blob == NULL) {
+		mesh_object_t *o  = g_project->_->paint_objects->buffer[i];
+		mesh_data_t   *md = o->data;
+		if (md->_->skin_blob == NULL || !o->base->visible) {
 			continue;
 		}
 
 		// Each mesh loops over its own animation length
-		i32 mesh_frame = md->_->skin_frames > 0 ? frame % md->_->skin_frames : frame;
-
-		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
-		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
-		if (!plugins_skin_data_apply(md->_->skin_blob, mesh_frame, pos->values, nor->values, &md->scale_pos)) {
+		i32 frames     = util_skin_frame_count(md->_->skin_blob);
+		i32 mesh_frame = frames > 0 ? frame % frames : frame;
+		if (mesh_frame == md->_->skin_frame) {
 			continue;
 		}
 
-		md->_->skin_frames = plugins_skin_frame_count();
+		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
+		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
+		if (!util_skin_apply(md->_->skin_blob, mesh_frame, pos->values, nor->values, &md->scale_pos)) {
+			continue;
+		}
 
+		md->_->skin_frame = mesh_frame;
 		mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
 		any = true;
 	}
@@ -435,9 +437,6 @@ bool project_reskin_mesh(int frame) {
 	g_context->ddirty          = 4;
 	render_path_raytrace_ready = false;
 	return true;
-#else
-	return false;
-#endif
 }
 
 void project_unwrap_mesh_box_draw() {

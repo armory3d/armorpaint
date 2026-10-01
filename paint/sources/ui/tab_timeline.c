@@ -1589,9 +1589,9 @@ void tab_timeline_update() {
 		tab_timeline_run_frame_scripts(frame_i);
 	}
 
+	project_reskin_mesh(skin_frame);
 	if (skin_frame != tab_timeline_last_skin_frame) {
 		tab_timeline_last_skin_frame = skin_frame;
-		project_reskin_mesh(skin_frame);
 		if (tab_timeline_loop_frames <= 0) {
 			i32 frames               = project_skin_frames();
 			tab_timeline_loop_frames = frames > 0 && frames < tab_timeline_max_frames ? frames : tab_timeline_max_frames;
