@@ -103,6 +103,9 @@ project_t *main() {
 	else if (platform == PLATFORM_WASM) {
 		add_cfiles(project, "sources/backends/wasm_system.*");
 		add_cfiles(project, "sources/backends/wasm_thread.*");
+		if (flags->with_audio) {
+			add_cfiles(project, "sources/backends/wasm_audio.*");
+		}
 		add_cfiles(project, "sources/backends/webgpu_gpu.*");
 		add_define(project, "IRON_WASM");
 		add_define(project, "IRON_WEBGPU");

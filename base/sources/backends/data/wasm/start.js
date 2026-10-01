@@ -851,6 +851,20 @@ async function init() {
 			js_save_dialog : function() {
 		        alert("Not implemented yet.")
 			},
+			js_audio_init : function(left, right, read, write, size) {
+		        let ctx = new AudioContext();
+		        ctx.audioWorklet.addModule('audio_worklet.js').then(() => {
+			        let node = new AudioWorkletNode(ctx, 'iron-audio', {
+				        outputChannelCount : [ 2 ],
+				        processorOptions : {buffer : memory.buffer, left, right, read, write, size}
+			        });
+			        node.connect(ctx.destination);
+		        });
+		        let resume = () => ctx.resume();
+		        window.addEventListener('pointerdown', resume, {once : true});
+		        window.addEventListener('keydown', resume, {once : true});
+		        return ctx.sampleRate;
+			},
 			js_thread_create : function(func_ptr, param_ptr, done_ptr) {
 		        const worker = new Worker('worker.js');
 		        worker.postMessage({wasm_module : module, memory, func_ptr, param_ptr, done_ptr});
@@ -880,6 +894,9 @@ async function init() {
 	instance.exports.wasm_start();
 
 	async function update() {
+		if (instance.exports.wasm_audio_update) {
+			instance.exports.wasm_audio_update();
+		}
 		wasm_can_suspend = jspi_supported;
 		try {
 			await wasm_update();
