@@ -1,3 +1,6 @@
+/*! \file iron_gpu.h
+ *  \brief GPU abstraction (buffer/texture/pipeline). \ingroup gpu
+ */
 #pragma once
 
 #include "iron_array.h"

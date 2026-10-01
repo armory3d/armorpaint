@@ -1,3 +1,13 @@
+/*!
+ * \file iron.h
+ * \brief iron engine core header.
+ *
+ * Aggregates the individual iron modules (iron_alloc, iron_array, iron_gpu,
+ * iron_math, iron_string, ...) into a single include for engine and
+ * application sources.
+ *
+ * \ingroup core
+ */
 #pragma once
 
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types"

@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use ArmorPaint in your research or a publication, please cite it."
+title: "ArmorPaint"
+abstract: "Software for 3D PBR texture painting with a layer-based, real-time workflow."
+authors:
+  - family-names: "Developers"
+    given-names: "ArmorPaint"
+    website: "https://armorpaint.org"
+date-released: "2026-09-12"
+url: "https://github.com/armory3d/armorpaint"
+license: "Zlib"
+keywords:
+  - texture painting
+  - PBR
+  - 3D
+  - real-time
+  - vulkan
+  - direct3d12
+  - metal
+  - webgpu

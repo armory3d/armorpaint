@@ -1,0 +1,29 @@
+digraph build_pipeline {
+	rankdir = TB;
+	node [shape = box, style = "rounded,filled", fillcolor = "#eef4ff", fontname = "Helvetica", fontsize = 10];
+	edge [fontname = "Helvetica", fontsize = 9];
+
+	checkout [label = "git checkout\n(sources, assets, tools)"];
+	amake   [label = "base/tools/bin/<platform>/amake\n(bundled build tool)", fillcolor = "#fff3d6"];
+	project [label = "paint/project.js\n+ base/project.js"];
+	assets  [label = "export assets\npaint/assets -> build/out/data", shape = folder];
+	shaders [label = "compile KONG shaders\n.kong -> SPIR-V / WGSL\n(kong_spirv / kong_wgsl)", shape = folder];
+	makef   [label = "build/Release/Makefile\n+ compile_commands.json", shape = folder];
+	make    [label = "make -j (GNU make)", fillcolor = "#e2f0e2"];
+	clang   [label = "clang/clang++\nbase/sources + paint/sources + plugins", fillcolor = "#e2f0e2"];
+	link    [label = "link Vulkan/X11/GTK/SSL/ALSA\n-> build/Release/ArmorPaint", fillcolor = "#e2f0e2"];
+	out     [label = "build/out/ArmorPaint\n+ data (embedded assets)", shape = folder];
+	run     [label = "run app", shape = doublecircle, fillcolor = "#ffe0e0"];
+
+	checkout -> amake;
+	amake   -> project;
+	project -> assets;
+	project -> shaders;
+	project -> makef;
+	makef   -> make;
+	make    -> clang;
+	clang   -> link;
+	assets  -> out;
+	link    -> out;
+	out     -> run [label = "base/make --run"];
+}

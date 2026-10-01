@@ -1,3 +1,6 @@
+/*! \file iron_array.h
+ *  \brief Typed dynamic arrays. \ingroup data
+ */
 #pragma once
 
 #include <stdint.h>

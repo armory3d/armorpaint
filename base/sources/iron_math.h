@@ -1,3 +1,6 @@
+/*! \file iron_math.h
+ *  \brief Vector/matrix/quaternion math. \ingroup math
+ */
 #pragma once
 
 #include "iron_array.h"

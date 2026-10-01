@@ -1,0 +1,27 @@
+/** \defgroup core Core (iron engine)
+ *  Aggregate engine headers.
+ */
+
+/** \defgroup gpu GPU
+ *  Vulkan / Direct3D12 / Metal / WebGPU abstraction (`iron_gpu.h`, `iron_draw.h`).
+ */
+
+/** \defgroup math Math
+ *  Vectors, mat4, quaternion and geometry helpers (`iron_math.h`).
+ */
+
+/** \defgroup data Data
+ *  Containers, strings, maps and JSON (`iron_array.h`, `iron_map.h`, `iron_string.h`, `iron_json.h`).
+ */
+
+/** \defgroup io I/O
+ *  Files, images, armpack, obj and path utilities (`iron_file.h`, `iron_image.h`, `iron_armpack.h`, `iron_path.h`).
+ */
+
+/** \defgroup ui UI
+ *  Immediate-mode UI (`iron_ui.h`, `iron_ui_ext.h`, `iron_ui_nodes.h`).
+ */
+
+/** \defgroup app ArmorPaint application
+ *  Application entry points and core state (`paint/sources`).
+ */

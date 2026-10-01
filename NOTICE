@@ -1,0 +1,31 @@
+NOTICE
+======
+
+This repository is a **community fork** of ArmorPaint (https://armorpaint.org).
+
+Attribution
+
+- ArmorPaint and the source code in this repository were created by, and remain
+  the copyright of, the ArmorPaint developers (original author: Lubos Lenco).
+- Original project repository: https://github.com/armory3d/armorpaint
+- This fork is maintained at: https://github.com/dionarley/armorpaint
+
+License
+
+ArmorPaint is distributed under the zlib/libpng license. See `LICENSE` and
+`license.md` for the full license text. This fork retains, and must not remove
+or alter, the original license notice in any distributed form.
+
+Fork status
+
+Per the zlib license, altered source versions must be plainly marked as such:
+this is a modified version of ArmorPaint and is **not** the original software.
+It is provided as-is, without warranty express or implied.
+
+Third-party components
+
+The distributed build embeds third-party libraries which are covered by their
+own licenses. The corresponding license texts are bundled at:
+
+- `paint/assets/licenses/`
+- `base/assets/licenses/`
