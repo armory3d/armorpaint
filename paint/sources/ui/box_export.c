@@ -163,7 +163,20 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 			else {
 				char *filters             = base_bits != TEXTURE_BITS_BITS8 ? "exr" : g_context->format_type == TEXTURE_LDR_FORMAT_PNG ? "png" : "jpg";
 				_box_export_bake_material = bake_material;
+#ifdef IRON_WASM
+				// Browsers pick a folder only, the textures are prefixed with the project name
+				char *name = ui_files_filename != NULL && !string_equals(ui_files_filename, "") ? ui_files_filename : tr("untitled");
+				if (string_index_of(name, ".") > 0) {
+					name = substring(name, 0, string_last_index_of(name, "."));
+				}
+				ui_files_filename = string_copy(name);
+				char *folder      = iron_folder_dialog(ui_files_filename);
+				if (folder != NULL) {
+					box_export_tab_export_textures_path_picked(folder);
+				}
+#else
 				ui_files_show(filters, true, false, &box_export_tab_export_textures_path_picked);
+#endif
 			}
 		}
 		if (g_ui->is_hovered) {

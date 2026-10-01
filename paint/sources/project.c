@@ -37,6 +37,13 @@ void project_save_on_next_frame(void *_) {
 }
 
 void project_save(bool save_and_quit) {
+#ifdef IRON_WASM
+	if (!box_projects_is_cloud_path(g_project->_->filepath) && !starts_with(g_project->_->filepath, "/files/")) {
+		box_projects_cloud_save_show(save_and_quit);
+		return;
+	}
+#endif
+
 	if (string_equals(g_project->_->filepath, "")) {
 #ifdef IRON_IOS
 		char *document_directory = iron_save_dialog("", "");
@@ -50,7 +57,7 @@ void project_save(bool save_and_quit) {
 #endif
 	}
 
-#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS) || defined(IRON_WASM)
 	char *filename = substring(g_project->_->filepath, string_last_index_of(g_project->_->filepath, PATH_SEP) + 1, string_length(g_project->_->filepath) - 4);
 	sys_title_set(string("%s - %s", filename, manifest_title));
 #endif

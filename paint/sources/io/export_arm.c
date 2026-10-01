@@ -371,7 +371,12 @@ void export_arm_run_project(char *path) {
 	g_project->is_bgra = false;
 #endif
 
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
+#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_WASM)
+#ifdef IRON_WASM
+	if (box_projects_is_cloud_path(path)) { // Icons are shown in the cloud projects box only
+#else
+	{
+#endif
 	render_target_t *rt        = any_map_get(render_path_render_targets, "buf");
 	gpu_texture_t   *tex       = rt->_image;
 	gpu_texture_t   *mesh_icon = gpu_create_render_target(256, 256, GPU_TEXTURE_FORMAT_RGBA32);
@@ -387,9 +392,14 @@ void export_arm_run_project(char *path) {
 	}
 	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
 	gpu_delete_texture(mesh_icon);
+	}
 #endif
 
-	if (g_context->pack_assets_on_save) { // Pack textures and sounds
+	bool pack_assets = g_context->pack_assets_on_save;
+#ifdef IRON_WASM
+	pack_assets = true;
+#endif
+	if (pack_assets) { // Pack textures and sounds
 		export_arm_pack_assets(g_project, g_project->_->assets);
 		export_arm_pack_sounds(g_project, g_project->_->sounds);
 	}

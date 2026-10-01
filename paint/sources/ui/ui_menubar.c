@@ -258,7 +258,12 @@ void ui_menubar_draw_category_items() {
 		if (ui_menu_button(tr("Open..."), any_map_get(g_keymap, "file_open"), ICON_FOLDER_OPEN)) {
 			project_open();
 		}
-		if (ui_menu_button(tr("Open Recent..."), any_map_get(g_keymap, "file_open_recent"), ICON_REPLAY)) {
+#ifdef IRON_WASM
+		char *open_recent = tr("Cloud Projects...");
+#else
+		char *open_recent = tr("Open Recent...");
+#endif
+		if (ui_menu_button(open_recent, any_map_get(g_keymap, "file_open_recent"), ICON_REPLAY)) {
 			box_projects_show();
 		}
 		if (ui_menu_button(tr("Save"), any_map_get(g_keymap, "file_save"), ICON_SAVE)) {
@@ -267,6 +272,11 @@ void ui_menubar_draw_category_items() {
 		if (ui_menu_button(tr("Save As..."), any_map_get(g_keymap, "file_save_as"), ICON_SAVE_AS)) {
 			project_save_as(false);
 		}
+#ifdef IRON_WASM
+		if (ui_menu_button(tr("Save to Cloud..."), "", ICON_CLOUD)) {
+			box_projects_cloud_save_show(false);
+		}
+#endif
 
 		g_ui->changed = false;
 		ui_check(&g_context->pack_assets_on_save, tr("Pack Assets"), "");

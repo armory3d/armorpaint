@@ -979,6 +979,19 @@ void base_update_workflow() {
 }
 
 void base_run_in_player() {
+#ifdef IRON_WASM
+	iron_delete_file("/player/start.arm");
+	iron_load_url("/?player");
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use)
+		draw_end();
+	export_arm_run_project("/player/start.arm");
+	if (in_use)
+		draw_begin(current, false, 0);
+	return;
+#endif
+
 	if (string_equals(g_project->_->filepath, "")) {
 		console_error(tr("Save project first"));
 		return;
