@@ -454,7 +454,12 @@ static void lightmap_write(lightmap_job_t *job) {
 		}
 		out->buffer[i * 4 + 3] = 255;
 	}
-	iron_write_png(job->path, out, res, res, 2); // RGB
+	if (ends_with(job->path, ".jpg")) {
+		iron_write_jpg(job->path, out, res, res, 2, 95); // RGB
+	}
+	else {
+		iron_write_png(job->path, out, res, res, 2); // RGB
+	}
 }
 
 static void lightmap_update(void *_) {
