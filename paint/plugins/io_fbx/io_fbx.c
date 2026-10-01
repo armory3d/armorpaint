@@ -576,236 +576,158 @@ void *io_fbx_parse(char *buf, size_t size) {
 	return raw;
 }
 
-void *io_fbx_parse_skinned(char *buf, size_t size, int frame) {
+buffer_t *util_skin_blob_create(char *name, int vc, float *pos, float *nor, float *tex, int ic, uint32_t *ind, uint16_t *joints, float *weights, int jc, int fc,
+                                float *mats);
+raw_mesh_t *util_skin_raw_mesh(buffer_t *blob);
+
+static void fbx_skin_mat(ufbx_matrix *m, float *out) {
+	static const int   src[3] = {0, 2, 1};
+	static const float sgn[3] = {1, -1, 1};
+	for (int r = 0; r < 3; ++r) {
+		for (int c = 0; c < 4; ++c) {
+			out[r * 4 + c] = sgn[r] * (float)m->v[c * 3 + src[r]];
+		}
+	}
+}
+
+void *io_fbx_parse_skinned(char *buf, size_t size) {
 	if (active_base_scene == NULL) {
 		ufbx_load_opts load_opts = {.generate_missing_normals = true};
 		active_base_scene        = ufbx_load_memory(buf, size, &load_opts, NULL);
 		if (active_base_scene == NULL)
 			return NULL;
-
-		double fps  = active_base_scene->settings.frames_per_second > 0.0 ? active_base_scene->settings.frames_per_second : 30.0;
-		double time = (double)frame / fps;
-		if (active_base_scene->anim_stacks.count > 0) {
-			ufbx_evaluate_opts eval_opts = {.evaluate_skinning = true};
-			active_eval_scene            = ufbx_evaluate_scene(active_base_scene, active_base_scene->anim_stacks.data[0]->anim, time, &eval_opts, NULL);
-			if (active_eval_scene == NULL) {
-				ufbx_free_scene(active_base_scene);
-				active_base_scene = NULL;
-				return NULL;
-			}
-		}
-		else {
-			active_eval_scene = active_base_scene;
-		}
-
-		// Pre-scan: disable tex1 if any mesh lacks a second uv set
-		active_tex1 = true;
-		for (size_t i = 0; i < active_eval_scene->nodes.count; ++i) {
-			ufbx_node *n = active_eval_scene->nodes.data[i];
-			if (valid_mesh(n) && n->mesh->uv_sets.count < 2) {
-				active_tex1 = false;
-				break;
-			}
-		}
+		current_node = 0;
 	}
+	ufbx_scene *scene = active_base_scene;
 
-	// Find next mesh node
 	ufbx_node *mesh_node = NULL;
-	for (; current_node < (int)active_eval_scene->nodes.count; ++current_node) {
-		ufbx_node *n = active_eval_scene->nodes.data[current_node];
-		if (valid_mesh(n)) {
-			mesh_node = n;
+	for (; current_node < (int)scene->nodes.count; ++current_node) {
+		if (valid_mesh(scene->nodes.data[current_node])) {
+			mesh_node = scene->nodes.data[current_node];
 			break;
 		}
 	}
 	current_node++;
 
-	if (mesh_node == NULL) {
-		if (active_eval_scene != active_base_scene)
-			ufbx_free_scene(active_eval_scene);
-		ufbx_free_scene(active_base_scene);
-		active_base_scene = NULL;
-		active_eval_scene = NULL;
-		current_node      = 0;
-		has_next          = false;
-		active_tex1       = false;
-		return calloc(sizeof(raw_mesh_t), 1);
-	}
-
-	ufbx_mesh  *mesh            = mesh_node->mesh;
-	ufbx_matrix normal_to_world = ufbx_get_compatible_matrix_for_normals(mesh_node);
-
-	uint32_t  indices_size = mesh->max_face_triangles * 3;
-	uint32_t *indices      = (uint32_t *)malloc(sizeof(uint32_t) * indices_size);
-
-	bool   force_tex = mixed_uvs(active_eval_scene);
-	bool   has_tex   = mesh->vertex_uv.exists;
-	bool   has_tex1  = active_tex1 && mesh->uv_sets.count > 1;
-	int    numtri    = mesh->num_triangles;
-	float *posa32    = (float *)malloc(sizeof(float) * numtri * 3 * 3);
-	float *nora32    = (float *)malloc(sizeof(float) * numtri * 3 * 3);
-	float *texa32    = (has_tex || force_tex) ? (float *)malloc(sizeof(float) * numtri * 3 * 2) : NULL;
-	float *texa132   = has_tex1 ? (float *)malloc(sizeof(float) * numtri * 3 * 2) : NULL;
-	int    pi = 0, ni = 0, ti = 0, ti1 = 0;
-
-	for (int j = 0; j < mesh->faces.count; ++j) {
-		ufbx_face face          = mesh->faces.data[j];
-		uint32_t  num_triangles = ufbx_triangulate_face(indices, indices_size, mesh, face);
-		for (uint32_t v_ix = 0; v_ix < num_triangles * 3; v_ix++) {
-			uint32_t a = indices[v_ix];
-
-			// skinned_position/normal are world-space when skinned_is_local == false
-			// (evaluated skinned mesh), or local-space when skinned_is_local == true
-			ufbx_vec3 v = ufbx_get_vertex_vec3(&mesh->skinned_position, a);
-			if (mesh->skinned_is_local)
-				v = ufbx_transform_position(&mesh_node->geometry_to_world, v);
-			posa32[pi++] = v.x;
-			posa32[pi++] = -v.z;
-			posa32[pi++] = v.y;
-
-			ufbx_vec3 n = ufbx_get_vertex_vec3(&mesh->skinned_normal, a);
-			if (mesh->skinned_is_local)
-				n = ufbx_transform_direction(&normal_to_world, n);
-			float nlen = sqrtf(n.x * n.x + n.y * n.y + n.z * n.z);
-			if (nlen > 1e-6f) {
-				n.x /= nlen;
-				n.y /= nlen;
-				n.z /= nlen;
-			}
-			nora32[ni++] = n.x;
-			nora32[ni++] = -n.z;
-			nora32[ni++] = n.y;
-
-			if (has_tex) {
-				texa32[ti++] = ufbx_get_vertex_vec2(&mesh->vertex_uv, a).x;
-				texa32[ti++] = ufbx_get_vertex_vec2(&mesh->vertex_uv, a).y;
-			}
-			else if (force_tex) {
-				texa32[ti++] = 0;
-				texa32[ti++] = 0;
-			}
-
-			if (has_tex1) {
-				texa132[ti1++] = ufbx_get_vertex_vec2(&mesh->uv_sets.data[1].vertex_uv, a).x;
-				texa132[ti1++] = ufbx_get_vertex_vec2(&mesh->uv_sets.data[1].vertex_uv, a).y;
-			}
-		}
-	}
-
-	free(indices);
-
-	int vertex_count = pi / 3;
-	int index_count  = vertex_count;
-
-	uint32_t *inda = malloc(sizeof(uint32_t) * index_count);
-	for (int i = 0; i < index_count; ++i)
-		inda[i] = i;
-
-	// Pack positions to (-1, 1) range
-	float hx = 0.0, hy = 0.0, hz = 0.0;
-	for (int i = 0; i < vertex_count; ++i) {
-		float f = fabsf(posa32[i * 3]);
-		if (hx < f)
-			hx = f;
-		f = fabsf(posa32[i * 3 + 1]);
-		if (hy < f)
-			hy = f;
-		f = fabsf(posa32[i * 3 + 2]);
-		if (hz < f)
-			hz = f;
-	}
-	float _scale_pos = fmax(hx, fmax(hy, hz));
-	if (_scale_pos > scale_pos)
-		scale_pos = _scale_pos;
-	float inv = 1 / scale_pos;
-
-	// Pack into 16bit
-	short *posa = malloc(sizeof(short) * vertex_count * 4);
-	for (int i = 0; i < vertex_count; ++i) {
-		posa[i * 4]     = posa32[i * 3] * 32767 * inv;
-		posa[i * 4 + 1] = posa32[i * 3 + 1] * 32767 * inv;
-		posa[i * 4 + 2] = posa32[i * 3 + 2] * 32767 * inv;
-	}
-	free(posa32);
-
-	short *nora = malloc(sizeof(short) * vertex_count * 2);
-	for (int i = 0; i < vertex_count; ++i) {
-		nora[i * 2]     = nora32[i * 3] * 32767;
-		nora[i * 2 + 1] = nora32[i * 3 + 1] * 32767;
-		posa[i * 4 + 3] = nora32[i * 3 + 2] * 32767;
-	}
-	free(nora32);
-
-	short *texa = NULL;
-	if (texa32 != NULL) {
-		texa = malloc(sizeof(short) * vertex_count * 2);
-		for (int i = 0; i < vertex_count; ++i) {
-			texa[i * 2]     = texa32[i * 2] * 32767;
-			texa[i * 2 + 1] = (1.0 - texa32[i * 2 + 1]) * 32767;
-		}
-		free(texa32);
-	}
-
-	short *texa1 = NULL;
-	if (texa132 != NULL) {
-		texa1 = malloc(sizeof(short) * vertex_count * 2);
-		for (int i = 0; i < vertex_count; ++i) {
-			texa1[i * 2]     = texa132[i * 2] * 32767;
-			texa1[i * 2 + 1] = (1.0 - texa132[i * 2 + 1]) * 32767;
-		}
-		free(texa132);
-	}
-
-	raw_mesh_t *raw = (raw_mesh_t *)calloc(sizeof(raw_mesh_t), 1);
-	raw->name       = malloc(strlen(mesh_node->name.data) + 1);
-	strcpy(raw->name, mesh_node->name.data);
-
-	raw->posa         = (i16_array_t *)malloc(sizeof(i16_array_t));
-	raw->posa->buffer = posa;
-	raw->posa->length = raw->posa->capacity = vertex_count * 4;
-
-	raw->nora         = (i16_array_t *)malloc(sizeof(i16_array_t));
-	raw->nora->buffer = nora;
-	raw->nora->length = raw->nora->capacity = vertex_count * 2;
-
-	if (texa != NULL) {
-		raw->texa         = (i16_array_t *)malloc(sizeof(i16_array_t));
-		raw->texa->buffer = texa;
-		raw->texa->length = raw->texa->capacity = vertex_count * 2;
-	}
-
-	if (texa1 != NULL) {
-		raw->texa1         = (i16_array_t *)malloc(sizeof(i16_array_t));
-		raw->texa1->buffer = texa1;
-		raw->texa1->length = raw->texa1->capacity = vertex_count * 2;
-	}
-
-	raw->inda         = (u32_array_t *)malloc(sizeof(u32_array_t));
-	raw->inda->buffer = inda;
-	raw->inda->length = raw->inda->capacity = index_count;
-
-	raw->scale_pos = scale_pos;
-	raw->scale_tex = 1.0;
-
-	// Check for more mesh nodes
 	has_next = false;
-	for (int i = current_node; i < (int)active_eval_scene->nodes.count; ++i) {
-		ufbx_node *n = active_eval_scene->nodes.data[i];
-		if (valid_mesh(n)) {
+	for (int i = current_node; i < (int)scene->nodes.count; ++i) {
+		if (valid_mesh(scene->nodes.data[i])) {
 			has_next = true;
 			break;
 		}
 	}
 
+	raw_mesh_t *raw = NULL;
+	if (mesh_node != NULL) {
+		ufbx_mesh          *mesh     = mesh_node->mesh;
+		ufbx_skin_deformer *skin     = mesh->skin_deformers.count > 0 ? mesh->skin_deformers.data[0] : NULL;
+		int                 clusters = skin != NULL ? (int)skin->clusters.count : 0;
+		int                 jc       = clusters + 1;
+		bool                has_tex  = mesh->vertex_uv.exists;
+
+		// One output vertex per triangle corner
+		uint32_t  indices_size = mesh->max_face_triangles * 3;
+		uint32_t *indices      = malloc(sizeof(uint32_t) * indices_size);
+		int       vc           = (int)mesh->num_triangles * 3;
+		float    *pos          = malloc(sizeof(float) * vc * 3);
+		float    *nor          = malloc(sizeof(float) * vc * 3);
+		float    *tex          = calloc(vc * 2, sizeof(float));
+		uint16_t *joints       = calloc(vc * 4, sizeof(uint16_t));
+		float    *weights      = calloc(vc * 4, sizeof(float));
+		uint32_t *ind          = malloc(sizeof(uint32_t) * vc);
+		int       o            = 0;
+		for (size_t j = 0; j < mesh->faces.count; ++j) {
+			uint32_t num_triangles = ufbx_triangulate_face(indices, indices_size, mesh, mesh->faces.data[j]);
+			for (uint32_t k = 0; k < num_triangles * 3; ++k, ++o) {
+				uint32_t  a    = indices[k];
+				ufbx_vec3 p    = ufbx_get_vertex_vec3(&mesh->vertex_position, a);
+				ufbx_vec3 n    = ufbx_get_vertex_vec3(&mesh->vertex_normal, a);
+				pos[o * 3]     = (float)p.x;
+				pos[o * 3 + 1] = (float)p.y;
+				pos[o * 3 + 2] = (float)p.z;
+				nor[o * 3]     = (float)n.x;
+				nor[o * 3 + 1] = (float)n.y;
+				nor[o * 3 + 2] = (float)n.z;
+				if (has_tex) {
+					ufbx_vec2 uv   = ufbx_get_vertex_vec2(&mesh->vertex_uv, a);
+					tex[o * 2]     = (float)uv.x;
+					tex[o * 2 + 1] = 1.0f - (float)uv.y;
+				}
+				ind[o] = o;
+
+				// Up to 4 strongest weights (ufbx sorts them), normalized
+				ufbx_skin_vertex sv  = {0};
+				float            sum = 0.0f;
+				if (skin != NULL) {
+					sv = skin->vertices.data[mesh->vertex_indices.data[a]];
+				}
+				uint32_t count = sv.num_weights < 4 ? sv.num_weights : 4;
+				for (uint32_t w = 0; w < count; ++w) {
+					ufbx_skin_weight sw = skin->weights.data[sv.weight_begin + w];
+					joints[o * 4 + w]   = (uint16_t)sw.cluster_index;
+					weights[o * 4 + w]  = (float)sw.weight;
+					sum += (float)sw.weight;
+				}
+				if (sum > 0.0f) {
+					for (uint32_t w = 0; w < count; ++w) {
+						weights[o * 4 + w] /= sum;
+					}
+				}
+				else {
+					joints[o * 4]  = (uint16_t)clusters;
+					weights[o * 4] = 1.0f;
+				}
+			}
+		}
+		free(indices);
+
+		// Sample the first animation stack at the scene frame rate
+		ufbx_anim *anim  = scene->anim_stacks.count > 0 ? scene->anim_stacks.data[0]->anim : NULL;
+		double     fps   = scene->settings.frames_per_second > 0.0 ? scene->settings.frames_per_second : 30.0;
+		int        fc    = 1;
+		double     begin = 0.0;
+		if (anim != NULL && anim->time_end > anim->time_begin) {
+			begin = anim->time_begin;
+			fc    = (int)((anim->time_end - anim->time_begin) * fps + 0.5) + 1;
+			fc    = fc > 10000 ? 10000 : fc;
+		}
+		float *mats = malloc(sizeof(float) * 12 * jc * fc);
+		for (int f = 0; f < fc; ++f) {
+			ufbx_scene *eval = anim != NULL ? ufbx_evaluate_scene(scene, anim, begin + f / fps, NULL, NULL) : NULL;
+			ufbx_scene *s    = eval != NULL ? eval : scene;
+			for (int c = 0; c < clusters; ++c) {
+				ufbx_skin_cluster *cl = skin->clusters.data[c];
+				ufbx_matrix        m  = cl->geometry_to_bone;
+				if (cl->bone_node != NULL) {
+					m = ufbx_matrix_mul(&s->nodes.data[cl->bone_node->typed_id]->node_to_world, &cl->geometry_to_bone);
+				}
+				fbx_skin_mat(&m, &mats[(f * jc + c) * 12]);
+			}
+			fbx_skin_mat(&s->nodes.data[mesh_node->typed_id]->geometry_to_world, &mats[(f * jc + clusters) * 12]);
+			if (eval != NULL)
+				ufbx_free_scene(eval);
+		}
+
+		buffer_t *blob = util_skin_blob_create(mesh_node->name.data, vc, pos, nor, tex, vc, ind, joints, weights, jc, fc, mats);
+		raw            = util_skin_raw_mesh(blob);
+		free(pos);
+		free(nor);
+		free(tex);
+		free(joints);
+		free(weights);
+		free(ind);
+		free(mats);
+	}
+	if (raw == NULL) {
+		raw = calloc(sizeof(raw_mesh_t), 1);
+	}
+
 	if (!has_next) {
-		if (active_eval_scene != active_base_scene)
-			ufbx_free_scene(active_eval_scene);
 		ufbx_free_scene(active_base_scene);
 		active_base_scene = NULL;
 		active_eval_scene = NULL;
 		current_node      = 0;
 		active_tex1       = false;
-		scale_pos         = 1.0;
 	}
 
 	raw->has_next = has_next;
