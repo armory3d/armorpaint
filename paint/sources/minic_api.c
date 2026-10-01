@@ -7,6 +7,7 @@
 #include "iron_array.h"
 #include "iron_draw.h"
 #include "iron_file.h"
+#include "iron_image.h"
 #include "iron_input.h"
 #include "iron_json.h"
 #include "iron_map.h"
@@ -524,8 +525,8 @@ void minic_register_builtins() {
 	// iron_array
 	minic_register_array_struct("i8_array_t", (int)sizeof(i8_array_t), MINIC_T_CHAR);
 	minic_register_array_struct("u8_array_t", (int)sizeof(u8_array_t), MINIC_T_CHAR);
-	minic_register_array_struct("i16_array_t", (int)sizeof(i16_array_t), MINIC_T_INT);
-	minic_register_array_struct("u16_array_t", (int)sizeof(u16_array_t), MINIC_T_INT);
+	minic_register_array_struct("i16_array_t", (int)sizeof(i16_array_t), MINIC_T_I16);
+	minic_register_array_struct("u16_array_t", (int)sizeof(u16_array_t), MINIC_T_U16);
 	minic_register_array_struct("i32_array_t", (int)sizeof(i32_array_t), MINIC_T_INT);
 	minic_register_array_struct("u32_array_t", (int)sizeof(u32_array_t), MINIC_T_INT);
 	minic_register_array_struct("f32_array_t", (int)sizeof(f32_array_t), MINIC_T_FLOAT);
@@ -915,6 +916,12 @@ static const char *minic_api_type_name(minic_type_t t, minic_type_t deref, const
 	}
 	if (t == MINIC_T_CHAR) {
 		return "char";
+	}
+	if (t == MINIC_T_I16) {
+		return "int16_t";
+	}
+	if (t == MINIC_T_U16) {
+		return "uint16_t";
 	}
 	if (t == MINIC_T_VOID) {
 		return "void";
