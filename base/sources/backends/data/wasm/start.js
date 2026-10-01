@@ -13,8 +13,13 @@ let wgpu_free_ids    = [];
 let wgpu_mapped      = new Map();
 let file_buffer      = null;
 let file_buffer_pos  = 0;
-let file_dropped     = null;
 let virtual_fs       = new Map();
+let file_write_path  = null;
+let file_write_parts = [];
+let file_handles     = new Map(); // /files/<id>/<name> -> FileSystemFileHandle of a picked file
+let folder_handles   = new Map(); // /files/<id> -> FileSystemDirectoryHandle of a picked folder
+let folder_zips      = new Map(); // /files/<id> -> {name, files}, written files are downloaded as a zip
+let file_next_id     = 0;
 let config_json      = "";
 let wasm_update      = null;
 let wasm_can_suspend = false;
@@ -35,6 +40,151 @@ function call_wasm(func, ...args) {
 function flush_wasm_queue() {
 	while (wasm_queued.length > 0) {
 		wasm_queued.shift()();
+	}
+}
+
+// Picked or dropped files live in virtual_fs as /files/<id>/<name>
+function file_add(name, buffer, handle) {
+	let path = `/files/${++file_next_id}/${name}`;
+	virtual_fs.set(path, buffer);
+	if (handle) {
+		file_handles.set(path, handle);
+	}
+	return path;
+}
+
+function malloc_string(str) {
+	let bytes = new TextEncoder().encode(str);
+	let ptr   = instance.exports.wasm_malloc(bytes.length + 1);
+	heapu8.set(bytes, ptr);
+	heapu8[ptr + bytes.length] = 0;
+	return ptr;
+}
+
+function filter_extensions(filters) {
+	return filters.split(",").map(f => f.trim()).filter(f => f !== "").map(f => "." + f);
+}
+
+// Pick files with the File System Access API when available, so they can be saved back, or with an <input> otherwise
+async function pick_files(filters, multiple) {
+	let exts = filter_extensions(filters);
+	if (window.showOpenFilePicker) {
+		try {
+			let types   = exts.length > 0 ? [ {description : exts.join(", "), accept : {"application/octet-stream" : exts}} ] : undefined;
+			let handles = await window.showOpenFilePicker({multiple, types});
+			return Promise.all(handles.map(async handle => ({handle, file : await handle.getFile()})));
+		}
+		catch (e) {
+			return []; // Cancelled
+		}
+	}
+	return new Promise(resolve => {
+		let input      = document.createElement("input");
+		input.type     = "file";
+		input.multiple = multiple;
+		input.accept   = exts.join(",");
+		input.addEventListener("change", () => resolve([...input.files].map(file => ({handle : null, file}))));
+		input.addEventListener("cancel", () => resolve([]));
+		input.click();
+	});
+}
+
+// Suggested name for a save dialog, the default path with the extension of the first filter
+function save_name(exts, default_path) {
+	let name = default_path.substring(default_path.lastIndexOf("/") + 1);
+	if (name === "") {
+		name = "untitled";
+	}
+	if (exts.length > 0 && !name.endsWith(exts[0])) {
+		name = (name.lastIndexOf(".") > 0 ? name.substring(0, name.lastIndexOf(".")) : name) + exts[0];
+	}
+	return name;
+}
+
+function download_file(name, bytes) {
+	let a      = document.createElement("a");
+	a.href     = URL.createObjectURL(new Blob([ bytes ]));
+	a.download = name;
+	a.click();
+	setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+async function write_file_handle(handle, bytes) {
+	try {
+		let writable = await handle.createWritable();
+		await writable.write(bytes);
+		await writable.close();
+	}
+	catch (e) {
+		alert(`Writing ${handle.name} failed: ${e.message}`);
+	}
+}
+
+let crc32_table = null;
+function crc32(bytes) {
+	if (crc32_table === null) {
+		crc32_table = new Uint32Array(256);
+		for (let i = 0; i < 256; ++i) {
+			let c = i;
+			for (let k = 0; k < 8; ++k) {
+				c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+			}
+			crc32_table[i] = c;
+		}
+	}
+	let crc = 0xffffffff;
+	for (let i = 0; i < bytes.length; ++i) {
+		crc = crc32_table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+	}
+	return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Uncompressed zip, used when the browser can not write into a picked folder
+function make_zip(files) {
+	let parts   = [];
+	let central = [];
+	let offset  = 0;
+	for (let [name, bytes] of files) {
+		let name_bytes = new TextEncoder().encode(name);
+		let crc        = crc32(bytes);
+		let local      = new DataView(new ArrayBuffer(30));
+		local.setUint32(0, 0x04034b50, true);
+		local.setUint16(4, 20, true);
+		local.setUint16(6, 0x0800, true); // UTF-8 names
+		local.setUint32(14, crc, true);
+		local.setUint32(18, bytes.length, true);
+		local.setUint32(22, bytes.length, true);
+		local.setUint16(26, name_bytes.length, true);
+		let entry = new DataView(new ArrayBuffer(46));
+		entry.setUint32(0, 0x02014b50, true);
+		entry.setUint16(4, 20, true);
+		entry.setUint16(6, 20, true);
+		entry.setUint16(8, 0x0800, true);
+		entry.setUint32(16, crc, true);
+		entry.setUint32(20, bytes.length, true);
+		entry.setUint32(24, bytes.length, true);
+		entry.setUint16(28, name_bytes.length, true);
+		entry.setUint32(42, offset, true);
+		parts.push(local, name_bytes, bytes);
+		central.push(entry, name_bytes);
+		offset += 30 + name_bytes.length + bytes.length;
+	}
+	let central_size = central.reduce((n, part) => n + part.byteLength, 0);
+	let end          = new DataView(new ArrayBuffer(22));
+	end.setUint32(0, 0x06054b50, true);
+	end.setUint16(8, files.length, true);
+	end.setUint16(10, files.length, true);
+	end.setUint32(12, central_size, true);
+	end.setUint32(16, offset, true);
+	return new Blob([...parts, ...central, end ]);
+}
+
+function flush_folder_zips() {
+	for (let [dir, zip] of folder_zips) {
+		if (zip.files.length > 0) {
+			download_file(zip.name, make_zip(zip.files));
+			folder_zips.delete(dir);
+		}
 	}
 }
 
@@ -727,16 +877,15 @@ async function init() {
 			js_printf : function(format) {
 		        console.log(read_string(format));
 			},
-			js_fopen : function(filename) {
+			js_fopen : function(filename, mode) {
+		        if (read_string(mode).includes("w")) {
+			        file_write_path  = read_string(filename);
+			        file_write_parts = [];
+			        return 2;
+		        }
 		        let str;
 		        if (read_string(filename) === "/./data/config.json" || read_string(filename) === "/./data//config.json") { ////
 			        str = config_json;
-		        }
-		        else if (file_dropped != null) {
-			        file_buffer_pos = 0;
-			        file_buffer     = file_dropped;
-			        file_dropped    = null;
-			        return 1;
 		        }
 		        else if (virtual_fs.has(read_string(filename))) {
 			        file_buffer_pos = 0;
@@ -778,7 +927,63 @@ async function init() {
 		        return count;
 			},
 			js_fwrite : function(ptr, size, count, stream) {
-		        config_json = read_string_n(ptr, count); ////
+		        if (stream !== 2) {
+			        return 0;
+		        }
+		        file_write_parts.push(heapu8.slice(ptr, ptr + size * count));
+		        return count;
+			},
+			js_fclose : function(stream) {
+		        if (stream !== 2) {
+			        return 0;
+		        }
+		        let path         = file_write_path;
+		        let bytes        = new Uint8Array(file_write_parts.reduce((n, part) => n + part.length, 0));
+		        let pos          = 0;
+		        for (let part of file_write_parts) {
+			        bytes.set(part, pos);
+			        pos += part.length;
+		        }
+		        file_write_path  = null;
+		        file_write_parts = [];
+		        if (path.endsWith("config.json")) {
+			        let str = '';
+			        for (let i = 0; i < bytes.length; ++i) {
+				        str += String.fromCharCode(bytes[i]);
+			        }
+			        config_json = str;
+		        }
+		        // Let the page store the file elsewhere first
+		        else if (window.iron_file_saved && window.iron_file_saved(path, bytes)) {
+		        }
+		        else if (path.startsWith("/files/")) {
+			        let dir  = path.substring(0, path.lastIndexOf("/"));
+			        let name = path.substring(path.lastIndexOf("/") + 1);
+			        // The app may append the extension to the picked name
+			        let handle = file_handles.get(path) || file_handles.get(path.substring(0, path.lastIndexOf(".")));
+			        if (handle) {
+				        write_file_handle(handle, bytes);
+			        }
+			        else if (folder_handles.has(dir)) {
+				        folder_handles.get(dir).getFileHandle(name, {create : true}).then(h => write_file_handle(h, bytes));
+			        }
+			        else if (folder_zips.has(dir)) {
+				        folder_zips.get(dir).files.push([ name, bytes ]);
+			        }
+			        else {
+				        download_file(name, bytes); // No file system access, save as a download
+			        }
+		        }
+		        else {
+			        virtual_fs.set(path, bytes.buffer);
+		        }
+		        return 0;
+			},
+			js_delete_file : function(path) {
+		        path = read_string(path);
+		        if (!(window.iron_file_deleted && window.iron_file_deleted(path))) {
+			        virtual_fs.delete(path);
+		        }
 			},
 			js_time : function() {
 		        return window.performance.now();
@@ -850,15 +1055,55 @@ async function init() {
 			js_load_url : function(str) {
 		        window.open(read_string(str), "_blank");
 			},
-			js_open_dialog : async function() {
-		        let [handle] = await window.showOpenFilePicker({multiple : false});
-		        let file     = await     handle.getFile();
-		        file_dropped = await file.arrayBuffer();
-		        call_wasm(drop_file, file.name);
-			},
-			js_save_dialog : function() {
-		        alert("Not implemented yet.")
-			},
+			// With JSPI the module waits for the picked paths, otherwise the files arrive as dropped files
+			js_open_dialog : jspi_supported ? new WebAssembly.Suspending(async function(pfilters, multiple) {
+		        let picked = await pick_files(read_string(pfilters), multiple !== 0);
+		        if (picked.length === 0) {
+			        return 0;
+		        }
+		        let paths = await Promise.all(picked.map(async p => file_add(p.file.name, await p.file.arrayBuffer(), p.handle)));
+		        return malloc_string(paths.join("\n"));
+	        }) : function(pfilters, multiple) {
+		        pick_files(read_string(pfilters), multiple !== 0).then(async picked => {
+			        for (let p of picked) {
+				        let path = file_add(p.file.name, await p.file.arrayBuffer(), p.handle);
+				        call_wasm(drop_file, path);
+			        }
+		        });
+		        return 0;
+	        },
+			// Returns /files/<id>/<name>, saving writes into the picked file, or downloads it when the browser can not pick one
+			js_save_dialog : jspi_supported && window.showSaveFilePicker ? new WebAssembly.Suspending(async function(pfilters, pdefault_path) {
+		        let exts = filter_extensions(read_string(pfilters));
+		        try {
+			        let types  = exts.length > 0 ? [ {description : exts.join(", "), accept : {"application/octet-stream" : exts}} ] : undefined;
+			        let handle = await window.showSaveFilePicker({suggestedName : save_name(exts, read_string(pdefault_path)), types});
+			        let path   = `/files/${++file_next_id}/${handle.name}`;
+			        file_handles.set(path, handle);
+			        return malloc_string(path);
+		        }
+		        catch (e) {
+			        return 0; // Cancelled
+		        }
+	        }) : function(pfilters, pdefault_path) {
+		        let name = save_name(filter_extensions(read_string(pfilters)), read_string(pdefault_path));
+		        return malloc_string(`/files/${++file_next_id}/${name}`);
+	        },
+			// Returns /files/<id>, files written into it go to the picked folder, or into a <name>.zip download
+			js_folder_dialog : jspi_supported && window.showDirectoryPicker ? new WebAssembly.Suspending(async function(pname) {
+		        let dir = `/files/${++file_next_id}`;
+		        try {
+			        folder_handles.set(dir, await window.showDirectoryPicker({mode : "readwrite"}));
+		        }
+		        catch (e) {
+			        return 0; // Cancelled
+		        }
+		        return malloc_string(dir);
+	        }) : function(pname) {
+		        let dir = `/files/${++file_next_id}`;
+		        folder_zips.set(dir, {name : read_string(pname) + ".zip", files : []});
+		        return malloc_string(dir);
+	        },
 			js_audio_init : function(left, right, read, write, size) {
 		        let ctx = new AudioContext();
 		        ctx.audioWorklet.addModule('audio_worklet.js').then(() => {
@@ -912,6 +1157,7 @@ async function init() {
 			wasm_can_suspend = false;
 		}
 		flush_wasm_queue();
+		flush_folder_zips();
 		window.requestAnimationFrame(update);
 	}
 	window.requestAnimationFrame(update);
@@ -947,9 +1193,9 @@ async function init() {
 		event.preventDefault();
 		const files = event.dataTransfer.files;
 		if (files.length > 0) {
-			let                  file = files[0];
-			file_dropped              = await file.arrayBuffer();
-			call_wasm(drop_file, file.name);
+			let file = files[0];
+			let path = file_add(file.name, await file.arrayBuffer(), null);
+			call_wasm(drop_file, path);
 		}
 	});
 }
@@ -1102,4 +1348,10 @@ function button_to_iron_button(button) {
 	return button;
 }
 
-init();
+// The page can delay the start, the promise may resolve to a Map of path -> ArrayBuffer to preload
+(window.iron_before_start || Promise.resolve()).then(files => {
+	for (const [path, buffer] of files || []) {
+		virtual_fs.set(path, buffer);
+	}
+	init();
+});

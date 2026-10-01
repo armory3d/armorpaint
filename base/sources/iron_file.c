@@ -391,9 +391,15 @@ bool iron_file_exists(char *path) {
 	return false;
 }
 
+#ifdef IRON_WASM
+__attribute__((import_module("imports"), import_name("js_delete_file"))) void js_delete_file(const char *path);
+#endif
+
 void iron_delete_file(char *path) {
 #ifdef IRON_IOS
 	IOSDeleteFile(path);
+#elif defined(IRON_WASM)
+	js_delete_file(path);
 #elif defined(IRON_WINDOWS)
 	char cmd[1024];
 	strcpy(cmd, "del /f \"");

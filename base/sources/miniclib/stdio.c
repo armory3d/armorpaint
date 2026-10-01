@@ -4,11 +4,12 @@
 
 #ifdef IRON_WASM
 __attribute__((import_module("imports"), import_name("js_printf"))) void    js_printf(const char *format);
-__attribute__((import_module("imports"), import_name("js_fopen"))) FILE    *js_fopen(const char *filename);
+__attribute__((import_module("imports"), import_name("js_fopen"))) FILE    *js_fopen(const char *filename, const char *mode);
 __attribute__((import_module("imports"), import_name("js_ftell"))) long int js_ftell(FILE *stream);
 __attribute__((import_module("imports"), import_name("js_fseek"))) int      js_fseek(FILE *stream, long int offset, int origin);
 __attribute__((import_module("imports"), import_name("js_fread"))) size_t   js_fread(void *ptr, size_t size, size_t count, FILE *stream);
-__attribute__((import_module("imports"), import_name("js_fwrite"))) size_t  js_fwrite(void *ptr, size_t size, size_t count, FILE *stream);
+__attribute__((import_module("imports"), import_name("js_fwrite"))) size_t  js_fwrite(const void *ptr, size_t size, size_t count, FILE *stream);
+__attribute__((import_module("imports"), import_name("js_fclose"))) int     js_fclose(FILE *stream);
 #endif
 
 FILE *stdout = NULL, *stderr = NULL;
@@ -59,19 +60,22 @@ int vsnprintf(char *s, size_t n, const char *format, va_list arg) {
 
 size_t fwrite(const void *ptr, size_t size, size_t count, FILE *stream) {
 #ifdef IRON_WASM
-	js_fwrite(ptr, size, count, stream);
+	return js_fwrite(ptr, size, count, stream);
 #endif
 	return 0;
 }
 
 FILE *fopen(const char *filename, const char *mode) {
 #ifdef IRON_WASM
-	return js_fopen(filename);
+	return js_fopen(filename, mode);
 #endif
 	return NULL;
 }
 
 int fclose(FILE *stream) {
+#ifdef IRON_WASM
+	return js_fclose(stream);
+#endif
 	return 0;
 }
 

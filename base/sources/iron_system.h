@@ -342,6 +342,9 @@ void        iron_internal_gamepad_trigger_button(int gamepad, int button, float 
 i32             iron_sys_command(char *cmd);
 string_array_t *iron_open_dialog(char *filter_list, char *default_path, bool open_multiple);
 char           *iron_save_dialog(char *filter_list, char *default_path);
+#ifdef IRON_WASM
+char *iron_folder_dialog(char *name);
+#endif
 
 extern any_map_t   *_sys_shaders;
 extern f64          _sys_start_time;

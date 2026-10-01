@@ -718,16 +718,27 @@ char *iron_save_dialog(char *filter_list, char *default_path) {
 
 #elif defined(IRON_WASM)
 
-__attribute__((import_module("imports"), import_name("js_open_dialog"))) void  js_open_dialog();
-__attribute__((import_module("imports"), import_name("js_save_dialog"))) char *js_save_dialog();
+// Picked files are addressed as /files/<id>/<name>
+__attribute__((import_module("imports"), import_name("js_open_dialog"))) char   *js_open_dialog(const char *filter_list, bool open_multiple);
+__attribute__((import_module("imports"), import_name("js_save_dialog"))) char   *js_save_dialog(const char *filter_list, const char *default_path);
+__attribute__((import_module("imports"), import_name("js_folder_dialog"))) char *js_folder_dialog(const char *name);
 
 string_array_t *iron_open_dialog(char *filter_list, char *default_path, bool open_multiple) {
-	js_open_dialog();
-	return NULL;
+	char *paths = js_open_dialog(filter_list, open_multiple);
+	if (paths == NULL) {
+		return NULL;
+	}
+	string_array_t *files = string_split(paths, "\n");
+	free(paths);
+	return files;
 }
 
 char *iron_save_dialog(char *filter_list, char *default_path) {
-	return js_save_dialog();
+	return js_save_dialog(filter_list, default_path);
+}
+
+char *iron_folder_dialog(char *name) {
+	return js_folder_dialog(name);
 }
 
 #endif
