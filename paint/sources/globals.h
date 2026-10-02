@@ -348,6 +348,8 @@ neural_node_model_t_array_t *neural_node_models      = NULL;
 char *render_path_raytrace_ext = ".cso";
 #elif defined(IRON_METAL)
 char *render_path_raytrace_ext = ".metal";
+#elif defined(IRON_WEBGPU)
+char *render_path_raytrace_ext = ".wgsl";
 #else
 char *render_path_raytrace_ext = ".spirv";
 #endif

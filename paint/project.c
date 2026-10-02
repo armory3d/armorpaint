@@ -24,7 +24,6 @@ project_t *main() {
 		flags->with_nfd         = false;
 		flags->with_compress    = false;
 		flags->with_plugins     = false;
-		flags->with_raytrace    = false;
 		flags->export_data_list = true;
 	}
 

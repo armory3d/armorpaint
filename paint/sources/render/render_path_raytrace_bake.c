@@ -158,7 +158,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		render_path_bind_target("baketex2", "tex");
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 
-#ifdef IRON_METAL
+#if defined(IRON_METAL) || defined(IRON_WEBGPU)
 		i32 samples_per_frame = 4;
 #else
 		i32 samples_per_frame = 64;
