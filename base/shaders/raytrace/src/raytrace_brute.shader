@@ -33,13 +33,13 @@ tex2d   mytexture_env_cdf;
 sampler sampler_linear;
 
 #ifdef _FULL
-#ifdef _METAL
+#ifdef _LOW_SAMPLES
 const int SAMPLES = 8;
 #else
 const int SAMPLES = 64;
 #endif
 #else
-#ifdef _METAL
+#ifdef _LOW_SAMPLES
 const int SAMPLES = 4;
 #else
 const int SAMPLES = 32;

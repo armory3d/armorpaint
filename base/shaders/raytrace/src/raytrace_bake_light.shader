@@ -20,7 +20,7 @@ tex2d   mytexture_env_cdf;
 sampler sampler_linear;
 
 // Diffuse paths per dispatch
-#ifdef _METAL
+#ifdef _LOW_SAMPLES
 const int SAMPLES = 2;
 #else
 const int SAMPLES = 8;

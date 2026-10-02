@@ -73,6 +73,10 @@ static void kong_compile_compute(char *shader_lang, const char *to) {
 		code = metal_export_compute();
 		size = (int)strlen(code);
 	}
+	else if (strcmp(shader_lang, "wgsl") == 0) {
+		code = wgsl_export_compute();
+		size = (int)strlen(code);
+	}
 	else {
 		printf("Compute shaders are not supported for %s\n", shader_lang);
 		return;

@@ -365,7 +365,11 @@ async function init() {
 	}
 	let device = await adapter.requestDevice({
 		requiredFeatures : features,
-		requiredLimits : {maxColorAttachmentBytesPerSample : adapter.limits.maxColorAttachmentBytesPerSample},
+		requiredLimits : {
+			maxColorAttachmentBytesPerSample : adapter.limits.maxColorAttachmentBytesPerSample,
+			maxStorageBufferBindingSize : adapter.limits.maxStorageBufferBindingSize, // Raytrace bvh
+			maxBufferSize : adapter.limits.maxBufferSize,
+		},
 	});
 
 	let canvas    = document.getElementById('iron');
@@ -465,6 +469,10 @@ async function init() {
 				        };
 				        if (e.buffer.type === 0x00000002)
 					        e.buffer.type = "uniform";
+				        else if (e.buffer.type === 0x00000003)
+					        e.buffer.type = "storage";
+				        else if (e.buffer.type === 0x00000004)
+					        e.buffer.type = "read-only-storage";
 			        }
 
 			        if (read_u32(i * 88 + pentries + 52) != 0x00000000) { // WGPUSamplerBindingType_BindingNotUsed
@@ -485,6 +493,15 @@ async function init() {
 					        e.texture.sampleType = "float";
 				        else if (e.texture.sampleType === 0x00000003)
 					        e.texture.sampleType = "unfilterable-float";
+			        }
+
+			        if (read_u32(i * 88 + pentries + 76) != 0x00000000) { // WGPUStorageTextureAccess_BindingNotUsed
+				        let access       = read_u32(i * 88 + pentries + 76);
+				        e.storageTexture = {
+					        access : access === 0x00000003 ? "read-only" : access === 0x00000004 ? "read-write" : "write-only",
+					        format : id_to_texture_format(read_u32(i * 88 + pentries + 80)),
+					        viewDimension : "2d"
+				        };
 			        }
 
 			        desc.entries.push(e);
@@ -841,6 +858,56 @@ async function init() {
 		        // WGPUExtent3D
 		        let copysize = {width : read_u32(pcopysize), height : read_u32(pcopysize + 4), depthOrArrayLayers : read_u32(pcopysize + 8)};
 		        encoder.copyTextureToBuffer(source, destination, copysize);
+			},
+			wgpuBindGroupLayoutRelease : function(pbind_group_layout) {
+		        release_id(pbind_group_layout);
+			},
+			wgpuDeviceCreateComputePipeline : function(pdevice, pdescriptor) {
+		        let device = id_to_ptr(pdevice);
+		        // WGPUComputePipelineDescriptor
+		        let desc     = {layout : id_to_ptr(read_u32(pdescriptor + 12)), compute : {module : id_to_ptr(read_u32(pdescriptor + 20)), entryPoint : "main"}};
+		        let pipeline = device.createComputePipeline(desc);
+		        return ptr_to_id(pipeline);
+			},
+			wgpuComputePipelineRelease : function(pcompute_pipeline) {
+		        release_id(pcompute_pipeline);
+			},
+			wgpuCommandEncoderBeginComputePass : function(pcommand_encoder, pdescriptor) {
+		        let encoder      = id_to_ptr(pcommand_encoder);
+		        let compute_pass = encoder.beginComputePass();
+		        return ptr_to_id(compute_pass);
+			},
+			wgpuComputePassEncoderSetPipeline : function(pcompute_pass_encoder, ppipeline) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.setPipeline(id_to_ptr(ppipeline));
+			},
+			wgpuComputePassEncoderSetBindGroup : function(pcompute_pass_encoder, group_index, pgroup, dynamic_offset_count, pdynamic_offsets) {
+		        let compute_pass    = id_to_ptr(pcompute_pass_encoder);
+		        let dynamic_offsets = [];
+		        for (let i = 0; i < dynamic_offset_count; i++) {
+			        dynamic_offsets.push(read_u32(pdynamic_offsets + i * 4));
+		        }
+		        compute_pass.setBindGroup(group_index, id_to_ptr(pgroup), dynamic_offsets);
+			},
+			wgpuComputePassEncoderDispatchWorkgroups : function(pcompute_pass_encoder, x, y, z) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.dispatchWorkgroups(x, y, z);
+			},
+			wgpuComputePassEncoderEnd : function(pcompute_pass_encoder) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.end();
+			},
+			wgpuComputePassEncoderRelease : function(pcompute_pass_encoder) {
+		        release_id(pcompute_pass_encoder);
+			},
+			wgpuCommandEncoderCopyTextureToTexture : function(pcommand_encoder, psource, pdestination, pcopysize) {
+		        let encoder = id_to_ptr(pcommand_encoder);
+		        // WGPUTexelCopyTextureInfo
+		        let source      = {texture : id_to_ptr(read_u32(psource))};
+		        let destination = {texture : id_to_ptr(read_u32(pdestination))};
+		        // WGPUExtent3D
+		        let copysize = {width : read_u32(pcopysize), height : read_u32(pcopysize + 4), depthOrArrayLayers : read_u32(pcopysize + 8)};
+		        encoder.copyTextureToTexture(source, destination, copysize);
 			},
 			wgpuBufferMapRead : jspi_supported ? new WebAssembly.Suspending(buffer_map_read) : buffer_map_read_stub,
 			wgpuSurfaceConfigure : function(psurface, pconfig) {

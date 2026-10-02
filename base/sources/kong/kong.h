@@ -936,4 +936,5 @@ char *metal_export(char *directory);
 char *metal_export_compute(void);
 char *hlsl_export_compute(void);
 char *spirv_export_compute(int *size);
+char *wgsl_export_compute(void);
 char *kong_preprocess(const char *source, char **defines, int defines_count);

@@ -17,7 +17,7 @@ tex2d mytexture_sobol;
 tex2d mytexture_scramble;
 tex2d mytexture_rank;
 
-#ifdef _METAL
+#ifdef _LOW_SAMPLES
 const int SAMPLES = 4;
 #else
 const int SAMPLES = 64;

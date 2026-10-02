@@ -163,6 +163,9 @@ project_t *main() {
 		else if (graphics == GRAPHICS_METAL) {
 			add_assets(project, "shaders/raytrace/*.metal", "data/{name}", 0);
 		}
+		else if (graphics == GRAPHICS_WEBGPU) {
+			add_assets(project, "shaders/raytrace/*.wgsl", "data/{name}", 0);
+		}
 	}
 
 	if (flags->export_version_info) {
