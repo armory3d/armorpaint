@@ -163,8 +163,13 @@ bool iron_internal_file_reader_open(iron_file_reader_t *reader, const char *file
 #endif
 
 #ifdef IRON_WINDOWS
-	// Drive letter or network
-	bool is_abs = (filename[1] == ':' && filename[2] == '\\') || (filename[0] == '\\' && filename[1] == '\\');
+	// Drive letter or network. Accept either separator: the '/' -> '\\' normalisation
+	// above writes into filepath, but this test reads filename, so a forward-slashed
+	// absolute path ("E:/x/y") was classified as relative and then prefixed with
+	// fileslocation, making the open fail. Win32 accepts '/' in paths, so matching it
+	// here is sufficient.
+	bool is_abs = (filename[1] == ':' && (filename[2] == '\\' || filename[2] == '/')) || (filename[0] == '\\' && filename[1] == '\\') ||
+	              (filename[0] == '/' && filename[1] == '/');
 #else
 	bool is_abs = filename[0] == '/';
 #endif
@@ -401,11 +406,35 @@ void iron_delete_file(char *path) {
 #elif defined(IRON_WASM)
 	js_delete_file(path);
 #elif defined(IRON_WINDOWS)
-	char cmd[1024];
-	strcpy(cmd, "del /f \"");
-	strcat(cmd, path);
-	strcat(cmd, "\"");
-	iron_sys_command(cmd);
+	// Delete through the Win32 API rather than shelling out to cmd.exe's del.
+	//
+	// The old path built `del /f "<path>"` and handed it to iron_sys_command(). That
+	// had three problems, all silent because iron_delete_file() returns void:
+	//   1. cmd.exe's del does not accept '/' as a separator ('/' introduces a switch),
+	//      so every forward-slashed path failed -- and callers pass forward slashes.
+	//   2. strcat() of an arbitrary-length path into a fixed 1024-byte stack buffer.
+	//   3. a path containing a double quote closed the argument and let the rest run
+	//      as a command.
+	// DeleteFileW has none of these, accepts '/', and does not spawn a process.
+	// temp_wstring is shared global scratch of 1024 * 32 wide chars. Pass its real
+	// capacity, and refuse the delete if the conversion fails: on an insufficient
+	// count MultiByteToWideChar fills the buffer WITHOUT a terminator and returns 0,
+	// so proceeding would hand DeleteFileW an unterminated string. iron_file_save_bytes()
+	// below shares this buffer and must move with it -- see the note there.
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
+		// Bound the argument: iron_log() formats through iron_microsoft_format(), which
+		// is an unbounded vsprintf() into a 4096-byte stack buffer on Windows, and this
+		// branch is reached precisely when the path is too long to convert.
+		iron_log("Could not delete file %.512s.", path != NULL ? path : "(null)");
+		return;
+	}
+	// del's /f switch force-deletes read-only files; DeleteFileW refuses them. Clear the
+	// flag first so the behaviour stays identical to what this function did before.
+	DWORD attribs = GetFileAttributesW(temp_wstring);
+	if (attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_READONLY)) {
+		SetFileAttributesW(temp_wstring, attribs & ~FILE_ATTRIBUTE_READONLY);
+	}
+	DeleteFileW(temp_wstring);
 #else
 	char cmd[1024];
 	strcpy(cmd, "rm \"");
@@ -422,7 +451,17 @@ void iron_file_save_bytes(char *path, buffer_t *bytes, u64 length) {
 	}
 
 #ifdef IRON_WINDOWS
-	MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, 1024);
+	// Shares temp_wstring with iron_delete_file() above, so the two counts must move
+	// together. temp_wstring has static storage and every writer used to cap at 1024,
+	// so everything past index 1023 was permanently NUL and an over-long path here
+	// merely truncated. Once that function can write up to 32767, this site capped at
+	// 1024 and ignoring the result would hand _wfopen() a fresh prefix followed by the
+	// earlier call's tail -- and L"wb" creates and truncates whatever that names.
+	if (MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, sizeof(temp_wstring) / sizeof(wchar_t)) == 0) {
+		// Bounded for the same reason as iron_delete_file() above.
+		iron_log("Could not save file %.512s.", path != NULL ? path : "(null)");
+		return;
+	}
 	FILE *file = _wfopen(temp_wstring, L"wb");
 #else
 	FILE *file = fopen(path, "wb");
