@@ -1007,6 +1007,7 @@ void base_share_player() {
 		console_error(tr("Save the project to the cloud first"));
 		return;
 	}
+	iron_delete_file("/share/start.arm");
 	iron_load_url(string("/share.html?slot=%d", box_projects_cloud_slot(g_project->_->filepath)));
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
