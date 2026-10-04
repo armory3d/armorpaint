@@ -25,6 +25,7 @@ gpu_texture_t  *current_depth_buffer               = NULL;
 gpu_pipeline_t *current_pipeline                   = NULL;
 gpu_texture_t   framebuffers[GPU_FRAMEBUFFER_COUNT];
 gpu_texture_t   framebuffer_depth;
+gpu_texture_t  *gpu_framebuffer_redirect = NULL;
 uint32_t        framebuffer_index = 0;
 
 void gpu_init(int depth_buffer_bits, bool vsync) {
@@ -49,7 +50,12 @@ void gpu_begin(gpu_texture_t **targets, int count, gpu_texture_t *depth_buffer, 
 		gpu_barrier(current_depth_buffer, GPU_TEXTURE_STATE_SHADER_RESOURCE);
 	}
 
-	if (targets == NULL) {
+	if (targets == NULL && gpu_framebuffer_redirect != NULL) {
+		current_render_targets[0]    = gpu_framebuffer_redirect;
+		current_render_targets_count = 1;
+		current_depth_buffer         = NULL;
+	}
+	else if (targets == NULL) {
 		current_render_targets[0]    = &framebuffers[framebuffer_index];
 		current_render_targets_count = 1;
 		current_depth_buffer         = framebuffer_depth.width > 0 ? &framebuffer_depth : NULL;
