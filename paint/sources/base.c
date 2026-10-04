@@ -577,7 +577,7 @@ void base_init() {
 	}
 
 	if (args_player) {
-		// base_player_lock = true;
+		base_player_lock = true;
 		g_config->workspace = WORKSPACE_PLAYER;
 		base_update_workspace();
 		make_material_parse_paint_material(true);
@@ -1000,6 +1000,23 @@ void base_run_in_player() {
 	char *bin = iron_get_arg(0);
 	iron_sys_command(string("\"%s\" \"%s\" --player", bin, g_project->_->filepath));
 }
+
+#ifdef IRON_WASM
+void base_share_player() {
+	if (!box_projects_is_cloud_path(g_project->_->filepath)) {
+		console_error(tr("Save the project to the cloud first"));
+		return;
+	}
+	iron_load_url(string("/share.html?slot=%d", box_projects_cloud_slot(g_project->_->filepath)));
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use)
+		draw_end();
+	export_arm_run_project("/share/start.arm");
+	if (in_use)
+		draw_begin(current, false, 0);
+}
+#endif
 
 uint32_t base_darker(uint32_t x, uint32_t y) {
 	uint32_t r  = ((x >> 16) & 0xff);

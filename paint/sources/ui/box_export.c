@@ -624,7 +624,14 @@ void box_export_show_player_box() {
 		}
 		if (ui_icon_button(tr("Export"), ICON_CHECK, UI_ALIGN_CENTER)) {
 			ui_box_hide();
+#ifdef IRON_WASM
+			char *folder = iron_folder_dialog(tr("player"));
+			if (folder != NULL) {
+				box_export_show_player_box_path_picked(folder);
+			}
+#else
 			ui_files_show("", true, false, &box_export_show_player_box_path_picked);
+#endif
 		}
 	}
 }

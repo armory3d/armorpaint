@@ -62,6 +62,10 @@ bool box_projects_is_cloud_path(char *path) {
 	return starts_with(path, "/api/projects/");
 }
 
+i32 box_projects_cloud_slot(char *path) {
+	return parse_int(substring(path, string_length("/api/projects/"), string_last_index_of(path, "/")));
+}
+
 static void box_projects_cloud_fetch() {
 	box_projects_cloud = NULL;
 	buffer_t *b        = iron_load_blob("/api/projects"); // Fails when not signed in
@@ -90,6 +94,9 @@ static void box_projects_cloud_delete_on_next_frame(void *_) {
 static void box_projects_cloud_menu() {
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		sys_notify_on_next_frame(&box_projects_cloud_delete_on_next_frame, NULL);
+	}
+	if (g_config->experimental && ui_menu_button(tr("Stop Sharing"), "", ICON_LINK)) {
+		iron_delete_file(string("/api/projects/%d/share", box_projects_cloud_slot(_box_projects_path)));
 	}
 }
 

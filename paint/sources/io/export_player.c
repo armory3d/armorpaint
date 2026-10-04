@@ -122,11 +122,20 @@ void export_player_run(char *path) {
 	g_context->pack_assets_on_save = _pack_assets_on_save;
 
 	if (box_export_player_target == PLAYER_TARGET_WEB) {
-		char *start_js = string("%s/start.js", path_base);
-		iron_file_download("https://armorpaint.app/start.js", &export_player_run_on_download, 0, start_js);
-
-		char *start_wasm = string("%s/start.wasm", path_base);
-		iron_file_download("https://armorpaint.app/start.wasm", &export_player_run_on_download, 0, start_wasm);
+		char *files[] = {"start.js", "start.wasm", "worker.js", "audio_worklet.js"};
+		for (i32 i = 0; i < 4; ++i) {
+			char *dst = string("%s/%s", path_base, files[i]);
+#ifdef IRON_WASM
+			buffer_t *b = iron_load_blob(string("/%s", files[i]));
+			if (b == NULL) {
+				console_error(string("%s %s", tr("Could not download"), files[i]));
+				continue;
+			}
+			iron_file_save_bytes(dst, b, 0);
+#else
+			iron_file_download(string("https://app.armorpaint.org/play/%s", files[i]), &export_player_run_on_download, 0, dst);
+#endif
+		}
 
 		char *readme_txt = string("%s/readme.txt", path_base);
 		iron_file_save_bytes(readme_txt, sys_string_to_buffer(export_player_readme), 0);

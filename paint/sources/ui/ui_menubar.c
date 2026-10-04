@@ -525,6 +525,12 @@ void ui_menubar_draw_category_items() {
 			base_run_in_player();
 			g_ui->changed = false; // Close menu
 		}
+#ifdef IRON_WASM
+		if (g_config->experimental && ui_menu_button(tr("Share Player Link"), "", ICON_LINK)) {
+			base_share_player();
+			g_ui->changed = false; // Close menu
+		}
+#endif
 
 		context_update_envmap();
 
