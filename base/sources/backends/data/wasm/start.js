@@ -372,14 +372,21 @@ async function init() {
 		},
 	});
 
-	let canvas    = document.getElementById('iron');
-	canvas.width  = window.innerWidth;
-	canvas.height = window.innerHeight;
-
-	window.addEventListener('resize', () => {
-		canvas.width  = window.innerWidth;
-		canvas.height = window.innerHeight;
-	});
+	let canvas = document.getElementById('iron');
+	let canvas_resize = () => {
+		let dpr       = window.devicePixelRatio || 1;
+		canvas.width  = Math.max(1, Math.round(window.innerWidth * dpr));
+		canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
+	};
+	canvas_resize();
+	window.addEventListener('resize', canvas_resize);
+	let watch_dpr = () => {
+		window.matchMedia('(resolution: ' + window.devicePixelRatio + 'dppx)').addEventListener('change', () => {
+			canvas_resize();
+			watch_dpr();
+		}, {once : true});
+	};
+	watch_dpr();
 
 	let context = canvas.getContext('webgpu');
 	let format  = navigator.gpu.getPreferredCanvasFormat();
@@ -1095,6 +1102,9 @@ async function init() {
 			js_canvas_h : function() {
 		        return canvas.height;
 			},
+			js_pixel_ratio : function() {
+		        return window.devicePixelRatio || 1;
+			},
 			js_mouse_set_cursor : function(i) {
 		        if (i == 0) // arrow
 			        canvas.style.cursor = 'default';
@@ -1231,10 +1241,10 @@ async function init() {
 
 	canvas.addEventListener('contextmenu', (event) => { event.preventDefault(); });
 	canvas.addEventListener('mousedown',
-	                        (event) => { call_wasm(instance.exports.wasm_mousedown, button_to_iron_button(event.button), event.clientX, event.clientY); });
+	                        (event) => { call_wasm(instance.exports.wasm_mousedown, button_to_iron_button(event.button), event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
 	canvas.addEventListener('mouseup',
-	                        (event) => { call_wasm(instance.exports.wasm_mouseup, button_to_iron_button(event.button), event.clientX, event.clientY); });
-	canvas.addEventListener('mousemove', (event) => { call_wasm(instance.exports.wasm_mousemove, event.clientX, event.clientY); });
+	                        (event) => { call_wasm(instance.exports.wasm_mouseup, button_to_iron_button(event.button), event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
+	canvas.addEventListener('mousemove', (event) => { call_wasm(instance.exports.wasm_mousemove, event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
 	canvas.addEventListener('wheel', (event) => { call_wasm(instance.exports.wasm_wheel, event.deltaY); });
 	canvas.addEventListener('keydown', (event) => {
 		if (event.repeat) {

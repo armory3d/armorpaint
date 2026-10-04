@@ -10,6 +10,7 @@
 __attribute__((import_module("imports"), import_name("js_time"))) int                js_time();
 __attribute__((import_module("imports"), import_name("js_canvas_w"))) int            js_canvas_w();
 __attribute__((import_module("imports"), import_name("js_canvas_h"))) int            js_canvas_h();
+__attribute__((import_module("imports"), import_name("js_pixel_ratio"))) float        js_pixel_ratio();
 __attribute__((import_module("imports"), import_name("js_mouse_set_cursor"))) void   js_mouse_set_cursor(int i);
 __attribute__((import_module("imports"), import_name("js_mouse_show"))) void         js_mouse_show();
 __attribute__((import_module("imports"), import_name("js_mouse_hide"))) void         js_mouse_hide();
@@ -36,9 +37,9 @@ iron_display_mode_t iron_display_current_mode(int display_index) {
 	iron_display_mode_t mode;
 	mode.x               = 0;
 	mode.y               = 0;
-	mode.width           = 800;
-	mode.height          = 600;
-	mode.pixels_per_inch = 96;
+	mode.width           = js_canvas_w();
+	mode.height          = js_canvas_h();
+	mode.pixels_per_inch = (int)(96 * js_pixel_ratio() + 0.5);
 	mode.frequency       = 60;
 	mode.bits_per_pixel  = 32;
 	return mode;
