@@ -971,10 +971,13 @@ static void minic_skip_to(minic_comp_t *c, minic_tok_type_t stop) {
 	}
 }
 
+int minic_error_count = 0;
+
 static void minic_error(minic_comp_t *c, const char *fmt, ...) {
 	if (c->error) {
 		return;
 	}
+	minic_error_count++;
 	char    msg[256];
 	va_list args;
 	va_start(args, fmt);
@@ -2424,6 +2427,7 @@ static bool minic_compile(minic_ctx_t *ctx) {
 // ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 
 static void minic_runtime_error(minic_ctx_t *ctx, int pc, const char *fmt, ...) {
+	minic_error_count++;
 	char    msg[256];
 	va_list args;
 	va_start(args, fmt);

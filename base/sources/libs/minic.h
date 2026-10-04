@@ -71,6 +71,8 @@ typedef struct {
 	minic_native_fn_t fn;
 } minic_ext_func_t;
 
+extern int minic_error_count;
+
 // Script evaluation
 minic_ctx_t *minic_eval(const char *src);
 minic_ctx_t *minic_eval_named(const char *src, const char *filename);
