@@ -11,17 +11,36 @@ static bool  has_next     = false;
 static int   current_node = 0;
 static float scale_pos    = 1.0;
 
+// glTF allows a primitive without an indices accessor: its vertices are then drawn in order
+// (0, 1, 2, ...). three.js and other exporters write such primitives.
+static cgltf_size io_gltf_index_count(cgltf_primitive *prim) {
+	if (prim->indices != NULL) {
+		return prim->indices->count;
+	}
+	for (cgltf_size i = 0; i < prim->attributes_count; ++i) {
+		if (prim->attributes[i].type == cgltf_attribute_type_position && prim->attributes[i].data != NULL) {
+			return prim->attributes[i].data->count;
+		}
+	}
+	return 0;
+}
+
+static uint32_t io_gltf_read_index(cgltf_primitive *prim, cgltf_size i) {
+	return prim->indices != NULL ? (uint32_t)cgltf_accessor_read_index(prim->indices, i) : (uint32_t)i;
+}
+
 void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, float *scale) {
-	cgltf_primitive *prim = NULL;
-	uint32_t        *inda = NULL;
+	cgltf_primitive *prim        = NULL;
+	uint32_t        *inda        = NULL;
+	cgltf_size       index_total = 0;
 
 	for (int i = 0; i < mesh->primitives_count; ++i) {
 		// TODO: handle all primitives
-		prim              = &mesh->primitives[i];
-		cgltf_accessor *a = prim->indices;
-		inda              = malloc(sizeof(uint32_t) * a->count);
-		for (cgltf_size i = 0; i < a->count; ++i) {
-			inda[i] = cgltf_accessor_read_index(a, i);
+		prim        = &mesh->primitives[i];
+		index_total = io_gltf_index_count(prim);
+		inda        = malloc(sizeof(uint32_t) * index_total);
+		for (cgltf_size i = 0; i < index_total; ++i) {
+			inda[i] = io_gltf_read_index(prim, i);
 		}
 	}
 
@@ -29,7 +48,7 @@ void io_gltf_parse_mesh(raw_mesh_t *raw, cgltf_mesh *mesh, float *to_world, floa
 		return;
 	}
 
-	int    index_count  = prim->indices->count;
+	int    index_count  = (int)index_total;
 	int    vertex_count = -1;
 	float *posa32       = NULL;
 	float *nora32       = NULL;
@@ -225,8 +244,10 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 	for (; current_node < data->nodes_count; ++current_node) {
 		cgltf_node *n = &data->nodes[current_node];
 		if (n->mesh != NULL) {
-			raw->name = malloc(strlen(n->name) + 1);
-			strcpy(raw->name, n->name);
+			// glTF node and mesh names are optional.
+			const char *node_name = n->name != NULL ? n->name : (n->mesh->name != NULL ? n->mesh->name : "mesh");
+			raw->name             = malloc(strlen(node_name) + 1);
+			strcpy(raw->name, node_name);
 			float m[16];
 			cgltf_node_transform_world(n, m);
 			float scale[3] = {1.0f, 1.0f, 1.0f};
