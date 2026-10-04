@@ -172,6 +172,12 @@ void config_init() {
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
 		g_config->window_scale = 2.0;
 #endif
+#ifdef IRON_WASM
+		g_config->window_scale = sys_display_ppi() / 96.0;
+		if (g_config->window_scale < 1.0) {
+			g_config->window_scale = 1.0;
+		}
+#endif
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 		if (sys_display_ppi() > 330) {
 			g_config->window_scale = 2.5;
