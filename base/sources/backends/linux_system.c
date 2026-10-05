@@ -145,6 +145,9 @@ void iron_display_init() {
 	}
 
 	iron_x11_init();
+	if (x11_ctx.display == NULL) {
+		return;
+	}
 
 	Window              root_window      = RootWindow(x11_ctx.display, DefaultScreen(x11_ctx.display));
 	XRRScreenResources *screen_resources = XRRGetScreenResourcesCurrent(x11_ctx.display, root_window);
