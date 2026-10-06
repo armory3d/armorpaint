@@ -1473,12 +1473,14 @@ void script_reset_runtime(void) {
 	_script_fade_opacity = 0.0f;
 	memset(particles, 0, sizeof(particles));
 	_script_tween_transform = NULL;
+#ifdef IRON_AUDIO
 	if (data_cached_sounds != NULL) {
 		string_array_t *keys = map_keys(data_cached_sounds);
 		for (i32 i = 0; i < keys->length; ++i) {
 			audio_stop(any_map_get(data_cached_sounds, keys->buffer[i]));
 		}
 	}
+#endif
 }
 
 typedef struct script_screenshot_request {
