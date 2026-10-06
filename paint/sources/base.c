@@ -979,17 +979,21 @@ void base_update_workflow() {
 	}
 }
 
-void base_run_in_player() {
-#ifdef IRON_WASM
-	iron_delete_file("/player/start.arm");
-	iron_load_url("/?player");
+static void base_run_in_player_export(char *path) {
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
 	if (in_use)
 		draw_end();
-	export_arm_run_project("/player/start.arm");
+	export_arm_run_project(path);
 	if (in_use)
 		draw_begin(current, false, 0);
+}
+
+void base_run_in_player() {
+#ifdef IRON_WASM
+	iron_delete_file("/player/start.arm");
+	iron_load_url("/?player");
+	base_run_in_player_export("/player/start.arm");
 	return;
 #endif
 
@@ -997,7 +1001,7 @@ void base_run_in_player() {
 		console_error(tr("Save project first"));
 		return;
 	}
-	export_arm_run_project(g_project->_->filepath);
+	base_run_in_player_export(g_project->_->filepath);
 	char *bin = iron_get_arg(0);
 	iron_sys_command(string("\"%s\" \"%s\" --player", bin, g_project->_->filepath));
 }
