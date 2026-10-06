@@ -180,7 +180,9 @@ void *script_next_frame_fn = NULL;
 void  script_on_next_frame(void *_) {
     void *fn             = script_next_frame_fn;
     script_next_frame_fn = NULL;
-    minic_call_fn(fn, NULL, 0);
+    if (fn != NULL) {
+        minic_call_fn(fn, NULL, 0);
+    }
 }
 void script_notify_on_next_frame(void *fn) {
 	sys_notify_on_next_frame(script_on_next_frame, NULL);
@@ -189,6 +191,14 @@ void script_notify_on_next_frame(void *fn) {
 
 bool script_is_running(void) {
 	return script_update_fn != NULL || script_next_frame_fn != NULL;
+}
+
+void script_stop(void) {
+	if (script_update_fn != NULL) {
+		sys_remove_update(script_on_update);
+		script_update_fn = NULL;
+	}
+	script_next_frame_fn = NULL;
 }
 
 void *_ui_files_done;
@@ -1450,5 +1460,100 @@ void script_draw_particles(gpu_texture_t *texture, float x, float y, float w, fl
 		draw_set_color(col);
 		// draw_sub_image(texture, frame_x * cell_w, frame_y * cell_w, cell_w, cell_w, p->x, p->y);
 		draw_scaled_sub_image(texture, frame_x * cell_w, frame_y * cell_w, cell_w, cell_w, p->x, p->y, cell_w * 2, cell_w * 2);
+	}
+}
+
+void script_reset_runtime(void) {
+	script_stop();
+	tween_reset();
+	sys_remove_update(script_message_draw);
+	_script_message = NULL;
+	sys_remove_update(script_fade_draw);
+	_script_fade_stage   = NULL;
+	_script_fade_opacity = 0.0f;
+	memset(particles, 0, sizeof(particles));
+	_script_tween_transform = NULL;
+	if (data_cached_sounds != NULL) {
+		string_array_t *keys = map_keys(data_cached_sounds);
+		for (i32 i = 0; i < keys->length; ++i) {
+			audio_stop(any_map_get(data_cached_sounds, keys->buffer[i]));
+		}
+	}
+}
+
+typedef struct script_screenshot_request {
+	char *path;
+	i32   frames;
+	void (*done)(void);
+} script_screenshot_request_t;
+
+static any_array_t    *_script_screenshot_queue  = NULL;
+static gpu_texture_t *_script_screenshot_target = NULL;
+static i32            _script_screenshot_frames = 0;
+
+static void script_screenshot_next(void);
+
+static void script_screenshot_end_frame(void *_) {
+	script_screenshot_request_t *r = _script_screenshot_queue->buffer[0];
+	gpu_framebuffer_redirect       = NULL;
+
+	draw_begin(NULL, false, 0);
+	draw_image(_script_screenshot_target, 0, 0);
+	if (agent_running) {
+		agent_draw_overlay();
+	}
+	draw_end();
+
+	buffer_t *pixels = gpu_get_texture_pixels(_script_screenshot_target);
+	for (i32 i = 3; i < pixels->length; i += 4) {
+		pixels->buffer[i] = 255;
+	}
+	iron_write_png(r->path, pixels, _script_screenshot_target->width, _script_screenshot_target->height, 0);
+	gpu_delete_texture(_script_screenshot_target);
+	_script_screenshot_target = NULL;
+
+	array_shift(_script_screenshot_queue);
+	if (r->done != NULL) {
+		r->done();
+	}
+	script_screenshot_next();
+}
+
+static void script_screenshot_capture(void *_) {
+	iron_delay_idle_sleep();
+	script_screenshot_request_t *r = _script_screenshot_queue->buffer[0];
+	if (++_script_screenshot_frames < r->frames) {
+		g_context->ddirty = 2;
+		base_redraw_ui();
+		sys_notify_on_next_frame(script_screenshot_capture, NULL);
+		return;
+	}
+	_script_screenshot_target = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32);
+	gpu_framebuffer_redirect  = _script_screenshot_target;
+	sys_notify_on_end_frame(script_screenshot_end_frame, NULL);
+}
+
+static void script_screenshot_next(void) {
+	if (_script_screenshot_queue->length == 0) {
+		return;
+	}
+	_script_screenshot_frames = 0;
+	sys_notify_on_next_frame(script_screenshot_capture, NULL);
+}
+
+void script_screenshot_queue(char *path, i32 frames, void (*done)(void)) {
+	if (_script_screenshot_queue == NULL) {
+		_script_screenshot_queue = any_array_create(0);
+	}
+	script_screenshot_request_t *r = ALLOC_INIT(script_screenshot_request_t, {.path = string_copy(path), .frames = frames, .done = done});
+	any_array_push(_script_screenshot_queue, r);
+	if (_script_screenshot_queue->length == 1) {
+		script_screenshot_next();
+	}
+}
+
+void script_screenshot(char *path) {
+	if (path != NULL) {
+		script_screenshot_queue(path, 1, NULL);
 	}
 }

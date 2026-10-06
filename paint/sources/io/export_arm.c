@@ -41,12 +41,11 @@ void export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects) {
 void export_arm_export_node(ui_node_t *n, asset_t_array_t *assets) {
 	if (string_equals(n->type, "TEX_IMAGE")) {
 		i32 index = n->buttons->buffer[0]->default_value->buffer[0];
-		if (index > 9000) { // 9999 - Texture deleted
+		if (index < 0 || index >= g_project->_->assets->length) { // 9999 - Texture deleted
 			n->buttons->buffer[0]->data = u8_array_create_from_string("");
+			return;
 		}
-		else {
-			n->buttons->buffer[0]->data = u8_array_create_from_string(base_combo_enum_texts(n->type)->buffer[index]);
-		}
+		n->buttons->buffer[0]->data = u8_array_create_from_string(base_combo_enum_texts(n->type)->buffer[index]);
 		if (assets != NULL) {
 			asset_t *asset = g_project->_->assets->buffer[index];
 			if (array_index_of(assets, asset) == -1) {
@@ -143,7 +142,8 @@ static void export_arm_free_buffer(buffer_t *b) {
 	}
 }
 
-void export_arm_run_project(char *path) {
+buffer_t *export_arm_encode_project(char *path) {
+	// Path is where the project is imported from, asset paths are relative to it
 
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
@@ -371,6 +371,43 @@ void export_arm_run_project(char *path) {
 	g_project->is_bgra = false;
 #endif
 
+	bool pack_assets = g_context->pack_assets_on_save;
+#ifdef IRON_WASM
+	pack_assets = true;
+#endif
+	if (pack_assets) { // Pack textures and sounds
+		export_arm_pack_assets(g_project, g_project->_->assets);
+		export_arm_pack_sounds(g_project, g_project->_->sounds);
+	}
+
+	buffer_t *buffer = util_encode_project(g_project);
+
+	for (i32 i = 0; i < ld->length; ++i) {
+		layer_data_t *d = ld->buffer[i];
+		export_arm_free_buffer(d->texpaint);
+		export_arm_free_buffer(d->texpaint_nor);
+		export_arm_free_buffer(d->texpaint_pack);
+		export_arm_free_buffer(d->texpaint_sculpt);
+		if (d->decal_mat != NULL) {
+			array_free(d->decal_mat);
+			free(d->decal_mat);
+		}
+		free(d);
+	}
+	array_free(ld);
+	free(ld);
+	g_project->layer_datas = NULL;
+	tab_timeline_export_free(g_project);
+	tab_timeline_finish_save();
+	return buffer;
+}
+
+void export_arm_run_project(char *path) {
+	buffer_t *buffer = export_arm_encode_project(path);
+	iron_file_save_bytes(path, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
+
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_WASM)
 #ifdef IRON_WASM
 	if (box_projects_is_cloud_path(path)) { // Icons are shown in the cloud projects box only
@@ -394,38 +431,6 @@ void export_arm_run_project(char *path) {
 	gpu_delete_texture(mesh_icon);
 	}
 #endif
-
-	bool pack_assets = g_context->pack_assets_on_save;
-#ifdef IRON_WASM
-	pack_assets = true;
-#endif
-	if (pack_assets) { // Pack textures and sounds
-		export_arm_pack_assets(g_project, g_project->_->assets);
-		export_arm_pack_sounds(g_project, g_project->_->sounds);
-	}
-
-	buffer_t *buffer = util_encode_project(g_project);
-	iron_file_save_bytes(path, buffer, buffer->length + 1);
-	array_free(buffer);
-	free(buffer);
-
-	for (i32 i = 0; i < ld->length; ++i) {
-		layer_data_t *d = ld->buffer[i];
-		export_arm_free_buffer(d->texpaint);
-		export_arm_free_buffer(d->texpaint_nor);
-		export_arm_free_buffer(d->texpaint_pack);
-		export_arm_free_buffer(d->texpaint_sculpt);
-		if (d->decal_mat != NULL) {
-			array_free(d->decal_mat);
-			free(d->decal_mat);
-		}
-		free(d);
-	}
-	array_free(ld);
-	free(ld);
-	g_project->layer_datas = NULL;
-	tab_timeline_export_free(g_project);
-	tab_timeline_finish_save();
 
 	if (!string_equals(path, g_project->_->filepath)) {
 		return;

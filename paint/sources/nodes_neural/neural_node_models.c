@@ -46,7 +46,7 @@ void neural_node_models_init() {
 	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
 	                                         .memory = "20GB",
 	                                         .size   = "15.3GB",
-	                                         .nodes  = "Text to Text, Console",
+	                                         .nodes  = "Console",
 	                                         .urls   = any_array_create_from_raw(
                                                  (void *[]){
                                                      "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf",

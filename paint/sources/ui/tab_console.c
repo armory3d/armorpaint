@@ -17,19 +17,6 @@ void tab_console_draw_export_on_file_picked(char *path) {
 	iron_file_save_bytes(path, sys_string_to_buffer(str), 0);
 }
 
-void tab_console_run_done(char *s) {
-	console_log(tr("Script updated."));
-
-	i32 i = string_index_of(s, "```c");
-	if (i >= 0) {
-		s = substring(s, i + 5, string_last_index_of(s, "```"));
-	}
-
-	tab_scripts_set(s);
-
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-}
-
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
 
 void tab_console_run_button_on_next_frame(void *_) {
@@ -46,7 +33,7 @@ bool tab_console_run_button(bool press_run) {
 		found           = box_preferences_model_exists(file_name);
 	}
 
-	if (iron_exec_async_done == 0) {
+	if (iron_exec_async_done == 0 || agent_running) {
 		ui_icon_button(tr("Processing..."), ICON_STOP, UI_ALIGN_CENTER);
 	}
 	else if (!found && ui_icon_button(tr("Setup"), ICON_COG, UI_ALIGN_CENTER)) {
@@ -55,7 +42,7 @@ bool tab_console_run_button(bool press_run) {
 	else if (found && (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run)) {
 		char *prompt = string_replace_all(tab_console_input, "\n", " ");
 		console_log(string(">%s", prompt));
-		text_to_text_node_run(prompt, tab_console_run_done);
+		agent_run(prompt);
 		tab_console_input = "";
 		return true;
 	}
@@ -92,7 +79,7 @@ void tab_console_draw(i32 *htab) {
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
 			console_last_traces = any_array_create_from_raw((void *[]){}, 0);
 			tab_console_input   = "";
-			text_to_text_node_clear();
+			agent_clear();
 		}
 		if (ui_icon_button(tr("Export"), ICON_EXPORT, UI_ALIGN_CENTER)) {
 			ui_files_show("txt", true, false, &tab_console_draw_export_on_file_picked);

@@ -46,12 +46,7 @@ void base_init_on_start_arm(void *_) {
 	if (base_start_arm_found) {
 		import_arm_run_project(g_project->_->filepath);
 	}
-	g_context->tool = TOOL_TYPE_CURSOR;
-	// Auto-run main script
-	if (g_project->script_datas != NULL && g_project->script_datas->length > 0) {
-		minic_ctx_t *ctx = minic_eval(g_project->script_datas->buffer[0]);
-	}
-	tab_timeline_play();
+	player_run_scripts();
 }
 
 void base_save_window_rect() {
@@ -465,13 +460,19 @@ void base_update(void *_) {
 	}
 
 	bool using_menu = ui_menu_show && mouse_y > ui_header_h;
-	base_ui_enabled = !ui_box_show && !using_menu && g_ui->combo_selected_id == 0;
+	base_ui_enabled = !ui_box_show && !using_menu && g_ui->combo_selected_id == 0 && !agent_running;
 
 	if (ui_box_show) {
 		ui_box_render();
 	}
 	if (ui_menu_show) {
 		ui_menu_render();
+	}
+
+	if (agent_running && gpu_framebuffer_redirect == NULL) {
+		draw_begin(NULL, false, 0);
+		agent_draw_overlay();
+		draw_end();
 	}
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)

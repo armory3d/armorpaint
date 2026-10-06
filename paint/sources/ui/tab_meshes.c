@@ -11,6 +11,7 @@ any_map_t *tab_meshes_override_map   = NULL; // object uid -> overridden materia
 static i32 tab_meshes_material_drop_index = -1;
 
 static i32_array_t *tab_meshes_collapsed = NULL;
+static any_array_t *tab_meshes_pending_data = NULL;
 
 static bool tab_meshes_is_collapsed(mesh_object_t *o) {
 	return tab_meshes_collapsed != NULL && i32_array_index_of(tab_meshes_collapsed, o->base->uid) >= 0;
@@ -412,8 +413,10 @@ static mesh_object_t *tab_meshes_select_after_delete() {
 
 void tab_meshes_draw_context_menu_delete_next_frame(mesh_object_t *o) {
 	util_mesh_remove_merged();
-	if (util_mesh_data_owner(o->data) == -1) {
-		data_delete_mesh(o->data->_->handle);
+	i32 pending = tab_meshes_pending_data != NULL ? array_index_of(tab_meshes_pending_data, o->data) : -1;
+	if (pending >= 0) {
+		array_splice(tab_meshes_pending_data, pending, 1);
+		util_mesh_delete_data_uncache(o->data);
 	}
 	mesh_object_remove(o);
 	tab_stages_prune();
@@ -463,6 +466,14 @@ void tab_meshes_draw_context_menu_delete(mesh_object_t *o) {
 
 	array_remove(g_project->_->paint_objects, o);
 	tab_timeline_on_mesh_deleted(mesh_name);
+
+	// Last user of the data, freed on the next frame
+	if (util_mesh_data_owner(o->data) == -1) {
+		if (tab_meshes_pending_data == NULL) {
+			tab_meshes_pending_data = any_array_create(0);
+		}
+		any_array_push(tab_meshes_pending_data, o->data);
+	}
 
 	object_t *new_root = g_project->_->paint_objects->buffer[0]->base;
 	if (new_root->parent == o->base) {
@@ -871,8 +882,7 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 		raw         = scene_raw->mesh_datas->buffer[0];
 	}
 
-	mesh_data_t *md   = mesh_data_create(raw);
-	md->_->handle     = md->name;
+	mesh_data_t   *md = mesh_data_create(raw);
 	mesh_object_t *mo = scene_add_mesh_object(md, g_project->_->paint_objects->buffer[0]->material, NULL);
 
 	// The shape stays at the scene root
@@ -884,7 +894,6 @@ mesh_object_t *tab_meshes_append_shape(char *mesh_name) {
 	obj_t *o      = ALLOC_INIT(obj_t, {0});
 	o->_          = ALLOC_INIT(obj_runtime_t, {._gc = scene_raw});
 	mo->base->raw = o;
-	any_map_set(data_cached_meshes, md->_->handle, md);
 	any_array_push(g_project->_->paint_objects, mo);
 	tab_stages_add_object(mo->base->name);
 	g_context->paint_object = mo;

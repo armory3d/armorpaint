@@ -5,7 +5,7 @@ char *parser_material_tex_coord = "tex_coord";
 
 bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) {
 	i32 i = image_node->buttons->buffer[0]->default_value->buffer[0];
-	if (i > 9000) { // 9999 - Texture deleted, use pink now
+	if (i < 0 || i >= g_project->_->assets->length) { // 9999 - Texture deleted, use pink now
 		return NULL;
 	}
 	char *filepath = parser_material_enum_data(base_combo_enum_texts(image_node->type)->buffer[i]);

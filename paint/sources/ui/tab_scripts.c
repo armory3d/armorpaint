@@ -31,6 +31,18 @@ char *tab_scripts_get() {
 	return g_project->script_datas->buffer[tab_scripts_selected];
 }
 
+char *tab_scripts_find(char *name) {
+	tab_scripts_prepare();
+	if (starts_with(name, "scripts/")) {
+		name = substring(name, 8, string_length(name));
+	}
+	if (!ends_with(name, ".c")) {
+		name = string("%s.c", name);
+	}
+	i32 i = string_array_index_of(g_project->script_names, name);
+	return i >= 0 ? g_project->script_datas->buffer[i] : NULL;
+}
+
 void tab_scripts_set(char *s) {
 	tab_scripts_prepare();
 	g_project->script_datas->buffer[tab_scripts_selected] = string_copy(s);

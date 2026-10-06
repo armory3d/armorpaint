@@ -37,6 +37,10 @@ void project_save_on_next_frame(void *_) {
 }
 
 void project_save(bool save_and_quit) {
+	if (agent_running) {
+		return;
+	}
+
 #ifdef IRON_WASM
 	if (!box_projects_is_cloud_path(g_project->_->filepath) && !starts_with(g_project->_->filepath, "/files/")) {
 		box_projects_cloud_save_show(save_and_quit);
@@ -85,31 +89,18 @@ void project_save_as(bool save_and_quit) {
 }
 
 void project_cleanup() {
-	if (g_context->merged_object != NULL) {
-		char *merged_handle = g_context->merged_object->data->_->handle;
-		mesh_object_remove(g_context->merged_object);
-		data_delete_mesh(merged_handle);
-		g_context->merged_object = NULL;
-	}
+	util_mesh_remove_merged();
 
 	if (g_project->_->paint_objects != NULL) {
 		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 			object_set_parent(p->base, NULL);
 		}
-		for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
-			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-			if (p == g_context->paint_object) {
-				continue;
-			}
-			data_delete_mesh(p->data->_->handle);
-			mesh_object_remove(p);
-		}
+		util_mesh_remove_objects(g_project->_->paint_objects, g_context->paint_object);
 	}
 
 	if (g_context->paint_object != NULL) {
-		char *handle = g_context->paint_object->data->_->handle;
-		data_delete_mesh(handle);
+		util_mesh_delete_data_uncache(g_context->paint_object->data);
 	}
 
 	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
@@ -189,7 +180,6 @@ void project_new(bool reset_layers) {
 	}
 
 	mesh_data_t *md = mesh_data_create(raw);
-	any_map_set(data_cached_meshes, "SceneTessellated", md);
 
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;

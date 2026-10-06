@@ -110,7 +110,6 @@
 #include "nodes_neural/repeat_node.c"
 #include "nodes_neural/save_image_node.c"
 #include "nodes_neural/text_to_image_node.c"
-#include "nodes_neural/text_to_text_node.c"
 #include "nodes_neural/upscale_image_node.c"
 
 #include "render/make_bake.c"
@@ -209,6 +208,7 @@
 #include "util/util_uv.c"
 #include "util/util_uv_unwrap.c"
 
+#include "agent.c"
 #include "args.c"
 #include "base.c"
 #include "camera.c"
@@ -385,6 +385,9 @@ void _kickstart() {
 	sys_on_y      = base_y;
 
 	iron_set_app_name(manifest_title); // Used to locate external application data folder
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+	args_send();
+#endif
 	config_load();
 	config_init();
 	context_init();

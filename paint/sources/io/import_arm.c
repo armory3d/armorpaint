@@ -71,8 +71,6 @@ void import_arm_run_mesh(project_t *raw) {
 			object               = scene_add_mesh_object(md, g_context->paint_object->material, g_context->paint_object->base);
 			object->base->name   = md->name;
 			object->skip_context = "paint";
-			md->_->handle        = md->name;
-			any_map_set(data_cached_meshes, md->_->handle, md);
 		}
 		object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 		transform_build_matrix(object->base->transform);
@@ -185,8 +183,6 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 		object->skip_context  = "paint";
 		object->base->name    = mesh_names->buffer[i];
-		md->_->handle         = md->name;
-		any_map_set(data_cached_meshes, md->_->handle, md);
 
 		if (project->mesh_transforms != NULL && i < project->mesh_transforms->length) {
 			transform_set_matrix(object->base->transform, import_arm_mesh_world_matrix(project, i));

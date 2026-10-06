@@ -783,12 +783,17 @@ void ui_menubar_draw_category_items() {
 			any_array_push(modes, tr("Player"));
 		}
 
+		i32 workspace_last = g_config->workspace;
 		for (i32 i = 0; i < modes->length; ++i) {
 			ui_radio((int *)&g_config->workspace, i, modes->buffer[i], "");
 			workspace_changed |= ui_item_changed();
 		}
 
-		if (workspace_changed) {
+		if (workspace_changed && g_config->workspace == WORKSPACE_PLAYER) {
+			g_config->workspace = workspace_last;
+			sys_notify_on_next_frame(player_start, NULL);
+		}
+		else if (workspace_changed) {
 			config_save();
 			base_update_workspace();
 		}

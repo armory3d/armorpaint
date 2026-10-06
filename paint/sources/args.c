@@ -3,7 +3,6 @@
 
 bool  args_use                    = false;
 char *args_asset_path             = "";
-bool  args_background             = false;
 bool  args_export_textures        = false;
 char *args_export_textures_type   = "";
 char *args_export_textures_preset = "";
@@ -23,6 +22,81 @@ static char *args_path(char *path) {
 	}
 	return string("./%s", path);
 }
+
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+
+static void args_sleep_ms(i32 ms) {
+#ifdef IRON_WINDOWS
+	Sleep(ms);
+#else
+	struct timespec t;
+	t.tv_sec  = 0;
+	t.tv_nsec = ms * 1000000;
+	nanosleep(&t, NULL);
+#endif
+}
+
+void args_send() {
+	char *request = NULL;
+	for (i32 i = 1; i < iron_get_arg_count(); ++i) {
+		if (string_equals(iron_get_arg(i), "--send") && (i + 1) < iron_get_arg_count()) {
+			request = string("step\n%s", iron_get_arg(i + 1));
+		}
+		else if (string_equals(iron_get_arg(i), "--run") && (i + 1) < iron_get_arg_count()) {
+			request = string("run\n%s", iron_get_arg(i + 1));
+		}
+		else if (string_equals(iron_get_arg(i), "--restore")) {
+			request = "restore";
+		}
+		else if (string_equals(iron_get_arg(i), "--play") && (i + 1) < iron_get_arg_count()) {
+			request = string("play\n%s", iron_get_arg(i + 1));
+			if ((i + 2) < iron_get_arg_count()) {
+				request = string("%s\n%s", request, iron_get_arg(i + 2));
+			}
+		}
+	}
+	if (request == NULL) {
+		return;
+	}
+
+	char *dir      = string("%sagent", iron_internal_save_path());
+	char *req      = string("%s%srequest.txt", dir, PATH_SEP);
+	char *req_tmp  = string("%s%srequest.tmp", dir, PATH_SEP);
+	char *response = string("%s%sresponse.txt", dir, PATH_SEP);
+	if (!iron_file_exists(string("%s%sserving", dir, PATH_SEP))) {
+		printf("No console agent run is active in ArmorPaint\n");
+		exit(1);
+	}
+	remove(response);
+
+	FILE *f = fopen(req_tmp, "wb");
+	fwrite(request, 1, strlen(request), f);
+	fclose(f);
+	remove(req);
+	rename(req_tmp, req);
+
+	const i32 timeout_ms = 300000;
+	for (i32 t = 0; t < timeout_ms; t += 50) {
+		args_sleep_ms(50);
+		f = fopen(response, "rb");
+		if (f == NULL) {
+			continue;
+		}
+		char buf[4096];
+		size_t n;
+		while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
+			fwrite(buf, 1, n, stdout);
+		}
+		fclose(f);
+		remove(response);
+		exit(0);
+	}
+	remove(req);
+	printf("No response from ArmorPaint\n");
+	exit(1);
+}
+
+#endif
 
 void args_parse() {
 	if (iron_get_arg_count() > 1) {
@@ -89,7 +163,11 @@ void args_parse() {
 				printf("  --export-mesh <path>              Export mesh to path\n");
 				printf("  --export-material <path>          Export material to path\n");
 				printf("  --reload-mesh                     Reimport mesh on startup\n");
-				printf("  --script <path>                   Run script on the opened project\n");
+				printf("  --script <path>                   Run script on the opened project, or a script from its Scripts tab by name\n");
+				printf("  --send <path>                     Run script in the open instance during a console agent run\n");
+				printf("  --run <name>                      Run a script from the Scripts tab during a console agent run\n");
+				printf("  --restore                         Restore the original project during a console agent run\n");
+				printf("  --play <seconds> [path]           Play the project during a console agent run, with an optional test script\n");
 				printf("  --api                             Print the scripting API reference\n");
 				printf("                                    Contents of the opened project are included\n");
 				printf("  --player                          Run in player mode\n");
@@ -106,7 +184,7 @@ void args_run_export_queue(void *_) {
 }
 
 void args_run_api(void *_) {
-	printf("%s", text_to_text_node_reference());
+	printf("%s", agent_reference());
 	iron_stop();
 }
 
@@ -123,13 +201,22 @@ void args_run_script_stop(void *_) {
 }
 
 void args_run_script(void *_) {
-	buffer_t *b = iron_load_blob(args_script_path);
-	if (b == NULL) {
-		iron_log(tr("Invalid script path"));
+	char *data = NULL;
+	if (!iron_file_exists(args_script_path) && starts_with(args_script_path, "./")) {
+		data = tab_scripts_find(substring(args_script_path, 2, string_length(args_script_path)));
+	}
+	if (data != NULL) {
+		minic_eval(data);
 	}
 	else {
-		minic_eval(sys_buffer_to_string(b));
-		iron_delete_blob(b);
+		buffer_t *b = iron_load_blob(args_script_path);
+		if (b == NULL) {
+			iron_log(tr("Invalid script path"));
+		}
+		else {
+			minic_eval(sys_buffer_to_string(b));
+			iron_delete_blob(b);
+		}
 	}
 	if (args_background) {
 		sys_notify_on_next_frame(&args_run_script_stop, NULL);

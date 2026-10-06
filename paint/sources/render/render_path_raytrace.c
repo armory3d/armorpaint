@@ -21,7 +21,7 @@ static i32          render_path_raytrace_override_height    = 0;
 gpu_texture_t *render_path_raytrace_env_cdf      = NULL;
 static char   *render_path_raytrace_env_cdf_file = NULL;
 
-static float render_path_raytrace_half_to_float(uint16_t h) {
+float render_path_raytrace_half_to_float(uint16_t h) {
 	uint32_t sign = (uint32_t)(h >> 15) << 31;
 	uint32_t exp  = (h >> 10) & 0x1f;
 	uint32_t man  = h & 0x3ff;

@@ -360,6 +360,10 @@ tab_draw_array_t_array_t *ui_base_init_hwnd_tabs() {
 }
 
 void ui_base_toggle_distract_free() {
+	if (player_in_editor) {
+		player_stop();
+		return;
+	}
 	if (base_player_lock) {
 		return;
 	}

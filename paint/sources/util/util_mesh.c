@@ -251,6 +251,25 @@ void util_mesh_delete_data_uncache(void *data) {
 	mesh_data_delete(md);
 }
 
+void util_mesh_remove_objects(mesh_object_t_array_t *objects, mesh_object_t *keep) {
+	any_array_t *datas = any_array_create(0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		mesh_object_t *p = objects->buffer[i];
+		if (p == keep) {
+			continue;
+		}
+		if ((keep == NULL || p->data != keep->data) && array_index_of(datas, p->data) < 0) {
+			any_array_push(datas, p->data);
+		}
+		mesh_object_remove(p);
+	}
+	for (i32 i = 0; i < datas->length; ++i) {
+		util_mesh_delete_data_uncache(datas->buffer[i]);
+	}
+	array_free(datas);
+	free(datas);
+}
+
 mesh_data_t *util_mesh_data_duplicate(mesh_data_t *source) {
 	mesh_data_t *raw = calloc(1, sizeof(mesh_data_t));
 	raw->name        = string_copy(source->name);
@@ -574,8 +593,6 @@ static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 	sys_notify_on_next_frame(&util_mesh_delete_data_uncache, main_object->data);
 	mesh_object_set_data(main_object, md);
 	transform_build_matrix(main_object->base->transform);
-	md->_->handle = string_copy(raw->name);
-	any_map_set(data_cached_meshes, md->_->handle, md);
 }
 
 static void util_mesh_geometry_joined() {
@@ -601,7 +618,7 @@ void util_mesh_merge_geometry() {
 		mesh_object_t *o = objects->buffer[i];
 		string_array_push(merged_names, string_copy(o->base->name));
 		object_set_parent(o->base, NULL);
-		data_delete_mesh(o->data->_->handle);
+		util_mesh_delete_data_uncache(o->data);
 		mesh_object_remove(o);
 	}
 

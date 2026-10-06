@@ -316,7 +316,7 @@ static void lightmap_begin(lightmap_job_t *job) {
 	gpu_texture_init_from_bytes(lightmap_nor, nor, res, res, GPU_TEXTURE_FORMAT_RGBA128, false);
 	free(pos);
 	free(nor);
-	lightmap_target = gpu_create_render_target(res, res, GPU_TEXTURE_FORMAT_RGBA128);
+	lightmap_target = gpu_create_render_target(res, res, GPU_TEXTURE_FORMAT_RGBA64);
 
 	if (lightmap_base == NULL) {
 		// Albedo of geometry without a material, light only output
@@ -400,7 +400,11 @@ static void lightmap_blur(f32 *px, u8 *m, i32 res) {
 static void lightmap_write(lightmap_job_t *job) {
 	i32       res = job->res;
 	buffer_t *b   = gpu_get_texture_pixels(lightmap_target);
-	f32      *px  = (f32 *)b->buffer;
+	u16      *h   = (u16 *)b->buffer;
+	f32      *px  = malloc(sizeof(f32) * 4 * res * res);
+	for (i32 i = 0; i < res * res * 4; ++i) {
+		px[i] = render_path_raytrace_half_to_float(h[i]);
+	}
 	u8       *m   = lightmap_mask;
 	lightmap_blur(px, m, res);
 	u8 *m2 = malloc((size_t)res * res);
@@ -460,6 +464,7 @@ static void lightmap_write(lightmap_job_t *job) {
 	else {
 		iron_write_png(job->path, out, res, res, 2); // RGB
 	}
+	free(px);
 }
 
 static void lightmap_update(void *_) {

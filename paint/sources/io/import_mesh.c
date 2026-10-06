@@ -80,12 +80,10 @@ static mesh_object_t *import_mesh_make_root() {
 	                                           .scale_tex = 1.0});
 
 	mesh_data_t *md    = mesh_data_create(import_mesh_raw_mesh(mesh));
-	md->_->handle      = name;
 	md->_->owns_arrays = true;
 	mesh_object_t *mo  = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
 	mo->base->name     = name;
 	mo->skip_context   = "paint";
-	any_map_set(data_cached_meshes, md->_->handle, md);
 	tab_stages_add_object(name);
 	return mo;
 }
@@ -224,14 +222,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 		viewport_reset();
 	}
 
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		if (p == g_context->paint_object) {
-			continue;
-		}
-		data_delete_mesh(p->data->_->handle);
-		mesh_object_remove(p);
-	}
+	util_mesh_remove_objects(g_project->_->paint_objects, g_context->paint_object);
 
 	char *handle = g_context->paint_object->data->_->handle;
 	if (!string_equals(handle, "SceneSphere") && !string_equals(handle, "ScenePlane")) {
@@ -248,9 +239,6 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
         },
         1);
 	array_delete(old_paint_objects);
-
-	md->_->handle = string_copy(raw->name);
-	any_map_set(data_cached_meshes, md->_->handle, md);
 
 	if (!import_mesh_keep_timeline) {
 		tab_timeline_reset();
@@ -312,8 +300,6 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	if (import_mesh_append && import_mesh_appended == NULL) {
 		import_mesh_appended = object;
 	}
-	md->_->handle = string_copy(raw->name);
-	any_map_set(data_cached_meshes, md->_->handle, md);
 
 	g_context->ddirty = 4;
 

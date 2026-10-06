@@ -51,3 +51,11 @@ void trait_stop() {
 		}
 	}
 }
+
+void trait_reset() {
+	trait_stop();
+	for (i32 i = 0; i < TRAIT_COUNT; ++i) {
+		trait_attached[i] = false;
+	}
+	iron_mouse_unlock();
+}

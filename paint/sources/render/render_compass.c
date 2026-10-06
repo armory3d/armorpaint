@@ -30,6 +30,10 @@ static void _compass_init_hitbox() {
 	object_set_parent(_compass_hitbox_z, compass);
 }
 
+bool render_compass_is_hitbox(object_t *o) {
+	return o != NULL && (o == _compass_hitbox_x || o == _compass_hitbox_y || o == _compass_hitbox_z);
+}
+
 static bool _compass_compare_quat(quat_t a, quat_t b) {
 	return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
 }

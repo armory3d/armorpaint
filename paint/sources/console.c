@@ -77,4 +77,7 @@ void console_log(char *s) {
 	if (console_last_traces->length > 100) {
 		array_shift(console_last_traces);
 	}
+	if (console_capture != NULL) {
+		console_capture = string_copy(string("%s%s\n", console_capture, s));
+	}
 }
