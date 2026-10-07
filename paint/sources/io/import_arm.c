@@ -630,7 +630,8 @@ static void import_arm_progress(f32 progress) {
 	i32 bh = h / 180 > 2 ? h / 180 : 2;
 	i32 bx = (w - bw) / 2;
 	i32 by = (ui_header_h - bh) / 2;
-	draw_begin(NULL, args_player, 0xff000000);
+	bool first_frame = g_context->frame == 0;
+	draw_begin(NULL, args_player || first_frame, 0xff202020);
 	draw_set_color(g_theme->BUTTON_COL);
 	draw_filled_rect(bx, by, bw, bh);
 	draw_set_color(g_theme->HIGHLIGHT_COL);
