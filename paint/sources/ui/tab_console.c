@@ -24,25 +24,30 @@ void tab_console_run_button_on_next_frame(void *_) {
 	box_preferences_show();
 }
 
-bool tab_console_run_button(bool press_run) {
-	bool use_cli = g_config->console_model != CONSOLE_MODEL_QWEN;
-	bool found   = true;
-	if (!use_cli) {
-		char *url       = box_preferneces_model_url_from_name("Qwen");
-		char *file_name = box_preferences_file_name_from_url(url);
-		found           = box_preferences_model_exists(file_name);
+static bool tab_console_model_found() {
+	if (g_config->console_model != CONSOLE_MODEL_QWEN) {
+		return true;
 	}
+	char *url       = box_preferneces_model_url_from_name("Qwen");
+	char *file_name = box_preferences_file_name_from_url(url);
+	return box_preferences_model_exists(file_name);
+}
 
-	if (iron_exec_async_done == 0 || agent_running) {
+static bool tab_console_busy() {
+	return iron_exec_async_done == 0 || agent_running;
+}
+
+bool tab_console_run_button(bool press_run) {
+	bool found = tab_console_model_found();
+
+	if (tab_console_busy()) {
 		ui_icon_button(tr("Processing..."), ICON_STOP, UI_ALIGN_CENTER);
 	}
 	else if (!found && ui_icon_button(tr("Setup"), ICON_COG, UI_ALIGN_CENTER)) {
 		sys_notify_on_next_frame(&tab_console_run_button_on_next_frame, NULL);
 	}
 	else if (found && (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run)) {
-		char *prompt = string_replace_all(tab_console_input, "\n", " ");
-		console_log(string(">%s", prompt));
-		agent_run(prompt);
+		tab_console_run_prompt(tab_console_input);
 		tab_console_input = "";
 		return true;
 	}
@@ -50,6 +55,24 @@ bool tab_console_run_button(bool press_run) {
 }
 
 #endif
+
+void tab_console_run_prompt(char *input) {
+	char *prompt = string_replace_all(input, "\n", " ");
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+	if (tab_console_busy()) {
+		return;
+	}
+	if (!tab_console_model_found()) {
+		sys_notify_on_next_frame(&tab_console_run_button_on_next_frame, NULL);
+		return;
+	}
+	console_log(string(">%s", prompt));
+	agent_run(prompt);
+#else
+	console_log(string(">%s", prompt));
+	minic_ctx_free(minic_eval(string("float main() { %s }", prompt)));
+#endif
+}
 
 void tab_console_draw(i32 *htab) {
 	char *title = console_message_timer > 0 ? string_tmp("%s        ", console_message) : tr("Console");
@@ -165,9 +188,7 @@ void tab_console_draw(i32 *htab) {
 		tab_console_run_button(press_run);
 #else
 		if (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER) || press_run) {
-			char *prompt = string_replace_all(tab_console_input, "\n", " ");
-			console_log(string(">%s", prompt));
-			minic_ctx_free(minic_eval(string("float main() { %s }", prompt)));
+			tab_console_run_prompt(tab_console_input);
 			tab_console_input = "";
 		}
 #endif
