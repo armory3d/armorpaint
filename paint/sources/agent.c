@@ -271,6 +271,19 @@ static void agent_ensure_dir(char *dir) {
 	}
 }
 
+static char *agent_project_dir(void) {
+	char *dir = path_base_dir(g_project->_->filepath);
+	return substring(dir, 0, string_length(dir) - 1);
+}
+
+static char *agent_work_dir(void) {
+	return string("%s%s%s.work", agent_project_dir(), PATH_SEP, path_base_name(g_project->_->filepath));
+}
+
+static char *agent_serve_file(char *name) {
+	return string("%sagent%s%s", iron_internal_save_path(), PATH_SEP, name);
+}
+
 static string_array_t *agent_claude_args(char *dir, char *prompt) {
 	string_array_t *argv = any_array_create_from_raw(
 	    (void *[]){
@@ -283,7 +296,7 @@ static string_array_t *agent_claude_args(char *dir, char *prompt) {
 	        "--permission-mode",
 	        "acceptEdits",
 	        "--add-dir",
-	        dir,
+	        agent_project_dir(),
 	        "--allowedTools",
 	        string("Bash(%s:*)", agent_send_cmd()),
 	        string("Bash(%s)", agent_restore_cmd()),
@@ -310,9 +323,9 @@ static string_array_t *agent_grok_args(char *dir, char *prompt) {
 	        dir, // Pick up AGENTS.md
 	        "--disable-web-search",
 	        "--allow",
-	        string("Write(%s/**)", dir),
+	        string("Write(%s/**)", agent_project_dir()),
 	        "--allow",
-	        string("Edit(%s/**)", dir),
+	        string("Edit(%s/**)", agent_project_dir()),
 	        "--allow",
 	        string("Bash(%s:*)", agent_send_cmd()),
 	        "--allow",
@@ -339,12 +352,14 @@ static string_array_t *agent_codex_args(char *dir, char *prompt) {
 	        "never",
 	        "--cd",
 	        dir, // Pick up AGENTS.md
+	        "--add-dir",
+	        agent_project_dir(),
 	        "--output-last-message",
 	        agent_result_path(),
 	        prompt,
 	        NULL,
 	    },
-	    13);
+	    15);
 	return argv;
 }
 
@@ -428,7 +443,7 @@ static void agent_finish(char *s) {
 			console_log(lines->buffer[i]);
 		}
 	}
-	iron_delete_file(agent_file("serving"));
+	iron_delete_file(agent_serve_file("serving"));
 	agent_running = false;
 	base_redraw_console();
 }
@@ -645,9 +660,9 @@ static char *agent_task_snapshot(char *name) {
 static bool agent_serve_busy = false;
 
 static void agent_serve_respond(char *log) {
-	char *tmp = agent_file("response.tmp");
+	char *tmp = agent_serve_file("response.tmp");
 	iron_file_save_bytes(tmp, sys_string_to_buffer(log), 0);
-	rename(tmp, agent_file("response.txt"));
+	rename(tmp, agent_serve_file("response.txt"));
 	agent_serve_busy = false;
 }
 
@@ -696,7 +711,7 @@ static void agent_serve(void *_) {
 	if (agent_serve_busy) {
 		return;
 	}
-	char *request = agent_file("request.txt");
+	char *request = agent_serve_file("request.txt");
 	if (iron_file_exists(request)) {
 		buffer_t *b = iron_load_blob(request);
 		char     *s = string_copy(trim_end(sys_buffer_to_string(b)));
@@ -820,6 +835,9 @@ void agent_clear(void) {
 	iron_delete_file(string("%s%sprompt.txt", dir, PATH_SEP));
 	iron_delete_file(agent_result_path());
 	agent_clear_dir(string("%sagent", iron_internal_save_path()));
+	if (!string_equals(g_project->_->filepath, "")) {
+		agent_clear_dir(agent_work_dir());
+	}
 }
 
 char *agent_reference(void) {
@@ -832,6 +850,9 @@ static void agent_start(void *_) {
 	char *dir = agent_dir;
 	agent_ensure_dir(dir);
 	agent_clear_dir(dir);
+	char *serve_dir = string("%sagent", iron_internal_save_path());
+	agent_ensure_dir(serve_dir);
+	agent_clear_dir(serve_dir);
 	agent_scripts_write();
 	player_runtime_capture();
 	agent_steps      = any_array_create(0);
@@ -857,7 +878,7 @@ static void agent_start(void *_) {
 		iron_file_save_bytes(agent_file("AGENTS.md"), sys_string_to_buffer(reference), 0);
 		argv = agent_backend == CONSOLE_MODEL_GROK ? agent_grok_args(dir, agent_prompt) : agent_codex_args(dir, agent_prompt);
 	}
-	iron_file_save_bytes(agent_file("serving"), sys_string_to_buffer(""), 0);
+	iron_file_save_bytes(agent_serve_file("serving"), sys_string_to_buffer(""), 0);
 
 	char *res = agent_result_path();
 	iron_delete_file(res);
@@ -877,6 +898,6 @@ void agent_run(char *prompt) {
 	agent_ensure_dir(dir);
 	agent_backend = g_config->console_model;
 	agent_prompt  = string_copy(prompt);
-	agent_dir     = string_copy(string("%sagent", iron_internal_save_path()));
+	agent_dir     = string_copy(agent_work_dir());
 	sys_notify_on_next_frame(agent_start, NULL);
 }
