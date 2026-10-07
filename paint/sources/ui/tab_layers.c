@@ -236,7 +236,7 @@ void tab_layers_delete_layer(slot_layer_t *l) {
 		tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
 	}
 	tab_stages_prune();
-	base_redraw_status(); // redraw Timeline tab to update Stage's layer list
+	base_redraw_status();
 }
 
 void tab_layers_draw_layer_slot_full_delete_layer(void *_) {

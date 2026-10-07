@@ -1049,7 +1049,7 @@ static void tab_timeline_apply_stage_on_next_frame(void *stage) {
 		return;
 	tab_stages_selected = array_index_of(g_project->stages, stage);
 	tab_stages_apply(stage);
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2; // redraw Layers tab
+	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
 }
 
 static void tab_timeline_open_mesh_on_next_frame(void *mesh_ptr) {

@@ -11,8 +11,6 @@ static bool  has_next     = false;
 static int   current_node = 0;
 static float scale_pos    = 1.0;
 
-// glTF allows a primitive without an indices accessor: its vertices are then drawn in order
-// (0, 1, 2, ...). three.js and other exporters write such primitives.
 static cgltf_size io_gltf_index_count(cgltf_primitive *prim) {
 	if (prim->indices != NULL) {
 		return prim->indices->count;
@@ -244,7 +242,6 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 	for (; current_node < data->nodes_count; ++current_node) {
 		cgltf_node *n = &data->nodes[current_node];
 		if (n->mesh != NULL) {
-			// glTF node and mesh names are optional.
 			const char *node_name = n->name != NULL ? n->name : (n->mesh->name != NULL ? n->mesh->name : "mesh");
 			raw->name             = malloc(strlen(node_name) + 1);
 			strcpy(raw->name, node_name);
