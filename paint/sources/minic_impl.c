@@ -568,6 +568,320 @@ buffer_t *script_get_texture_pixels(gpu_texture_t *texture) {
 	return b;
 }
 
+bool tab_layers_can_delete(slot_layer_t *l);
+void tab_layers_delete_layer(slot_layer_t *l);
+void base_init_undo_layers();
+
+static bool script_layer_valid(slot_layer_t *l) {
+	return l != NULL && g_project != NULL && g_project->_ != NULL && array_index_of(g_project->_->layers, l) >= 0;
+}
+
+slot_layer_t *script_layer_get(char *name) {
+	if (name == NULL || g_project == NULL || g_project->_ == NULL) {
+		return NULL;
+	}
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		if (string_equals(g_project->_->layers->buffer[i]->name, name)) {
+			return g_project->_->layers->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+void script_layer_set(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	context_set_layer(l);
+	g_context->ddirty = 2;
+}
+
+static slot_layer_t *script_layer_new_cleared(i32 base_color, f32 occlusion, f32 roughness, f32 metallic) {
+	if (g_context == NULL || g_context->layer == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_layer(false, -1, NULL);
+	if (l != NULL) {
+		history_new_layer();
+		slot_layer_clear(l, base_color, NULL, occlusion, roughness, metallic);
+	}
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return l;
+}
+
+slot_layer_t *script_layer_new(void) {
+	return script_layer_new_cleared(0x00000000, 1.0, layers_default_rough, 0.0);
+}
+
+slot_layer_t *script_layer_new_color(i32 base_color, f32 occlusion, f32 roughness, f32 metallic) {
+	return script_layer_new_cleared(base_color, occlusion, roughness, metallic);
+}
+
+slot_layer_t *script_layer_new_fill(void) {
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_layer(false, -1, NULL);
+	if (l != NULL) {
+		history_new_layer();
+		l->uv_type = UV_TYPE_UVMAP;
+		if (g_config->workflow == WORKFLOW_SCULPT) {
+			sculpt_init();
+			sculpt_init_sculpt_texture(l);
+		}
+		history_to_fill_layer();
+		slot_layer_to_fill_layer(l);
+	}
+	script_gpu_end(current, in_use);
+	g_context->rtdirty = 1;
+	g_context->ddirty  = 2;
+	return l;
+}
+
+void script_layer_delete(slot_layer_t *l) {
+	if (!script_layer_valid(l) || !tab_layers_can_delete(l)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	tab_layers_delete_layer(l);
+	script_gpu_end(current, in_use);
+}
+
+i32 script_layer_count(void) {
+	if (g_project == NULL || g_project->_ == NULL) {
+		return 0;
+	}
+	return g_project->_->layers->length;
+}
+
+slot_layer_t *script_layer_at(i32 i) {
+	if (i < 0 || i >= script_layer_count()) {
+		return NULL;
+	}
+	return g_project->_->layers->buffer[i];
+}
+
+i32 script_layer_index(slot_layer_t *l) {
+	if (l == NULL || g_project == NULL || g_project->_ == NULL) {
+		return -1;
+	}
+	return array_index_of(g_project->_->layers, l);
+}
+
+slot_layer_t *script_layer_new_mask(slot_layer_t *l, i32 type) {
+	// type: 0 black, 1 white, 2 fill with the current material
+	if (!script_layer_valid(l) || type < 0 || type > 2) {
+		return NULL;
+	}
+	if (type == 2 && g_context->material == NULL) {
+		return NULL;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t         *m        = layers_new_mask(false, l, -1);
+	if (m != NULL) {
+		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+			slot_material_t *mat = g_project->_->materials->buffer[i];
+			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
+		}
+		if (type == 0) {
+			history_new_black_mask();
+			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+		}
+		else if (type == 1) {
+			history_new_white_mask();
+			slot_layer_clear(m, 0xffffffff, NULL, 1.0, layers_default_rough, 0.0);
+		}
+		else {
+			history_new_fill_mask();
+			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+			slot_layer_to_fill_layer(m);
+		}
+		layers_update_fill_layers();
+	}
+	script_gpu_end(current, in_use);
+	g_context->layers_preview_dirty = true;
+	g_context->rtdirty             = 1;
+	g_context->ddirty              = 2;
+	return m;
+}
+
+slot_layer_t *script_layer_new_group(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return NULL;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	if (slot_layer_is_group(l) || slot_layer_is_in_group(l)) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t         *group    = layers_new_group();
+	if (group != NULL) {
+		context_set_layer(l);
+		array_remove(g_project->_->layers, group);
+		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
+		l->parent = group;
+		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+			slot_material_t *m = g_project->_->materials->buffer[i];
+			tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
+		}
+		context_set_layer(group);
+		history_new_group();
+	}
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return group;
+}
+
+static void script_layer_refill(slot_layer_t *l) {
+	slot_material_t *material = g_context->material;
+	g_context->material       = l->fill_material;
+	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+	layers_update_fill_layers();
+	context_set_material(material);
+}
+
+void script_layer_set_name(slot_layer_t *l, char *name) {
+	if (!script_layer_valid(l) || name == NULL || name[0] == '\0') {
+		return;
+	}
+	char *old_name = l->name;
+	l->name        = string_copy(name);
+	tab_stages_rename_layer(old_name, l->name);
+	if (ui_base_hwnds != NULL) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+}
+
+void script_layer_update(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	if (l->fill_material != NULL) {
+		script_layer_refill(l);
+	}
+	make_material_parse_mesh_material();
+	script_gpu_end(current, in_use);
+	g_context->layers_preview_dirty = true;
+	g_context->rtdirty              = 1;
+	g_context->ddirty               = 2;
+}
+
+bool script_layer_move(slot_layer_t *l, i32 to) {
+	if (!script_layer_valid(l) || to < 0 || to >= g_project->_->layers->length) {
+		return false;
+	}
+	if (!slot_layer_can_move(l, to)) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	slot_layer_move(l, to);
+	make_material_parse_mesh_material();
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return true;
+}
+
+bool script_layer_set_group(slot_layer_t *l, slot_layer_t *group) {
+	if (!script_layer_valid(l) || !slot_layer_is_layer(l) || slot_layer_is_filter(l)) {
+		return false;
+	}
+	if (group == NULL) {
+		if (l->parent == NULL) {
+			return true;
+		}
+		return script_layer_move(l, g_project->_->layers->length - 1);
+	}
+	if (!script_layer_valid(group) || !slot_layer_is_group(group)) {
+		return false;
+	}
+	if (l->parent == group) {
+		return true;
+	}
+	// Place directly below the group and its masks, slot_layer_move then parents it to the group
+	i32 anchor = array_index_of(g_project->_->layers, group);
+	while (anchor > 0 && slot_layer_is_mask(g_project->_->layers->buffer[anchor - 1]) && g_project->_->layers->buffer[anchor - 1]->parent == group) {
+		--anchor;
+	}
+	i32  from       = array_index_of(g_project->_->layers, l);
+	i32  to         = from < anchor ? anchor - 1 : anchor;
+	bool show_panel = group->show_panel;
+	group->show_panel = true; // A collapsed group would make the move skip past its children
+	bool moved        = script_layer_move(l, to);
+	group->show_panel = show_panel;
+	return moved && l->parent == group;
+}
+
+void script_layer_set_object(slot_layer_t *l, object_t *object) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	i32 mask = 0;
+	if (object != NULL) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			if (g_project->_->paint_objects->buffer[i]->base == object) {
+				mask = i + 1;
+				break;
+			}
+		}
+		if (mask == 0) {
+			return;
+		}
+	}
+	if (l->object_mask == mask) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	context_set_layer(l);
+	history_layer_object();
+	l->object_mask = mask;
+	make_material_parse_mesh_material();
+	if (l->fill_material != NULL) {
+		script_layer_refill(l);
+	}
+	else {
+		layers_set_object_mask();
+	}
+	script_gpu_end(current, in_use);
+	g_context->rtdirty = 1;
+	g_context->ddirty  = 2;
+}
+
 static void script_bake_lightmap_done(void *fn) {
 	if (fn != NULL) {
 		minic_call_fn(fn, NULL, 0);

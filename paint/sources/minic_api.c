@@ -656,6 +656,18 @@ void minic_register_builtins() {
 	MINIC_O(links, any_array_t);
 	MINIC_END();
 
+	MINIC_STRUCT(slot_layer_t);
+	MINIC_I(id);
+	MINIC_S(name);
+	MINIC_B(visible);
+	MINIC_O(parent, slot_layer_t);
+	MINIC_F(mask_opacity);
+	MINIC_O(fill_material, slot_material_t);
+	MINIC_I(object_mask);
+	MINIC_F(scale);
+	MINIC_F(angle);
+	MINIC_END();
+
 	MINIC_STRUCT(slot_material_t);
 	MINIC_O(canvas, ui_node_canvas_t);
 	MINIC_I(id);
@@ -850,7 +862,7 @@ void minic_register_builtins() {
 	MINIC_I(ddirty);
 	MINIC_I(pdirty);
 	MINIC_O(material, slot_material_t);
-	MINIC_P(layer);
+	MINIC_O(layer, slot_layer_t);
 	MINIC_P(brush);
 	MINIC_I(tool);
 	MINIC_F(brush_radius);
