@@ -211,6 +211,107 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
+static any_array_t *script_cloud_init_fns  = NULL;
+static any_array_t *script_cloud_dl_paths  = NULL;
+static any_array_t *script_cloud_dl_fns    = NULL;
+static bool         script_cloud_dl_active = false;
+static void         script_cloud_dl_next(void);
+
+static bool script_cloud_ready(void) {
+	return file_cloud != NULL && any_map_get(file_cloud, "cloud") != NULL;
+}
+
+static void script_cloud_on_init_done(void) {
+	ui_files_file_browser_on_init_cloud_done();
+}
+
+static void script_cloud_wait(void *_) {
+	if (!script_cloud_ready()) {
+		sys_notify_on_next_frame(script_cloud_wait, NULL);
+		return;
+	}
+	any_array_t *fns      = script_cloud_init_fns;
+	script_cloud_init_fns = NULL;
+	for (i32 i = 0; i < fns->length; ++i) {
+		minic_call_fn(fns->buffer[i], NULL, 0);
+	}
+	script_cloud_dl_next();
+}
+
+static void script_cloud_ensure(void *fn) {
+	if (script_cloud_init_fns == NULL) {
+		script_cloud_init_fns = any_array_create(0);
+		if (file_cloud == NULL) {
+			file_init_cloud(script_cloud_on_init_done, g_config->server);
+		}
+		sys_notify_on_next_frame(script_cloud_wait, NULL);
+	}
+	if (fn != NULL) {
+		any_array_push(script_cloud_init_fns, fn);
+	}
+}
+
+void script_cloud_init(void *done) {
+	if (script_cloud_ready()) {
+		minic_call_fn(done, NULL, 0);
+		return;
+	}
+	script_cloud_ensure(done);
+}
+
+static void script_cloud_dl_done(char *dest) {
+	void *fn = array_shift(script_cloud_dl_fns);
+	array_shift(script_cloud_dl_paths);
+	script_cloud_dl_active = false;
+	if (fn != NULL) {
+		minic_val_t args[1] = {minic_val_ptr(dest != NULL ? string_copy(dest) : NULL)};
+		minic_call_fn(fn, args, 1);
+	}
+	script_cloud_dl_next();
+}
+
+static void script_cloud_dl_next(void) {
+	if (script_cloud_dl_active || script_cloud_dl_paths == NULL || script_cloud_dl_paths->length == 0) {
+		return;
+	}
+	if (!script_cloud_ready()) {
+		script_cloud_ensure(NULL);
+		return;
+	}
+	char *path = script_cloud_dl_paths->buffer[0];
+	script_cloud_dl_active = true;
+	if (i32_map_get(file_cloud_sizes, path) < 0) {
+		console_error(string("Cloud file not found: %s", path));
+		script_cloud_dl_done(NULL);
+		return;
+	}
+	file_cache_cloud(path, script_cloud_dl_done, g_config->server);
+}
+
+void script_cloud_download(char *path, void *done) {
+	if (script_cloud_dl_paths == NULL) {
+		script_cloud_dl_paths = any_array_create(0);
+		script_cloud_dl_fns   = any_array_create(0);
+	}
+	any_array_push(script_cloud_dl_paths, string_copy(path));
+	any_array_push(script_cloud_dl_fns, done);
+	script_cloud_dl_next();
+}
+
+static void script_cloud_reset(void) {
+	if (script_cloud_init_fns != NULL) {
+		script_cloud_init_fns->length = 0;
+	}
+	if (script_cloud_dl_paths != NULL) {
+		i32 keep                      = script_cloud_dl_active ? 1 : 0;
+		script_cloud_dl_paths->length = keep;
+		script_cloud_dl_fns->length   = keep;
+		if (keep) {
+			script_cloud_dl_fns->buffer[0] = NULL;
+		}
+	}
+}
+
 char *project_filepath_get() {
 #ifdef IRON_WINDOWS
 	return string_replace_all(g_project->_->filepath, "\\", "/");
@@ -1473,6 +1574,7 @@ void script_reset_runtime(void) {
 	_script_fade_opacity = 0.0f;
 	memset(particles, 0, sizeof(particles));
 	_script_tween_transform = NULL;
+	script_cloud_reset();
 #ifdef IRON_AUDIO
 	if (data_cached_sounds != NULL) {
 		string_array_t *keys = map_keys(data_cached_sounds);
