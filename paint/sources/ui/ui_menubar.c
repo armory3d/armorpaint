@@ -521,7 +521,7 @@ void ui_menubar_draw_category_items() {
 			g_ui->changed = false; // Close menu
 		}
 
-		if (g_config->experimental && ui_menu_button(tr("Run in Player"), "f5", ICON_PLAY)) {
+		if (ui_menu_button(tr("Run in Player"), "f5", ICON_PLAY)) {
 			base_run_in_player();
 			g_ui->changed = false; // Close menu
 		}
@@ -776,12 +776,9 @@ void ui_menubar_draw_category_items() {
                 tr("Paint 2D"),
                 tr("Nodes"),
                 tr("Script"),
+                tr("Player"),
             },
-            4);
-
-		if (g_config->experimental) {
-			any_array_push(modes, tr("Player"));
-		}
+            5);
 
 		i32 workspace_last = g_config->workspace;
 		for (i32 i = 0; i < modes->length; ++i) {
