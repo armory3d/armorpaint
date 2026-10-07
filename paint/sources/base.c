@@ -199,6 +199,28 @@ void base_init_undo_layers() {
 	}
 }
 
+static void base_draw_console_lines() {
+	// Show last console lines in distract free mode
+	f32 scale = UI_SCALE();
+	draw_begin(NULL, false, 0);
+	draw_set_font(g_font, math_floor(UI_FONT_SIZE()));
+	draw_set_color(g_theme->TEXT_COL);
+	f32 line_h = draw_font_height(draw_font, draw_font_size) * 1.2;
+	f32 x      = 10 * scale;
+	f32 y      = iron_window_height() - 10 * scale - line_h;
+	i32 n      = 0;
+	for (i32 i = console_last_traces->length - 1; i >= 0 && n < 5; --i) {
+		any_array_t *parts = string_split(console_last_traces->buffer[i], "\n");
+		for (i32 j = parts->length - 1; j >= 0 && n < 5; --j) {
+			draw_string(parts->buffer[j], x, y - n * line_h);
+			n++;
+		}
+		string_split_free(parts);
+	}
+	draw_set_color(0xffffffff);
+	draw_end();
+}
+
 void base_update(void *_) {
 	if (mouse_movement_x != 0 || mouse_movement_y != 0) {
 		iron_mouse_set_cursor(IRON_CURSOR_ARROW);
@@ -462,6 +484,9 @@ void base_update(void *_) {
 	bool using_menu = ui_menu_show && mouse_y > ui_header_h;
 	base_ui_enabled = !ui_box_show && !using_menu && g_ui->combo_selected_id == 0 && !agent_running;
 
+	if (!ui_base_show && !player_in_editor && !base_player_lock && gpu_framebuffer_redirect == NULL) {
+		base_draw_console_lines();
+	}
 	if (ui_box_show) {
 		ui_box_render();
 	}
