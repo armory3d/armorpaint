@@ -10,6 +10,7 @@ __attribute__((import_module("imports"), import_name("js_fseek"))) int      js_f
 __attribute__((import_module("imports"), import_name("js_fread"))) size_t   js_fread(void *ptr, size_t size, size_t count, FILE *stream);
 __attribute__((import_module("imports"), import_name("js_fwrite"))) size_t  js_fwrite(const void *ptr, size_t size, size_t count, FILE *stream);
 __attribute__((import_module("imports"), import_name("js_fclose"))) int     js_fclose(FILE *stream);
+__attribute__((import_module("imports"), import_name("js_rename"))) int     js_rename(const char *oldpath, const char *newpath);
 #endif
 
 FILE *stdout = NULL, *stderr = NULL;
@@ -106,4 +107,14 @@ int fputs(const char *str, FILE *stream) {
 
 int puts(char *str) {
 	return 0;
+}
+
+int rename(const char *oldpath, const char *newpath) {
+#ifdef IRON_WASM
+	return js_rename(oldpath, newpath);
+#else
+	(void)oldpath;
+	(void)newpath;
+	return -1;
+#endif
 }

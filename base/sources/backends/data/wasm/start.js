@@ -1059,6 +1059,16 @@ async function init() {
 			        virtual_fs.delete(path);
 		        }
 			},
+			js_rename : function(from, to) {
+		        from = read_string(from);
+		        to = read_string(to);
+		        if (!virtual_fs.has(from)) {
+			        return -1;
+		        }
+		        virtual_fs.set(to, virtual_fs.get(from));
+		        virtual_fs.delete(from);
+		        return 0;
+			},
 			js_time : function() {
 		        return window.performance.now();
 			},

@@ -1,6 +1,6 @@
 
 #include "global.h"
-#ifndef IRON_WINDOWS
+#if !defined(IRON_WINDOWS) && !defined(IRON_WASM)
 #include <unistd.h>
 #endif
 
@@ -211,14 +211,15 @@ static string_array_t *agent_qwen_args(char *dir) {
 }
 
 static char *agent_exe(void) {
-	char path[4096];
 #ifdef IRON_WINDOWS
+	char    path[4096];
 	wchar_t wpath[4096];
 	if (GetModuleFileNameW(NULL, wpath, 4096) > 0 && WideCharToMultiByte(CP_UTF8, 0, wpath, -1, path, sizeof(path), NULL, NULL) > 0) {
 		return string_replace_all(path, "\\", "/");
 	}
-#else
+#elif !defined(IRON_WASM)
 	// A bare name was found through PATH and resolves the same from any directory
+	char path[4096];
 	char *exe = iron_get_arg(0);
 	if (exe[0] != '/' && string_index_of(exe, "/") >= 0 && getcwd(path, sizeof(path)) != NULL) {
 		return string("%s/%s", path, exe);
