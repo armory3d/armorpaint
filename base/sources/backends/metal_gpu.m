@@ -284,6 +284,9 @@ void gpu_present_internal() {
 void gpu_barrier(gpu_texture_t *render_target, gpu_texture_state_t state_after) {}
 
 void gpu_draw_internal() {
+	if (current_ib->count == 0) {
+		return;
+	}
 	id<MTLBuffer> index_buffer = (__bridge id<MTLBuffer>)current_ib->impl.metal_buffer;
 	[command_encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
 	                            indexCount:current_ib->count
