@@ -36,7 +36,7 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		return val;
 	}
 	else if (string_equals(link, "_vignette_strength")) {
-		return g_config->rp_vignette;
+		return g_config->rp_vignette * 0.1;
 	}
 	else if (string_equals(link, "_grain_strength")) {
 		return g_config->rp_grain;

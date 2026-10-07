@@ -622,7 +622,7 @@ void box_preferences_viewport_tab() {
 	post_changed |= ui_item_changed();
 
 	ui_row2();
-	ui_slider(&g_config->rp_vignette, tr("Vignette"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	ui_slider(&g_config->rp_vignette, tr("Vignette"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 	post_changed |= ui_item_changed();
 	ui_slider(&g_config->rp_grain, tr("Noise Grain"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 	post_changed |= ui_item_changed();
