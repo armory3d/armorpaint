@@ -345,10 +345,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 				if (icon != NULL && icon != icons) {
 					i32 w = 50;
 					if (i == ui_files_selected) {
-						ui_fill(-2, -2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, w + 2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, 0, 2, w + 4, g_theme->HIGHLIGHT_COL);
-						ui_fill(w + 2, -2, 2, w + 6, g_theme->HIGHLIGHT_COL);
+						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
 					state = ui_image(icon, 0xffffffff, w * UI_SCALE());
 					if (g_ui->is_hovered) {
@@ -434,10 +431,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 				if (icon != NULL) {
 					i32 w = 50;
 					if (i == ui_files_selected) {
-						ui_fill(-2, -2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, w + 2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, 0, 2, w + 4, g_theme->HIGHLIGHT_COL);
-						ui_fill(w + 2, -2, 2, w + 6, g_theme->HIGHLIGHT_COL);
+						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
 					state = ui_image(icon, 0xffffffff, w * UI_SCALE());
 					if (g_ui->is_hovered) {
@@ -471,10 +465,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 				}
 				if (icon != NULL) {
 					if (i == ui_files_selected) {
-						ui_fill(-2, -2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, w + 2, w + 4, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(-2, 0, 2, w + 4, g_theme->HIGHLIGHT_COL);
-						ui_fill(w + 2, -2, 2, w + 6, g_theme->HIGHLIGHT_COL);
+						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
 					state   = ui_image(icon, 0xffffffff, icon->height * UI_SCALE());
 					generic = false;

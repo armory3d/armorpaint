@@ -1074,7 +1074,7 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 		f32 absy = g_ui->_window_y + g_ui->_y;
 		if (mouse_y > absy && mouse_y < absy + step * 2) {
 			tab_meshes_material_drop_index = i;
-			ui_rect(1, 0, g_ui->_w / (float)UI_SCALE() - 2, step * 2, g_theme->HIGHLIGHT_COL, 2);
+			ui_rect_round(1, 0, g_ui->_w / (float)UI_SCALE() - 2, step * 2, g_theme->HIGHLIGHT_COL, 2);
 		}
 	}
 
@@ -1251,7 +1251,7 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 
 	// Highlight selected
 	if (g_context->paint_object == o) {
-		ui_rect(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + 1, g_theme->HIGHLIGHT_COL, 2);
+		ui_rect_round(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + 1, g_theme->HIGHLIGHT_COL, 2);
 	}
 }
 

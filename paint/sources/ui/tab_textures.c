@@ -423,12 +423,8 @@ void tab_textures_draw(i32 *htab) {
 						f32 _uiy = g_ui->_y;
 						g_ui->_x = uix;
 						g_ui->_y = uiy;
-						i32 off  = i % 2 == 1 ? 1 : 0;
 						i32 w    = 50;
-						ui_fill(0, 0, w + 3, 2, g_theme->HIGHLIGHT_COL);
-						ui_fill(0, w - off + 2, w + 3, 2 + off, g_theme->HIGHLIGHT_COL);
-						ui_fill(0, 0, 2, w + 3, g_theme->HIGHLIGHT_COL);
-						ui_fill(w + 2, 0, 2, w + 4, g_theme->HIGHLIGHT_COL);
+						ui_rect_round(1, 1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 						g_ui->_x = _uix;
 						g_ui->_y = _uiy;
 					}

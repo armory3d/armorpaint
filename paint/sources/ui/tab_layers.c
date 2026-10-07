@@ -510,10 +510,10 @@ void tab_layers_draw_layer_highlight(slot_layer_t *l, bool mini) {
 	// Highlight selected
 	if (g_context->layer == l) {
 		if (mini) {
-			ui_rect(1, -step * 2, g_ui->_w / (float)UI_SCALE() - 1, step * 2 + (mini ? -1 : 1), g_theme->HIGHLIGHT_COL, 3);
+			ui_rect_round(1, -step * 2, g_ui->_w / (float)UI_SCALE() - 1, step * 2 + (mini ? -1 : 1), g_theme->HIGHLIGHT_COL, 3);
 		}
 		else {
-			ui_rect(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + (mini ? -2 : 1), g_theme->HIGHLIGHT_COL, 2);
+			ui_rect_round(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + (mini ? -2 : 1), g_theme->HIGHLIGHT_COL, 2);
 		}
 	}
 }

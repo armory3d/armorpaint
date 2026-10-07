@@ -211,7 +211,9 @@ void tab_swatches_draw(i32 *htab) {
 
 				if (g_context->swatch == g_project->swatches->buffer[i]) {
 					i32 w = 32;
-					ui_fill(-2, -2, w, w, g_theme->HIGHLIGHT_COL);
+					draw_set_color(g_theme->HIGHLIGHT_COL);
+					ui_draw_rect(true, false, g_ui->_x - 2 * UI_SCALE(), g_ui->_y - 2 * UI_SCALE() - 1, w * UI_SCALE(), w * UI_SCALE());
+					draw_set_color(0xffffffff);
 				}
 
 				uix = g_ui->_x;

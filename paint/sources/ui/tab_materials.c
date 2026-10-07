@@ -308,15 +308,11 @@ void tab_materials_draw_slots(bool mini) {
 			if (g_context->material == g_project->_->materials->buffer[i]) {
 				if (mini) {
 					f32 w = g_ui->_w / (float)UI_SCALE();
-					ui_rect(0, -2, w - 2, w - 4, g_theme->HIGHLIGHT_COL, 3);
+					ui_rect_round(0, -2, w - 2, w - 4, g_theme->HIGHLIGHT_COL, 3);
 				}
 				else {
-					i32 off = row % 2 == 1 ? 1 : 0;
-					i32 w   = 50 + math_floor(g_config->window_scale * 2);
-					ui_fill(-1, -2, w + 3, 2, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, w - off, w + 3, 2 + off, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, -2, 2, w + 3, g_theme->HIGHLIGHT_COL);
-					ui_fill(w + 1, -2, 2, w + 4, g_theme->HIGHLIGHT_COL);
+					i32 w = 50 + math_floor(g_config->window_scale * 2);
+					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 			}
 
