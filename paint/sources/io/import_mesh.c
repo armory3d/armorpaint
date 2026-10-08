@@ -40,6 +40,10 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 		raw_mesh_t *(*importer)(char *path) = any_map_get(import_mesh_importers, ext);
 
 		raw_mesh_t *mesh = importer(path);
+		if (mesh == NULL) {
+			console_error(string("Failed to import '%s'", path));
+			return;
+		}
 		if (string_equals(mesh->name, "")) {
 			mesh->name = string_copy(path_base_name(path));
 		}

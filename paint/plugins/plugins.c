@@ -86,6 +86,9 @@ static void *import_svg(char *path) {
 
 static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		return NULL;
+	}
 	if (plugins_skinning_frame != -1) {
 		buffer_t *blob = io_gltf_skin_blob((char *)b->buffer, b->length, path);
 		if (blob != NULL) {
@@ -100,6 +103,9 @@ static void *import_gltf_glb(char *path) {
 
 static void *import_fbx(char *path) {
 	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		return NULL;
+	}
 	void *res = plugins_skinning_frame == -1 ? io_fbx_parse((char *)b->buffer, b->length) : io_fbx_parse_skinned((char *)b->buffer, b->length);
 	data_delete_blob(path);
 	return res;
