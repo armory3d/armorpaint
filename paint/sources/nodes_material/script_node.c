@@ -19,6 +19,7 @@ void script_node_draw_snippets() {
 	if (ui_menu_button("sys_time()", "", ICON_DRAFT)) {
 		ui_node_t *node                                 = script_node_draw_snippets_node;
 		node->buttons->buffer[0]->default_value->buffer = "sys_time()";
+		node->buttons->buffer[0]->default_value->length = strlen("sys_time()") + 1;
 	}
 }
 

@@ -380,7 +380,7 @@ void base_update(void *_) {
 	}
 
 	// Live material when using sys_time() script node
-	if (g_context->tool == TOOL_TYPE_MATERIAL) {
+	if (g_context->tool == TOOL_TYPE_MATERIAL && project_scripts_trusted) {
 		bool              has_script_node = false;
 		ui_node_canvas_t *canvas          = g_context->material->canvas;
 		for (i32 i = 0; i < canvas->nodes->length; ++i) {

@@ -230,6 +230,8 @@ ui_node_t_array_t        *parser_material_start_parents         = NULL;
 ui_node_t                *parser_material_start_node            = NULL;
 char                     *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
 any_map_t                *parser_material_script_links      = NULL;
+bool                      project_scripts_trusted           = true;
+bool                      import_arm_keep_script_trust      = false;
 bool                      parser_material_is_frag           = true;
 bool                      args_player                       = false;
 bool                      args_background                   = false;

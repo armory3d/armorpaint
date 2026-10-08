@@ -152,15 +152,11 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_ssao_frame")) {
 		return scene_camera->frame % 2 == 0 ? 0.0 : 0.5;
 	}
-	if (parser_material_script_links != NULL) {
-		string_array_t *keys   = map_keys(parser_material_script_links);
-		bool            found  = keys->length > 0;
-		char           *script = found ? any_map_get(parser_material_script_links, keys->buffer[0]) : NULL;
-		array_free(keys);
-		free(keys);
-		if (found) {
-			f32 result = script != NULL ? 0.0 : NAN;
-			if (!string_equals(script, "")) {
+	if (parser_material_script_links != NULL && link[0] == '_') {
+		char *script = any_map_get(parser_material_script_links, link + 1);
+		if (script != NULL) {
+			f32 result = 0.0;
+			if (project_scripts_trusted && !string_equals(script, "")) {
 				minic_ctx_t *_ctx = minic_eval(string_tmp("float main() { return %s; }", script));
 				result            = minic_ctx_result(_ctx);
 				minic_ctx_free(_ctx);

@@ -584,6 +584,7 @@ static void agent_restore_reload(void *_) {
 		sys_notify_on_next_frame(agent_restore_reload, NULL);
 		return;
 	}
+	import_arm_keep_script_trust = true;
 	import_arm_run_project(g_project->_->filepath);
 	player_runtime_capture_objects();
 	player_runtime_restore_context();

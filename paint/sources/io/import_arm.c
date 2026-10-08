@@ -484,7 +484,60 @@ static i32 import_arm_decode_images(import_arm_image_t *images, i32 start, i32 c
 	return end;
 }
 
+static bool import_arm_canvases_have_script(ui_node_canvas_t_array_t *canvases) {
+	if (canvases == NULL) {
+		return false;
+	}
+	for (i32 i = 0; i < canvases->length; ++i) {
+		ui_node_canvas_t *c = canvases->buffer[i];
+		for (i32 j = 0; c != NULL && j < c->nodes->length; ++j) {
+			if (string_equals(c->nodes->buffer[j]->type, "SCRIPT_CPU")) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static void import_arm_trust_scripts_on_next_frame(void *_) {
+	slot_material_t *current = g_context->material;
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		g_context->material = g_project->_->materials->buffer[i];
+		util_render_make_material_preview();
+	}
+	g_context->material = current;
+	make_material_parse_paint_material(true);
+	layers_update_fill_layers();
+	g_context->ddirty = 2;
+}
+
+static void import_arm_trust_scripts_box_draw() {
+	ui_text(tr("Trust project scripts?"), UI_ALIGN_LEFT, 0x00000000);
+	ui_end_element();
+	ui_row2();
+	if (ui_icon_button(tr("No"), ICON_CLOSE, UI_ALIGN_CENTER)) {
+		ui_box_hide();
+	}
+	if (ui_icon_button(tr("Yes"), ICON_CHECK, UI_ALIGN_CENTER)) {
+		ui_box_hide();
+		project_scripts_trusted = true;
+		sys_notify_on_next_frame(&import_arm_trust_scripts_on_next_frame, NULL);
+	}
+}
+
+static void import_arm_check_scripts(project_t *project) {
+	if (args_player) {
+		return;
+	}
+	if (!import_arm_canvases_have_script(project->material_nodes) && !import_arm_canvases_have_script(project->material_groups)) {
+		return;
+	}
+	project_scripts_trusted = false;
+	ui_box_show_custom(&import_arm_trust_scripts_box_draw, 400, 200, NULL, true, tr("Script Nodes"));
+}
+
 static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
+	import_arm_check_scripts(project);
 	if (project->material_nodes == NULL || project->material_nodes->length == 0) {
 		if (delete_blob) {
 			data_delete_blob(path);
@@ -649,6 +702,9 @@ static void import_arm_sculpt_init(void *_) {
 }
 
 void import_arm_run_project(char *path) {
+	bool keep_script_trust       = import_arm_keep_script_trust;
+	bool was_trusted             = project_scripts_trusted;
+	import_arm_keep_script_trust = false;
 	import_arm_progress(0.0);
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
@@ -737,6 +793,12 @@ void import_arm_run_project(char *path) {
 
 	project->_                           = g_project->_; // Carry over runtime arrays set up by project_new
 	g_project                            = project;
+	if (keep_script_trust) {
+		project_scripts_trusted = was_trusted;
+	}
+	else {
+		import_arm_check_scripts(project);
+	}
 	layer_data_t *l0                     = g_project->layer_datas->buffer[0];
 	base_res                             = config_get_texture_res_pos(l0->res);
 	base_res_x                           = (f32)l0->res;
