@@ -455,14 +455,14 @@ static void enc(char *s) {
 	string_buffer_append(&encoded, s);
 }
 
-static void enc_escaped(char *s) {
+static void json_escape_to(buffer_t *sb, char *s) {
 	char chunk[256];
 	int  n = 0;
 	for (; *s != '\0'; ++s) {
 		unsigned char c = *s;
 		if (n > (int)sizeof(chunk) - 8) {
 			chunk[n] = '\0';
-			enc(chunk);
+			string_buffer_append(sb, chunk);
 			n = 0;
 		}
 		if (c == '"' || c == '\\') {
@@ -489,7 +489,20 @@ static void enc_escaped(char *s) {
 		}
 	}
 	chunk[n] = '\0';
-	enc(chunk);
+	string_buffer_append(sb, chunk);
+}
+
+char *json_escape(char *s) {
+	buffer_t sb;
+	string_buffer_init(&sb);
+	json_escape_to(&sb, s);
+	char *r = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return r;
+}
+
+static void enc_escaped(char *s) {
+	json_escape_to(&encoded, s);
 }
 
 void json_encode_begin() {
@@ -702,11 +715,14 @@ static uint8_t jenc_array_type(int count) {
 }
 
 static void jenc_write_string(int start, int len) {
+	char    *s = malloc(len + 1);
+	uint32_t n = json_unescape(jenc_src + start, len, s);
 	armpack_write_u8(0xdb);
-	armpack_write_u32(len);
-	for (int i = 0; i < len; i++) {
-		armpack_write_u8(jenc_src[start + i]);
+	armpack_write_u32(n);
+	for (uint32_t i = 0; i < n; i++) {
+		armpack_write_u8(s[i]);
 	}
+	free(s);
 }
 
 static void jenc_value();
