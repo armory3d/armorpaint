@@ -1275,7 +1275,7 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 				for (int j = 0; j < paste_canvas->nodes->buffer[i]->buttons->length; ++j) {
 					ui_node_button_t *but = paste_canvas->nodes->buffer[i]->buttons->buffer[j];
 					if (but->data != NULL) {
-						char *s   = string_replace_all(but->data, "\\n", "\n");
+						char *s   = (char *)but->data;
 						but->data = u8_array_create_from_raw((uint8_t *)s, strlen(s) + 1);
 					}
 				}
@@ -1689,8 +1689,7 @@ char *ui_node_canvas_to_json(ui_node_canvas_t *canvas) {
 			json_encode_f32_array("default_value", canvas->nodes->buffer[i]->buttons->buffer[j]->default_value);
 			u8_array_t *data = canvas->nodes->buffer[i]->buttons->buffer[j]->data;
 			if (data != NULL) {
-				char *s = string_replace_all((char *)data->buffer, "\n", "\\n");
-				json_encode_string("data", s);
+				json_encode_string("data", (char *)data->buffer);
 			}
 			else {
 				json_encode_null("data");
