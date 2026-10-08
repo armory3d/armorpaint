@@ -220,11 +220,8 @@ void project_new(bool reset_layers) {
 	ui_nodes_hwnd->redraws          = 2;
 	ui_nodes_group_stack            = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->material_groups   = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->brushes           = any_array_create_from_raw(
-        (void *[]){
-            slot_brush_create(NULL),
-        },
-        1);
+	g_project->_->brushes           = any_array_create_from_raw((void *[]){}, 0);
+	any_array_push(g_project->_->brushes, slot_brush_create(NULL));
 	g_context->brush    = g_project->_->brushes->buffer[0];
 	g_project->_->fonts = any_array_create_from_raw(
 	    (void *[]){

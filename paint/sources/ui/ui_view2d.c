@@ -706,18 +706,20 @@ void ui_view2d_update(void *_) {
 				else if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 					ui_id_t name_id     = ui_widget_id(&l->name, UI_ID_TEXT);
 					bool    was_editing = g_ui->text_selected_id == name_id;
-					char   *old_name    = l->name;
 					ui_text_input(&l->name, "", UI_ALIGN_LEFT, true, false);
-					name_changed = ui_item_changed();
-					tab_stages_rename_layer(old_name, l->name);
+					name_changed               = ui_item_changed();
 					ui_view2d_text_input_hover = g_ui->is_hovered;
 
 					if (!was_editing && g_ui->text_selected_id == name_id) {
 						ui_view2d_layer_name_prev = string_copy(l->name);
 					}
-					else if (was_editing && g_ui->text_selected_id != name_id && ui_view2d_layer_name_prev != NULL &&
-					         !string_equals(ui_view2d_layer_name_prev, l->name)) {
-						history_layer_name(l, ui_view2d_layer_name_prev);
+					else if (was_editing && g_ui->text_selected_id != name_id && ui_view2d_layer_name_prev != NULL) {
+						char *name = string_equals(l->name, "") ? ui_view2d_layer_name_prev : l->name;
+						l->name    = string_copy(slot_layer_unique_name(l, name));
+						if (!string_equals(ui_view2d_layer_name_prev, l->name)) {
+							tab_stages_rename_layer(ui_view2d_layer_name_prev, l->name);
+							history_layer_name(l, ui_view2d_layer_name_prev);
+						}
 					}
 				}
 				else if (ui_view2d_type == VIEW_2D_TYPE_FONT) {

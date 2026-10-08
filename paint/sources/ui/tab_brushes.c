@@ -18,7 +18,8 @@ void tab_brushes_draw_duplicate(void *_) {
 	i32 i            = _tab_brushes_draw_i;
 	g_context->brush = slot_brush_create(NULL);
 	any_array_push(g_project->_->brushes, g_context->brush);
-	void *cloned             = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
+	ui_node_canvas_t *cloned = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
+	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
 	g_context->brush->canvas = cloned;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();

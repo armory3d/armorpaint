@@ -653,7 +653,7 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	l->path_tool          = -1;
 	l->path_curved        = curved;
 	l->path_material      = g_context->material;
-	char *name            = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	char *name            = string_copy(slot_layer_unique_name(l, string_tmp(curved ? "Curve %d" : "Path %d", l->id + 1)));
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 
@@ -672,7 +672,7 @@ slot_layer_t *layers_new_text_layer() {
 	}
 	l->path_text = true;
 	l->path_tool = TOOL_TYPE_TEXT;
-	char *name   = string("Text %d", l->id + 1);
+	char *name   = string_copy(slot_layer_unique_name(l, string_tmp("Text %d", l->id + 1)));
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 	return l;

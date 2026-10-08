@@ -1026,7 +1026,7 @@ void sculpt_init() {
 
 void sculpt_layers_create_sculpt_layer() {
 	slot_layer_t *l    = layers_new_layer(true, -1, NULL);
-	char         *name = string("Sculpt %d", l->id + 1);
+	char         *name = string_copy(slot_layer_unique_name(l, string_tmp("Sculpt %d", l->id + 1)));
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 	sculpt_init_meshes();

@@ -20,8 +20,10 @@ gpu_texture_t        *tab_swatches_empty_get();
 void                  tab_swatches_draw(i32 *htab);
 void                  tab_swatches_accept_swatch_drop(swatch_color_t *swatch);
 slot_brush_t         *slot_brush_create(ui_node_canvas_t *c);
+char                 *slot_brush_unique_name(ui_node_canvas_t *self, char *name);
 slot_layer_t         *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t *parent);
 slot_layer_t         *slot_layer_create_undo(char *ext);
+char                 *slot_layer_unique_name(slot_layer_t *self, char *name);
 void                  slot_layer_alloc_textures(slot_layer_t *raw);
 void                  slot_layer_delete(slot_layer_t *raw);
 void                  slot_layer_unload(slot_layer_t *raw);
@@ -159,6 +161,7 @@ void                      make_bake_run(node_shader_context_t *con, node_shader_
 void                      make_bake_position_normal(node_shader_t *kong);
 void                      make_bake_set_color_writes(node_shader_context_t *con_paint);
 slot_material_t          *slot_material_create(shader_data_t *m, ui_node_canvas_t *c);
+char                     *slot_material_unique_name(ui_node_canvas_t *self, char *name);
 void                      slot_material_unload(slot_material_t *raw);
 void                      slot_material_delete(slot_material_t *raw);
 void                      make_clone_run(node_shader_t *kong);

@@ -21,6 +21,7 @@ bool                     ui_nodes_is_node_menu_op       = false;
 gpu_texture_t           *ui_nodes_grid                  = NULL;
 bool                     ui_nodes_controls_down         = false;
 slot_material_t_array_t *ui_nodes_tabs                  = NULL;
+static char             *ui_nodes_canvas_name_prev      = NULL;
 ui_node_link_t          *_ui_nodes_on_link_drag_link_drag;
 ui_node_t               *_ui_nodes_on_link_drag_node;
 ui_node_socket_t        *_ui_nodes_on_socket_released_socket;
@@ -596,9 +597,15 @@ void ui_nodes_draw_menubar() {
 	if (full) {
 		char *new_name = c->name; // Applied below once the rename is validated
 		g_ui->_w       = math_floor(math_min(draw_string_width(g_font, g_ui->font_size, new_name) + 15 * UI_SCALE(), 100 * UI_SCALE()));
+		ui_id_t name_id     = ui_widget_id(&c->name, UI_ID_TEXT);
+		bool    was_editing = g_ui->text_selected_id == name_id;
+		if (!was_editing) {
+			ui_nodes_canvas_name_prev = c->name;
+		}
 		ui_set_next_id((ui_id_t)&c->name);
 		ui_text_input(&new_name, "", UI_ALIGN_LEFT, true, false);
 		bool name_changed = ui_item_changed();
+		bool commit       = was_editing && g_ui->text_selected_id != name_id;
 		g_ui->_x += g_ui->_w + 3;
 		g_ui->_y = 2 + start_y;
 		g_ui->_w = ew;
@@ -637,6 +644,14 @@ void ui_nodes_draw_menubar() {
 			else {
 				c->name = string_copy(new_name);
 			}
+		}
+		if (commit && ui_nodes_group_stack->length == 0) {
+			char *name = c->name;
+			if (string_equals(name, "")) {
+				name = ui_nodes_canvas_name_prev;
+			}
+			name    = ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? slot_material_unique_name(c, name) : slot_brush_unique_name(c, name);
+			c->name = string_copy(name);
 		}
 	}
 

@@ -77,7 +77,7 @@ void import_folder_run(char *path) {
 	ui_nodes_t       *nodes  = g_context->material->nodes;
 	ui_node_canvas_t *canvas = g_context->material->canvas;
 	string_array_t   *dirs   = string_split(path, PATH_SEP);
-	canvas->name             = string_copy(dirs->buffer[dirs->length - 1]);
+	canvas->name             = string_copy(slot_material_unique_name(canvas, dirs->buffer[dirs->length - 1]));
 	ui_node_t *nout          = NULL;
 	for (i32 i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *n = canvas->nodes->buffer[i];

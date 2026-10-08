@@ -37,6 +37,29 @@ void slot_layer_alloc_textures(slot_layer_t *raw) {
 	}
 }
 
+static bool slot_layer_is_unique_name(slot_layer_t *self, char *name) {
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *l = g_project->_->layers->buffer[i];
+		if (l != self && string_equals(l->name, name)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+char *slot_layer_unique_name(slot_layer_t *self, char *name) {
+	if (slot_layer_is_unique_name(self, name)) {
+		return name;
+	}
+	char *base;
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
+	while (!slot_layer_is_unique_name(self, res)) {
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
+	}
+	return res;
+}
+
 slot_layer_t *slot_layer_create_undo(char *ext) {
 	slot_layer_defer_alloc = true;
 	slot_layer_t *l        = slot_layer_create(ext, LAYER_SLOT_TYPE_LAYER, NULL);
@@ -119,6 +142,7 @@ slot_layer_t *slot_layer_create(char *ext, layer_slot_type_t type, slot_layer_t 
 		raw->texpaint_preview = gpu_create_render_target(util_render_layer_preview_size, util_render_layer_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
 	}
 
+	raw->name = string_copy(slot_layer_unique_name(raw, raw->name));
 	return raw;
 }
 

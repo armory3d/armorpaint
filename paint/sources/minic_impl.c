@@ -771,7 +771,7 @@ void script_layer_set_name(slot_layer_t *l, char *name) {
 		return;
 	}
 	char *old_name = l->name;
-	l->name        = string_copy(name);
+	l->name        = string_copy(slot_layer_unique_name(l, name));
 	tab_stages_rename_layer(old_name, l->name);
 	if (ui_base_hwnds != NULL) {
 		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
@@ -1079,7 +1079,7 @@ slot_material_t *script_material_create(char *name) {
 	shader_data_t   *data = g_project->_->materials->buffer[0]->data;
 	slot_material_t *m    = slot_material_create(data, NULL);
 	if (name != NULL && name[0] != '\0') {
-		m->canvas->name = string_copy(name);
+		m->canvas->name = string_copy(slot_material_unique_name(m->canvas, name));
 	}
 	any_array_push(g_project->_->materials, m);
 

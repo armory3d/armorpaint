@@ -449,16 +449,21 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	if (tab_layers_layer_name_edit == l->id) {
 		tab_layers_layer_name = string_copy(l->name);
 		char *new_name        = string_copy(ui_text_input(&tab_layers_layer_name, "", UI_ALIGN_LEFT, true, false));
-		tab_stages_rename_layer(l->name, new_name);
+		bool  commit          = g_ui->text_selected_id != ui_widget_id(&tab_layers_layer_name, UI_ID_TEXT);
+		if (commit) {
+			tab_layers_layer_name_edit = -1;
+			if (string_equals(new_name, "") && tab_layers_layer_name_prev != NULL) {
+				new_name = tab_layers_layer_name_prev;
+			}
+			new_name = string_copy(slot_layer_unique_name(l, new_name));
+		}
 		if (l->path_text && slot_layer_is_path(l) && !string_equals(l->name, new_name)) {
 			sys_notify_on_next_frame(&tab_layers_repaint_text_layer, l);
 		}
 		l->name = new_name;
-		if (g_ui->text_selected_id != ui_widget_id(&tab_layers_layer_name, UI_ID_TEXT)) {
-			tab_layers_layer_name_edit = -1;
-			if (tab_layers_layer_name_prev != NULL && !string_equals(tab_layers_layer_name_prev, l->name)) {
-				history_layer_name(l, tab_layers_layer_name_prev);
-			}
+		if (commit && tab_layers_layer_name_prev != NULL && !string_equals(tab_layers_layer_name_prev, l->name)) {
+			tab_stages_rename_layer(tab_layers_layer_name_prev, l->name);
+			history_layer_name(l, tab_layers_layer_name_prev);
 		}
 	}
 	else {
