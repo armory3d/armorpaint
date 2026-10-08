@@ -73,6 +73,7 @@ void _kickstart();
 bool enable_window = true;
 bool in_background = false;
 int  paused_frames = 0;
+bool (*iron_idle_wake)(void) = NULL;
 #ifdef IDLE_SLEEP
 bool input_down         = false;
 int  last_window_width  = 0;
@@ -225,7 +226,11 @@ void _update() {
 #else
 	const int start_sleep = 120;
 #endif
-	if (++paused_frames > start_sleep && !input_down) {
+	++paused_frames;
+	if (paused_frames > start_sleep && paused_frames % 100 == 0 && iron_idle_wake != NULL && iron_idle_wake()) {
+		paused_frames = 0;
+	}
+	if (paused_frames > start_sleep && !input_down) {
 #ifdef IRON_WINDOWS
 		Sleep(1);
 #elif !defined(IRON_WASM)
