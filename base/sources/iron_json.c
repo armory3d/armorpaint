@@ -4,6 +4,7 @@
 #include "iron_string.h"
 #include <jsmn.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -64,32 +65,125 @@ static void store_ptr_abs(void *ptr) {
 	wi += PTR_SIZE;
 }
 
-static uint32_t json_string_len(char *str, uint32_t len) {
-	uint32_t out = 0;
-	for (uint32_t i = 0; i < len; ++i) {
-		// Escaped \" collapses to one byte
-		if (str[i] == '\\' && i + 1 < len && str[i + 1] == '"') {
-			i++;
+static int hex4(char *s) {
+	int v = 0;
+	for (int i = 0; i < 4; ++i) {
+		char c = s[i];
+		v <<= 4;
+		if (c >= '0' && c <= '9') {
+			v |= c - '0';
 		}
-		out++;
+		else if (c >= 'a' && c <= 'f') {
+			v |= c - 'a' + 10;
+		}
+		else if (c >= 'A' && c <= 'F') {
+			v |= c - 'A' + 10;
+		}
+		else {
+			return -1;
+		}
 	}
-	return out;
+	return v;
+}
+
+// Decodes escapes of a json string into out (or only measures it when out is NULL)
+// The result is never longer than the source
+static uint32_t json_unescape(char *str, uint32_t len, char *out) {
+	uint32_t n = 0;
+	for (uint32_t i = 0; i < len; ++i) {
+		char c = str[i];
+		if (c == '\\' && i + 1 < len) {
+			char e = str[++i];
+			if (e == 'n') {
+				c = '\n';
+			}
+			else if (e == 't') {
+				c = '\t';
+			}
+			else if (e == 'r') {
+				c = '\r';
+			}
+			else if (e == 'b') {
+				c = '\b';
+			}
+			else if (e == 'f') {
+				c = '\f';
+			}
+			else if (e == '"' || e == '\\' || e == '/') {
+				c = e;
+			}
+			else if (e == 'u' && i + 4 < len && hex4(str + i + 1) >= 0) {
+				uint32_t cp = hex4(str + i + 1);
+				i += 4;
+				// Surrogate pair
+				if (cp >= 0xd800 && cp < 0xdc00 && i + 6 < len && str[i + 1] == '\\' && str[i + 2] == 'u') {
+					int lo = hex4(str + i + 3);
+					if (lo >= 0xdc00 && lo < 0xe000) {
+						cp = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00);
+						i += 6;
+					}
+				}
+				char     utf8[4];
+				uint32_t l = 0;
+				if (cp < 0x80) {
+					utf8[l++] = cp;
+				}
+				else if (cp < 0x800) {
+					utf8[l++] = 0xc0 | (cp >> 6);
+					utf8[l++] = 0x80 | (cp & 0x3f);
+				}
+				else if (cp < 0x10000) {
+					utf8[l++] = 0xe0 | (cp >> 12);
+					utf8[l++] = 0x80 | ((cp >> 6) & 0x3f);
+					utf8[l++] = 0x80 | (cp & 0x3f);
+				}
+				else {
+					utf8[l++] = 0xf0 | (cp >> 18);
+					utf8[l++] = 0x80 | ((cp >> 12) & 0x3f);
+					utf8[l++] = 0x80 | ((cp >> 6) & 0x3f);
+					utf8[l++] = 0x80 | (cp & 0x3f);
+				}
+				if (out != NULL) {
+					memcpy(out + n, utf8, l);
+				}
+				n += l;
+				continue;
+			}
+			else {
+				// Not a json escape, keep the backslash (raw windows paths)
+				if (out != NULL) {
+					out[n] = c;
+				}
+				n++;
+				c = e;
+			}
+		}
+		if (out != NULL) {
+			out[n] = c;
+		}
+		n++;
+	}
+	return n;
+}
+
+static char *json_unescape_copy(char *str, uint32_t len) {
+	char *r = string_alloc(len + 1);
+	json_unescape(str, len, r);
+	return r;
+}
+
+static uint32_t json_string_len(char *str, uint32_t len) {
+	return json_unescape(str, len, NULL);
 }
 
 static void store_string_bytes(char *str, uint32_t len) {
-	for (uint32_t i = 0; i < len; ++i) {
-		if (str[i] == '\\' && i + 1 < len && str[i + 1] == '"') {
-			store_u8('"');
-			i++;
-			continue;
-		}
-		store_u8(str[i]);
-	}
+	wi += json_unescape(str, len, (char *)decoded + wi);
 	store_u8('\0');
 }
 
 static bool is_key(char *s, jsmntok_t *t) {
-	return t->type == JSMN_STRING && s[t->end + 1] == ':';
+	// jsmn gives a key its value as the only child
+	return t->type == JSMN_STRING && t->size == 1;
 }
 
 static jsmntok_t get_token() {
@@ -271,10 +365,15 @@ static void load_tokens(char *s) {
 	jsmn_parser parser;
 	jsmn_init(&parser);
 	num_tokens = jsmn_parse(&parser, s, strlen(s), NULL, 0);
+	if (num_tokens < 0) {
+		num_tokens = 0; // Invalid json
+	}
 
 	tokens = malloc(sizeof(jsmntok_t) * num_tokens);
 	jsmn_init(&parser);
-	jsmn_parse(&parser, s, strlen(s), tokens, num_tokens);
+	if (jsmn_parse(&parser, s, strlen(s), tokens, num_tokens) < 0) {
+		num_tokens = 0; // Truncated json, only caught when filling tokens
+	}
 
 	source = s;
 	ti     = 0;
@@ -294,48 +393,103 @@ void *json_parse(char *s) {
 	return decoded;
 }
 
-static void token_write_to_map(any_map_t *m) {
-	jsmntok_t t = get_token();
-
+static int skip_token(int i) {
+	jsmntok_t t = tokens[i++];
 	if (t.type == JSMN_OBJECT) {
-		// TODO: Object containing another object
-		ti++;
-		for (uint32_t i = 0; i < t.size; ++i) {
-			token_write_to_map(m);
+		for (int j = 0; j < t.size; ++j) {
+			i = skip_token(i + 1); // Key, value
 		}
 	}
-	else if (t.type == JSMN_PRIMITIVE) {
-		jsmntok_t tkey = tokens[ti - 1];
-		ti++;
-		any_map_set(m, substring(source, tkey.start, tkey.end), substring(source, t.start, t.end));
-	}
 	else if (t.type == JSMN_ARRAY) {
-		ti++;
+		for (int j = 0; j < t.size; ++j) {
+			i = skip_token(i);
+		}
 	}
-	else if (t.type == JSMN_STRING) {
-		jsmntok_t tkey = tokens[ti - 1];
-		ti++;
-		any_map_set(m, substring(source, tkey.start, tkey.end), substring(source, t.start, t.end));
+	return i;
+}
+
+// Nested keys are flattened into dotted paths ("params.arguments.code"), arrays are skipped
+static int token_write_to_map(any_map_t *m, int i, char *prefix) {
+	jsmntok_t t = tokens[i++];
+	for (int j = 0; j < t.size; ++j) {
+		jsmntok_t tkey = tokens[i++];
+		char     *key  = json_unescape_copy(source + tkey.start, tkey.end - tkey.start);
+		if (prefix != NULL) {
+			key = string("%s.%s", prefix, key);
+		}
+		jsmntok_t v = tokens[i];
+		if (v.type == JSMN_OBJECT) {
+			i = token_write_to_map(m, i, key);
+		}
+		else if (v.type == JSMN_ARRAY) {
+			i = skip_token(i);
+		}
+		else {
+			i++;
+			any_map_set(m, key,
+			            v.type == JSMN_STRING ? json_unescape_copy(source + v.start, v.end - v.start) : substring(source, v.start, v.end));
+		}
 	}
+	return i;
 }
 
 any_map_t *json_parse_to_map(char *s) {
 	load_tokens(s);
 
 	any_map_t *m = any_map_create();
-	token_write_to_map(m);
+	if (num_tokens > 0 && tokens[0].type == JSMN_OBJECT) {
+		token_write_to_map(m, 0, NULL);
+	}
 
 	free(tokens);
 	return m;
 }
 
 static buffer_t encoded;
-static int      keys;
+static int      object_nest = 0;
+static int      object_keys[16];
 static int      array_nest = -1;
 static int      array_length[16];
 
 static void enc(char *s) {
 	string_buffer_append(&encoded, s);
+}
+
+static void enc_escaped(char *s) {
+	char chunk[256];
+	int  n = 0;
+	for (; *s != '\0'; ++s) {
+		unsigned char c = *s;
+		if (n > (int)sizeof(chunk) - 8) {
+			chunk[n] = '\0';
+			enc(chunk);
+			n = 0;
+		}
+		if (c == '"' || c == '\\') {
+			chunk[n++] = '\\';
+			chunk[n++] = c;
+		}
+		else if (c == '\n') {
+			chunk[n++] = '\\';
+			chunk[n++] = 'n';
+		}
+		else if (c == '\t') {
+			chunk[n++] = '\\';
+			chunk[n++] = 't';
+		}
+		else if (c == '\r') {
+			chunk[n++] = '\\';
+			chunk[n++] = 'r';
+		}
+		else if (c < 0x20) {
+			n += snprintf(chunk + n, 7, "\\u%04x", c);
+		}
+		else {
+			chunk[n++] = c;
+		}
+	}
+	chunk[n] = '\0';
+	enc(chunk);
 }
 
 void json_encode_begin() {
@@ -344,7 +498,8 @@ void json_encode_begin() {
 	}
 	string_buffer_reset(&encoded);
 	enc("{");
-	keys = 0;
+	object_nest              = 0;
+	object_keys[object_nest] = 0;
 }
 
 char *json_encode_end() {
@@ -353,13 +508,13 @@ char *json_encode_end() {
 }
 
 void json_encode_key(char *k) {
-	if (keys > 0) {
+	if (object_keys[object_nest] > 0) {
 		enc(",");
 	}
 	enc("\"");
-	enc(k);
+	enc_escaped(k);
 	enc("\":");
-	keys++;
+	object_keys[object_nest]++;
 }
 
 void json_encode_null(char *k) {
@@ -369,7 +524,7 @@ void json_encode_null(char *k) {
 
 void json_encode_string_value(char *v) {
 	enc("\"");
-	enc(v);
+	enc_escaped(v);
 	enc("\"");
 }
 
@@ -457,11 +612,20 @@ void json_encode_begin_object() {
 		}
 		array_length[array_nest]++;
 	}
-	keys = 0;
+	object_nest++;
+	object_keys[object_nest] = 0;
+	enc("{");
+}
+
+void json_encode_begin_object_key(char *k) {
+	json_encode_key(k);
+	object_nest++;
+	object_keys[object_nest] = 0;
 	enc("{");
 }
 
 void json_encode_end_object() {
+	object_nest--;
 	enc("}");
 }
 
