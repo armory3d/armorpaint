@@ -4,7 +4,9 @@
 #include <unistd.h>
 #endif
 
-static i32 agent_backend = CONSOLE_MODEL_QWEN;
+static i32  agent_backend = CONSOLE_MODEL_QWEN;
+static bool agent_console = false;
+static bool agent_mcp     = false;
 
 #define AGENT_RULES                                  \
 	"Place the code inside 'void main()' function. " \
@@ -107,15 +109,82 @@ static char *agent_scene_bounds(void) {
 	return result;
 }
 
-static char *agent_project_contents(void) {
+static char *agent_project_json(bool scripts) {
 	swatch_color_t_array_t *swatches = g_project->swatches;
+	string_array_t         *datas    = g_project->script_datas;
 	g_project->swatches              = NULL;
+	g_project->script_datas          = scripts ? datas : NULL;
 	buffer_t *encoded                = util_encode_project(g_project);
 	g_project->swatches              = swatches;
+	g_project->script_datas          = datas;
 	char *json                       = armpack_decode_to_json_omit_large_arrays(encoded);
 	array_free(encoded);
 	free(encoded);
-	return string("/* Current project state:\n%s\n%s%s*/\n", json, agent_scene_bounds(), agent_shapes());
+	return json;
+}
+
+static char *agent_project_contents(void) {
+	return string("/* Current project state:\n%s\n%s%s*/\n", agent_project_json(true), agent_scene_bounds(), agent_shapes());
+}
+
+static void agent_json_indent(buffer_t *sb, i32 depth) {
+	string_buffer_append(sb, "\n");
+	for (i32 i = 0; i < depth; ++i) {
+		string_buffer_append(sb, "\t");
+	}
+}
+
+static char *agent_json_pretty(char *json) {
+	buffer_t sb;
+	string_buffer_init(&sb);
+	i32  depth   = 0;
+	i32  inline_ = 0; // Nesting of the array kept on one line
+	bool str     = false;
+	char c[2]    = {0, 0};
+	for (i32 i = 0; json[i] != '\0'; ++i) {
+		c[0] = json[i];
+		string_buffer_append(&sb, c);
+		if (str) {
+			if (c[0] == '\\' && json[i + 1] != '\0') {
+				c[0] = json[++i];
+				string_buffer_append(&sb, c);
+				continue;
+			}
+			if (c[0] != '"') {
+				continue;
+			}
+			str = false;
+		}
+		else if (c[0] == '"') {
+			str = true;
+			continue;
+		}
+		else if (inline_ > 0) {
+			inline_ += c[0] == '[' ? 1 : c[0] == ']' ? -1 : 0;
+		}
+		else if (c[0] == '[' && json[i + 1] != '{' && json[i + 1] != '[' && json[i + 1] != '"') {
+			inline_ = 1;
+		}
+		else if (c[0] == '{' && json[i + 1] == '}') {
+			string_buffer_append(&sb, "}");
+			++i;
+		}
+		else if (c[0] == '{' || c[0] == '[') {
+			agent_json_indent(&sb, ++depth);
+		}
+		else if (c[0] == ',') {
+			agent_json_indent(&sb, depth);
+		}
+		else if (c[0] == ':') {
+			string_buffer_append(&sb, " ");
+		}
+		if (inline_ == 0 && (json[i + 1] == '}' || json[i + 1] == ']')) {
+			agent_json_indent(&sb, --depth);
+		}
+	}
+	char *result = string_copy(string_buffer_get(&sb));
+	string_buffer_free(&sb);
+	return result;
 }
 
 static void agent_write_sockets(buffer_t *sb, char *label, ui_node_socket_t_array_t *sockets) {
@@ -228,34 +297,16 @@ static char *agent_exe(void) {
 	return string_replace_all(iron_get_arg(0), "\\", "/");
 }
 
-static char *agent_send_cmd(void) {
-	return string("'%s' --send", agent_exe());
-}
-
-static char *agent_restore_cmd(void) {
-	return string("'%s' --restore", agent_exe());
-}
-
-static char *agent_play_cmd(void) {
-	return string("'%s' --play", agent_exe());
-}
-
-static char *agent_run_cmd(void) {
-	return string("'%s' --run", agent_exe());
-}
-
-static char *agent_cli_guide(char *dir) {
-	return string("Edit the ArmorPaint project '%s' in steps, each a C script that modifies the project. " AGENT_RULES AGENT_SCRIPTS
-	              "Step: write '%s/stepN.c' (N = 1, 2, 3...) and run exactly: %s '%s/stepN.c'\n"
-	              "It prints the log and saves a window screenshot to '%s/stepN.png'.\n"
-	              "Start over from the original project: %s\nThen replay the steps to keep.\n"
-	              "Project scripts are '%s/scripts/<name>.c'. Run a task script like a step: %s <name>\n"
-	              "Test by playing: %s <seconds> ['<test script>']\n"
-	              "It prints the log, saves a screenshot to '%s/playN.png' and rolls the project back. The test script runs alongside "
-	              "the game, it can call script_screenshot(path) from script_timer() callbacks and must not call "
-	              "script_notify_on_update() or script_notify_on_next_frame().\n"
-	              "When finished, reply 'Done.'.\n",
-	              g_project->_->filepath, dir, agent_send_cmd(), dir, dir, agent_restore_cmd(), dir, agent_run_cmd(), agent_play_cmd(), dir);
+static char *agent_mcp_guide(char *dir) {
+	return string("Edit the ArmorPaint project '%s' in steps with the armorpaint tools, each step a C script that modifies the "
+	              "project. " AGENT_RULES AGENT_SCRIPTS
+	              "Run a step with the step tool, it returns the log and a screenshot. The step files are kept in '%s'.\n"
+	              "Start over from the original project with the restore tool, then replay the steps to keep.\n"
+	              "Project scripts are '%s/scripts/<name>.c', edit them as files. Run a task script like a step with the run tool.\n"
+	              "Test by playing with the play tool. It returns the log and a screenshot and rolls the project back. The test "
+	              "script runs alongside the game, it can call script_screenshot(path) from script_timer() callbacks and must "
+	              "not call script_notify_on_update() or script_notify_on_next_frame().\n",
+	              g_project->_->filepath, dir, dir);
 }
 
 static char *agent_context(char *guide) {
@@ -293,22 +344,22 @@ static string_array_t *agent_claude_args(char *dir, char *prompt) {
 	        "--output-format",
 	        "text",
 	        "--tools",
-	        "Bash,Read,Write,Edit",
+	        "Read,Write,Edit",
 	        "--permission-mode",
 	        "acceptEdits",
 	        "--add-dir",
 	        agent_project_dir(),
+	        "--mcp-config",
+	        string("{\"mcpServers\":{\"armorpaint\":{\"command\":\"%s\",\"args\":[\"--mcp\"]}}}", agent_exe()),
+	        "--strict-mcp-config",
 	        "--allowedTools",
-	        string("Bash(%s:*)", agent_send_cmd()),
-	        string("Bash(%s)", agent_restore_cmd()),
-	        string("Bash(%s:*)", agent_play_cmd()),
-	        string("Bash(%s:*)", agent_run_cmd()),
+	        "mcp__armorpaint",
 	        "--append-system-prompt-file",
-	        string("%s%sapi.h", dir, PATH_SEP),
+	        string("%s%sAGENTS.md", dir, PATH_SEP),
 	        prompt,
 	        NULL,
 	    },
-	    18);
+	    19);
 	return argv;
 }
 
@@ -321,23 +372,18 @@ static string_array_t *agent_grok_args(char *dir, char *prompt) {
 	        "--output-format",
 	        "plain",
 	        "--cwd",
-	        dir, // Pick up AGENTS.md
+	        dir,
 	        "--disable-web-search",
+	        "--trust",
 	        "--allow",
 	        string("Write(%s/**)", agent_project_dir()),
 	        "--allow",
 	        string("Edit(%s/**)", agent_project_dir()),
 	        "--allow",
-	        string("Bash(%s:*)", agent_send_cmd()),
-	        "--allow",
-	        string("Bash(%s)", agent_restore_cmd()),
-	        "--allow",
-	        string("Bash(%s:*)", agent_play_cmd()),
-	        "--allow",
-	        string("Bash(%s:*)", agent_run_cmd()),
+	        "mcp__armorpaint",
 	        NULL,
 	    },
-	    21);
+	    16);
 	return argv;
 }
 
@@ -357,10 +403,14 @@ static string_array_t *agent_codex_args(char *dir, char *prompt) {
 	        agent_project_dir(),
 	        "--output-last-message",
 	        agent_result_path(),
+	        "-c",
+	        string("mcp_servers.armorpaint.command=\"%s\"", agent_exe()),
+	        "-c",
+	        "mcp_servers.armorpaint.args=[\"--mcp\"]",
 	        prompt,
 	        NULL,
 	    },
-	    15);
+	    19);
 	return argv;
 }
 
@@ -384,6 +434,18 @@ static char *agent_read_result(void) {
 
 static char *agent_file(char *name) {
 	return string("%s%s%s", agent_dir, PATH_SEP, name);
+}
+
+static char *agent_reference_write(void) {
+	char *api     = agent_file("api.h");
+	char *project = agent_file("project.txt");
+	iron_file_save_bytes(api, sys_string_to_buffer(string("%s\n%s", minic_api_header_generate(), agent_nodes_reference())), 0);
+	char *state = string("Current project state, script_datas are the files in '%s':\n%s\n%s%s", agent_file("scripts"),
+	                     agent_json_pretty(agent_project_json(false)), agent_scene_bounds(), agent_shapes());
+	iron_file_save_bytes(project, sys_string_to_buffer(state), 0);
+	return string("The C scripting API and the material nodes are in '%s', read it before the first step. The project state, as json with "
+	              "the scene objects, is in '%s', read or search the parts you need.\n",
+	              api, project);
 }
 
 static void agent_scripts_write(void) {
@@ -444,7 +506,7 @@ static void agent_finish(char *s) {
 			console_log(lines->buffer[i]);
 		}
 	}
-	iron_delete_file(agent_serve_file("serving"));
+	agent_console = false;
 	agent_running = false;
 	base_redraw_console();
 }
@@ -546,11 +608,15 @@ void agent_draw_overlay(void) {
 
 static char *agent_step_path              = NULL;
 static bool  agent_step_shot              = false;
+static char *agent_step_shot_path         = NULL;
 static void (*agent_step_done)(char *log) = NULL;
 
 static void agent_step_finish(void) {
 	char *log       = console_capture;
 	console_capture = NULL;
+	if (agent_step_shot) {
+		log = string("%sScreenshot saved to '%s'\n", log, agent_step_shot_path);
+	}
 	agent_step_done(log);
 }
 
@@ -563,7 +629,8 @@ static void agent_step_after(void) {
 	if (ends_with(path, ".c")) {
 		path = substring(path, 0, string_length(path) - 2);
 	}
-	script_screenshot_queue(string("%s.png", path), 8, agent_step_finish);
+	agent_step_shot_path = string_copy(string("%s.png", path));
+	script_screenshot_queue(agent_step_shot_path, 8, agent_step_finish);
 }
 
 static void agent_step_evaluated(bool ok) {
@@ -659,12 +726,18 @@ static char *agent_task_snapshot(char *name) {
 }
 
 static bool agent_serve_busy = false;
+static bool agent_serve_lock = false;
 
 static void agent_serve_respond(char *log) {
 	char *tmp = agent_serve_file("response.tmp");
 	iron_file_save_bytes(tmp, sys_string_to_buffer(log), 0);
 	rename(tmp, agent_serve_file("response.txt"));
 	agent_serve_busy = false;
+	if (agent_serve_lock) {
+		agent_serve_lock = false;
+		agent_running    = false;
+		base_redraw_console();
+	}
 }
 
 static void agent_serve_restored(void) {
@@ -703,29 +776,17 @@ static void agent_serve_request(void *data) {
 	}
 }
 
-static void agent_serve_finish(void *_) {
+static void agent_console_finish(void *_) {
 	agent_finish(agent_read_result());
 }
 
-static void agent_serve(void *_) {
+static void agent_console_wait(void *_) {
 	iron_delay_idle_sleep();
-	if (agent_serve_busy) {
+	if (agent_serve_busy || iron_exec_async_done != 1) {
 		return;
 	}
-	char *request = agent_serve_file("request.txt");
-	if (iron_file_exists(request)) {
-		buffer_t *b = iron_load_blob(request);
-		char     *s = string_copy(trim_end(sys_buffer_to_string(b)));
-		iron_delete_blob(b);
-		iron_delete_file(request);
-		agent_serve_busy = true;
-		sys_notify_on_next_frame(agent_serve_request, s);
-		return;
-	}
-	if (iron_exec_async_done == 1) {
-		sys_remove_update(agent_serve);
-		sys_notify_on_next_frame(agent_serve_finish, NULL);
-	}
+	sys_remove_update(agent_console_wait);
+	sys_notify_on_next_frame(agent_console_finish, NULL);
 }
 
 static void agent_qwen_turn(void);
@@ -845,21 +906,25 @@ char *agent_reference(void) {
 	return agent_context(agent_code_guide);
 }
 
-static void agent_start(void *_) {
+static void agent_session_begin(void) {
 	export_arm_run_project(g_project->_->filepath);
-
-	char *dir = agent_dir;
-	agent_ensure_dir(dir);
-	agent_clear_dir(dir);
-	char *serve_dir = string("%sagent", iron_internal_save_path());
-	agent_ensure_dir(serve_dir);
-	agent_clear_dir(serve_dir);
+	agent_ensure_dir(agent_dir);
+	agent_clear_dir(agent_dir);
 	agent_scripts_write();
 	player_runtime_capture();
 	agent_steps      = any_array_create(0);
 	agent_play_count = 0;
 	agent_task_count = 0;
-	agent_running    = true;
+}
+
+static void agent_start(void *_) {
+	char *serve_dir = string("%sagent", iron_internal_save_path());
+	agent_ensure_dir(serve_dir);
+	agent_clear_dir(serve_dir);
+	agent_mcp = false;
+	agent_session_begin();
+	agent_running = true;
+	char *dir     = agent_dir;
 
 	if (agent_backend == CONSOLE_MODEL_QWEN) {
 		agent_qwen_reference = string_copy(agent_context(agent_qwen_guide));
@@ -870,24 +935,82 @@ static void agent_start(void *_) {
 	}
 
 	string_array_t *argv;
-	char           *reference = agent_context(agent_cli_guide(dir));
-	if (agent_backend == CONSOLE_MODEL_CLAUDE) {
-		iron_file_save_bytes(agent_file("api.h"), sys_string_to_buffer(reference), 0);
-		argv = agent_claude_args(dir, agent_prompt);
+	char           *guide = string("%sThe session is already begun, do not call the reference tool. When finished, reply 'Done.'.\n", agent_mcp_guide(dir));
+	iron_file_save_bytes(agent_file("AGENTS.md"), sys_string_to_buffer(string("%s%s", guide, agent_reference_write())), 0);
+	argv = agent_backend == CONSOLE_MODEL_CLAUDE ? agent_claude_args(dir, agent_prompt)
+	       : agent_backend == CONSOLE_MODEL_GROK ? agent_grok_args(dir, agent_prompt)
+	                                             : agent_codex_args(dir, agent_prompt);
+	if (agent_backend == CONSOLE_MODEL_GROK) {
+		agent_ensure_dir(agent_file(".grok"));
+		char *toml = string("[mcp_servers.armorpaint]\ncommand = \"%s\"\nargs = [\"--mcp\"]\n", agent_exe());
+		iron_file_save_bytes(agent_file(string(".grok%sconfig.toml", PATH_SEP)), sys_string_to_buffer(toml), 0);
 	}
-	else {
-		iron_file_save_bytes(agent_file("AGENTS.md"), sys_string_to_buffer(reference), 0);
-		argv = agent_backend == CONSOLE_MODEL_GROK ? agent_grok_args(dir, agent_prompt) : agent_codex_args(dir, agent_prompt);
-	}
-	iron_file_save_bytes(agent_serve_file("serving"), sys_string_to_buffer(""), 0);
+	agent_console = true;
 
 	char *res = agent_result_path();
 	iron_delete_file(res);
-	agent_serve_busy            = false;
 	iron_exec_async_output_file = agent_backend == CONSOLE_MODEL_CODEX ? NULL : res;
 	iron_exec_async(argv->buffer[0], argv->buffer);
 	iron_exec_async_output_file = NULL;
-	sys_notify_on_update(agent_serve, NULL);
+	sys_notify_on_update(agent_console_wait, NULL);
+}
+
+static void agent_mcp_request(void *data) {
+	if (agent_running && !agent_console) {
+		agent_serve_respond("\nArmorPaint is busy with a console agent run\n");
+		return;
+	}
+	if (!agent_running) {
+		agent_running    = true;
+		agent_serve_lock = true;
+	}
+	if (!string_equals(data, "begin")) {
+		if (agent_console || agent_mcp) {
+			agent_serve_request(data);
+		}
+		else {
+			agent_serve_respond("No session, call the reference tool to begin one\n");
+		}
+		return;
+	}
+	if (agent_console) {
+		agent_serve_respond(string("%s\nThe session was begun by ArmorPaint, the reference is in your instructions.\n", agent_dir));
+		return;
+	}
+	if (string_equals(g_project->_->filepath, "")) {
+		agent_mcp = false;
+		agent_serve_respond("\nSave the project in ArmorPaint first\n");
+		return;
+	}
+	agent_dir = string_copy(agent_work_dir());
+	agent_session_begin();
+	agent_mcp = true;
+	agent_serve_respond(string("%s\n%s%s", agent_dir, agent_mcp_guide(agent_dir), agent_reference_write()));
+}
+
+static bool agent_mcp_pending(void) {
+	return iron_file_exists(agent_serve_file("request.txt"));
+}
+
+static void agent_listen(void *_) {
+	if (agent_serve_busy || !agent_mcp_pending()) {
+		return;
+	}
+	char     *request = agent_serve_file("request.txt");
+	buffer_t *b       = iron_load_blob(request);
+	char     *s       = string_copy(trim_end(sys_buffer_to_string(b)));
+	iron_delete_blob(b);
+	iron_delete_file(request);
+	agent_serve_busy = true;
+	iron_delay_idle_sleep();
+	sys_notify_on_next_frame(agent_mcp_request, s);
+}
+
+void agent_init(void) {
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+	sys_notify_on_update(agent_listen, NULL);
+	iron_idle_wake = agent_mcp_pending;
+#endif
 }
 
 void agent_run(char *prompt) {

@@ -516,6 +516,7 @@ void base_init() {
 	sys_notify_on_drop_files(&base_on_drop_files);
 	sys_notify_on_app_state(&base_on_foreground, &base_on_background, &base_on_shutdown);
 	iron_set_save_and_quit_callback(base_save_and_quit_callback);
+	agent_init();
 
 	g_font = data_get_font("font.ttf");
 

@@ -386,7 +386,7 @@ void _kickstart() {
 
 	iron_set_app_name(manifest_title); // Used to locate external application data folder
 #if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
-	args_send();
+	args_mcp();
 #endif
 	config_load();
 	config_init();

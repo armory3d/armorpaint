@@ -668,7 +668,7 @@ char                     *parser_material_node_name(ui_node_t *node, ui_node_t_a
 char                     *parser_material_enum_data(char *s);
 bind_tex_t               *parser_material_make_bind_tex(char *tex_name, char *file);
 char                     *u8_array_string_at(u8_array_t *a, i32 i);
-void                      args_send();
+void                      args_mcp();
 void                      args_parse();
 void                      args_run();
 void                      util_render_make_material_preview();
@@ -1101,6 +1101,7 @@ void              text_to_image_node_run(ui_node_t *node, void (*callback)(ui_no
 void              upscale_image_node_init();
 void              image_to_pbr_node_init();
 void              text_to_image_node_init();
+void              agent_init(void);
 void              agent_clear(void);
 char             *agent_reference(void);
 void              agent_run(char *prompt);
