@@ -369,7 +369,7 @@ void ui_base_toggle_distract_free() {
 	}
 
 	ui_base_show = !ui_base_show;
-	if (ui_base_show) {
+	if (ui_base_show && g_config->workspace == WORKSPACE_PLAYER) {
 		g_config->workspace = WORKSPACE_PAINT_3D;
 		base_update_workspace();
 	}

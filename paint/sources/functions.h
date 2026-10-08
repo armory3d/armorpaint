@@ -802,6 +802,7 @@ ui_canvas_control_t      *ui_nodes_get_canvas_control(bool controls_down, bool i
 ui_node_canvas_t         *ui_nodes_get_canvas(bool groups);
 ui_nodes_t               *ui_nodes_get_nodes();
 ui_nodes_editor_state_t  *ui_nodes_editor_state(ui_node_t *node);
+void                      ui_nodes_update_rect();
 void                      ui_nodes_update(void *_);
 void                      ui_nodes_canvas_changed();
 gpu_texture_t            *ui_nodes_draw_grid(f32 zoom);
