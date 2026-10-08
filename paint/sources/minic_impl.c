@@ -908,10 +908,19 @@ void script_project_new(void) {
 	g_context->ddirty = 2;
 }
 
+static char *script_resolve_path(char *path) {
+	// iron_file_exists() checks relative paths against the cwd, data_get_blob() against data/
+	if (data_is_abs(path) || data_is_up(path) || starts_with(path, "./")) {
+		return path;
+	}
+	return string("./%s", path);
+}
+
 void script_project_open(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
@@ -924,6 +933,7 @@ void script_import_asset(char *path, bool hdr_as_envmap) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
@@ -947,6 +957,7 @@ void script_append_mesh(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
