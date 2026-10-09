@@ -667,6 +667,7 @@ typedef struct timeline_layer_keyframe_data {
 	struct buffer    *texpaint;
 	struct buffer    *texpaint_nor;
 	struct buffer    *texpaint_pack;
+	struct buffer    *texpaint_sculpt;
 	struct f32_array *path_points;
 	struct f32_array *path_points_world;
 	struct f32_array *path_points_camera;
