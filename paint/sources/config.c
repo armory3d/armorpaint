@@ -269,7 +269,7 @@ void config_init() {
 		g_config->neural_res          = 512;
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
 		g_config->render_mode         = RENDER_MODE_DEFERRED;
-		g_config->workspace           = WORKSPACE_PAINT_3D;
+		g_config->workspace           = WORKSPACE_VIEW_3D;
 		g_config->workflow            = WORKFLOW_PBR;
 	}
 	else {

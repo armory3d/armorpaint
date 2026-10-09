@@ -578,7 +578,7 @@ void ui_nodes_draw_menubar() {
 		g_ui->_w = math_floor(ew + 3);
 		if (ui_icon_button("Back", ICON_ARROW_LEFT, UI_ALIGN_CENTER)) {
 			g_ui->input_released = false;
-			g_config->workspace  = WORKSPACE_PAINT_3D;
+			g_config->workspace  = WORKSPACE_VIEW_3D;
 			config_save();
 			base_update_workspace();
 		}

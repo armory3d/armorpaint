@@ -76,11 +76,11 @@ typedef enum {
 } viewport_mode_t;
 
 typedef enum {
-	WORKSPACE_PAINT_3D = 0,
-	WORKSPACE_PAINT_2D = 1,
-	WORKSPACE_NODES    = 2,
-	WORKSPACE_SCRIPT   = 3,
-	WORKSPACE_PLAYER   = 4,
+	WORKSPACE_VIEW_3D = 0,
+	WORKSPACE_VIEW_2D = 1,
+	WORKSPACE_NODES   = 2,
+	WORKSPACE_SCRIPT  = 3,
+	WORKSPACE_PLAYER  = 4,
 } workspace_t;
 
 typedef enum {

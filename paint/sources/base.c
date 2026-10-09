@@ -575,7 +575,7 @@ void base_init() {
 
 	args_run();
 
-	if (g_config->workspace != WORKSPACE_PAINT_3D) {
+	if (g_config->workspace != WORKSPACE_VIEW_3D) {
 		base_update_workspace();
 	}
 	if (g_config->workflow != WORKFLOW_PBR) {
@@ -899,13 +899,13 @@ void base_redraw_ui() {
 void base_update_workspace() {
 	config_init_layout();
 
-	if (g_config->workspace == WORKSPACE_PAINT_3D) {
+	if (g_config->workspace == WORKSPACE_VIEW_3D) {
 		base_view3d_show = true;
 		ui_menubar_tab   = 0;
 		ui_view2d_show   = false;
 		ui_nodes_show    = false;
 	}
-	else if (g_config->workspace == WORKSPACE_PAINT_2D) {
+	else if (g_config->workspace == WORKSPACE_VIEW_2D) {
 		base_view3d_show = false;
 		ui_menubar_tab   = -1;
 		ui_view2d_show   = true;
@@ -945,7 +945,7 @@ void base_update_workspace() {
 
 	if (g_config->touch_ui) {
 		g_config->layout->buffer[LAYOUT_SIZE_HEADER] = 0;
-		if (g_config->workspace == WORKSPACE_PAINT_2D || g_config->workspace == WORKSPACE_PAINT_3D) {
+		if (g_config->workspace == WORKSPACE_VIEW_2D || g_config->workspace == WORKSPACE_VIEW_3D) {
 			ui_sidebar_show(true);
 			g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] = ui_sidebar_default_w_mini;
 			g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] = math_floor(g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] * UI_SCALE());

@@ -646,7 +646,7 @@ void ui_view2d_update(void *_) {
 				g_ui->_w = math_floor(ew * 0.7 + 3);
 				if (ui_icon_button(tr("Back"), ICON_ARROW_LEFT, UI_ALIGN_CENTER)) {
 					g_ui->input_released = false;
-					g_config->workspace  = WORKSPACE_PAINT_3D;
+					g_config->workspace  = WORKSPACE_VIEW_3D;
 					config_save();
 					base_update_workspace();
 				}
