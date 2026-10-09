@@ -261,53 +261,6 @@ void export_obj_run_fast(char *path, mesh_object_t_array_t *paint_objects) {
 	array_delete(o);
 }
 
-static bool export_obj_sculpt_layer_mask(slot_layer_t *l, f32_array_t *pmask, i32 len, i16_array_t *texa, u32_array_t *inda, f32 inv) {
-	slot_layer_t_array_t *masks = slot_layer_get_masks(l, true);
-	if (masks == NULL) {
-		return false;
-	}
-#ifdef IRON_BGRA
-	i32 r_off = 2;
-#else
-	i32 r_off = 0;
-#endif
-	bool any = false;
-	for (i32 mi = 0; mi < masks->length; ++mi) {
-		slot_layer_t *m = masks->buffer[mi];
-		if (!slot_layer_is_visible(m) || m->texpaint == NULL) {
-			continue;
-		}
-		if (!any) {
-			for (i32 i = 0; i < len; ++i) {
-				pmask->buffer[i] = 1.0;
-			}
-			any = true;
-		}
-		buffer_t *mp   = gpu_get_texture_pixels(m->texpaint);
-		i32       mw   = m->texpaint->width;
-		i32       mh   = m->texpaint->height;
-		f32       opac = slot_layer_get_opacity(m);
-		for (i32 i = 0; i < len; ++i) {
-			i32 vid = inda->buffer[i];
-			f32 u   = texa->buffer[vid * 2] * inv;
-			f32 v   = texa->buffer[vid * 2 + 1] * inv;
-			i32 x   = math_floor(u * mw);
-			i32 y   = math_floor(v * mh);
-			x       = x < 0 ? 0 : (x >= mw ? mw - 1 : x);
-			y       = y < 0 ? 0 : (y >= mh ? mh - 1 : y);
-			f32 r   = buffer_get_u8(mp, (y * mw + x) * 4 + r_off) / 255.0;
-			pmask->buffer[i] *= (1.0 - opac) + r * opac;
-		}
-	}
-	if (any) {
-		for (i32 i = 0; i < len; ++i) {
-			f32 c            = pmask->buffer[i];
-			pmask->buffer[i] = c < 0.0 ? 0.0 : (c > 1.0 ? 1.0 : c);
-		}
-	}
-	return any;
-}
-
 void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	slot_layer_t_array_t *sculpt_layers = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
@@ -330,8 +283,9 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	f32            sc   = mesh->scale_pos;
 	i16_array_t   *texa = mesh->vertex_arrays->buffer[2]->values;
 	u32_array_t   *inda = mesh->index_array;
-	i32            len  = math_floor(inda->length);
-	i32            tris = math_floor(len / 3.0);
+	i32            len  = sculpt_object_texel_count(0);
+	i32            nv   = math_floor(texa->length / 2.0);
+	i32            tris = math_floor(inda->length / 3.0);
 	f32            inv  = 1.0 / 32767.0;
 
 	// The base render target holds the rest-pose positions
@@ -352,7 +306,7 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 		cpos->buffer[i * 3 + 2] = buffer_get_f32(l0, i * 16 + 8);
 	}
 	// Blend the base layer back toward the rest pose where its mask is dark
-	if (export_obj_sculpt_layer_mask(sculpt_layers->buffer[0], pmask, len, texa, inda, inv) && base_pixels != NULL) {
+	if (sculpt_layer_mask_texels(sculpt_layers->buffer[0], pmask->buffer, len) && base_pixels != NULL) {
 		for (i32 i = 0; i < len; ++i) {
 			f32 bx                  = buffer_get_f32(base_pixels, i * 16);
 			f32 by                  = buffer_get_f32(base_pixels, i * 16 + 4);
@@ -366,7 +320,7 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	// Add each additional layers displacement relative to the rest pose
 	for (i32 k = 1; k < count; ++k) {
 		buffer_t *lk     = gpu_get_texture_pixels(sculpt_layers->buffer[k]->texpaint_sculpt);
-		bool      masked = export_obj_sculpt_layer_mask(sculpt_layers->buffer[k], pmask, len, texa, inda, inv);
+		bool      masked = sculpt_layer_mask_texels(sculpt_layers->buffer[k], pmask->buffer, len);
 		for (i32 i = 0; i < len; ++i) {
 			f32 dx = buffer_get_f32(lk, i * 16);
 			f32 dy = buffer_get_f32(lk, i * 16 + 4);
@@ -400,7 +354,9 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	}
 
 	for (i32 t = 0; t < tris; ++t) {
-		i32 i0 = t * 3, i1 = t * 3 + 1, i2 = t * 3 + 2;
+		i32 i0  = sculpt_vertex_texel(inda->buffer[t * 3]);
+		i32 i1  = sculpt_vertex_texel(inda->buffer[t * 3 + 1]);
+		i32 i2  = sculpt_vertex_texel(inda->buffer[t * 3 + 2]);
 		f32 x0  = cpos->buffer[i0 * 3] * sc;
 		f32 y0  = cpos->buffer[i0 * 3 + 1] * sc;
 		f32 z0  = cpos->buffer[i0 * 3 + 2] * sc;
@@ -424,18 +380,23 @@ void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 		export_obj_write_vec(o, "vn ", nx, nz, -ny, true);
 	}
 
-	for (i32 i = 0; i < len; ++i) {
-		i32 vid = inda->buffer[i];
-		f32 u   = texa->buffer[vid * 2] * inv;
-		f32 v   = 1.0 - texa->buffer[vid * 2 + 1] * inv;
+	for (i32 i = 0; i < nv; ++i) {
+		f32 u = texa->buffer[i * 2] * inv;
+		f32 v = 1.0 - texa->buffer[i * 2 + 1] * inv;
 		export_obj_write_vec(o, "vt ", u, v, 0.0, false);
 	}
 
+	// Positions are welded per texel, uvs stay per mesh vertex
 	for (i32 t = 0; t < tris; ++t) {
-		i32 b     = t * 3 + 1;
-		i32 pf[3] = {b, b + 1, b + 2};
+		i32 pf[3];
+		i32 tf[3];
+		for (i32 k = 0; k < 3; ++k) {
+			i32 vid = inda->buffer[t * 3 + k];
+			pf[k]   = sculpt_vertex_texel(vid) + 1;
+			tf[k]   = vid + 1;
+		}
 		i32 nf[3] = {t + 1, t + 1, t + 1};
-		export_obj_write_face(o, pf, pf, nf);
+		export_obj_write_face(o, pf, tf, nf);
 	}
 
 	if (!ends_with(path, ".obj")) {

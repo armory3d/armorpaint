@@ -429,6 +429,9 @@ static void script_paint_begin_stroke(void) {
 	if (history_undo_layers != NULL) {
 		history_paint();
 	}
+	if (g_context->layer->texpaint_sculpt != NULL) {
+		render_path_sculpt_snapshot_gbuffer();
+	}
 
 	script_paint_active         = true;
 	script_paint_first          = true;
@@ -453,6 +456,10 @@ static void script_paint_at(f32 x, f32 y) {
 	f32 prev_x = script_paint_first ? x : g_context->paint_vec.x;
 	f32 prev_y = script_paint_first ? y : g_context->paint_vec.y;
 
+	if (script_paint_first) {
+		g_context->grab_start_x = x;
+		g_context->grab_start_y = y;
+	}
 	g_context->decal_x          = x;
 	g_context->decal_y          = y;
 	g_context->paint_vec.x      = x;

@@ -377,8 +377,19 @@ void ui_header_draw_tool_properties() {
 			    (void *[]){
 			        tr("Draw"),
 			        tr("Grab"),
+			        tr("Smooth"),
+			        tr("Inflate"),
+			        tr("Flatten"),
+			        tr("Clay"),
+			        tr("Pinch"),
+			        tr("Crease"),
+			        tr("Cloth"),
+			        tr("Twist"),
+			        tr("Stretch"),
+			        tr("Trim"),
+			        tr("Plateau"),
 			    },
-			    2);
+			    13);
 			ui_combo((int *)&g_context->brush_sculpt, mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
 			if (ui_item_changed()) {
 				make_material_parse_paint_material(true);

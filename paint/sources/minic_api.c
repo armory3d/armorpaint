@@ -871,6 +871,7 @@ void minic_register_builtins() {
 	MINIC_F(brush_scale);
 	MINIC_F(brush_angle);
 	MINIC_I(brush_blending);
+	MINIC_I(brush_sculpt);
 	MINIC_I(viewport_mode);
 	MINIC_I(xray);
 	MINIC_B(capturing_screenshot);

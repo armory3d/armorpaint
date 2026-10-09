@@ -102,14 +102,17 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		if (om <= 0 || om > g_project->_->paint_objects->length) {
 			return 0;
 		}
-		return sculpt_object_vertex_offset(g_project->_->paint_objects->buffer[om - 1]);
+		return sculpt_object_texel_offset(om - 1);
 	}
 	else if (string_equals(link, "_sculpt_mask_count")) {
 		i32 om = slot_layer_get_object_mask(g_context->layer);
 		if (om <= 0 || om > g_project->_->paint_objects->length) {
 			return config_get_texture_res_x() * config_get_texture_res_y();
 		}
-		return g_project->_->paint_objects->buffer[om - 1]->data->index_array->length;
+		return sculpt_object_texel_count(om - 1);
+	}
+	else if (string_equals(link, "_sculpt_cloth_drag")) {
+		return sculpt_get_cloth_drag();
 	}
 	else if (string_equals(link, "_dilate_radius")) {
 		return util_uv_dilatemap != NULL ? g_config->dilate_radius : 0.0;
@@ -405,6 +408,19 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
 		return _uniforms_ext_get_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
+	}
+	else if (string_equals(link, "_texpaint_sculpt_stroke")) {
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_get_target(string_tmp("texpaint_sculpt_undo%d", i));
+	}
+	else if (string_equals(link, "_sculpt_remap")) {
+		return sculpt_get_remap_texture();
+	}
+	else if (string_equals(link, "_sculpt_adj0")) {
+		return sculpt_get_adj_texture(0);
+	}
+	else if (string_equals(link, "_sculpt_adj1")) {
+		return sculpt_get_adj_texture(1);
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {
