@@ -141,8 +141,10 @@ void import_mesh_finish_import(void *_) {
 		if (g_context->merged_object == NULL) {
 			util_mesh_merge(NULL);
 		}
-		g_context->paint_object->skip_context   = "paint";
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			g_context->paint_object->skip_context   = "paint";
+			g_context->merged_object->base->visible = true;
+		}
 	}
 
 	if (import_mesh_append && import_mesh_appended != NULL && array_index_of(g_project->_->paint_objects, import_mesh_appended) >= 0) {

@@ -221,8 +221,10 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 
 	if (g_project->_->paint_objects->length > 1) {
 		util_mesh_merge(NULL);
-		context_main_object()->skip_context     = "paint";
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			context_main_object()->skip_context     = "paint";
+			g_context->merged_object->base->visible = true;
+		}
 	}
 	context_select_paint_object(first);
 
@@ -1257,7 +1259,9 @@ void import_arm_run_project(char *path) {
 	}
 	else {
 		context_select_paint_object(context_main_object());
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			g_context->merged_object->base->visible = true;
+		}
 	}
 
 	import_arm_progress(1.0);

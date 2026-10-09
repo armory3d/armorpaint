@@ -8,6 +8,9 @@ void util_particle_init_mesh() {
 	if (g_context->merged_object == NULL) {
 		util_mesh_merge(NULL);
 	}
+	if (g_context->merged_object == NULL) {
+		return; // Nothing to paint
+	}
 
 	g_context->paint_body = physics_body_create(g_context->merged_object->base, PHYSICS_SHAPE_MESH, 0.0);
 }

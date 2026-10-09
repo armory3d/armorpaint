@@ -1629,8 +1629,10 @@ void sculpt_bake_to_mesh() {
 		return;
 	}
 
+	util_mesh_merge_all();
 	if (g_context->merged_object == NULL) {
-		util_mesh_merge(NULL);
+		array_delete(sculpt_layers);
+		return;
 	}
 	mesh_data_t *g   = g_context->merged_object->data;
 	i16_array_t *va0 = g->vertex_arrays->buffer[0]->values;

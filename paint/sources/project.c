@@ -421,7 +421,10 @@ bool project_reskin_mesh(int frame) {
 		return false;
 	}
 
-	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
+	if (g_context->merged_object != NULL && g_config->workspace == WORKSPACE_PLAYER) {
+		util_mesh_merged_stale = true;
+	}
+	else if (g_context->merged_object != NULL) {
 		if (!util_mesh_merge_refresh()) {
 			util_mesh_merge(NULL);
 		}

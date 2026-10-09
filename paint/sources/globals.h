@@ -329,6 +329,7 @@ gpu_texture_t  *util_uv_dilatemap                = NULL;
 bool            util_uv_dilatemap_cached         = false;
 gpu_texture_t  *util_uv_uvislandmap              = NULL;
 bool            util_uv_uvislandmap_cached       = false;
+bool            util_mesh_merged_stale           = false;
 i32             render_path_raytrace_frame       = 0;
 bool            render_path_raytrace_ready       = false;
 bool            render_path_raytrace_init_shader = true;

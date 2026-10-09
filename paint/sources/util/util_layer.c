@@ -518,8 +518,10 @@ void layers_set_object_mask() {
 			util_mesh_merge(visibles);
 		}
 		context_select_paint_object(context_main_object());
-		g_context->paint_object->skip_context   = "paint";
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			g_context->paint_object->skip_context   = "paint";
+			g_context->merged_object->base->visible = true;
+		}
 	}
 	util_uv_dilatemap_cached = false;
 }

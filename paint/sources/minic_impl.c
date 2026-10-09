@@ -1137,7 +1137,11 @@ void script_object_set_material(object_t *o, slot_material_t *m) {
 		script_object_material_slot = m;
 		script_object_material_data = make_mesh_preview_viewport(m);
 	}
+	bool was_paintable = tab_meshes_get_linked_override(o->ext) < 0;
 	tab_meshes_set_override_data(o->ext, index, index >= 0 ? script_object_material_data : NULL);
+	if (was_paintable != (tab_meshes_get_linked_override(o->ext) < 0)) {
+		util_mesh_visibility_changed();
+	}
 	g_project->mesh_materials = i32_array_create(0);
 	g_context->ddirty         = 2;
 }

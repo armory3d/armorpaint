@@ -566,7 +566,7 @@ void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 
 	mesh_object_t *merged = g_context->merged_object;
 	bool           moving = render_path_raytrace_moving || tab_timeline_playing;
-	if (merged != NULL && merged->base->visible && (render_path_raytrace_sculpt_visible() || (!render_path_raytrace_overrides_visible() && !moving))) {
+	if (merged != NULL && merged->base->visible && !util_mesh_merged_stale && (render_path_raytrace_sculpt_visible() || (!render_path_raytrace_overrides_visible() && !moving))) {
 		render_path_raytrace_override_count = 0;
 		transform_t *t                      = merged->base->transform;
 		t->scale_world                      = merged->data->scale_pos;

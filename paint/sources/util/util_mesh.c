@@ -442,7 +442,24 @@ static mesh_data_t *util_mesh_build_merged_data(mesh_object_t_array_t *paint_obj
 	return raw;
 }
 
-void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
+static mesh_object_t_array_t *util_mesh_paintable(mesh_object_t_array_t *objects) {
+	mesh_object_t_array_t *ar = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		if (tab_meshes_get_linked_override(objects->buffer[i]) < 0) {
+			any_array_push(ar, objects->buffer[i]);
+		}
+	}
+	return ar;
+}
+
+static void util_mesh_merged_toggled() {
+	if (g_context->layer != NULL) {
+		context_select_paint_object(g_context->paint_object);
+	}
+	render_path_raytrace_ready = false;
+}
+
+static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintable_only) {
 	if (paint_objects == NULL) {
 		paint_objects = g_project->_->paint_objects;
 	}
@@ -451,11 +468,28 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	}
 	g_context->merged_object_is_atlas = paint_objects->length < g_project->_->paint_objects->length;
 
+	// Meshes rendered with an override material are not painted
+	mesh_object_t_array_t *paintable = paintable_only ? util_mesh_paintable(paint_objects) : NULL;
+	if (paintable != NULL) {
+		paint_objects = paintable;
+	}
+	if (paint_objects->length == 0) {
+		if (g_context->merged_object != NULL) {
+			util_mesh_remove_merged();
+			util_mesh_merged_toggled();
+		}
+		util_mesh_merged_stale = false;
+		array_delete(paintable);
+		return;
+	}
+
 	object_t    *parent         = context_main_object()->base;
-	bool         merged_visible = g_context->merged_object == NULL || g_context->merged_object->base->visible;
+	bool         was_merged     = g_context->merged_object != NULL;
+	bool         merged_visible = !was_merged || g_context->merged_object->base->visible;
 	mesh_data_t *raw            = util_mesh_build_merged_data(paint_objects, g_context->paint_object->base->name, parent);
 
 	util_mesh_remove_merged();
+	util_mesh_merged_stale = false;
 	if (util_mesh_merged_objects == NULL) {
 		util_mesh_merged_objects = any_array_create(0);
 	}
@@ -474,6 +508,20 @@ void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	object_set_parent(g_context->merged_object->base, parent);
 	transform_build_matrix(g_context->merged_object->base->transform);
 	render_path_raytrace_ready = false;
+	array_delete(paintable);
+	if (!was_merged) {
+		util_mesh_merged_toggled();
+	}
+}
+
+void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
+	_util_mesh_merge(paint_objects, true);
+}
+
+void util_mesh_merge_all() {
+	if (g_context->merged_object == NULL || util_mesh_merged_objects == NULL || util_mesh_merged_objects->length != g_project->_->paint_objects->length) {
+		_util_mesh_merge(NULL, false);
+	}
 }
 
 bool util_mesh_merge_refresh() {
@@ -528,6 +576,12 @@ void util_mesh_transform_changed() {
 }
 
 void util_mesh_visibility_changed() {
+	if (g_config->workspace == WORKSPACE_PLAYER) {
+		util_mesh_merged_stale     = true;
+		render_path_raytrace_ready = false;
+		g_context->ddirty          = 2;
+		return;
+	}
 	mesh_object_t_array_t *visibles = util_mesh_get_visible();
 	util_mesh_merge(visibles);
 	array_delete(visibles);
@@ -1034,7 +1088,7 @@ void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 	if (objects == NULL) {
 		objects = g_project->_->paint_objects;
 	}
-	util_mesh_merge(objects);
+	_util_mesh_merge(objects, false);
 	if (g_context->merged_object == NULL) {
 		return;
 	}

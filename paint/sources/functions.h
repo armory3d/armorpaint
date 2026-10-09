@@ -718,6 +718,7 @@ void                      util_mesh_delete_data_uncache(void *data);
 void                      util_mesh_remove_objects(mesh_object_t_array_t *objects, mesh_object_t *keep);
 mesh_data_t              *util_mesh_data_duplicate(mesh_data_t *source);
 void                      util_mesh_merge(mesh_object_t_array_t *paint_objects);
+void                      util_mesh_merge_all();
 bool                      util_mesh_merge_refresh();
 void                      util_mesh_transform_changed();
 void                      util_mesh_remove_merged();

@@ -296,11 +296,15 @@ i32 tab_meshes_get_linked_override(mesh_object_t *o) {
 }
 
 void tab_meshes_set_linked_override(mesh_object_t *o, i32 mat_index) {
+	bool was_paintable = tab_meshes_get_linked_override(o) < 0;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		if (p->data == o->data) {
 			tab_meshes_set_override(p, mat_index);
 		}
+	}
+	if (was_paintable != (tab_meshes_get_linked_override(o) < 0)) {
+		util_mesh_visibility_changed();
 	}
 }
 
@@ -352,6 +356,7 @@ void tab_meshes_on_material_deleted(i32 deleted_index) {
 		return;
 	}
 	bool changed = false;
+	bool reset   = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o   = g_project->_->paint_objects->buffer[i];
 		i32            idx = tab_meshes_get_override(o);
@@ -361,11 +366,15 @@ void tab_meshes_on_material_deleted(i32 deleted_index) {
 		if (idx == deleted_index) {
 			tab_meshes_set_override(o, -1); // Reset
 			changed = true;
+			reset   = true;
 		}
 		else if (idx > deleted_index) {
 			tab_meshes_set_override(o, idx - 1); // Offset by deleted material
 			changed = true;
 		}
+	}
+	if (reset) {
+		util_mesh_visibility_changed(); // Paintable again
 	}
 	if (changed) {
 		g_project->mesh_materials = i32_array_create(0);
