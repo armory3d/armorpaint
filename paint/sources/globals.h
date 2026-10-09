@@ -351,6 +351,10 @@ ui_node_t                   *neural_node_current;
 i32                          neural_node_downloading = 0;
 neural_node_model_t_array_t *neural_node_models      = NULL;
 
+char *account_token = NULL; // NULL when signed out
+char *account_email = NULL; // NULL until /auth/me answers
+char *account_code  = NULL; // Shown while signing in, "" until the server hands one out
+
 #ifdef IRON_DIRECT3D12
 char *render_path_raytrace_ext = ".cso";
 #elif defined(IRON_METAL)

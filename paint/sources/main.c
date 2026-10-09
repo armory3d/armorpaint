@@ -208,6 +208,7 @@
 #include "util/util_uv.c"
 #include "util/util_uv_unwrap.c"
 
+#include "account.c"
 #include "agent.c"
 #include "args.c"
 #include "base.c"
