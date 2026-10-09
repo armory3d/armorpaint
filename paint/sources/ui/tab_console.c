@@ -75,8 +75,16 @@ void tab_console_run_prompt(char *input) {
 }
 
 void tab_console_draw(i32 *htab) {
-	char *title = console_message_timer > 0 ? string_tmp("%s        ", console_message) : tr("Console");
-	i32   color = console_message_timer > 0 ? console_message_color : -1;
+	char *title = tr("Console");
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+	if (tab_console_busy()) {
+		title = tr("Processing...");
+	}
+#endif
+	if (console_message_timer > 0) {
+		title = string_tmp("%s        ", console_message);
+	}
+	i32 color = console_message_timer > 0 ? console_message_color : -1;
 
 	if (ui_tab(htab, title, false, color, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
