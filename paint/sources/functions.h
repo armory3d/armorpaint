@@ -911,6 +911,7 @@ void                      util_skin_init();
 bool                      script_packed_asset_save(char *suffix, char *path);
 i32                       script_packed_assets_remove(char *search);
 i32                       script_assets_remove(char *search);
+i32                       script_pack_assets(char *search);
 void                      script_set_pack_assets(i32 pack);
 char                     *make_mesh_context_id(i32 layer_pass);
 node_shader_context_t    *make_mesh_run(material_t *data, i32 layer_pass);

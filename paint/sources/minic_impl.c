@@ -1053,6 +1053,31 @@ i32 script_assets_remove(char *search) {
 	return removed;
 }
 
+i32 script_pack_assets(char *search) {
+	if (search == NULL) {
+		return 0;
+	}
+	asset_t_array_t *assets = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+		asset_t *a = g_project->_->assets->buffer[i];
+		if (string_index_of(a->file, search) >= 0 &&
+		    (g_project->packed_assets == NULL || !project_packed_asset_exists(g_project->packed_assets, a->file))) {
+			any_array_push(assets, a);
+		}
+	}
+	i32 packed = assets->length;
+	if (packed > 0) {
+		gpu_texture_t *current;
+		bool           in_use;
+		script_gpu_begin(&current, &in_use);
+		export_arm_pack_assets(g_project, assets);
+		script_gpu_end(current, in_use);
+	}
+	array_free(assets);
+	free(assets);
+	return packed;
+}
+
 void script_set_pack_assets(i32 pack) {
 	g_context->pack_assets_on_save = pack != 0;
 }
