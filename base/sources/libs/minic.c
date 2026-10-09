@@ -1606,6 +1606,19 @@ static const struct {
     [TOK_XOR_ASSIGN]   = {0, OP_XOR},
 };
 
+static bool minic_is_integer(minic_ctype_t t) {
+	return t.kind == MINIC_T_INT || t.kind == MINIC_T_CHAR || t.kind == MINIC_T_BOOL || t.kind == MINIC_T_I16 || t.kind == MINIC_T_U16;
+}
+
+// 'p + n' and 'p += n' step by whole elements, the same stride as 'p[n]' and 'p++'
+// An untyped pointer (bare 'p' natives, void *) keeps stepping in bytes
+static int minic_ptr_stride(minic_ctype_t t) {
+	if (t.kind != MINIC_T_PTR || (t.pointer == 1 && (t.deref == MINIC_T_PTR || t.deref == MINIC_T_VOID))) {
+		return 0;
+	}
+	return minic_element_type(t).size;
+}
+
 // Static result type of arithmetic, following the widening in minic_arith
 static minic_ctype_t minic_arith_type(minic_ctype_t a, minic_ctype_t b) {
 	if (a.kind == MINIC_T_VOID || b.kind == MINIC_T_VOID) {
@@ -1630,7 +1643,10 @@ static minic_cexpr_t minic_c_binary(minic_comp_t *c, int level) {
 	minic_cexpr_t r = minic_c_binary(c, level + 1);
 	while (!c->error && minic_binops[minic_cur(c)].prec == level) {
 		minic_tok_type_t op = minic_cur(c);
-		r                   = minic_c_load(c, r);
+		if (r.mode == MINIC_E_VAR && r.sym->array) {
+			r.type = minic_pointer_type(r.sym->type); // An array name decays to a pointer to its first element
+		}
+		r = minic_c_load(c, r);
 		minic_next(c);
 		if (op == TOK_AND || op == TOK_OR) {
 			// Short-circuit: the right side only runs when it decides the result
@@ -1648,6 +1664,18 @@ static minic_cexpr_t minic_c_binary(minic_comp_t *c, int level) {
 		}
 		minic_cexpr_t b = minic_c_load(c, minic_c_binary(c, level + 1));
 		int           o = minic_binops[op].op;
+		if ((o == OP_ADD || o == OP_SUB) && minic_is_integer(b.type)) {
+			int stride = minic_ptr_stride(r.type);
+			if (stride > 1) {
+				minic_emit(c, OP_INT, 1, stride);
+				minic_emit(c, OP_MUL, 0);
+			}
+			if (r.type.kind == MINIC_T_PTR) {
+				minic_emit(c, o, 0);
+				r = minic_expr(MINIC_E_VALUE, r.type); // Keep the pointee type
+				continue;
+			}
+		}
 		minic_emit(c, o, 0);
 		r = minic_expr(MINIC_E_VALUE, o <= OP_MOD ? minic_arith_type(r.type, b.type) : minic_scalar_type(MINIC_T_INT));
 	}
@@ -1703,6 +1731,10 @@ static minic_cexpr_t minic_c_assign(minic_comp_t *c) {
 			minic_emit(c, OP_STOREM, 2, t.kind, t.size);
 		}
 		return v;
+	}
+	if ((op == TOK_PLUS_ASSIGN || op == TOK_MINUS_ASSIGN) && minic_is_integer(v.type) && minic_ptr_stride(t) > 1) {
+		minic_emit(c, OP_INT, 1, minic_ptr_stride(t));
+		minic_emit(c, OP_MUL, 0);
 	}
 	// The old value is read after the right side runs
 	if (var) {

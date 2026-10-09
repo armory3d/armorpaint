@@ -546,6 +546,18 @@ void minic_tests() {
 	                  "  return 0;"
 	                  "}",
 	                  0.0f);
+	MINIC_TEST_EXPECT(36,
+	                  "int second(int *p) { return p[1]; }"
+	                  "float main() {"
+	                  "  int a[4]; a[0] = 10; a[1] = 20; a[2] = 30; a[3] = 40;"
+	                  "  int *p = a; int i = 1;"
+	                  "  if (*(p + 2) != 30 || second(p + i + 1) != 40 || second(a + 1) != 30) { return 1; }"
+	                  "  int *q = p + 3; q -= 2; if (*q != 20 || *(q - 1) != 10) { return 2; }"
+	                  "  q += 1; if (*q != 30) { return 3; }"
+	                  "  char *s = \"hello\"; if (*(s + 1) != 'e') { return 4; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
 	MINIC_TEST_EXPECT(17, "float main() { int a[2]; return a[2]; }", -1.0f);
 	MINIC_TEST_EXPECT(18, "float main() { test_get_context()->buffer[2] = 99; return 0; }", -1.0f);
 	MINIC_TEST_EXPECT(19, "float main() { minic_test_context_t *p = NULL; return p->ddirty; }", -1.0f);
