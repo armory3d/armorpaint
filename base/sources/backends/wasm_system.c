@@ -18,7 +18,8 @@ __attribute__((import_module("imports"), import_name("js_window_set_title"))) vo
 __attribute__((import_module("imports"), import_name("js_window_change_mode"))) void js_window_change_mode(int mode);
 __attribute__((import_module("imports"), import_name("js_load_url"))) void           js_load_url(const char *url);
 __attribute__((import_module("imports"), import_name("js_net_request"))) void
-js_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, int callback_id, void *callbackdata, const char *dst_path);
+js_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, int callback_id, void *callbackdata,
+               const char *dst_path);
 
 static iron_window_mode_t iron_internal_window_mode = IRON_WINDOW_MODE_WINDOW;
 static bool               mouse_hidden              = false;
@@ -200,19 +201,19 @@ static int register_callback(iron_https_callback_t callback, void *callbackdata)
 	return -1;
 }
 
-__attribute__((export_name("wasm_net_callback"))) void wasm_net_callback(int callback_id, char *buffer) {
-	callbacks[callback_id].callback(buffer, callbacks[callback_id].data);
+__attribute__((export_name("wasm_net_callback"))) void wasm_net_callback(int callback_id, int status, char *buffer) {
+	callbacks[callback_id].callback(status, buffer, callbacks[callback_id].data);
 	callbacks[callback_id].in_use = false;
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	int callback_id = register_callback(callback, callbackdata);
 	if (callback_id < 0) {
-		callback(NULL, callbackdata);
+		callback(0, NULL, callbackdata);
 		return;
 	}
-	js_net_request(url_base, url_path, data, port, method, callback_id, callbackdata, dst_path);
+	js_net_request(url_base, url_path, data, port, method, headers, callback_id, callbackdata, dst_path);
 }
 
 void iron_net_update() {}

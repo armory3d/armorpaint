@@ -46,23 +46,24 @@ static NSURLSession *download_session          = nil;
 	NSMutableData            *memoryData   = objc_getAssociatedObject(task, @"memoryData");
 	iron_https_callback_t     callback     = cbVal ? [cbVal pointerValue] : NULL;
 	void                     *callbackdata = dataVal ? [dataVal pointerValue] : NULL;
+	int                       status       = error == nil && [task.response isKindOfClass:[NSHTTPURLResponse class]] ? (int)((NSHTTPURLResponse *)task.response).statusCode : 0;
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (dstPath) {
-			callback(NULL, callbackdata);
+			callback(status, NULL, callbackdata);
 		}
 		else {
 			char *buffer = malloc(memoryData.length + 1);
 			memcpy(buffer, memoryData.bytes, memoryData.length);
 			buffer[memoryData.length] = '\0';
-			callback(buffer, callbackdata);
+			callback(status, buffer, callbackdata);
 		}
 	});
 }
 
 @end
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	if (!download_session) {
 		NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
 		NSOperationQueue          *queue  = [[NSOperationQueue alloc] init];
@@ -81,6 +82,18 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 	NSURL               *url     = [NSURL URLWithString:urlStr];
 	NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
 	request.HTTPMethod           = (method == IRON_HTTPS_GET) ? @"GET" : @"POST";
+	if (data) {
+		request.HTTPBody = [NSData dataWithBytes:data length:strlen(data)];
+	}
+	if (headers) {
+		for (NSString *line in [[NSString stringWithUTF8String:headers] componentsSeparatedByString:@"\r\n"]) {
+			NSRange colon = [line rangeOfString:@":"];
+			if (colon.location != NSNotFound) {
+				NSString *value = [[line substringFromIndex:colon.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+				[request setValue:value forHTTPHeaderField:[line substringToIndex:colon.location]];
+			}
+		}
+	}
 
 	NSURLSessionDownloadTask *task = [download_session downloadTaskWithRequest:request];
 	objc_setAssociatedObject(task, @"callback", [NSValue valueWithPointer:callback], OBJC_ASSOCIATION_RETAIN_NONATOMIC);
