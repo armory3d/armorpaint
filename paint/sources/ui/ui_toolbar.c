@@ -6,8 +6,35 @@ i32 _ui_toolbar_i;
 
 void ui_toolbar_init() {}
 
+bool ui_toolbar_tool_visible(i32 tool) {
+	if (g_config->workflow == WORKFLOW_SCULPT) {
+		// Brush is replaced by the sculpt mode icons
+		return tool != TOOL_TYPE_BRUSH && tool != TOOL_TYPE_PARTICLE && tool != TOOL_TYPE_COLORID && tool != TOOL_TYPE_PICKER &&
+		       tool != TOOL_TYPE_MATERIAL;
+	}
+	return true;
+}
+
+static i32 ui_toolbar_item_count() {
+	i32 count = 0;
+	for (i32 i = 0; i < ui_toolbar_tool_names->length; ++i) {
+		if (ui_toolbar_tool_visible(i)) {
+			count++;
+		}
+	}
+	if (g_config->workflow == WORKFLOW_SCULPT) {
+		count += SCULPT_TYPE_PLATEAU + 1;
+	}
+	return count;
+}
+
 void ui_toolbar_draw_tool_select_tool(void *_) {
 	context_select_tool(_ui_toolbar_i);
+}
+
+void ui_toolbar_draw_tool_select_sculpt(void *_) {
+	g_context->brush_sculpt = _ui_toolbar_i;
+	context_select_tool(TOOL_TYPE_BRUSH);
 }
 
 void ui_toolbar_tool_properties_menu_draw() {
@@ -45,44 +72,91 @@ void ui_toolbar_draw_highlight(u32 col) {
 	ui_draw_rect(true, true, g_ui->_x + -1, g_ui->_y + 2, size + 2, size + 2);
 }
 
-void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
-	g_ui->_x += 2;
-
-	bool visible = true;
+static bool ui_toolbar_input_visible() {
 	if (context_is_floating_toolbar()) {
 		i32 statush = g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
 		i32 statusy = iron_window_height() - statush;
-		visible     = g_ui->input_y < statusy;
+		return g_ui->input_y < statusy;
 	}
+	return true;
+}
 
+static ui_state_t ui_toolbar_draw_icon(bool selected, bool visible, i32 tile_i, gpu_texture_t *img, i32 icon_accent) {
 	i32 size = ui_toolbar_w(false) - 4;
-	if (g_context->tool == tool) {
+	if (selected) {
 		ui_toolbar_draw_highlight(g_theme->HIGHLIGHT_COL);
 	}
 	else if (visible && ui_input_in_rect(g_ui->_window_x + g_ui->_x - 1, g_ui->_window_y + g_ui->_y + 2, size + 2, size + 2)) {
 		ui_toolbar_draw_highlight(g_theme->HOVER_COL);
 	}
 
-	i32     tile_y = math_floor(tool / 12.0);
-	i32     tile_x = tile_y % 2 == 0 ? tool % 12 : (11 - (tool % 12));
-	i32     tile_i = tile_y * 12 + tile_x;
-	rect_t *rect   = resource_tile50(img, tile_i);
-	i32     _y     = g_ui->_y;
-
+	rect_t *rect = resource_tile50(img, tile_i);
 	g_ui->_x -= 2;
 	ui_state_t image_state = ui_sub_image(img, icon_accent, -1.0, rect->x, rect->y, rect->w, rect->h);
 	g_ui->_x += 2;
+	return image_state;
+}
+
+static void ui_toolbar_handle_release(ui_state_t image_state, bool visible, i32 id) {
+	if (image_state == UI_STATE_RELEASED && context_is_floating_toolbar() && visible) {
+		if (ui_toolbar_last_tool == id) {
+			ui_toolbar_tool_properties_menu();
+		}
+		ui_toolbar_last_tool = id;
+	}
+}
+
+void ui_toolbar_draw_sculpt_tool(sculpt_type_t mode, gpu_texture_t *img, i32 icon_accent) {
+	g_ui->_x += 2;
+	bool       visible     = ui_toolbar_input_visible();
+	bool       selected    = g_context->tool == TOOL_TYPE_BRUSH && g_context->brush_sculpt == mode;
+	ui_state_t image_state = ui_toolbar_draw_icon(selected, visible, ICON_SCULPT_DRAW + mode, img, icon_accent);
+
+	if (image_state == UI_STATE_STARTED && visible) {
+		_ui_toolbar_i = mode;
+		sys_notify_on_next_frame(&ui_toolbar_draw_tool_select_sculpt, NULL);
+	}
+	// Sculpt modes get their own ids past the tools, so switching modes does not open the properties menu
+	ui_toolbar_handle_release(image_state, visible, TOOL_TYPE_BAKE + 1 + mode);
+
+	if (g_ui->is_hovered) {
+		string_array_t *names = any_array_create_from_raw_tmp(
+		    (void *[]){
+		        tr("Draw"),
+		        tr("Grab"),
+		        tr("Inflate"),
+		        tr("Flatten"),
+		        tr("Clay"),
+		        tr("Pinch"),
+		        tr("Crease"),
+		        tr("Cloth"),
+		        tr("Twist"),
+		        tr("Stretch"),
+		        tr("Trim"),
+		        tr("Plateau"),
+		    },
+		    12);
+		ui_tooltip(names->buffer[mode]);
+	}
+	g_ui->_x -= 2;
+	g_ui->_y += 2;
+}
+
+void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
+	g_ui->_x += 2;
+
+	bool visible = ui_toolbar_input_visible();
+	i32  tile_y  = math_floor(tool / 12.0);
+	i32  tile_x  = tile_y % 2 == 0 ? tool % 12 : (11 - (tool % 12));
+	i32  _y      = g_ui->_y;
+
+	ui_state_t image_state = ui_toolbar_draw_icon(g_context->tool == tool, visible, tile_y * 12 + tile_x, img, icon_accent);
 
 	if (image_state == UI_STATE_STARTED && visible) {
 		_ui_toolbar_i = tool;
 		sys_notify_on_next_frame(&ui_toolbar_draw_tool_select_tool, NULL);
 	}
-	else if (image_state == UI_STATE_RELEASED && context_is_floating_toolbar() && visible) {
-		if (ui_toolbar_last_tool == tool) {
-			ui_toolbar_tool_properties_menu();
-		}
-		ui_toolbar_last_tool = tool;
-	}
+	ui_toolbar_handle_release(image_state, visible, tool);
 
 	if (tool == TOOL_TYPE_COLORID && g_context->colorid_picked) {
 		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
@@ -184,7 +258,7 @@ void ui_toolbar_render_ui() {
 	if (context_is_floating_toolbar()) {
 		x += ui_toolbar_x();
 		y += ui_toolbar_x() + 3 * UI_SCALE();
-		h                      = (ui_toolbar_tool_names->length + 1) * (ui_toolbar_w(false) + 2);
+		h                      = (ui_toolbar_item_count() + 1) * (ui_toolbar_w(false) + 2);
 		g_theme->WINDOW_BG_COL = g_theme->SEPARATOR_COL;
 		if (!base_view3d_show && ui_view2d_show && !g_config->touch_ui) {
 			y += ui_toolbar_w(false);
@@ -241,8 +315,15 @@ void ui_toolbar_render_ui() {
 		}
 		g_ui->_y -= 4 * UI_SCALE();
 
+		if (g_config->workflow == WORKFLOW_SCULPT) {
+			for (i32 i = 0; i <= SCULPT_TYPE_PLATEAU; ++i) {
+				ui_toolbar_draw_sculpt_tool(i, img, icon_accent);
+			}
+		}
 		for (i32 i = 0; i < ui_toolbar_tool_names->length; ++i) {
-			ui_toolbar_draw_tool(i, img, icon_accent);
+			if (ui_toolbar_tool_visible(i)) {
+				ui_toolbar_draw_tool(i, img, icon_accent);
+			}
 		}
 
 		g_ui->image_scroll_align = true;

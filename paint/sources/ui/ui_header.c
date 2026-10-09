@@ -372,30 +372,6 @@ void ui_header_draw_tool_properties() {
 			}
 		}
 
-		if (g_context->tool == TOOL_TYPE_BRUSH && g_config->workflow == WORKFLOW_SCULPT) {
-			string_array_t *mode_combo = any_array_create_from_raw_tmp(
-			    (void *[]){
-			        tr("Draw"),
-			        tr("Grab"),
-			        tr("Smooth"),
-			        tr("Inflate"),
-			        tr("Flatten"),
-			        tr("Clay"),
-			        tr("Pinch"),
-			        tr("Crease"),
-			        tr("Cloth"),
-			        tr("Twist"),
-			        tr("Stretch"),
-			        tr("Trim"),
-			        tr("Plateau"),
-			    },
-			    13);
-			ui_combo((int *)&g_context->brush_sculpt, mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
-			if (ui_item_changed()) {
-				make_material_parse_paint_material(true);
-			}
-		}
-
 		if (g_context->tool == TOOL_TYPE_TEXT) {
 			if (g_context->text_tool_text == NULL) {
 				g_context->text_tool_text = "";
@@ -428,7 +404,7 @@ void ui_header_draw_tool_properties() {
 			}
 		}
 
-		if (g_context->tool == TOOL_TYPE_BLUR) {
+		if (g_context->tool == TOOL_TYPE_BLUR && g_config->workflow != WORKFLOW_SCULPT) {
 			string_array_t *blur_type_combo = any_array_create_from_raw_tmp(
 			    (void *[]){
 			        tr("Blur"),

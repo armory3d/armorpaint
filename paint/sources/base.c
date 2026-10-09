@@ -977,8 +977,14 @@ void base_update_workflow_nodes() {
 
 void base_update_workflow() {
 	base_update_workflow_nodes();
+	if (ui_toolbar_handle != NULL) {
+		ui_toolbar_handle->redraws = 2;
+	}
 
 	if (g_config->workflow == WORKFLOW_SCULPT) {
+		if (g_context->tool != TOOL_TYPE_BRUSH && !ui_toolbar_tool_visible(g_context->tool)) {
+			context_select_tool(TOOL_TYPE_BRUSH);
+		}
 		slot_layer_t *first_sculpt = NULL;
 		for (i32 i = g_project->_->layers->length - 1; i >= 0; --i) {
 			if (g_project->_->layers->buffer[i]->texpaint_sculpt != NULL) {

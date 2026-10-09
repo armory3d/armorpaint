@@ -280,6 +280,10 @@ void slot_layer_clear(slot_layer_t *raw, i32 base_color, gpu_texture_t *base_ima
 		gpu_end();
 	}
 
+	if (raw->texpaint_sculpt != NULL) {
+		sculpt_import_mesh_pack_to_texture(raw->texpaint_sculpt);
+	}
+
 	g_context->layer_preview_dirty = true;
 	g_context->ddirty              = 3;
 	g_context->rtdirty             = 1;

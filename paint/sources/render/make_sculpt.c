@@ -346,8 +346,8 @@ void sculpt_import_mesh_pack_to_texture(gpu_texture_t *target) {
 }
 
 bool sculpt_mode_uses_adjacency() {
-	return g_context->tool == TOOL_TYPE_BRUSH &&
-	       (g_context->brush_sculpt == SCULPT_TYPE_SMOOTH || g_context->brush_sculpt == SCULPT_TYPE_INFLATE || g_context->brush_sculpt == SCULPT_TYPE_CLOTH);
+	return g_context->tool == TOOL_TYPE_BLUR ||
+	       (g_context->tool == TOOL_TYPE_BRUSH && (g_context->brush_sculpt == SCULPT_TYPE_INFLATE || g_context->brush_sculpt == SCULPT_TYPE_CLOTH));
 }
 
 static char *sculpt_blend_mode(node_shader_t *kong, i32 blending, char *cola, char *colb, char *opac) {
@@ -460,6 +460,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 	bool grab    = mode == SCULPT_TYPE_GRAB;
 	bool stretch = mode == SCULPT_TYPE_STRETCH;
 	bool cloth   = mode == SCULPT_TYPE_CLOTH;
+	bool blur    = g_context->tool == TOOL_TYPE_BLUR;
 	// Cloth and stretch drag like grab, so they all unproject the cursor onto the grab plane
 	bool drag = grab || stretch || cloth;
 	// Subtract and darken invert the brush direction, as they carve in draw mode
@@ -966,12 +967,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 			node_shader_write_frag(kong, "n = normalize((constants.W * float4(normalize(xray_fnor), 0.0)).xyz);");
 		}
 	}
-	if (g_context->tool == TOOL_TYPE_BLUR) {
-		// Even out the surface by relaxing each vertex toward the cursors tangent plane
-		node_shader_write_frag(kong, "float plane_dist = dot(wposition.xyz - winp.xyz, n);");
-		node_shader_write_frag(kong, "output[0] = float4(sample_undo.rgb - n * plane_dist * str, raw_undo.a);");
-	}
-	else if (g_context->tool == TOOL_TYPE_ERASER) {
+	if (g_context->tool == TOOL_TYPE_ERASER) {
 		node_shader_write_frag(kong, "output[0] = float4(sample_undo.rgb - n * disp * str, raw_undo.a);");
 	}
 	else if (grab || stretch) {
@@ -988,7 +984,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 		node_shader_write_frag(kong, "float3 grab_delta = (winp.xyz - grab_anchor) * grab_w * clamp(opacity, 0.0, 1.0);");
 		node_shader_write_frag(kong, "output[0] = float4(grab_rest.xyz + (constants.invW * float4(grab_delta, 0.0)).xyz, raw_undo.a);");
 	}
-	else if (mode == SCULPT_TYPE_SMOOTH || mode == SCULPT_TYPE_INFLATE) {
+	else if (blur || mode == SCULPT_TYPE_INFLATE) {
 		// Gather the fan-ordered neighbors of this vertex
 		node_shader_add_texture(kong, "sculpt_adj0", "_sculpt_adj0");
 		node_shader_add_texture(kong, "sculpt_adj1", "_sculpt_adj1");
@@ -1013,6 +1009,9 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 		for (i32 i = 0; i < SCULPT_ADJ_SLOTS; ++i) {
 			node_shader_write_frag(kong, string_tmp("adj_sum += adj_p%d * adj_v%d;", i, i));
 			node_shader_write_frag(kong, string_tmp("adj_count += adj_v%d;", i));
+			if (blur) {
+				continue;
+			}
 			if (i + 1 < SCULPT_ADJ_SLOTS) {
 				// Consecutive slots span a triangle, the last slot of a closed fan (-1 terminator) wraps to the first
 				node_shader_write_frag(kong,
@@ -1025,7 +1024,8 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 				node_shader_write_frag(kong, string_tmp("adj_nor += cross(adj_p%d - raw_undo.xyz, adj_p0 - raw_undo.xyz) * adj_v%d;", i, i));
 			}
 		}
-		if (mode == SCULPT_TYPE_SMOOTH) {
+		if (blur) {
+			// Relax each vertex toward the average of its neighbors
 			node_shader_write_frag(kong, "float3 adj_avg = adj_sum / max(adj_count, 1.0);");
 			node_shader_write_frag(kong, "float smooth_str = clamp(falloff * opacity * 0.5, 0.0, 1.0) * step(0.5, adj_count);");
 			node_shader_write_frag(kong, "output[0] = float4(lerp(sample_undo.rgb, adj_avg, smooth_str), raw_undo.a);");
@@ -1156,7 +1156,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 		node_shader_write_frag(kong, "float pinch_h = clamp(dot(wposition.xyz - winp.xyz, pinch_ba) / max(dot(pinch_ba, pinch_ba), 0.00000001), 0.0, 1.0);");
 		node_shader_write_frag(kong, "float3 pinch_d = winp.xyz + pinch_ba * pinch_h - wposition.xyz;");
 		node_shader_write_frag(kong, "pinch_d -= n * dot(pinch_d, n);");
-		node_shader_write_frag(kong, string_tmp("float3 pinch_delta = pinch_d * clamp(falloff * opacity * 0.25, 0.0, 1.0) * %s;", invert ? "-1.0" : "1.0"));
+		node_shader_write_frag(kong, string_tmp("float3 pinch_delta = pinch_d * clamp(falloff * opacity * 0.05, 0.0, 1.0) * %s;", invert ? "-1.0" : "1.0"));
 		node_shader_write_frag(kong, "float3 pinch_out = sample_undo.rgb + (constants.invW * float4(pinch_delta, 0.0)).xyz;");
 		if (mode == SCULPT_TYPE_CREASE) {
 			// Carve a groove into the pinched area, inverted modes raise a sharp ridge
@@ -1244,7 +1244,6 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	node_shader_add_constant(kong, "float3x3 N", "_normal_matrix");
 	// Per-object start index into the shared sculpt grid
 	node_shader_add_constant(kong, "int sculpt_vertex_offset", "_sculpt_vertex_offset");
-	node_shader_add_out(kong, "float3 wnormal");
 	kong->frag_n = false;
 
 	node_shader_add_constant(kong, string_tmp("float2 texpaint_sculpt_size%d", idx0), string_tmp("_size(_texpaint_sculpt%d)", idx0));
@@ -1285,11 +1284,20 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	node_shader_write_vert(kong, "output.pos = constants.WVP * float4(sculpt_pos, 1.0);");
 	node_shader_write_vert(kong, "output.wposition = (constants.W * float4(sculpt_pos, 1.0)).xyz;");
 
-	// Faceted normal, the rest pose normal only decides which side faces out
-	node_shader_write_attrib_vert(kong, "output.wnormal = constants.N * float3(input.nor.xy, input.pos.w);");
-	// Reconstruct the face normal from the masked world position
+	// Reconstruct the faceted normal from the deformed world position
 	node_shader_write_attrib_frag(kong, "float3 n = normalize(cross(ddx(input.wposition), ddy(input.wposition)));");
-	node_shader_write_attrib_frag(kong, "if (dot(n, normalize(input.wnormal)) < 0.0) { n = -n; }");
+	bool culled = string_equals(kong->context->data->cull_mode, "clockwise") &&
+	              !(make_material_transluc_used && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE);
+	if (culled) {
+		node_shader_add_constant(kong, "float3 eye", "_camera_pos");
+		node_shader_write_attrib_frag(kong, "if (dot(n, constants.eye - input.wposition) < 0.0) { n = -n; }");
+	}
+	else {
+		// Back faces are drawn too, the rest pose normal decides which side faces out
+		node_shader_add_out(kong, "float3 wnormal");
+		node_shader_write_attrib_vert(kong, "output.wnormal = constants.N * float3(input.nor.xy, input.pos.w);");
+		node_shader_write_attrib_frag(kong, "if (dot(n, normalize(input.wnormal)) < 0.0) { n = -n; }");
+	}
 }
 
 void sculpt_make_paint_run(node_shader_t *kong) {

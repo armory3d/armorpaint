@@ -307,6 +307,7 @@ void                      node_shader_context_add_elem(node_shader_context_t *ra
 bool                      node_shader_context_is_elem(node_shader_context_t *raw, char *name);
 node_shader_t            *node_shader_context_make_kong(node_shader_context_t *raw);
 void                      ui_toolbar_init();
+bool                      ui_toolbar_tool_visible(i32 tool);
 i32                       ui_toolbar_w(bool screen_size_request);
 i32                       ui_toolbar_x();
 void                      ui_toolbar_render_ui();
