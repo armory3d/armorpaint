@@ -622,12 +622,12 @@ vec4_t util_render_closest_point_on_triangle(vec4_t p, vec4_t a, vec4_t b, vec4_
 	return vec4_add(a, vec4_add(vec4_mult(ab, v), vec4_mult(ac, w)));
 }
 
-// Finds the closest point on the paint mesh's actual surface to a world-space target point, and
-// returns that triangle's UV centroid + face normal. This is a pure geometric query against the
-// mesh's raw triangles rather than a screen-space re-render, so it works even when the target
-// point isn't currently visible/unoccluded from the camera (e.g. the bottom of an object viewed
-// from above) - which a re-render-and-sample approach fundamentally cannot handle.
-bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy, f32 *out_norx, f32 *out_nory, f32 *out_norz) {
+static vec4_t util_render_fill_vertex(i16_array_t *posa, u32 i, mat4_t world) {
+	return vec4_apply_mat4((vec4_t){posa->buffer[i * 4] / 32767.0, posa->buffer[i * 4 + 1] / 32767.0, posa->buffer[i * 4 + 2] / 32767.0, 1.0}, world);
+}
+
+// UV centroid and world-space face normal of one triangle of the paint mesh
+static void util_render_fill_tri_info(i32 tri, f32 *out_uvx, f32 *out_uvy, f32 *out_norx, f32 *out_nory, f32 *out_norz) {
 	mesh_object_t *obj   = g_context->paint_object;
 	mesh_data_t   *mesh  = obj->data;
 	i16_array_t   *posa  = mesh->vertex_arrays->buffer[0]->values;
@@ -635,39 +635,9 @@ bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy
 	u32_array_t   *inda  = mesh->index_array;
 	mat4_t         world = obj->base->transform->world_unpack;
 
-	f32 best_dist_sq = -1.0;
-	i32 best_tri     = -1;
-
-	i32 tri_count = math_floor(inda->length / 3.0);
-	for (i32 i = 0; i < tri_count; ++i) {
-		u32 i0 = inda->buffer[i * 3];
-		u32 i1 = inda->buffer[i * 3 + 1];
-		u32 i2 = inda->buffer[i * 3 + 2];
-
-		vec4_t p0 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p1 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p2 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
-
-		vec4_t cp      = util_render_closest_point_on_triangle(target, p0, p1, p2);
-		vec4_t diff    = vec4_sub(cp, target);
-		f32    dist_sq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
-
-		if (best_tri == -1 || dist_sq < best_dist_sq) {
-			best_dist_sq = dist_sq;
-			best_tri     = i;
-		}
-	}
-
-	if (best_tri == -1) {
-		return false;
-	}
-
-	u32 j0 = inda->buffer[best_tri * 3];
-	u32 j1 = inda->buffer[best_tri * 3 + 1];
-	u32 j2 = inda->buffer[best_tri * 3 + 2];
+	u32 j0 = inda->buffer[tri * 3];
+	u32 j1 = inda->buffer[tri * 3 + 1];
+	u32 j2 = inda->buffer[tri * 3 + 2];
 
 	f32 u0 = uva->buffer[j0 * 2] / 32767.0;
 	f32 v0 = uva->buffer[j0 * 2 + 1] / 32767.0;
@@ -676,9 +646,9 @@ bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy
 	f32 u2 = uva->buffer[j2 * 2] / 32767.0;
 	f32 v2 = uva->buffer[j2 * 2 + 1] / 32767.0;
 
-	vec4_t q0 = vec4_apply_mat4((vec4_t){posa->buffer[j0 * 4] / 32767.0, posa->buffer[j0 * 4 + 1] / 32767.0, posa->buffer[j0 * 4 + 2] / 32767.0, 1.0}, world);
-	vec4_t q1 = vec4_apply_mat4((vec4_t){posa->buffer[j1 * 4] / 32767.0, posa->buffer[j1 * 4 + 1] / 32767.0, posa->buffer[j1 * 4 + 2] / 32767.0, 1.0}, world);
-	vec4_t q2 = vec4_apply_mat4((vec4_t){posa->buffer[j2 * 4] / 32767.0, posa->buffer[j2 * 4 + 1] / 32767.0, posa->buffer[j2 * 4 + 2] / 32767.0, 1.0}, world);
+	vec4_t q0       = util_render_fill_vertex(posa, j0, world);
+	vec4_t q1       = util_render_fill_vertex(posa, j1, world);
+	vec4_t q2       = util_render_fill_vertex(posa, j2, world);
 	vec4_t face_nor = vec4_norm(vec4_cross(vec4_sub(q1, q0), vec4_sub(q2, q0)));
 
 	*out_uvx  = (u0 + u1 + u2) / 3.0;
@@ -686,139 +656,180 @@ bool util_render_closest_point_on_mesh(vec4_t target, f32 *out_uvx, f32 *out_uvy
 	*out_norx = face_nor.x;
 	*out_nory = face_nor.y;
 	*out_norz = face_nor.z;
-	return true;
 }
 
-// Reflects the already-picked world-space point across each active symmetry axis of the paint
-// object (about the object's own world-space pivot and local axis directions, so position and
-// rotation are respected), and finds the closest matching point on the mesh's own surface. This
-// is what lets Fill match faces/UV islands/normals on the opposite side of the mesh, including
-// sides that aren't currently visible from the camera (e.g. mirroring top to bottom).
-void util_render_pick_fill_symmetry() {
+// What the last util_render_pick_fill_candidates() call was computed from
+static f32    util_render_fill_key[15];
+static mat4_t util_render_fill_key_world;
+static bool   util_render_fill_key_valid = false;
+
+// Forget the remembered candidates, the mesh may have changed since (call when a stroke starts)
+void util_render_pick_fill_reset() {
+	util_render_fill_key_valid = false;
+}
+
+// For the point picked under the cursor, finds the other surface points Fill has to match as well:
+//  - Symmetry: the closest point on the mesh to its reflection across each active axis (about the paint
+//    object's pivot and local axes, so position and rotation are respected)
+//  - X-Ray: the second surface hit along the cursor ray, directly behind the visible one
+// Both are geometric queries against the mesh triangles instead of extra renders, so they also work for
+// sides the camera can not see (e.g. mirroring top to bottom).
+//
+// Every candidate is found in a single walk over the triangles (each one is transformed once). The result
+// is remembered: nothing is recomputed while the picked point, cursor ray, symmetry/x-ray flags and object
+// transform stay the same as in the previous call. Returns true when the candidates were recomputed.
+bool util_render_pick_fill_candidates() {
+	bool sym[3] = {g_context->sym_x, g_context->sym_y, g_context->sym_z};
+	bool xray   = g_context->xray;
+
+	mesh_object_t *obj   = g_context->paint_object;
+	mat4_t         world = obj->base->transform->world_unpack;
+
+	ray_t *ray = NULL;
+	if (xray) {
+		ray = raycast_get_ray(g_context->paint_vec.x * sys_w(), g_context->paint_vec.y * sys_h(), scene_camera);
+	}
+
+	f32 key[15] = {
+	    g_context->posx_picked,
+	    g_context->posy_picked,
+	    g_context->posz_picked,
+	    g_context->uvx_picked,
+	    g_context->uvy_picked,
+	    sym[0] ? 1.0 : 0.0,
+	    sym[1] ? 1.0 : 0.0,
+	    sym[2] ? 1.0 : 0.0,
+	    xray ? 1.0 : 0.0,
+	    xray ? ray->origin.x : 0.0,
+	    xray ? ray->origin.y : 0.0,
+	    xray ? ray->origin.z : 0.0,
+	    xray ? ray->dir.x : 0.0,
+	    xray ? ray->dir.y : 0.0,
+	    xray ? ray->dir.z : 0.0,
+	};
+	if (util_render_fill_key_valid && memcmp(key, util_render_fill_key, sizeof(key)) == 0 &&
+	    memcmp(&world, &util_render_fill_key_world, sizeof(mat4_t)) == 0) {
+		free(ray);
+		return false;
+	}
+	memcpy(util_render_fill_key, key, sizeof(key));
+	util_render_fill_key_world = world;
+	util_render_fill_key_valid = true;
+
 	g_context->fill_sym_x_valid = false;
 	g_context->fill_sym_y_valid = false;
 	g_context->fill_sym_z_valid = false;
+	g_context->fill_xray_valid  = false;
 
-	if (!(g_context->sym_x || g_context->sym_y || g_context->sym_z)) {
-		return;
+	bool any_sym = sym[0] || sym[1] || sym[2];
+	if (!any_sym && !xray) {
+		return true;
 	}
 
-	f32 posx = g_context->posx_picked;
-	f32 posy = g_context->posy_picked;
-	f32 posz = g_context->posz_picked;
+	mesh_data_t *mesh = obj->data;
+	i16_array_t *posa = mesh->vertex_arrays->buffer[0]->values;
+	u32_array_t *inda = mesh->index_array;
 
-	transform_t *t      = g_context->paint_object->base->transform;
-	mat4_t       W      = t->world;
-	vec4_t       origin = (vec4_t){W.m30, W.m31, W.m32, 1.0};
-	// Rows of W are the object's local axis directions expressed in world space (matches
-	// vec4_apply_mat4's convention: applying it to (1,0,0,0)/(0,1,0,0)/(0,0,1,0) yields row 0/1/2).
-	vec4_t axis_x = vec4_norm((vec4_t){W.m00, W.m01, W.m02, 0.0});
-	vec4_t axis_y = vec4_norm((vec4_t){W.m10, W.m11, W.m12, 0.0});
-	vec4_t axis_z = vec4_norm((vec4_t){W.m20, W.m21, W.m22, 0.0});
+	// Reflect the picked point across each active axis. Rows of the world matrix are the object's local
+	// axis directions in world space (what vec4_apply_mat4 yields for (1,0,0,0), (0,1,0,0), (0,0,1,0))
+	mat4_t W      = obj->base->transform->world;
+	vec4_t origin = (vec4_t){W.m30, W.m31, W.m32, 1.0};
+	vec4_t axis[3];
+	axis[0] = vec4_norm((vec4_t){W.m00, W.m01, W.m02, 0.0});
+	axis[1] = vec4_norm((vec4_t){W.m10, W.m11, W.m12, 0.0});
+	axis[2] = vec4_norm((vec4_t){W.m20, W.m21, W.m22, 0.0});
+	vec4_t delta = vec4_sub((vec4_t){g_context->posx_picked, g_context->posy_picked, g_context->posz_picked, 1.0}, origin);
 
-	vec4_t world_pos = (vec4_t){posx, posy, posz, 1.0};
-	vec4_t delta     = vec4_sub(world_pos, origin);
-
-	if (g_context->sym_x) {
-		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_x));
-		g_context->fill_sym_x_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_x_uvx, &g_context->fill_sym_x_uvy,
-		                                                                &g_context->fill_sym_x_norx, &g_context->fill_sym_x_nory, &g_context->fill_sym_x_norz);
+	vec4_t target[3];
+	f32    best_dist[3] = {-1.0, -1.0, -1.0};
+	i32    best_tri[3]  = {-1, -1, -1};
+	for (i32 k = 0; k < 3; ++k) {
+		if (sym[k]) {
+			target[k] = vec4_add(origin, vec4_reflect(delta, axis[k]));
+		}
 	}
-	if (g_context->sym_y) {
-		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_y));
-		g_context->fill_sym_y_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_y_uvx, &g_context->fill_sym_y_uvy,
-		                                                                &g_context->fill_sym_y_norx, &g_context->fill_sym_y_nory, &g_context->fill_sym_y_norz);
-	}
-	if (g_context->sym_z) {
-		vec4_t mirrored_world       = vec4_add(origin, vec4_reflect(delta, axis_z));
-		g_context->fill_sym_z_valid = util_render_closest_point_on_mesh(mirrored_world, &g_context->fill_sym_z_uvx, &g_context->fill_sym_z_uvy,
-		                                                                &g_context->fill_sym_z_norx, &g_context->fill_sym_z_nory, &g_context->fill_sym_z_norz);
-	}
-}
-
-// Casts a ray through the cursor against the paint mesh's raw triangles and keeps the second
-// closest hit (the first is the visible front surface already covered by the normal pick) so
-// Fill's X-Ray option can also match the face/UV island/normal directly behind it, letting a
-// single click paint both the outer and inner side of thin geometry.
-void util_render_pick_fill_xray() {
-	g_context->fill_xray_valid = false;
-
-	if (!g_context->xray) {
-		return;
-	}
-
-	mesh_object_t *obj   = g_context->paint_object;
-	mesh_data_t   *mesh  = obj->data;
-	i16_array_t   *posa  = mesh->vertex_arrays->buffer[0]->values;
-	i16_array_t   *uva   = mesh->vertex_arrays->buffer[2]->values;
-	u32_array_t   *inda  = mesh->index_array;
-	mat4_t         world = obj->base->transform->world_unpack;
-
-	ray_t *ray = raycast_get_ray(g_context->paint_vec.x * sys_w(), g_context->paint_vec.y * sys_h(), scene_camera);
 
 	f32 dist1 = -1.0;
 	f32 dist2 = -1.0;
 	i32 tri1  = -1;
 	i32 tri2  = -1;
 
+	f32 ray_dir_len_sq = xray ? vec4_dot(ray->dir, ray->dir) : 0.0;
+
 	i32 tri_count = math_floor(inda->length / 3.0);
 	for (i32 i = 0; i < tri_count; ++i) {
-		u32 i0 = inda->buffer[i * 3];
-		u32 i1 = inda->buffer[i * 3 + 1];
-		u32 i2 = inda->buffer[i * 3 + 2];
+		vec4_t p0 = util_render_fill_vertex(posa, inda->buffer[i * 3], world);
+		vec4_t p1 = util_render_fill_vertex(posa, inda->buffer[i * 3 + 1], world);
+		vec4_t p2 = util_render_fill_vertex(posa, inda->buffer[i * 3 + 2], world);
 
-		vec4_t p0 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i0 * 4] / 32767.0, posa->buffer[i0 * 4 + 1] / 32767.0, posa->buffer[i0 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p1 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i1 * 4] / 32767.0, posa->buffer[i1 * 4 + 1] / 32767.0, posa->buffer[i1 * 4 + 2] / 32767.0, 1.0}, world);
-		vec4_t p2 =
-		    vec4_apply_mat4((vec4_t){posa->buffer[i2 * 4] / 32767.0, posa->buffer[i2 * 4 + 1] / 32767.0, posa->buffer[i2 * 4 + 2] / 32767.0, 1.0}, world);
+		// Bounding sphere of the triangle, lets the exact tests below be skipped for the ones that can not win
+		vec4_t center = vec4_mult(vec4_add(vec4_add(p0, p1), p2), 1.0 / 3.0);
+		f32    radius = math_sqrt(math_max(vec4_dot(vec4_sub(p0, center), vec4_sub(p0, center)),
+		                                   math_max(vec4_dot(vec4_sub(p1, center), vec4_sub(p1, center)), vec4_dot(vec4_sub(p2, center), vec4_sub(p2, center)))));
 
-		vec4_t hit = ray_intersect_triangle(ray, p0, p1, p2, false);
-		if (vec4_isnan(hit)) {
-			continue;
+		for (i32 k = 0; k < 3; ++k) {
+			if (!sym[k]) {
+				continue;
+			}
+			if (best_tri[k] != -1 && vec4_dist(target[k], center) - radius > best_dist[k] * 1.0001 + 0.000001) {
+				continue;
+			}
+			vec4_t cp   = util_render_closest_point_on_triangle(target[k], p0, p1, p2);
+			f32    dist = vec4_dist(cp, target[k]);
+			if (best_tri[k] == -1 || dist < best_dist[k]) {
+				best_dist[k] = dist;
+				best_tri[k]  = i;
+			}
 		}
 
-		f32 dist = vec4_len(vec4_sub(hit, ray->origin));
-
-		if (tri1 == -1 || dist < dist1) {
-			dist2 = dist1;
-			tri2  = tri1;
-			dist1 = dist;
-			tri1  = i;
-		}
-		else if (tri2 == -1 || dist < dist2) {
-			dist2 = dist;
-			tri2  = i;
+		if (xray) {
+			// Distance from the sphere center to the ray, compared without normalizing the ray direction
+			vec4_t to_center = vec4_sub(center, ray->origin);
+			vec4_t off       = vec4_cross(to_center, ray->dir);
+			if (vec4_dot(off, off) > radius * radius * ray_dir_len_sq * 1.0002 + 0.000001) {
+				continue;
+			}
+			vec4_t hit = ray_intersect_triangle(ray, p0, p1, p2, false);
+			if (!vec4_isnan(hit)) {
+				f32 dist = vec4_len(vec4_sub(hit, ray->origin));
+				if (tri1 == -1 || dist < dist1) {
+					dist2 = dist1;
+					tri2  = tri1;
+					dist1 = dist;
+					tri1  = i;
+				}
+				else if (tri2 == -1 || dist < dist2) {
+					dist2 = dist;
+					tri2  = i;
+				}
+			}
 		}
 	}
 
-	if (tri2 == -1) {
-		return;
+	free(ray);
+
+	if (best_tri[0] != -1) {
+		util_render_fill_tri_info(best_tri[0], &g_context->fill_sym_x_uvx, &g_context->fill_sym_x_uvy, &g_context->fill_sym_x_norx, &g_context->fill_sym_x_nory,
+		                          &g_context->fill_sym_x_norz);
+		g_context->fill_sym_x_valid = true;
 	}
-
-	u32 j0 = inda->buffer[tri2 * 3];
-	u32 j1 = inda->buffer[tri2 * 3 + 1];
-	u32 j2 = inda->buffer[tri2 * 3 + 2];
-
-	f32 u0 = uva->buffer[j0 * 2] / 32767.0;
-	f32 v0 = uva->buffer[j0 * 2 + 1] / 32767.0;
-	f32 u1 = uva->buffer[j1 * 2] / 32767.0;
-	f32 v1 = uva->buffer[j1 * 2 + 1] / 32767.0;
-	f32 u2 = uva->buffer[j2 * 2] / 32767.0;
-	f32 v2 = uva->buffer[j2 * 2 + 1] / 32767.0;
-
-	vec4_t q0 = vec4_apply_mat4((vec4_t){posa->buffer[j0 * 4] / 32767.0, posa->buffer[j0 * 4 + 1] / 32767.0, posa->buffer[j0 * 4 + 2] / 32767.0, 1.0}, world);
-	vec4_t q1 = vec4_apply_mat4((vec4_t){posa->buffer[j1 * 4] / 32767.0, posa->buffer[j1 * 4 + 1] / 32767.0, posa->buffer[j1 * 4 + 2] / 32767.0, 1.0}, world);
-	vec4_t q2 = vec4_apply_mat4((vec4_t){posa->buffer[j2 * 4] / 32767.0, posa->buffer[j2 * 4 + 1] / 32767.0, posa->buffer[j2 * 4 + 2] / 32767.0, 1.0}, world);
-	vec4_t face_nor = vec4_norm(vec4_cross(vec4_sub(q1, q0), vec4_sub(q2, q0)));
-
-	g_context->fill_xray_uvx   = (u0 + u1 + u2) / 3.0;
-	g_context->fill_xray_uvy   = (v0 + v1 + v2) / 3.0;
-	g_context->fill_xray_norx  = face_nor.x;
-	g_context->fill_xray_nory  = face_nor.y;
-	g_context->fill_xray_norz  = face_nor.z;
-	g_context->fill_xray_valid = true;
+	if (best_tri[1] != -1) {
+		util_render_fill_tri_info(best_tri[1], &g_context->fill_sym_y_uvx, &g_context->fill_sym_y_uvy, &g_context->fill_sym_y_norx, &g_context->fill_sym_y_nory,
+		                          &g_context->fill_sym_y_norz);
+		g_context->fill_sym_y_valid = true;
+	}
+	if (best_tri[2] != -1) {
+		util_render_fill_tri_info(best_tri[2], &g_context->fill_sym_z_uvx, &g_context->fill_sym_z_uvy, &g_context->fill_sym_z_norx, &g_context->fill_sym_z_nory,
+		                          &g_context->fill_sym_z_norz);
+		g_context->fill_sym_z_valid = true;
+	}
+	// The first hit is the visible surface the normal pick already covers, X-Ray adds the one behind it
+	if (tri2 != -1) {
+		util_render_fill_tri_info(tri2, &g_context->fill_xray_uvx, &g_context->fill_xray_uvy, &g_context->fill_xray_norx, &g_context->fill_xray_nory,
+		                          &g_context->fill_xray_norz);
+		g_context->fill_xray_valid = true;
+	}
+	return true;
 }
 
 mat4_t util_render_get_decal_mat() {

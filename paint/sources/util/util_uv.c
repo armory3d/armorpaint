@@ -160,16 +160,17 @@ void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_arr
 }
 
 void util_uv_cache_uv_island_map() {
-	if (util_uv_uvislandmap_cached) {
+	util_render_pick_pos_nor_tex();
+	// The island(s) only have to be flooded again when what they are seeded from changed: the picked
+	// point, or the mirrored/x-ray candidates (cursor moved, symmetry/x-ray toggled, new stroke).
+	bool seeds_changed = util_render_pick_fill_candidates();
+	if (util_uv_uvislandmap_cached && !seeds_changed) {
 		return;
 	}
 	util_uv_cache_dilate_map();
 	if (util_uv_dilate_bytes == NULL) {
 		util_uv_dilate_bytes = gpu_get_texture_pixels(util_uv_dilatemap);
 	}
-	util_render_pick_pos_nor_tex();
-	util_render_pick_fill_symmetry();
-	util_render_pick_fill_xray();
 	i32          w        = 2048; // config_get_texture_res_x()
 	i32          h        = 2048; // config_get_texture_res_y()
 	i32          x        = math_floor(g_context->uvx_picked * w);
