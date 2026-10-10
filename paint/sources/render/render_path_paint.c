@@ -845,6 +845,10 @@ bool render_path_paint_paint_enabled() {
 }
 
 void render_path_paint_begin() {
+	if (render_path_paint_live_layer_drawn > 0) {
+		render_path_paint_live_layer_drawn--;
+	}
+
 	if (g_context->layer->texpaint_sculpt != NULL) {
 		render_path_sculpt_begin();
 		return;
@@ -867,10 +871,6 @@ void render_path_paint_begin() {
 
 	if (g_context->paint2d) {
 		render_path_paint_set_plane_mesh();
-	}
-
-	if (render_path_paint_live_layer_drawn > 0) {
-		render_path_paint_live_layer_drawn--;
 	}
 
 	if (g_config->brush_live && g_context->pdirty <= 0 && g_context->ddirty <= 0 && g_context->brush_time == 0) {

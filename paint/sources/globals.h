@@ -7,7 +7,7 @@
 
 char *manifest_title           = "ArmorPaint";
 char *manifest_version         = "1.1alpha";
-char *manifest_version_project = "16";
+char *manifest_version_project = "17";
 char *manifest_version_config  = "1";
 char *manifest_url             = "https://armorpaint.org";
 char *manifest_url_android     = "https://play.google.com/store/apps/details?id=org.armorpaint";
@@ -163,6 +163,7 @@ char                     *tab_scripts_text    = "";
 i32                       tab_scripts_line; // Active line of the script text area
 bool                      tab_scripts_minimap_dirty = true;
 extern int                tab_stages_selected;
+extern bool               tab_timeline_playing;
 any_map_t                *import_mesh_importers;
 i32                       ui_menubar_default_w = 406;
 ui_window_t              *ui_menubar_hwnd;
@@ -199,6 +200,7 @@ bool                      ui_view2d_grid_redraw = true;
 i32                       ui_view2d_tab;
 sound_t                  *ui_view2d_sound_playing    = NULL;
 bool                      player_running             = false;
+bool                      player_in_editor           = false;
 bool                      viewport_recording         = false;
 bool                      node_shader_dump_to_script = false;
 node_shader_context_t    *parser_material_con;
@@ -228,8 +230,12 @@ ui_node_t_array_t        *parser_material_start_parents         = NULL;
 ui_node_t                *parser_material_start_node            = NULL;
 char                     *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
 any_map_t                *parser_material_script_links      = NULL;
+bool                      project_scripts_trusted           = true;
+bool                      import_arm_keep_script_trust      = false;
 bool                      parser_material_is_frag           = true;
 bool                      args_player                       = false;
+bool                      args_background                   = false;
+bool                      agent_running                     = false;
 i32                       util_render_material_preview_size = 256;
 i32                       util_render_node_preview_size     = 512;
 i32                       util_render_decal_preview_size    = 512;
@@ -241,7 +247,7 @@ bool                      tab_browser_refresh               = false;
 extern i32                ui_files_selected;
 extern i32                path_point_dragging;
 extern i32                path_layer_last_active;
-any_map_t                *util_mesh_unwrappers;
+extern float              util_uv_unwrap_margin;
 i32                       ui_header_default_h = 30;
 i32                       ui_header_h;
 ui_window_t              *ui_header_handle;
@@ -297,6 +303,7 @@ char           *console_message       = "";
 f32             console_message_timer = 0.0;
 i32             console_message_color = 0x00000000;
 string_array_t *console_last_traces;
+char           *console_capture = NULL;
 vec4_t          camera_origins[2];
 mat4_t          camera_views[2];
 i32             box_preferences_tab;
@@ -322,13 +329,16 @@ gpu_texture_t  *util_uv_dilatemap                = NULL;
 bool            util_uv_dilatemap_cached         = false;
 gpu_texture_t  *util_uv_uvislandmap              = NULL;
 bool            util_uv_uvislandmap_cached       = false;
+bool            util_mesh_merged_stale           = false;
 i32             render_path_raytrace_frame       = 0;
 bool            render_path_raytrace_ready       = false;
 bool            render_path_raytrace_init_shader = true;
 f32_array_t    *render_path_raytrace_f32a;
 mat4_t          render_path_raytrace_help_mat;
-gpu_texture_t  *render_path_raytrace_last_envmap = NULL;
-bool            render_path_raytrace_is_bake     = false;
+gpu_texture_t  *render_path_raytrace_last_envmap   = NULL;
+bool            render_path_raytrace_is_bake       = false;
+bool            render_path_raytrace_override_pass = false;
+bool            render_path_raytrace_moving        = false;
 
 bool  sculpt_push_undo                          = false;
 i32   ui_statusbar_default_h                    = 33;
@@ -341,72 +351,78 @@ ui_node_t                   *neural_node_current;
 i32                          neural_node_downloading = 0;
 neural_node_model_t_array_t *neural_node_models      = NULL;
 
+char *account_token = NULL; // NULL when signed out
+char *account_email = NULL; // NULL until /auth/me answers
+char *account_code  = NULL; // Shown while signing in, "" until the server hands one out
+
 #ifdef IRON_DIRECT3D12
 char *render_path_raytrace_ext = ".cso";
 #elif defined(IRON_METAL)
 char *render_path_raytrace_ext = ".metal";
+#elif defined(IRON_WEBGPU)
+char *render_path_raytrace_ext = ".wgsl";
 #else
 char *render_path_raytrace_ext = ".spirv";
 #endif
 
 char *str_hue_sat = "\
-fun hsv_to_rgb(c: float3): float3 { \
-	var K: float4 = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); \
-	var p: float3 = abs3(frac3(c.xxx + K.xyz) * 6.0 - K.www); \
-	return lerp3(K.xxx, clamp3(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y) * c.z; \
+float3 hsv_to_rgb(float3 c) { \
+	float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); \
+	float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www); \
+	return lerp(K.xxx, clamp(p - K.xxx, float3(0.0, 0.0, 0.0), float3(1.0, 1.0, 1.0)), c.y) * c.z; \
 } \
-fun rgb_to_hsv(c: float3): float3 { \
-	var K: float4 = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); \
-	var p: float4 = lerp4(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
-	var q: float4 = lerp4(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
-	var d: float = q.x - min(q.w, q.y); \
-	var e: float = 0.0000000001; \
+float3 rgb_to_hsv(float3 c) { \
+	float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0); \
+	float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g)); \
+	float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r)); \
+	float d = q.x - min(q.w, q.y); \
+	float e = 0.0000000001; \
 	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x); \
 } \
-fun hue_sat(col: float3, shift: float4): float3 { \
-	var hsv: float3 = rgb_to_hsv(col); \
+float3 hue_sat(float3 col, float4 shift) { \
+	float3 hsv = rgb_to_hsv(col); \
 	hsv.x += shift.x; \
 	hsv.y *= shift.y; \
 	hsv.z *= shift.z; \
-	return lerp3(hsv_to_rgb(hsv), col, shift.w); \
+	return lerp(hsv_to_rgb(hsv), col, shift.w); \
 } \
 ";
 
 char *str_brightcontrast = "\
-fun brightcontrast(col: float3, bright: float, contr: float): float3 { \
-	var a: float = 1.0 + contr; \
-	var b: float = bright - contr * 0.5; \
-	return max3(a * col + b, float3(0.0, 0.0, 0.0)); \
+float3 brightcontrast(float3 col, float bright, float contr) { \
+	float a = 1.0 + contr; \
+	float b = bright - contr * 0.5; \
+	return max(a * col + b, float3(0.0, 0.0, 0.0)); \
 } \
 ";
 
 char *str_cotangent_frame = "\
-fun cotangent_frame(n: float3, p: float3, tex_coord: float2): float3x3 { \
-	var duv1: float2 = ddx2(tex_coord); \
-	var duv2: float2 = ddy2(tex_coord); \
-	var dp1: float3 = ddx3(p); \
-	var dp2: float3 = ddy3(p); \
-	var dp2perp: float3 = cross(dp2, n); \
-	var dp1perp: float3 = cross(n, dp1); \
-	var t: float3 = dp2perp * duv1.x + dp1perp * duv2.x; \
-	var b: float3 = dp2perp * duv1.y + dp1perp * duv2.y; \
-	var invmax: float = rsqrt(max(dot(t, t), dot(b, b))); \
+float3x3 cotangent_frame(float3 n, float3 p, float2 tex_coord) { \
+	float2 duv1 = ddx(tex_coord); \
+	float2 duv2 = ddy(tex_coord); \
+	float3 dp1 = ddx(p); \
+	float3 dp2 = ddy(p); \
+	float3 dp2perp = cross(dp2, n); \
+	float3 dp1perp = cross(n, dp1); \
+	float3 t = dp2perp * duv1.x + dp1perp * duv2.x; \
+	float3 b = dp2perp * duv1.y + dp1perp * duv2.y; \
+	float invmax = rsqrt(max(dot(t, t), dot(b, b))); \
 	return float3x3(t * invmax, b * invmax, n); \
 } \
 ";
 
 // let str_octahedron_wrap: string = "\
-// fun octahedron_wrap(v: float2): float2 { \
+// float2 octahedron_wrap(float2 v) { \
 // 	return (1.0 - abs(v.yx)) * (float2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0)); \
 // } \
 // ";
 
 char *str_octahedron_wrap = "\
-fun octahedron_wrap(v: float2): float2 { \
-	var a: float2; \
+float2 octahedron_wrap(float2 v) { \
+	float2 a; \
 	if (v.x >= 0.0) { a.x = 1.0; } else { a.x = -1.0; } \
 	if (v.y >= 0.0) { a.y = 1.0; } else { a.y = -1.0; } \
-	var r: float2; \
+	float2 r; \
 	r.x = abs(v.y); \
 	r.y = abs(v.x); \
 	r.x = 1.0 - r.x; \
@@ -416,26 +432,26 @@ fun octahedron_wrap(v: float2): float2 { \
 ";
 
 // let str_pack_float_int16: string = "\
-// fun pack_f32_i16(f: float, i: uint): float { \
-// 	var prec: float = float(1 << 16); \
-// 	var maxi: float = float(1 << 4); \
-// 	var prec_minus_one: float = prec - 1.0; \
-// 	var t1: float = ((prec / maxi) - 1.0) / prec_minus_one; \
-// 	var t2: float = (prec / maxi) / prec_minus_one; \
+// float pack_f32_i16(float f, uint i) { \
+// 	float prec = float(1 << 16); \
+// 	float maxi = float(1 << 4); \
+// 	float prec_minus_one = prec - 1.0; \
+// 	float t1 = ((prec / maxi) - 1.0) / prec_minus_one; \
+// 	float t2 = (prec / maxi) / prec_minus_one; \
 // 	return t1 * f + t2 * float(i); \
 // } \
 // ";
 
 char *str_pack_float_int16 = "\
-fun pack_f32_i16(f: float, i: uint): float { \
+float pack_f32_i16(float f, uint i) { \
 	return 0.062485207147583624 * min(f, 0.9990234375) + 0.062500476102698687 * float(i); \
 } \
 ";
 
 char *str_dither_bayer = "\
-fun dither_bayer(uv: float2): float { \
-	var x: int = int(uv.x % 4.0); \
-	var y: int = int(uv.y % 4.0); \
+float dither_bayer(float2 uv) { \
+	int x = int(uv.x % 4.0); \
+	int y = int(uv.y % 4.0); \
 	if (y == 0) { \
 		if (x == 0) { \
 			return 0.0 / 16.0; \

@@ -45,18 +45,12 @@ void *import_stl(char *path) {
 	for (int i = 0; i < verts; ++i) {
 		int f = (i / 3) * 3; // face normal base index
 
-		// posa->buffer[i * 4    ] = (int)( pos_temp->buffer[i * 3    ] * inv);
-		// posa->buffer[i * 4 + 1] = (int)(-pos_temp->buffer[i * 3 + 2] * inv);
-		// posa->buffer[i * 4 + 2] = (int)( pos_temp->buffer[i * 3 + 1] * inv);
-		// nora->buffer[i * 2    ] = (int)( nor_temp->buffer[f    ] * 32767.0);
-		// nora->buffer[i * 2 + 1] = (int)(-nor_temp->buffer[f + 2] * 32767.0);
-		// posa->buffer[i * 4 + 3] = (int)( nor_temp->buffer[f + 1] * 32767.0);
-        buffer_set_i16(posa, (i * 4) * 2, pos_temp->buffer[i * 3    ] * inv);
-        buffer_set_i16(posa, (i * 4 + 1) * 2, -pos_temp->buffer[i * 3 + 2] * inv);
-        buffer_set_i16(posa, (i * 4 + 2) * 2, pos_temp->buffer[i * 3 + 1] * inv);
-        buffer_set_i16(nora, (i * 2) * 2, nor_temp->buffer[f    ] * 32767.0);
-        buffer_set_i16(nora, (i * 2 + 1) * 2, -nor_temp->buffer[f + 2] * 32767.0);
-        buffer_set_i16(posa, (i * 4 + 3) * 2, nor_temp->buffer[f + 1] * 32767.0);
+		posa->buffer[i * 4    ] = (int)( pos_temp->buffer[i * 3    ] * inv);
+		posa->buffer[i * 4 + 1] = (int)(-pos_temp->buffer[i * 3 + 2] * inv);
+		posa->buffer[i * 4 + 2] = (int)( pos_temp->buffer[i * 3 + 1] * inv);
+		nora->buffer[i * 2    ] = (int)( nor_temp->buffer[f    ] * 32767.0);
+		nora->buffer[i * 2 + 1] = (int)(-nor_temp->buffer[f + 2] * 32767.0);
+		posa->buffer[i * 4 + 3] = (int)( nor_temp->buffer[f + 1] * 32767.0);
 
 		inda->buffer[i] = i;
 	}
@@ -70,15 +64,15 @@ void *import_stl(char *path) {
 	a = string_split(s, ".");
 	char *name = a->buffer[0];
 
-	return plugin_make_raw_mesh(name, posa, nora, inda, scale_pos);
+	return script_make_raw_mesh(name, posa, nora, inda, scale_pos);
 }
 
 void on_delete() {
-	plugin_unregister_mesh("stl");
+	script_unregister_mesh("stl");
 }
 
 void main() {
 	plugin = plugin_create();
 	plugin_notify_on_delete(plugin, on_delete);
-	plugin_register_mesh("stl", import_stl);
+	script_register_mesh("stl", import_stl);
 }

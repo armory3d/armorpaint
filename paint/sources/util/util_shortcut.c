@@ -198,7 +198,9 @@ void util_shortcut_viewport() {
 				context_select_tool(TOOL_TYPE_FILL);
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_colorid"), SHORTCUT_TYPE_STARTED)) {
-				context_select_tool(TOOL_TYPE_COLORID);
+				if (ui_toolbar_tool_visible(TOOL_TYPE_COLORID)) {
+					context_select_tool(TOOL_TYPE_COLORID);
+				}
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_decal"), SHORTCUT_TYPE_STARTED)) {
 				context_select_tool(TOOL_TYPE_DECAL);
@@ -213,13 +215,19 @@ void util_shortcut_viewport() {
 				context_select_tool(TOOL_TYPE_BLUR);
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_particle"), SHORTCUT_TYPE_STARTED)) {
-				context_select_tool(TOOL_TYPE_PARTICLE);
+				if (ui_toolbar_tool_visible(TOOL_TYPE_PARTICLE)) {
+					context_select_tool(TOOL_TYPE_PARTICLE);
+				}
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_picker"), SHORTCUT_TYPE_STARTED)) {
-				context_select_tool(TOOL_TYPE_PICKER);
+				if (ui_toolbar_tool_visible(TOOL_TYPE_PICKER)) {
+					context_select_tool(TOOL_TYPE_PICKER);
+				}
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_material"), SHORTCUT_TYPE_STARTED)) {
-				context_select_tool(TOOL_TYPE_MATERIAL);
+				if (ui_toolbar_tool_visible(TOOL_TYPE_MATERIAL)) {
+					context_select_tool(TOOL_TYPE_MATERIAL);
+				}
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_cursor"), SHORTCUT_TYPE_STARTED)) {
 				context_select_tool(TOOL_TYPE_CURSOR);

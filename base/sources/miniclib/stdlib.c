@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "ctype.h"
+#include "stdbool.h"
 #include "stddef.h"
 #include "stdio.h"
 #include "string.h"
@@ -7,9 +8,36 @@
 #define ALIGNMENT   8
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
 
+#ifdef IRON_WASM
+__attribute__((import_module("imports"), import_name("js_memory_grow"))) void js_memory_grow(void);
+extern unsigned char __heap_base;
+#define heap (&__heap_base)
+#define WASM_PAGE_SIZE   65536ULL
+#define HEAP_GROW_PAGES  1024 // 64MB steps
+
+static bool heap_reserve(unsigned long long end) {
+	unsigned long long size = __builtin_wasm_memory_size(0) * WASM_PAGE_SIZE - (size_t)heap;
+	if (end <= size) {
+		return true;
+	}
+	size_t pages = (size_t)((end - size + WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE);
+	if (__builtin_wasm_memory_grow(0, pages < HEAP_GROW_PAGES ? HEAP_GROW_PAGES : pages) == (size_t)-1 &&
+	    __builtin_wasm_memory_grow(0, pages) == (size_t)-1) {
+		return false;
+	}
+	js_memory_grow();
+	return true;
+}
+#else
 #define HEAP_SIZE 1024 * 1024 * 512
 static unsigned char heap[HEAP_SIZE] __attribute__((aligned(ALIGNMENT)));
-static size_t        heap_top = ALIGNMENT;
+
+static bool heap_reserve(unsigned long long end) {
+	return end <= HEAP_SIZE;
+}
+#endif
+
+static size_t heap_top = ALIGNMENT;
 
 typedef struct block {
 	size_t        size;
@@ -21,6 +49,9 @@ static block_t *free_list = NULL;
 __attribute__((export_name("wasm_malloc")))
 #endif
 void *malloc(size_t size) {
+	if (size > (size_t)-1 - ALIGNMENT) {
+		return NULL;
+	}
 	size           = ALIGN(size);
 	block_t **link = &free_list;
 	block_t  *curr = free_list;
@@ -41,8 +72,8 @@ void *malloc(size_t size) {
 		link = &curr->next;
 		curr = curr->next;
 	}
-	if (heap_top + sizeof(block_t) + size > HEAP_SIZE) {
-		printf("malloc: out of memory");
+	if (!heap_reserve((unsigned long long)heap_top + sizeof(block_t) + size)) {
+		printf("malloc: out of memory (%u bytes requested)\n", (unsigned)size);
 		return NULL;
 	}
 	block_t *ptr = (block_t *)&heap[heap_top];

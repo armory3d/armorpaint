@@ -15,11 +15,13 @@ typedef struct {
 	int                   return_data_index;
 	char                 *file_buffer;
 	DWORD                 file_buffer_size;
+	DWORD                 status;
 	iron_https_callback_t callback;
 	void                 *callbackdata;
 } async_context_t;
 
 typedef struct request {
+	int                   status;
 	char                 *response;
 	iron_https_callback_t callback;
 	void                 *callbackdata;
@@ -48,6 +50,7 @@ static void finish_request(async_context_t *ctx, BOOL success) {
 	}
 
 	request_t *req    = malloc(sizeof(request_t));
+	req->status       = success ? (int)ctx->status : 0;
 	req->response     = response;
 	req->callback     = ctx->callback;
 	req->callbackdata = ctx->callbackdata;
@@ -74,9 +77,13 @@ static void CALLBACK iron_winhttp_callback(HINTERNET hInternet, DWORD_PTR dwCont
 		WinHttpReceiveResponse(ctx->hrequest, NULL);
 		break;
 
-	case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE:
+	case WINHTTP_CALLBACK_STATUS_HEADERS_AVAILABLE: {
+		DWORD size = sizeof(ctx->status);
+		WinHttpQueryHeaders(ctx->hrequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &ctx->status, &size,
+		                    WINHTTP_NO_HEADER_INDEX);
 		WinHttpQueryDataAvailable(ctx->hrequest, NULL);
 		break;
+	}
 
 	case WINHTTP_CALLBACK_STATUS_DATA_AVAILABLE: {
 		DWORD dwSize = *(DWORD *)lpvStatusInformation;
@@ -130,8 +137,8 @@ static void CALLBACK iron_winhttp_callback(HINTERNET hInternet, DWORD_PTR dwCont
 	}
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	if (!initialized) {
 		InitializeCriticalSection(&cs);
 		initialized = TRUE;
@@ -148,6 +155,7 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 		ctx->hfile = CreateFileW(wpath, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if (ctx->hfile == INVALID_HANDLE_VALUE) {
 			free(ctx);
+			callback(0, NULL, callbackdata);
 			return;
 		}
 	}
@@ -157,6 +165,7 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 		if (ctx->hfile != INVALID_HANDLE_VALUE)
 			CloseHandle(ctx->hfile);
 		free(ctx);
+		callback(0, NULL, callbackdata);
 		return;
 	}
 
@@ -168,6 +177,7 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 		if (ctx->hfile != INVALID_HANDLE_VALUE)
 			CloseHandle(ctx->hfile);
 		free(ctx);
+		callback(0, NULL, callbackdata);
 		return;
 	}
 
@@ -181,14 +191,21 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 		if (ctx->hfile != INVALID_HANDLE_VALUE)
 			CloseHandle(ctx->hfile);
 		free(ctx);
+		callback(0, NULL, callbackdata);
 		return;
 	}
 
 	WinHttpSetStatusCallback(ctx->hrequest, iron_winhttp_callback, WINHTTP_CALLBACK_FLAG_ALL_NOTIFICATIONS, 0);
 
+	wchar_t wheaders[4096] = L"";
+	if (headers) {
+		MultiByteToWideChar(CP_UTF8, 0, headers, -1, wheaders, 4096);
+	}
 	DWORD data_len = data ? (DWORD)strlen(data) : 0;
-	if (!WinHttpSendRequest(ctx->hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, (LPVOID)data, data_len, data_len, (DWORD_PTR)ctx)) {
+	if (!WinHttpSendRequest(ctx->hrequest, headers ? wheaders : WINHTTP_NO_ADDITIONAL_HEADERS, headers ? (DWORD)-1L : 0, (LPVOID)data, data_len, data_len,
+	                        (DWORD_PTR)ctx)) {
 		WinHttpCloseHandle(ctx->hsession);
+		callback(0, NULL, callbackdata);
 	}
 }
 
@@ -203,7 +220,7 @@ void iron_net_update() {
 	while (current) {
 		request_t *next = current->next;
 		if (current->callback)
-			current->callback(current->response, current->callbackdata);
+			current->callback(current->status, current->response, current->callbackdata);
 		if (current->ctx->hsession)
 			WinHttpCloseHandle(current->ctx->hsession);
 		if (current->response)

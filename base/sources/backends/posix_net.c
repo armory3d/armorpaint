@@ -1,3 +1,4 @@
+#define _GNU_SOURCE // strcasestr
 #include <fcntl.h>
 #include <iron_net.h>
 #include <netdb.h>
@@ -22,11 +23,16 @@ typedef struct async_context {
 	char                 *url_base;
 	char                 *url_path;
 	char                 *dst_path;
+	char                 *data;
+	char                 *headers;
+	int                   method;
 	int                   port;
+	int                   status;
 	struct async_context *next;
 } async_context_t;
 
 typedef struct request {
+	int                   status;
 	char                 *response;
 	iron_https_callback_t callback;
 	void                 *callbackdata;
@@ -86,8 +92,11 @@ static void finish_request(async_context_t *async_ctx, char *response) {
 	if (async_ctx->dst_path) {
 		free(async_ctx->dst_path);
 	}
+	free(async_ctx->data);
+	free(async_ctx->headers);
 
 	request_t *req    = malloc(sizeof(request_t));
+	req->status       = async_ctx->status;
 	req->response     = response;
 	req->callback     = async_ctx->callback;
 	req->callbackdata = async_ctx->callbackdata;
@@ -153,6 +162,10 @@ static int do_request(async_context_t *async_ctx) {
 	SSL_set_fd(ssl, sock_fd);
 	SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 	SSL_set_tlsext_host_name(ssl, async_ctx->url_base);
+	if (async_ctx->headers) { // Requests with headers carry credentials, check who gets them
+		SSL_set_verify(ssl, SSL_VERIFY_PEER, NULL);
+		SSL_set1_host(ssl, async_ctx->url_base);
+	}
 	if (SSL_connect(ssl) <= 0) {
 		SSL_free(ssl);
 		close(sock_fd);
@@ -161,9 +174,20 @@ static int do_request(async_context_t *async_ctx) {
 
 	async_ctx->ssl     = ssl;
 	async_ctx->sock_fd = sock_fd;
-	char request[4096];
-	int request_len = snprintf(request, sizeof(request), "GET /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", async_ctx->url_path, async_ctx->url_base);
+	const char *method      = async_ctx->method == IRON_HTTPS_POST ? "POST" : "GET";
+	const char *headers     = async_ctx->headers ? async_ctx->headers : "";
+	const char *data        = async_ctx->data ? async_ctx->data : "";
+	int         data_len    = (int)strlen(data);
+	int         request_cap = (int)(strlen(async_ctx->url_path) + strlen(async_ctx->url_base) + strlen(headers) + data_len + 256);
+	char       *request     = malloc(request_cap);
+	int request_len = snprintf(request, request_cap, "%s /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n%s", method, async_ctx->url_path, async_ctx->url_base,
+	                           headers);
+	if (async_ctx->method == IRON_HTTPS_POST) {
+		request_len += snprintf(request + request_len, request_cap - request_len, "Content-Length: %d\r\n", data_len);
+	}
+	request_len += snprintf(request + request_len, request_cap - request_len, "\r\n%s", data);
 	SSL_write(ssl, request, request_len);
+	free(request);
 	int   pos = 0;
 	int   n;
 	int   header_buf_size = 16384;
@@ -173,8 +197,16 @@ static int do_request(async_context_t *async_ctx) {
 		pos += n;
 		header_buf[pos]   = '\0';
 		char *headers_end = strstr(header_buf, "\r\n\r\n");
+		if (headers_end == NULL) {
+			if (pos >= header_buf_size - 1) {
+				header_buf_size *= 2;
+				header_buf = realloc(header_buf, header_buf_size);
+			}
+			continue;
+		}
+		sscanf(header_buf, "HTTP/%*s %d", &async_ctx->status);
 
-		if (strncmp(header_buf, "HTTP/1.1 302", 12) == 0) {
+		if (async_ctx->status == 302) {
 			char *location = strstr(header_buf, "Location: ");
 			if (location) {
 				location += 10;
@@ -201,7 +233,10 @@ static int do_request(async_context_t *async_ctx) {
 
 		char *body_start = headers_end + 4;
 		int   body_len   = pos - (body_start - header_buf);
-		int   is_chunked = strstr(header_buf, "transfer-encoding: chunked") != NULL;
+		int   is_chunked = strcasestr(header_buf, "transfer-encoding: chunked") != NULL;
+		// Stop at the end of the body
+		char *content_length_header = strcasestr(header_buf, "\r\ncontent-length:");
+		int   content_length        = content_length_header != NULL && content_length_header < headers_end ? atoi(content_length_header + 17) : -1;
 
 		if (async_ctx->fp) {
 			// No chunked support for fp yet
@@ -229,7 +264,7 @@ static int do_request(async_context_t *async_ctx) {
 			else {
 				pos = 0;
 			}
-			while ((n = SSL_read(ssl, async_ctx->buf + pos, async_ctx->buf_len - pos - 1)) > 0) {
+			while ((content_length < 0 || pos < content_length) && (n = SSL_read(ssl, async_ctx->buf + pos, async_ctx->buf_len - pos - 1)) > 0) {
 				pos += n;
 				if (pos >= async_ctx->buf_len - 1) {
 					async_ctx->buf_len *= 2;
@@ -259,11 +294,6 @@ static int do_request(async_context_t *async_ctx) {
 			finish_request(async_ctx, response);
 			return 1;
 		}
-
-		if (pos >= header_buf_size - 1) {
-			header_buf_size *= 2;
-			header_buf = realloc(header_buf, header_buf_size);
-		}
 	}
 	free(header_buf);
 	return 0;
@@ -285,11 +315,12 @@ static void *download_thread(void *arg) {
 	return NULL;
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	if (ctx == NULL) {
 		ctx = SSL_CTX_new(TLS_client_method());
 		SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
+		SSL_CTX_set_default_verify_paths(ctx);
 	}
 
 	async_context_t *async_ctx = calloc(1, sizeof(async_context_t));
@@ -301,6 +332,9 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 	async_ctx->url_base        = strdup(url_base);
 	async_ctx->url_path        = strdup(url_path);
 	async_ctx->port            = port;
+	async_ctx->method          = method;
+	async_ctx->data            = data ? strdup(data) : NULL;
+	async_ctx->headers         = headers ? strdup(headers) : NULL;
 	if (dst_path) {
 		async_ctx->dst_path = strdup(dst_path);
 	}
@@ -325,7 +359,7 @@ void iron_net_update() {
 	pthread_mutex_unlock(&pending_mutex);
 	while (current) {
 		request_t *next = current->next;
-		current->callback(current->response, current->callbackdata);
+		current->callback(current->status, current->response, current->callbackdata);
 		if (current->response) {
 			free(current->response);
 		}

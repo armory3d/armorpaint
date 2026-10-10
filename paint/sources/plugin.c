@@ -1,11 +1,14 @@
 
 #include "global.h"
 
-char *_plugin_name;
+char *_plugin_name = NULL;
 
 plugin_t *plugin_create() {
 	plugin_t *p = ALLOC_INIT(plugin_t, {0});
 	p->name     = string_copy(_plugin_name);
+	if (p->name == NULL) {
+		return p;
+	}
 	any_map_set(g_plugins, p->name, p);
 	return p;
 }
@@ -24,7 +27,8 @@ void plugin_start(char *plugin) {
 	if (p == NULL) { // Script did not call plugin_create()
 		p = plugin_create();
 	}
-	p->ctx = ctx;
+	p->ctx       = ctx;
+	_plugin_name = NULL;
 }
 
 void plugin_stop(char *plugin) {

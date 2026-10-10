@@ -10,6 +10,7 @@
 __attribute__((import_module("imports"), import_name("js_time"))) int                js_time();
 __attribute__((import_module("imports"), import_name("js_canvas_w"))) int            js_canvas_w();
 __attribute__((import_module("imports"), import_name("js_canvas_h"))) int            js_canvas_h();
+__attribute__((import_module("imports"), import_name("js_pixel_ratio"))) float        js_pixel_ratio();
 __attribute__((import_module("imports"), import_name("js_mouse_set_cursor"))) void   js_mouse_set_cursor(int i);
 __attribute__((import_module("imports"), import_name("js_mouse_show"))) void         js_mouse_show();
 __attribute__((import_module("imports"), import_name("js_mouse_hide"))) void         js_mouse_hide();
@@ -17,7 +18,8 @@ __attribute__((import_module("imports"), import_name("js_window_set_title"))) vo
 __attribute__((import_module("imports"), import_name("js_window_change_mode"))) void js_window_change_mode(int mode);
 __attribute__((import_module("imports"), import_name("js_load_url"))) void           js_load_url(const char *url);
 __attribute__((import_module("imports"), import_name("js_net_request"))) void
-js_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, int callback_id, void *callbackdata, const char *dst_path);
+js_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, int callback_id, void *callbackdata,
+               const char *dst_path);
 
 static iron_window_mode_t iron_internal_window_mode = IRON_WINDOW_MODE_WINDOW;
 static bool               mouse_hidden              = false;
@@ -36,9 +38,9 @@ iron_display_mode_t iron_display_current_mode(int display_index) {
 	iron_display_mode_t mode;
 	mode.x               = 0;
 	mode.y               = 0;
-	mode.width           = 800;
-	mode.height          = 600;
-	mode.pixels_per_inch = 96;
+	mode.width           = js_canvas_w();
+	mode.height          = js_canvas_h();
+	mode.pixels_per_inch = (int)(96 * js_pixel_ratio() + 0.5);
 	mode.frequency       = 60;
 	mode.bits_per_pixel  = 32;
 	return mode;
@@ -199,19 +201,19 @@ static int register_callback(iron_https_callback_t callback, void *callbackdata)
 	return -1;
 }
 
-__attribute__((export_name("wasm_net_callback"))) void wasm_net_callback(int callback_id, char *buffer) {
-	callbacks[callback_id].callback(buffer, callbacks[callback_id].data);
+__attribute__((export_name("wasm_net_callback"))) void wasm_net_callback(int callback_id, int status, char *buffer) {
+	callbacks[callback_id].callback(status, buffer, callbacks[callback_id].data);
 	callbacks[callback_id].in_use = false;
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	int callback_id = register_callback(callback, callbackdata);
 	if (callback_id < 0) {
-		callback(NULL, callbackdata);
+		callback(0, NULL, callbackdata);
 		return;
 	}
-	js_net_request(url_base, url_path, data, port, method, callback_id, callbackdata, dst_path);
+	js_net_request(url_base, url_path, data, port, method, headers, callback_id, callbackdata, dst_path);
 }
 
 void iron_net_update() {}

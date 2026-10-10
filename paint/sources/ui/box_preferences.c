@@ -387,8 +387,6 @@ void box_preferences_usage_tab() {
 	    4);
 	ui_combo(&g_config->layer_res, res_combo, tr("Default Layer Resolution"), true, UI_ALIGN_LEFT, true);
 
-	ui_text_input(&g_config->server, tr("Cloud Server"), UI_ALIGN_LEFT, true, false);
-
 	ui_check(&g_config->material_live, tr("Live Material Preview"), "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Instantly update material preview on node change"));
@@ -581,17 +579,14 @@ void box_preferences_viewport_tab() {
 	string_array_t *pathtrace_mode_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
 	        tr("Fast"),
-	        tr("Quality"),
-	        tr("Multi Fast"),
-	        tr("Multi Quality"),
+	        tr("Full"),
 	    },
-	    4);
-	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Quality"), true, UI_ALIGN_LEFT, true);
+	    2);
+	ui_combo(&g_config->pathtrace_mode, pathtrace_mode_combo, tr("Mode"), true, UI_ALIGN_LEFT, true);
 	if (ui_item_changed()) {
 		render_path_raytrace_ready       = false;
 		render_path_raytrace_init_shader = true;
 		g_context->ddirty                = 2;
-		util_mesh_merge(NULL);
 	}
 
 	ui_slider_int(&g_config->pathtrace_frames, tr("Frames"), 1, 128, false, true, UI_ALIGN_RIGHT, true);
@@ -625,7 +620,7 @@ void box_preferences_viewport_tab() {
 	post_changed |= ui_item_changed();
 
 	ui_row2();
-	ui_slider(&g_config->rp_vignette, tr("Vignette"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	ui_slider(&g_config->rp_vignette, tr("Vignette"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 	post_changed |= ui_item_changed();
 	ui_slider(&g_config->rp_grain, tr("Noise Grain"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
 	post_changed |= ui_item_changed();
@@ -1037,6 +1032,51 @@ void box_preferences_plugins_tab() {
 	}
 }
 
+//  ██████╗██╗      ██████╗ ██╗   ██╗██████╗
+// ██╔════╝██║     ██╔═══██╗██║   ██║██╔══██╗
+// ██║     ██║     ██║   ██║██║   ██║██║  ██║
+// ██║     ██║     ██║   ██║██║   ██║██║  ██║
+// ╚██████╗███████╗╚██████╔╝╚██████╔╝██████╔╝
+//  ╚═════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═════╝
+
+void box_preferences_cloud_tab() {
+#ifndef IRON_WASM
+	account_init();
+	if (account_code != NULL) {
+		if (string_equals(account_code, "")) {
+			ui_text(tr("Signing in..."), UI_ALIGN_LEFT, 0x00000000);
+		}
+		else {
+			ui_text(tr("Continue in the browser."), UI_ALIGN_LEFT, 0x00000000);
+			ui_text(string_tmp("%.4s-%s", account_code, account_code + 4), UI_ALIGN_LEFT, 0x00000000);
+		}
+		ui_row2();
+		if (ui_icon_button(tr("Open Browser"), ICON_LINK, UI_ALIGN_CENTER) && !string_equals(account_code, "")) {
+			account_open_browser();
+		}
+		if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
+			account_cancel();
+		}
+	}
+	else if (account_token == NULL) {
+		if (g_config->experimental) {
+			ui_text(tr("Sign in with armorpaint.org account."), UI_ALIGN_LEFT, 0x00000000);
+			if (ui_icon_button(tr("Sign In..."), ICON_CLOUD, UI_ALIGN_LEFT)) {
+				account_sign_in();
+			}
+		}
+	}
+	else {
+		ui_text(account_email != NULL ? string_tmp("%s %s", tr("Signed in as"), account_email) : tr("Signed in"), UI_ALIGN_LEFT, 0x00000000);
+		if (ui_icon_button(tr("Sign Out"), ICON_CLOSE, UI_ALIGN_LEFT)) {
+			account_sign_out();
+		}
+	}
+#endif
+
+	ui_text_input(&g_config->server, tr("Cloud Server"), UI_ALIGN_LEFT, true, false);
+}
+
 void box_preferences_show_on_hide() {
 	config_save();
 }
@@ -1075,6 +1115,9 @@ void box_preferences_show_box() {
 		box_preferences_neural_tab();
 	}
 #endif
+	if (ui_tab(&box_preferences_tab, tr("Cloud"), true, -1, false)) {
+		box_preferences_cloud_tab();
+	}
 	if (ui_tab(&box_preferences_tab, tr("Plugins"), true, -1, false)) {
 		box_preferences_plugins_tab();
 	}

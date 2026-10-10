@@ -120,9 +120,8 @@ void render_gizmo_update() {
 			ui_header_handle->redraws = 2;
 			g_context->ddirty         = 2;
 
-			if (config_is_raytrace_multi()) {
-				render_path_raytrace_ready = false;
-			}
+			render_path_raytrace_ready  = false;
+			render_path_raytrace_moving = true;
 
 			physics_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {
@@ -282,7 +281,12 @@ void render_gizmo_update() {
 			transform_t *t    = paint_object->transform;
 			if (!vec4_equals(t->loc, gizmo_undo_loc) || !gizmo_quat_equals(t->rot, gizmo_undo_rot) || !vec4_equals(t->scale, gizmo_undo_scale)) {
 				history_object_transform(g_context->paint_object, gizmo_undo_loc, gizmo_undo_rot, gizmo_undo_scale);
+				util_mesh_transform_changed();
 			}
+		}
+		if (render_path_raytrace_moving) {
+			render_path_raytrace_moving = false;
+			render_path_raytrace_ready  = false;
 		}
 	}
 

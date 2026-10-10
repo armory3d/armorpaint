@@ -179,11 +179,12 @@ typedef struct token {
 		TOKEN_OPERATOR,
 		TOKEN_IN,
 		TOKEN_STRUCT,
-		TOKEN_FUNCTION,
-		TOKEN_VAR,
+		TOKEN_CBUFFER,
 		TOKEN_CONST,
 		TOKEN_RETURN,
-		TOKEN_DISCARD
+		TOKEN_DISCARD,
+		TOKEN_BREAK,
+		TOKEN_CONTINUE
 	} kind;
 
 	union {
@@ -203,7 +204,6 @@ typedef struct tokens {
 typedef struct member {
 	name_id  name;
 	type_ref type;
-	token    value;
 } member;
 
 typedef struct members {
@@ -278,7 +278,9 @@ typedef struct opcode {
 		OPCODE_WHILE_END,
 		OPCODE_WHILE_BODY,
 		OPCODE_BLOCK_START,
-		OPCODE_BLOCK_END
+		OPCODE_BLOCK_END,
+		OPCODE_BREAK,
+		OPCODE_CONTINUE
 	} type;
 	uint32_t size;
 
@@ -361,6 +363,10 @@ typedef struct opcode {
 			uint64_t id;
 		} op_block;
 		struct {
+			uint64_t continue_id;
+			uint64_t end_id;
+		} op_loop_jump;
+		struct {
 			uint8_t nothing;
 		} op_nothing;
 	};
@@ -376,8 +382,6 @@ struct statement;
 typedef struct builtins {
 	bool builtins_analyzed;
 	bool dispatch_thread_id;
-	bool group_thread_id;
-	bool group_id;
 	bool vertex_id;
 } builtins;
 
@@ -404,11 +408,6 @@ typedef struct function {
 
 	opcodes code;
 } function;
-
-typedef struct render_pipeline {
-	function *vertex_shader;
-	function *fragment_shader;
-} render_pipeline;
 
 typedef struct debug_context {
 	const char *filename;
@@ -552,7 +551,9 @@ typedef struct statement {
 		STATEMENT_WHILE,
 		STATEMENT_DO_WHILE,
 		STATEMENT_BLOCK,
-		STATEMENT_LOCAL_VARIABLE
+		STATEMENT_LOCAL_VARIABLE,
+		STATEMENT_BREAK,
+		STATEMENT_CONTINUE
 	} kind;
 
 	union {
@@ -567,6 +568,7 @@ typedef struct statement {
 		struct {
 			expression       *test;
 			struct statement *while_block;
+			expression       *post;
 		} whiley;
 		block block;
 		struct {
@@ -606,10 +608,6 @@ typedef struct descriptor_set {
 	global_array globals;
 } descriptor_set;
 
-static_array(render_pipeline, render_pipelines, 256);
-static_array(uint32_t, render_pipeline_indices, 256);
-typedef render_pipeline_indices render_pipeline_group;
-static_array(render_pipeline_group, render_pipeline_groups, 64);
 static_array(function *, compute_shaders, 256);
 static_array(uint32_t, compute_shader_indices, 256);
 static_array(descriptor_set *, descriptor_sets, 256);
@@ -622,10 +620,14 @@ variable              allocate_variable(type_ref type, variable_kind kind);
 void                  find_referenced_functions(function *f, function **functions, size_t *functions_size);
 void                  find_referenced_types(function *f, type_id *types, size_t *types_size);
 void                  find_referenced_globals(function *f, global_array *globals);
+bool                  is_storage_buffer(type_id t); // uint name[];
 void                  find_used_builtins(function *f);
 void                  find_used_capabilities(function *f);
+bool                  calls_function(function *f, const char *name);
 descriptor_set_group *get_descriptor_set_group(uint32_t descriptor_set_group_index);
-descriptor_set_group *find_descriptor_set_group_for_pipe_type(type *t);
+function_id           find_function_id(name_id name);
+function_id           find_vertex_function(void);
+function_id           find_fragment_function(void);
 descriptor_set_group *find_descriptor_set_group_for_function(function *f);
 void                  analyze(void);
 void                  error(debug_context context, const char *message, ...);
@@ -634,9 +636,15 @@ void                  error_args(debug_context context, const char *message, va_
 void                  error_args_no_context(const char *message, va_list args);
 void                  check_function(bool test, debug_context context, const char *message, ...);
 
-#define check(test, context, message, ...) \
-	assert(test);                          \
-	check_function(test, context, message, ##__VA_ARGS__)
+#define check(test, context, message, ...) check_function(test, context, message, ##__VA_ARGS__)
+
+void kong_assert_failed(const char *test, const char *file, int line);
+#define kong_assert(test)                                  \
+	do {                                                   \
+		if (!(test)) {                                     \
+			kong_assert_failed(#test, __FILE__, __LINE__); \
+		}                                                  \
+	} while (0)
 
 void        check_args(bool test, debug_context context, const char *message, va_list args);
 void        functions_init(void);
@@ -893,6 +901,7 @@ extern type_id bool4_id;
 extern type_id sampler_type_id;
 extern type_id ray_type_id;
 extern type_id bvh_type_id;
+extern type_id ray_query_type_id;
 
 static inline bool is_texture(type_id id) {
 	while (id != NO_TYPE) {
@@ -922,4 +931,10 @@ void     indent(char *code, size_t *offset, int indentation);
 
 typedef char *(*type_string_func)(type_id type);
 void  cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func type_string, int *indentation);
+char *cstyle_float(char *buffer, float value);
 char *metal_export(char *directory);
+char *metal_export_compute(void);
+char *hlsl_export_compute(void);
+char *spirv_export_compute(int *size);
+char *wgsl_export_compute(void);
+char *kong_preprocess(const char *source, char **defines, int defines_count);

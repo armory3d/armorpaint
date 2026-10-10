@@ -518,8 +518,10 @@ void layers_set_object_mask() {
 			util_mesh_merge(visibles);
 		}
 		context_select_paint_object(context_main_object());
-		g_context->paint_object->skip_context   = "paint";
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			g_context->paint_object->skip_context   = "paint";
+			g_context->merged_object->base->visible = true;
+		}
 	}
 	util_uv_dilatemap_cached = false;
 }
@@ -653,7 +655,7 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	l->path_tool          = -1;
 	l->path_curved        = curved;
 	l->path_material      = g_context->material;
-	char *name            = string(curved ? "Curve %d" : "Path %d", l->id + 1);
+	char *name            = string_copy(slot_layer_unique_name(l, string_tmp(curved ? "Curve %d" : "Path %d", l->id + 1)));
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 
@@ -672,7 +674,7 @@ slot_layer_t *layers_new_text_layer() {
 	}
 	l->path_text = true;
 	l->path_tool = TOOL_TYPE_TEXT;
-	char *name   = string("Text %d", l->id + 1);
+	char *name   = string_copy(slot_layer_unique_name(l, string_tmp("Text %d", l->id + 1)));
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 	return l;
@@ -1249,7 +1251,9 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		}
 	}
 
-	layers_draw_mesh_materials();
+	if (util_mesh_udim_active()) {
+		layers_draw_mesh_materials();
+	}
 
 	slot_layer_t *l0 = ALLOC_INIT(slot_layer_t, {.texpaint = layers_expa, .texpaint_nor = layers_expb, .texpaint_pack = layers_expc});
 

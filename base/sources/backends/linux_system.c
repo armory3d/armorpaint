@@ -145,6 +145,9 @@ void iron_display_init() {
 	}
 
 	iron_x11_init();
+	if (x11_ctx.display == NULL) {
+		return;
+	}
 
 	Window              root_window      = RootWindow(x11_ctx.display, DefaultScreen(x11_ctx.display));
 	XRRScreenResources *screen_resources = XRRGetScreenResourcesCurrent(x11_ctx.display, root_window);
@@ -1536,6 +1539,7 @@ bool _save_and_quit_callback_internal() {
 
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/prctl.h>
 #include <sys/wait.h>
 static pid_t child_pid                   = -1;
 volatile int iron_exec_async_done        = 1;
@@ -1550,8 +1554,13 @@ void iron_exec_handler(int sig) {
 
 void iron_exec_async(const char *path, char *argv[]) {
 	iron_exec_async_done = 0;
+	pid_t parent_pid     = getpid();
 	child_pid            = fork();
 	if (child_pid == 0) {
+		prctl(PR_SET_PDEATHSIG, SIGTERM);
+		if (getppid() != parent_pid) {
+			_exit(1);
+		}
 		int fd = iron_exec_async_output_file != NULL ? open(iron_exec_async_output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644) : open("/dev/null", O_WRONLY);
 		dup2(fd, STDOUT_FILENO);
 		dup2(fd, STDERR_FILENO);

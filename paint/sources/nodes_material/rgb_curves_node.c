@@ -40,7 +40,7 @@ char *rgb_curves_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *gg = vector_curves_eval(string_tmp("%s_gg", name), cg, curves->buffer + 32 * 2, ng);
 	char *bb = vector_curves_eval(string_tmp("%s_bb", name), cb, curves->buffer + 32 * 3, nb);
 
-	return string_tmp("lerp3(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
+	return string_tmp("lerp(%s, float3(%s, %s, %s), %s)", col, rr, gg, bb, fac);
 }
 
 void nodes_material_rgb_curves_button(i32 node_id) {

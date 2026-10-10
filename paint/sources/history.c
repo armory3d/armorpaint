@@ -252,9 +252,7 @@ void history_swap_object_transform(history_step_t *step) {
 	if (pb != NULL) {
 		physics_body_sync_transform(pb);
 	}
-	if (config_is_raytrace_multi()) {
-		render_path_raytrace_ready = false;
-	}
+	util_mesh_transform_changed();
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);
 	ui_header_handle->redraws = 2;
 }
@@ -336,6 +334,8 @@ void history_undo() {
 			if (step->layer_type == LAYER_SLOT_TYPE_GROUP) {
 				sys_notify_on_next_frame(&history_undo_delete_layer_group, NULL);
 			}
+
+			tab_stages_add_layer(l->name);
 		}
 		else if (step->action == HISTORY_ACTION_CLEAR_LAYER) {
 			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -537,6 +537,7 @@ void history_undo() {
 			ui_menubar_menu_handle->redraws = 2;
 		}
 	}
+	base_redraw_status();
 }
 
 void history_redo_invert_mask(history_step_t *step) {
@@ -852,6 +853,7 @@ void history_redo() {
 			ui_menubar_menu_handle->redraws = 2;
 		}
 	}
+	base_redraw_status();
 }
 
 void history_reset() {

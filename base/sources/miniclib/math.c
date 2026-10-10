@@ -1,17 +1,17 @@
 #include "math.h"
 
 #ifdef IRON_WASM
-__attribute__((import_module("imports"), import_name("js_pow"))) float   js_pow(float base, float exponent);
-__attribute__((import_module("imports"), import_name("js_sin"))) float   js_sin(float x);
-__attribute__((import_module("imports"), import_name("js_cos"))) float   js_cos(float x);
-__attribute__((import_module("imports"), import_name("js_tan"))) float   js_tan(float x);
-__attribute__((import_module("imports"), import_name("js_log"))) float   js_log(float x);
-__attribute__((import_module("imports"), import_name("js_exp"))) float   js_exp(float x);
-__attribute__((import_module("imports"), import_name("js_sqrt"))) float  js_sqrt(float x);
-__attribute__((import_module("imports"), import_name("js_acos"))) float  js_acos(float x);
-__attribute__((import_module("imports"), import_name("js_asin"))) float  js_asin(float x);
-__attribute__((import_module("imports"), import_name("js_atan"))) float  js_atan(float x);
-__attribute__((import_module("imports"), import_name("js_atan2"))) float js_atan2(float x, float y);
+__attribute__((import_module("imports"), import_name("js_pow"))) double   js_pow(double base, double exponent);
+__attribute__((import_module("imports"), import_name("js_sin"))) double   js_sin(double x);
+__attribute__((import_module("imports"), import_name("js_cos"))) double   js_cos(double x);
+__attribute__((import_module("imports"), import_name("js_tan"))) double   js_tan(double x);
+__attribute__((import_module("imports"), import_name("js_log"))) double   js_log(double x);
+__attribute__((import_module("imports"), import_name("js_exp"))) double   js_exp(double x);
+__attribute__((import_module("imports"), import_name("js_sqrt"))) double  js_sqrt(double x);
+__attribute__((import_module("imports"), import_name("js_acos"))) double  js_acos(double x);
+__attribute__((import_module("imports"), import_name("js_asin"))) double  js_asin(double x);
+__attribute__((import_module("imports"), import_name("js_atan"))) double  js_atan(double x);
+__attribute__((import_module("imports"), import_name("js_atan2"))) double js_atan2(double x, double y);
 #endif
 
 double fabs(double n) {
@@ -38,8 +38,25 @@ float fminf(float x, float y) {
 	return x < y ? x : y;
 }
 
+static double exp2_int(int exp) {
+	union {
+		double             d;
+		unsigned long long u;
+	} v;
+	v.u = (unsigned long long)(exp + 1023) << 52;
+	return v.d;
+}
+
 double ldexp(double x, int exp) {
-	return x * pow(2.0, exp);
+	while (exp > 1023) {
+		x *= exp2_int(1023);
+		exp -= 1023;
+	}
+	while (exp < -1022) {
+		x *= exp2_int(-1022);
+		exp += 1022;
+	}
+	return x * exp2_int(exp);
 }
 
 double pow(double base, double exponent) {
@@ -224,7 +241,14 @@ float expf(float x) {
 }
 
 double exp2(double x) {
-	return pow(2.0, x);
+#ifdef IRON_WASM
+	return js_pow(2.0, x);
+#endif
+	double r = 1.0;
+	int    n = (int)x;
+	for (int i = 0; i < n; i++)
+		r *= 2.0;
+	return r;
 }
 
 float exp2f(float x) {
@@ -236,6 +260,8 @@ double frexp(double x, int *exp) {
 		*exp = 0;
 		return 0.0;
 	}
+	double sign = x < 0.0 ? -1.0 : 1.0;
+	x *= sign;
 	*exp = 0;
 	while (x >= 1.0) {
 		x /= 2.0;
@@ -245,7 +271,7 @@ double frexp(double x, int *exp) {
 		x *= 2.0;
 		(*exp)--;
 	}
-	return x;
+	return x * sign;
 }
 
 float frexpf(float x, int *exp) {

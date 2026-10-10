@@ -76,11 +76,11 @@ typedef enum {
 } viewport_mode_t;
 
 typedef enum {
-	WORKSPACE_PAINT_3D = 0,
-	WORKSPACE_PAINT_2D = 1,
-	WORKSPACE_NODES    = 2,
-	WORKSPACE_SCRIPT   = 3,
-	WORKSPACE_PLAYER   = 4,
+	WORKSPACE_VIEW_3D = 0,
+	WORKSPACE_VIEW_2D = 1,
+	WORKSPACE_NODES   = 2,
+	WORKSPACE_SCRIPT  = 3,
+	WORKSPACE_PLAYER  = 4,
 } workspace_t;
 
 typedef enum {
@@ -108,10 +108,8 @@ typedef enum {
 } export_destination_t;
 
 typedef enum {
-	PATHTRACE_MODE_FAST          = 0,
-	PATHTRACE_MODE_QUALITY       = 1,
-	PATHTRACE_MODE_MULTI_FAST    = 2,
-	PATHTRACE_MODE_MULTI_QUALITY = 3,
+	PATHTRACE_MODE_FAST = 0,
+	PATHTRACE_MODE_FULL = 1,
 } pathtrace_mode_t;
 
 typedef enum {
@@ -128,8 +126,18 @@ typedef enum {
 } uv_type_t;
 
 typedef enum {
-	SCULPT_TYPE_DRAW = 0,
-	SCULPT_TYPE_GRAB = 1,
+	SCULPT_TYPE_DRAW    = 0,
+	SCULPT_TYPE_GRAB    = 1,
+	SCULPT_TYPE_INFLATE = 2,
+	SCULPT_TYPE_FLATTEN = 3,
+	SCULPT_TYPE_CLAY    = 4,
+	SCULPT_TYPE_PINCH   = 5,
+	SCULPT_TYPE_CREASE  = 6,
+	SCULPT_TYPE_CLOTH   = 7,
+	SCULPT_TYPE_TWIST   = 8,
+	SCULPT_TYPE_STRETCH = 9,
+	SCULPT_TYPE_TRIM    = 10,
+	SCULPT_TYPE_PLATEAU = 11,
 } sculpt_type_t;
 
 typedef enum {
@@ -293,7 +301,8 @@ typedef enum {
 	PREFERENCES_TAB_VIEWPORT  = 5,
 	PREFERENCES_TAB_KEYMAP    = 6,
 	PREFERENCES_TAB_NEURAL    = 7,
-	PREFERENCES_TAB_PLUGINS   = 8,
+	PREFERENCES_TAB_CLOUD     = 8,
+	PREFERENCES_TAB_PLUGINS   = 9,
 } preferences_tab_t;
 
 typedef enum {
@@ -447,6 +456,19 @@ typedef enum {
 	ICON_CYLINDER         = 141,
 	ICON_CONE             = 142,
 	ICON_BOX              = 143,
+	ICON_SCULPT_DRAW      = 144,
+	ICON_SCULPT_GRAB      = 145,
+	ICON_SCULPT_INFLATE   = 146,
+	ICON_SCULPT_FLATTEN   = 147,
+	ICON_SCULPT_CLAY      = 148,
+	ICON_SCULPT_PINCH     = 149,
+	ICON_SCULPT_CREASE    = 150,
+	ICON_SCULPT_CLOTH     = 151,
+	ICON_SCULPT_TWIST     = 152,
+	ICON_SCULPT_STRETCH   = 153,
+	ICON_SCULPT_TRIM      = 154,
+	ICON_SCULPT_PLATEAU   = 155,
+	ICON_RESERVED5        = 156, // icon18 strip at the bottom edge
 } icon_t;
 
 typedef enum {

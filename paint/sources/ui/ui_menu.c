@@ -202,13 +202,18 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 	return result;
 }
 
+bool ui_menu_sub_left() {
+	return g_ui->_x + g_ui->_w * 2 + 2 > iron_window_width() && g_ui->_x - g_ui->_w - 2 >= 0;
+}
+
 bool ui_menu_sub_button(char *text) {
 	g_ui->is_hovered = false;
 	ui_menu_button(text, ">", ICON_NONE);
+	f32 dx = ui_menu_sub_left() ? -g_ui->input_dx : g_ui->input_dx;
 	if (g_ui->is_hovered) {
 		snprintf(ui_menu_sub_text, sizeof(ui_menu_sub_text), "%s", text);
 	}
-	else if (math_abs(g_ui->input_dy) > g_ui->input_dx && g_ui->input_x < g_ui->_x + g_ui->_w) {
+	else if (math_abs(g_ui->input_dy) > dx && g_ui->input_x >= g_ui->_x && g_ui->input_x < g_ui->_x + g_ui->_w) {
 		ui_menu_sub_text[0] = '\0';
 	}
 	return string_equals(ui_menu_sub_text, text);
@@ -251,7 +256,7 @@ void ui_menu_end() {}
 void ui_menu_sub_begin(i32 items) {
 	ui_menu_sub_x = g_ui->_x;
 	ui_menu_sub_y = g_ui->_y;
-	g_ui->_x += g_ui->_w + 2;
+	g_ui->_x += ui_menu_sub_left() ? -g_ui->_w - 2 : g_ui->_w + 2;
 	g_ui->_y -= UI_ELEMENT_H();
 	ui_draw_shadow(g_ui->_x, g_ui->_y, g_ui->_w, UI_ELEMENT_H() * items);
 	draw_set_color(g_theme->SEPARATOR_COL);

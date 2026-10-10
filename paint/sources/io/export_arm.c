@@ -41,12 +41,11 @@ void export_arm_run_mesh(char *path, mesh_object_t_array_t *paint_objects) {
 void export_arm_export_node(ui_node_t *n, asset_t_array_t *assets) {
 	if (string_equals(n->type, "TEX_IMAGE")) {
 		i32 index = n->buttons->buffer[0]->default_value->buffer[0];
-		if (index > 9000) { // 9999 - Texture deleted
+		if (index < 0 || index >= g_project->_->assets->length) { // 9999 - Texture deleted
 			n->buttons->buffer[0]->data = u8_array_create_from_string("");
+			return;
 		}
-		else {
-			n->buttons->buffer[0]->data = u8_array_create_from_string(base_combo_enum_texts(n->type)->buffer[index]);
-		}
+		n->buttons->buffer[0]->data = u8_array_create_from_string(base_combo_enum_texts(n->type)->buffer[index]);
 		if (assets != NULL) {
 			asset_t *asset = g_project->_->assets->buffer[index];
 			if (array_index_of(assets, asset) == -1) {
@@ -143,7 +142,8 @@ static void export_arm_free_buffer(buffer_t *b) {
 	}
 }
 
-void export_arm_run_project(char *path) {
+buffer_t *export_arm_encode_project(char *path) {
+	// Path is where the project is imported from, asset paths are relative to it
 
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
@@ -219,11 +219,11 @@ void export_arm_run_project(char *path) {
 		any_array_push(md, source >= 0 && source < i ? export_arm_linked_mesh_data(p, source) : export_arm_named_mesh_data(p));
 	}
 
-	char *relative_to = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
+	char           *relative_to   = string_equals(g_project->_->filepath, "") ? path : g_project->_->filepath;
 	string_array_t *texture_files = export_arm_assets_to_files(relative_to, g_project->_->assets);
-	string_array_t *font_files  = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
-	string_array_t *sound_files = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
-	string_array_t *mesh_files  = export_arm_meshes_to_files(relative_to);
+	string_array_t *font_files    = export_arm_fonts_to_files(relative_to, g_project->_->fonts);
+	string_array_t *sound_files   = export_arm_sounds_to_files(relative_to, g_project->_->sounds);
+	string_array_t *mesh_files    = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
 	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
@@ -285,7 +285,7 @@ void export_arm_run_project(char *path) {
 	g_project->assets          = texture_files;
 	g_project->packed_assets   = packed_assets;
 	g_project->swatches        = g_project->swatches;
-	g_project->envmap = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
+	g_project->envmap          = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
 	g_project->envmap_strength = scene_world->strength;
 	g_project->envmap_angle    = g_context->envmap_angle;
 	g_project->envmap_blur     = g_context->show_envmap_blur;
@@ -371,33 +371,16 @@ void export_arm_run_project(char *path) {
 	g_project->is_bgra = false;
 #endif
 
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
-	render_target_t *rt        = any_map_get(render_path_render_targets, "buf");
-	gpu_texture_t   *tex       = rt->_image;
-	gpu_texture_t   *mesh_icon = gpu_create_render_target(256, 256, GPU_TEXTURE_FORMAT_RGBA32);
-	f32              r         = sys_w() / (float)sys_h();
-	draw_begin(mesh_icon, false, 0);
-	draw_scaled_image(tex, -(256 * r - 256) / 2.0, 0, 256 * r, 256);
-	draw_end();
-
-	buffer_t   *mesh_icon_pixels = gpu_get_texture_pixels(mesh_icon);
-	u8_array_t *u8a              = mesh_icon_pixels;
-	for (i32 i = 0; i < 256 * 256 * 4; ++i) {
-		u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
-	}
-	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
-	gpu_delete_texture(mesh_icon);
+	bool pack_assets = g_context->pack_assets_on_save;
+#ifdef IRON_WASM
+	pack_assets = true;
 #endif
-
-	if (g_context->pack_assets_on_save) { // Pack textures and sounds
+	if (pack_assets) { // Pack textures and sounds
 		export_arm_pack_assets(g_project, g_project->_->assets);
 		export_arm_pack_sounds(g_project, g_project->_->sounds);
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
-	iron_file_save_bytes(path, buffer, buffer->length + 1);
-	array_free(buffer);
-	free(buffer);
 
 	for (i32 i = 0; i < ld->length; ++i) {
 		layer_data_t *d = ld->buffer[i];
@@ -416,6 +399,38 @@ void export_arm_run_project(char *path) {
 	g_project->layer_datas = NULL;
 	tab_timeline_export_free(g_project);
 	tab_timeline_finish_save();
+	return buffer;
+}
+
+void export_arm_run_project(char *path) {
+	buffer_t *buffer = export_arm_encode_project(path);
+	iron_file_save_bytes(path, buffer, buffer->length + 1);
+	array_free(buffer);
+	free(buffer);
+
+#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_WASM)
+#ifdef IRON_WASM
+	if (box_projects_is_cloud_path(path)) { // Icons are shown in the cloud projects box only
+#else
+	{
+#endif
+	render_target_t *rt        = any_map_get(render_path_render_targets, "buf");
+	gpu_texture_t   *tex       = rt->_image;
+	gpu_texture_t   *mesh_icon = gpu_create_render_target(256, 256, GPU_TEXTURE_FORMAT_RGBA32);
+	f32              r         = sys_w() / (float)sys_h();
+	draw_begin(mesh_icon, false, 0);
+	draw_scaled_image(tex, -(256 * r - 256) / 2.0, 0, 256 * r, 256);
+	draw_end();
+
+	buffer_t   *mesh_icon_pixels = gpu_get_texture_pixels(mesh_icon);
+	u8_array_t *u8a              = mesh_icon_pixels;
+	for (i32 i = 0; i < 256 * 256 * 4; ++i) {
+		u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
+	}
+	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
+	gpu_delete_texture(mesh_icon);
+	}
+#endif
 
 	if (!string_equals(path, g_project->_->filepath)) {
 		return;

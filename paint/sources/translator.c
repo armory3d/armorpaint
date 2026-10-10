@@ -23,12 +23,9 @@ char *vtr(char *id, any_map_t *vars) {
 
 	// English is the source language
 	if (!string_equals(g_config->locale, "en")) {
-		if (string_index_of(id, "\n") > -1) {
-			id = string_replace_all_tmp(id, "\n", "\\n");
-		}
 		char *s = any_map_get(translator_translations, id);
 		if (s != NULL) {
-			translation = string_index_of(s, "\\n") > -1 ? string_replace_all_tmp(s, "\\n", "\n") : s;
+			translation = s;
 		}
 	}
 

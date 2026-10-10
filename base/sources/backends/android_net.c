@@ -9,8 +9,8 @@
 ANativeActivity *iron_android_get_activity(void);
 jclass           iron_android_find_class(JNIEnv *env, const char *name);
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, iron_https_callback_t callback, void *callbackdata,
-                      const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
+                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
 	ANativeActivity *activity = iron_android_get_activity();
 	JNIEnv          *env;
 	JavaVM          *vm = iron_android_get_activity()->vm;
@@ -19,13 +19,16 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 
 	jstring    jurl_base   = (*env)->NewStringUTF(env, url_base);
 	jstring    jurl_path   = (*env)->NewStringUTF(env, url_path);
-	jbyteArray bytes_array = (jbyteArray)((*env)->CallStaticObjectMethod(env, activityClass,
-	                                                                     (*env)->GetStaticMethodID(env, activityClass, "androidHttpRequest",
-	                                                                                               "(Ljava/lang/String;Ljava/lang/String;)[B"),
-	                                                                     jurl_base, jurl_path));
+	jstring    jdata       = data ? (*env)->NewStringUTF(env, data) : NULL;
+	jstring    jheaders    = headers ? (*env)->NewStringUTF(env, headers) : NULL;
+	jbyteArray bytes_array = (jbyteArray)((*env)->CallStaticObjectMethod(
+	    env, activityClass,
+	    (*env)->GetStaticMethodID(env, activityClass, "androidHttpRequest", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)[B"),
+	    jurl_base, jurl_path, jdata, method, jheaders));
+	int status = (*env)->GetStaticIntField(env, activityClass, (*env)->GetStaticFieldID(env, activityClass, "status", "I"));
 
 	if (bytes_array == NULL) {
-		callback(NULL, callbackdata);
+		callback(0, NULL, callbackdata);
 		(*vm)->DetachCurrentThread(vm);
 		return;
 	}
@@ -40,10 +43,10 @@ void iron_net_request(const char *url_base, const char *url_path, const char *da
 				fwrite((char *)elements, 1, num_bytes, file);
 				fclose(file);
 			}
-			callback(NULL, callbackdata);
+			callback(status, NULL, callbackdata);
 		}
 		else {
-			callback((char *)elements, callbackdata);
+			callback(status, (char *)elements, callbackdata);
 		}
 
 		// (*env)->ReleaseByteArrayElements(env, bytes_array, elements, JNI_ABORT);

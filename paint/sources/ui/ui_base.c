@@ -360,13 +360,17 @@ tab_draw_array_t_array_t *ui_base_init_hwnd_tabs() {
 }
 
 void ui_base_toggle_distract_free() {
+	if (player_in_editor) {
+		player_stop();
+		return;
+	}
 	if (base_player_lock) {
 		return;
 	}
 
 	ui_base_show = !ui_base_show;
-	if (ui_base_show) {
-		g_config->workspace = WORKSPACE_PAINT_3D;
+	if (ui_base_show && g_config->workspace == WORKSPACE_PLAYER) {
+		g_config->workspace = WORKSPACE_VIEW_3D;
 		base_update_workspace();
 	}
 	base_resize();

@@ -160,6 +160,10 @@ i32 util_encode_timeline_layers_size(timeline_layer_keyframe_data_t_array_t *dat
 		if (tp_pack != NULL) {
 			size += tp_pack->length;
 		}
+		buffer_t *tp_sculpt = datas->buffer[i]->texpaint_sculpt;
+		if (tp_sculpt != NULL) {
+			size += tp_sculpt->length;
+		}
 		f32_array_t *pp = datas->buffer[i]->path_points;
 		if (pp != NULL) {
 			size += pp->length * 4;
@@ -511,7 +515,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->timeline_layers != NULL) {
 		armpack_encode_array(raw->timeline_layers->length);
 		for (i32 i = 0; i < raw->timeline_layers->length; ++i) {
-			armpack_encode_map(10);
+			armpack_encode_map(11);
 			armpack_encode_string("frame");
 			armpack_encode_i32(raw->timeline_layers->buffer[i]->frame);
 			armpack_encode_string("layer_index");
@@ -522,6 +526,8 @@ buffer_t *util_encode_project(project_t *raw) {
 			armpack_encode_array_u8(raw->timeline_layers->buffer[i]->texpaint_nor);
 			armpack_encode_string("texpaint_pack");
 			armpack_encode_array_u8(raw->timeline_layers->buffer[i]->texpaint_pack);
+			armpack_encode_string("texpaint_sculpt");
+			armpack_encode_array_u8(raw->timeline_layers->buffer[i]->texpaint_sculpt);
 			armpack_encode_string("path_points");
 			armpack_encode_array_f32(raw->timeline_layers->buffer[i]->path_points);
 			armpack_encode_string("path_points_world");

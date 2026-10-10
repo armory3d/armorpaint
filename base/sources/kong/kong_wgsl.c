@@ -21,6 +21,15 @@ static function_id fragment_functions[256];
 static size_t      fragment_functions_size = 0;
 static function_id compute_functions[256];
 static size_t      compute_functions_size = 0;
+static bool        compute_export         = false;
+static uint64_t    compute_target_var     = UINT64_MAX; // Writable texture, read back through _kong_prev
+
+// Fixed compute bindings, the bvh global itself binds _kong_nodes
+#define KONG_BINDING_INDICES   12
+#define KONG_BINDING_VERTICES  13
+#define KONG_BINDING_INSTANCES 14
+#define KONG_BINDING_GEOMETRY  15 // 15-17
+#define KONG_BINDING_PREV      18
 
 static char *type_string(type_id type) {
 	if (type == float_id) {
@@ -91,6 +100,12 @@ static char *type_string(type_id type) {
 	}
 	if (type == float4x4_id) {
 		return "mat4x4<f32>";
+	}
+	if (type == ray_type_id) {
+		return "_kong_ray";
+	}
+	if (type == ray_query_type_id) {
+		return "_kong_ray_query";
 	}
 	return get_name(get_type(type)->name);
 }
@@ -213,7 +228,7 @@ static void write_types(char *wgsl, size_t *offset, shader_stage stage, type_id 
 	for (size_t i = 0; i < types_size; ++i) {
 		type *t = get_type(types[i]);
 
-		if (!t->built_in && !has_attribute(&t->attributes, add_name("pipe"))) {
+		if (!t->built_in) {
 			if (t->name == NO_NAME) {
 				char name[256];
 
@@ -326,18 +341,18 @@ static void write_globals(char *wgsl, size_t *offset, function *main, bool *fram
 				binding += 1;
 			}
 			else if (base_type == bvh_type_id) {
-				assert(false);
+				kong_assert(false);
 				binding += 1;
 			}
 			else if (get_type(g->type)->built_in) {
 				if (get_type(g->type)->array_size > 0) {
-					assert(false);
+					kong_assert(false);
 					binding += 1;
 				}
 			}
 			else {
 				if (get_type(g->type)->array_size > 0) {
-					assert(false);
+					kong_assert(false);
 					binding += 1;
 				}
 				else {
@@ -359,6 +374,305 @@ static void write_globals(char *wgsl, size_t *offset, function *main, bool *fram
 			}
 		}
 	}
+}
+
+static small_string get_var(variable var, function *f, function *main);
+
+// Software ray queries: a bvh global becomes storage buffers walked by _kong_trace
+static const char *wgsl_ray_query_types = "struct _kong_ray {\n"
+                                          "\torigin: vec3<f32>,\n"
+                                          "\tdirection: vec3<f32>,\n"
+                                          "\tmin: f32,\n"
+                                          "\tmax: f32,\n"
+                                          "};\n\n"
+                                          "struct _kong_ray_query {\n"
+                                          "\thit: bool,\n"
+                                          "\tfront_face: bool,\n"
+                                          "\tt: f32,\n"
+                                          "\tbarycentrics: vec2<f32>,\n"
+                                          "\tprimitive: u32,\n"
+                                          "\tinstance: u32,\n"
+                                          "};\n\n"
+                                          "struct _kong_node {\n"
+                                          "\tmin: vec3<f32>,\n"
+                                          "\tfirst: u32, // Left child, or the first triangle of a leaf\n"
+                                          "\tmax: vec3<f32>,\n"
+                                          "\tcount: u32, // Triangles, 0 for inner nodes\n"
+                                          "};\n\n"
+                                          "struct _kong_instance {\n"
+                                          "\tworld_to_object: mat4x3<f32>,\n"
+                                          "\tobject_to_world: mat3x3<f32>,\n"
+                                          "\troot: u32,\n"
+                                          "\tgeometry: u32,\n"
+                                          "};\n\n";
+
+static const char *wgsl_ray_query_functions = "fn _kong_position(v: u32) -> vec3<f32> {\n"
+                                              "\tlet raw = _kong_vertices[v];\n"
+                                              "\treturn vec3<f32>(unpack2x16snorm(raw.x), unpack2x16snorm(raw.y).x);\n"
+                                              "}\n\n"
+                                              "// Entry distance into the box, or -1 on a miss\n"
+                                              "fn _kong_box(n: u32, origin: vec3<f32>, inv_dir: vec3<f32>, tmin: f32, tmax: f32) -> f32 {\n"
+                                              "\tlet t0 = (_kong_nodes[n].min - origin) * inv_dir;\n"
+                                              "\tlet t1 = (_kong_nodes[n].max - origin) * inv_dir;\n"
+                                              "\tlet lo = min(t0, t1);\n"
+                                              "\tlet hi = max(t0, t1);\n"
+                                              "\tlet enter = max(max(lo.x, lo.y), max(lo.z, tmin));\n"
+                                              "\tlet exit = min(min(hi.x, hi.y), min(hi.z, tmax));\n"
+                                              "\treturn select(-1.0, enter, enter <= exit);\n"
+                                              "}\n\n"
+                                              "fn _kong_trace(r: _kong_ray, any_hit: bool) -> _kong_ray_query {\n"
+                                              "\tvar q: _kong_ray_query;\n"
+                                              "\tq.hit = false;\n"
+                                              "\tq.t = r.max;\n"
+                                              "\tvar stack: array<u32, 64>;\n"
+                                              "\tlet instance_count = arrayLength(&_kong_instances);\n"
+                                              "\tfor (var i = 0u; i < instance_count; i += 1u) {\n"
+                                              "\t\tlet instance = _kong_instances[i];\n"
+                                              "\t\tlet origin = instance.world_to_object * vec4<f32>(r.origin, 1.0);\n"
+                                              "\t\tvar dir = instance.world_to_object * vec4<f32>(r.direction, 0.0);\n"
+                                              "\t\tdir = select(dir, vec3<f32>(1e-20), abs(dir) < vec3<f32>(1e-20));\n"
+                                              "\t\tlet inv_dir = 1.0 / dir;\n"
+                                              "\t\tif (_kong_box(instance.root, origin, inv_dir, r.min, q.t) < 0.0) {\n"
+                                              "\t\t\tcontinue;\n"
+                                              "\t\t}\n"
+                                              "\t\tvar node = instance.root;\n"
+                                              "\t\tvar sp = 0u;\n"
+                                              "\t\tloop {\n"
+                                              "\t\t\tlet count = _kong_nodes[node].count;\n"
+                                              "\t\t\tlet first = _kong_nodes[node].first;\n"
+                                              "\t\t\tif (count > 0u) {\n"
+                                              "\t\t\t\tfor (var k = first; k < first + count; k += 1u) {\n"
+                                              "\t\t\t\t\tlet p0 = _kong_position(_kong_indices[k * 3u]);\n"
+                                              "\t\t\t\t\tlet e1 = _kong_position(_kong_indices[k * 3u + 1u]) - p0;\n"
+                                              "\t\t\t\t\tlet e2 = _kong_position(_kong_indices[k * 3u + 2u]) - p0;\n"
+                                              "\t\t\t\t\tlet pv = cross(dir, e2);\n"
+                                              "\t\t\t\t\tlet det = dot(e1, pv);\n"
+                                              "\t\t\t\t\tif (det == 0.0) {\n"
+                                              "\t\t\t\t\t\tcontinue;\n"
+                                              "\t\t\t\t\t}\n"
+                                              "\t\t\t\t\tlet inv_det = 1.0 / det;\n"
+                                              "\t\t\t\t\tlet tv = origin - p0;\n"
+                                              "\t\t\t\t\tlet u = dot(tv, pv) * inv_det;\n"
+                                              "\t\t\t\t\tlet qv = cross(tv, e1);\n"
+                                              "\t\t\t\t\tlet v = dot(dir, qv) * inv_det;\n"
+                                              "\t\t\t\t\tlet t = dot(e2, qv) * inv_det;\n"
+                                              "\t\t\t\t\tif (u >= 0.0 && v >= 0.0 && u + v <= 1.0 && t > r.min && t < q.t) {\n"
+                                              "\t\t\t\t\t\tq.hit = true;\n"
+                                              "\t\t\t\t\t\tq.front_face = det > 0.0;\n"
+                                              "\t\t\t\t\t\tq.t = t;\n"
+                                              "\t\t\t\t\t\tq.barycentrics = vec2<f32>(u, v);\n"
+                                              "\t\t\t\t\t\tq.primitive = k;\n"
+                                              "\t\t\t\t\t\tq.instance = i;\n"
+                                              "\t\t\t\t\t\tif (any_hit) {\n"
+                                              "\t\t\t\t\t\t\treturn q;\n"
+                                              "\t\t\t\t\t\t}\n"
+                                              "\t\t\t\t\t}\n"
+                                              "\t\t\t\t}\n"
+                                              "\t\t\t}\n"
+                                              "\t\t\telse {\n"
+                                              "\t\t\t\tlet t_left = _kong_box(first, origin, inv_dir, r.min, q.t);\n"
+                                              "\t\t\t\tlet t_right = _kong_box(first + 1u, origin, inv_dir, r.min, q.t);\n"
+                                              "\t\t\t\tif (t_left >= 0.0 && t_right >= 0.0) {\n"
+                                              "\t\t\t\t\tlet near_left = t_left <= t_right;\n"
+                                              "\t\t\t\t\tstack[sp] = select(first, first + 1u, near_left);\n"
+                                              "\t\t\t\t\tsp += 1u;\n"
+                                              "\t\t\t\t\tnode = select(first + 1u, first, near_left);\n"
+                                              "\t\t\t\t\tcontinue;\n"
+                                              "\t\t\t\t}\n"
+                                              "\t\t\t\tif (t_left >= 0.0) {\n"
+                                              "\t\t\t\t\tnode = first;\n"
+                                              "\t\t\t\t\tcontinue;\n"
+                                              "\t\t\t\t}\n"
+                                              "\t\t\t\tif (t_right >= 0.0) {\n"
+                                              "\t\t\t\t\tnode = first + 1u;\n"
+                                              "\t\t\t\t\tcontinue;\n"
+                                              "\t\t\t\t}\n"
+                                              "\t\t\t}\n"
+                                              "\t\t\tif (sp == 0u) {\n"
+                                              "\t\t\t\tbreak;\n"
+                                              "\t\t\t}\n"
+                                              "\t\t\tsp -= 1u;\n"
+                                              "\t\t\tnode = stack[sp];\n"
+                                              "\t\t}\n"
+                                              "\t}\n"
+                                              "\treturn q;\n"
+                                              "}\n\n";
+
+static bool is_compute_target_load(opcode *o) {
+	return o->type == OPCODE_LOAD_ACCESS_LIST && o->op_load_access_list.from.index == compute_target_var;
+}
+
+static bool reads_compute_target(function *main) {
+	function *functions[256];
+	size_t    functions_size    = 0;
+	functions[functions_size++] = main;
+	find_referenced_functions(main, functions, &functions_size);
+	for (size_t i = 0; i < functions_size; ++i) {
+		size_t index = 0;
+		while (index < functions[i]->code.size) {
+			opcode *o = (opcode *)&functions[i]->code.o[index];
+			if (is_compute_target_load(o)) {
+				return true;
+			}
+			index += o->size;
+		}
+	}
+	return false;
+}
+
+static bool uses_geometry_texture(function *main, int index) {
+	char name[64];
+	sprintf(name, "geometry_texture%i", index);
+	if (calls_function(main, name)) {
+		return true;
+	}
+	sprintf(name, "geometry_texture%i_size", index);
+	return calls_function(main, name);
+}
+
+// All set globals are declared, referenced or not, the backend builds the bind group layout from these declarations
+static void write_compute_globals(char *wgsl, size_t *offset, function *main) {
+	for (global_id i = 0; get_global(i) != NULL && get_global(i)->type != NO_TYPE; ++i) {
+		global *g = get_global(i);
+		char    number[64];
+		if (g->value.kind == GLOBAL_VALUE_NONE) {
+			continue;
+		}
+		if (g->type == float_id) {
+			*offset += sprintf(&wgsl[*offset], "const _%" PRIu64 ": f32 = %s;\n\n", g->var_index, cstyle_float(number, g->value.value.floats[0]));
+		}
+		else if (g->type == int_id) {
+			*offset += sprintf(&wgsl[*offset], "const _%" PRIu64 ": i32 = %i;\n\n", g->var_index, g->value.value.ints[0]);
+		}
+	}
+
+	descriptor_set_group *group = find_descriptor_set_group_for_function(main);
+	if (group == NULL) {
+		return;
+	}
+
+	debug_context context = {0};
+	check(group->size <= 1, context, "WGSL compute shaders support one descriptor set");
+
+	bool     uses_bvh = false;
+	uint32_t binding  = 0;
+	for (size_t set_index = 0; set_index < group->size; ++set_index) {
+		descriptor_set *set = group->values[set_index];
+
+		for (size_t g_index = 0; g_index < set->globals.size; ++g_index) {
+			global  *g         = get_global(set->globals.globals[g_index]);
+			bool     writable  = set->globals.writable[g_index];
+			type    *t         = get_type(g->type);
+			type_id  base_type = t->array_size > 0 ? t->base : g->type;
+			uint64_t var       = g->var_index;
+
+			if (base_type == sampler_type_id) {
+				*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": sampler;\n\n", binding, var);
+				binding += 1;
+			}
+			else if (get_type(base_type)->tex_kind != TEXTURE_KIND_NONE) {
+				check(t->array_size == 0, context, "Texture arrays are not supported in WGSL compute shaders");
+				if (writable) {
+					// The backend patches the format to match the target texture
+					check(compute_target_var == UINT64_MAX, context, "WGSL compute shaders support one writable texture");
+					compute_target_var = var;
+					*offset +=
+					    sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": texture_storage_2d<rgba32float, write>;\n\n", binding, var);
+				}
+				else {
+					*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": texture_2d<f32>;\n\n", binding, var);
+				}
+				binding += 1;
+			}
+			else if (base_type == bvh_type_id) {
+				*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<storage, read> _kong_nodes: array<_kong_node>;\n\n", binding);
+				uses_bvh = true;
+				binding += 1;
+			}
+			else if (t->built_in) {
+				check(t->array_size == 0, context, "Storage buffers are not supported in WGSL compute shaders");
+			}
+			else {
+				check(t->array_size == 0, context, "Arrays of constant buffers are not supported in WGSL");
+				char type_name[256];
+				if (t->name != NO_NAME) {
+					strcpy(type_name, get_name(t->name));
+				}
+				else {
+					sprintf(type_name, "_%" PRIu64 "_type", var);
+				}
+				*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<uniform> _set0_%" PRIu64 ": %s;\n\n", binding, var, type_name);
+				binding += 1;
+			}
+		}
+	}
+
+	if (compute_target_var != UINT64_MAX && reads_compute_target(main)) {
+		*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _kong_prev: texture_2d<f32>;\n\n", KONG_BINDING_PREV);
+	}
+
+	if (uses_bvh) {
+		*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<storage, read> _kong_indices: array<u32>;\n\n", KONG_BINDING_INDICES);
+		*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<storage, read> _kong_vertices: array<vec4<u32>>;\n\n", KONG_BINDING_VERTICES);
+		*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<storage, read> _kong_instances: array<_kong_instance>;\n\n", KONG_BINDING_INSTANCES);
+		for (int i = 0; i < 3; ++i) {
+			if (uses_geometry_texture(main, i)) {
+				*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _kong_geometry_texture%i: texture_2d<f32>;\n\n", KONG_BINDING_GEOMETRY + i, i);
+			}
+		}
+		*offset += sprintf(&wgsl[*offset], "%s", wgsl_ray_query_functions);
+	}
+}
+
+// Ray query and compute builtins, false when o is not one
+static bool write_compute_builtin(char *code, size_t *offset, opcode *o, function *f, function *main) {
+	name_id  func   = o->op_call.func;
+	uint64_t var    = o->op_call.var.index;
+	uint64_t p0     = o->op_call.parameters[0].index;
+	uint64_t p1     = o->op_call.parameters[1].index;
+	char    *name   = get_name(func);
+	char    *result = type_string(o->op_call.var.type.type);
+
+	if (func == add_name("texture_size")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = textureDimensions(%s);\n", var, result, get_var(o->op_call.parameters[0], f, main).str);
+	}
+	else if (func == add_name("ray_query_trace") || func == add_name("ray_query_trace_any")) {
+		*offset += sprintf(&code[*offset], "_%" PRIu64 " = _kong_trace(_%" PRIu64 ", %s);\n", p0, o->op_call.parameters[2].index,
+		                   func == add_name("ray_query_trace_any") ? "true" : "false");
+	}
+	else if (func == add_name("ray_query_hit")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": bool = _%" PRIu64 ".hit;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_distance")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": f32 = _%" PRIu64 ".t;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_barycentrics")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": vec2<f32> = _%" PRIu64 ".barycentrics;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_front_face")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": bool = _%" PRIu64 ".front_face;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_object_to_world")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": mat3x3<f32> = _kong_instances[_%" PRIu64 ".instance].object_to_world;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_geometry")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": u32 = _kong_instances[_%" PRIu64 ".instance].geometry;\n", var, p0);
+	}
+	else if (func == add_name("ray_query_vertex")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": vec4<u32> = _kong_vertices[_kong_indices[_%" PRIu64 ".primitive * 3u + u32(_%" PRIu64 ")]];\n",
+		                   var, p0, p1);
+	}
+	else if (strncmp(name, "geometry_texture", 16) == 0 && strstr(name, "_size") != NULL) {
+		// One geometry texture set is bound, the backend picks it
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": vec2<u32> = textureDimensions(_kong_geometry_texture%c);\n", var, name[16]);
+	}
+	else if (strncmp(name, "geometry_texture", 16) == 0) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": vec4<f32> = textureLoad(_kong_geometry_texture%c, _%" PRIu64 ", 0);\n", var, name[16], p1);
+	}
+	else {
+		return false;
+	}
+	return true;
 }
 
 static bool is_vertex_function(function_id f) {
@@ -416,6 +730,39 @@ static small_string get_var(variable var, function *f, function *main) {
 	return name;
 }
 
+static void write_operand(char *code, size_t *offset, variable v, type_id reference) {
+	type_id type        = v.type.type;
+	type_id scalar      = is_vector(type) ? vector_base_type(type) : type;
+	type_id ref_scalar  = is_vector(reference) ? vector_base_type(reference) : reference;
+	bool    integer     = scalar == int_id || scalar == uint_id;
+	bool    ref_integer = ref_scalar == int_id || ref_scalar == uint_id;
+	if (scalar != ref_scalar && integer && ref_integer) {
+		type_id converted = is_vector(type) ? vector_to_size(ref_scalar, vector_size(type)) : ref_scalar;
+		*offset += sprintf(&code[*offset], "%s(_%" PRIu64 ")", type_string(converted), v.index);
+	}
+	else {
+		*offset += sprintf(&code[*offset], "_%" PRIu64, v.index);
+	}
+}
+
+static void write_binary(char *code, size_t *offset, opcode *o, const char *op, int indentation) {
+	type_id result    = o->op_binary.result.type.type;
+	bool    shift     = strcmp(op, "<<") == 0 || strcmp(op, ">>") == 0;
+	bool    compare   = result == bool_id && strcmp(op, "&&") != 0 && strcmp(op, "||") != 0;
+	type_id reference = compare ? o->op_binary.left.type.type : result;
+	indent(code, offset, indentation);
+	*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = ", o->op_binary.result.index, type_string(result));
+	write_operand(code, offset, o->op_binary.left, reference);
+	*offset += sprintf(&code[*offset], " %s ", op);
+	if (shift) {
+		*offset += sprintf(&code[*offset], "u32(_%" PRIu64 ")", o->op_binary.right.index);
+	}
+	else {
+		write_operand(code, offset, o->op_binary.right, reference);
+	}
+	*offset += sprintf(&code[*offset], ";\n");
+}
+
 static void write_functions(char *code, size_t *offset, shader_stage stage, function *main) {
 	function *functions[256];
 	size_t    functions_size = 0;
@@ -427,7 +774,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 
 	for (size_t i = 0; i < functions_size; ++i) {
 		function *f = functions[i];
-		assert(f != NULL);
+		kong_assert(f != NULL);
 
 		debug_context context = {0};
 		check(f->block != NULL, context, "Function block missing");
@@ -503,32 +850,34 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				}
 			}
 			else if (stage == SHADER_STAGE_COMPUTE) {
-				assert(f->parameters_size == 0);
-				assert(f->return_type.type == void_id);
+				kong_assert(f->parameters_size == 0);
+				kong_assert(f->return_type.type == void_id);
 
 				attribute *threads = find_attribute(&f->attributes, add_name("threads"));
-				assert(threads != NULL && threads->paramters_count == 3);
+				kong_assert(threads != NULL && threads->paramters_count == 3);
 
 				*offset += sprintf(&code[*offset],
-				                   "@compute @workgroup_size(%u, %u, %u) fn main(@builtin(local_invocation_id) _kong_group_thread_id: vec3<u32>, "
-				                   "@builtin(workgroup_id) _kong_group_id: vec3<u32>, @builtin(global_invocation_id) _kong_dispatch_thread_id: vec3<u32>, "
-				                   "@builtin(num_workgroups) _kong_threads_count: vec3<u32>, @builtin(local_invocation_index) _kong_group_index: u32) {\n",
+				                   "@compute @workgroup_size(%u, %u, %u) fn main(@builtin(global_invocation_id) _kong_dispatch_thread_id: vec3<u32>) {\n",
 				                   (uint32_t)threads->parameters[0], (uint32_t)threads->parameters[1], (uint32_t)threads->parameters[2]);
 			}
 		}
 		else {
+			// Parameters are immutable in WGSL, they are copied to vars
 			*offset += sprintf(&code[*offset], "fn %s(", get_name(f->name));
 			for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-				if (parameter_index == 0) {
-					*offset +=
-					    sprintf(&code[*offset], "_%" PRIu64 ": %s", parameter_ids[parameter_index], type_string(f->parameter_types[parameter_index].type));
-				}
-				else {
-					*offset +=
-					    sprintf(&code[*offset], ", _%" PRIu64 ": %s", parameter_ids[parameter_index], type_string(f->parameter_types[parameter_index].type));
-				}
+				*offset += sprintf(&code[*offset], "%s_%" PRIu64 "_in: %s", parameter_index == 0 ? "" : ", ", parameter_ids[parameter_index],
+				                   type_string(f->parameter_types[parameter_index].type));
 			}
-			*offset += sprintf(&code[*offset], ") -> %s {\n", type_string(f->return_type.type));
+			if (f->return_type.type == void_id) {
+				*offset += sprintf(&code[*offset], ") {\n");
+			}
+			else {
+				*offset += sprintf(&code[*offset], ") -> %s {\n", type_string(f->return_type.type));
+			}
+			for (uint8_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
+				*offset += sprintf(&code[*offset], "\tvar _%" PRIu64 ": %s = _%" PRIu64 "_in;\n", parameter_ids[parameter_index],
+				                   type_string(f->parameter_types[parameter_index].type), parameter_ids[parameter_index]);
+			}
 		}
 
 		int indentation = 1;
@@ -555,16 +904,16 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				type_id from_type = o->op_load_access_list.from.type.type;
 
 				if (is_texture(from_type)) {
-					assert(o->op_load_access_list.access_list_size == 1);
-					assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
+					kong_assert(o->op_load_access_list.access_list_size == 1);
+					kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 					*offset += sprintf(&code[*offset], "var %s: %s = ", get_var(o->op_load_access_list.to, f, main).str,
 					                   type_string(o->op_load_access_list.to.type.type));
 
-					*offset +=
-					    sprintf(&code[*offset], "textureLoad(%s, vec2<u32>(u32(%s.x), u32(%s.y)), 0);\n", get_var(o->op_load_access_list.from, f, main).str,
-					            get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str,
-					            get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str);
+					*offset += sprintf(&code[*offset], "textureLoad(%s, vec2<u32>(u32(%s.x), u32(%s.y)), 0);\n",
+					                   is_compute_target_load(o) ? "_kong_prev" : get_var(o->op_load_access_list.from, f, main).str,
+					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str,
+					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str);
 				}
 				else {
 					*offset += sprintf(&code[*offset], "var %s: %s = %s", get_var(o->op_load_access_list.to, f, main).str,
@@ -612,9 +961,9 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				type_id to_type = o->op_store_access_list.to.type.type;
 
 				if (is_texture(to_type)) {
-					assert(o->type == OPCODE_STORE_ACCESS_LIST);
-					assert(o->op_store_access_list.access_list_size == 1);
-					assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
+					kong_assert(o->type == OPCODE_STORE_ACCESS_LIST);
+					kong_assert(o->op_store_access_list.access_list_size == 1);
+					kong_assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 					*offset += sprintf(&code[*offset], "textureStore(%s, vec2<u32>(u32(_%" PRIu64 ".x), u32(_%" PRIu64 ".y)), _%" PRIu64 ");\n",
 					                   get_var(o->op_store_access_list.to, f, main).str, o->op_store_access_list.access_list[0].access_element.index.index,
@@ -668,7 +1017,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 						*offset += sprintf(&code[*offset], " *= %s;\n", get_var(o->op_store_access_list.from, f, main).str);
 						break;
 					default:
-						assert(false);
+						kong_assert(false);
 						break;
 					}
 				}
@@ -707,111 +1056,75 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				break;
 			}
 			case OPCODE_MULTIPLY: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " * _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "*", indentation);
 				break;
 			}
 			case OPCODE_DIVIDE: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " / _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "/", indentation);
 				break;
 			}
 			case OPCODE_ADD: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " + _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "+", indentation);
 				break;
 			}
 			case OPCODE_SUB: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " - _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "-", indentation);
 				break;
 			}
 			case OPCODE_MOD: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " %% _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "%", indentation);
 				break;
 			}
 			case OPCODE_EQUALS: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " == _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "==", indentation);
 				break;
 			}
 			case OPCODE_NOT_EQUALS: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " != _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "!=", indentation);
 				break;
 			}
 			case OPCODE_GREATER: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " > _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, ">", indentation);
 				break;
 			}
 			case OPCODE_GREATER_EQUAL: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " >= _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, ">=", indentation);
 				break;
 			}
 			case OPCODE_LESS: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " < _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "<", indentation);
 				break;
 			}
 			case OPCODE_LESS_EQUAL: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " <= _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "<=", indentation);
 				break;
 			}
 			case OPCODE_AND: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " && _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "&&", indentation);
 				break;
 			}
 			case OPCODE_OR: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " || _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "||", indentation);
 				break;
 			}
 			case OPCODE_BITWISE_XOR: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " ^ _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "^", indentation);
 				break;
 			}
 			case OPCODE_BITWISE_AND: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " & _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "&", indentation);
 				break;
 			}
 			case OPCODE_BITWISE_OR: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " | _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "|", indentation);
 				break;
 			}
 			case OPCODE_LEFT_SHIFT: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " << _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, "<<", indentation);
 				break;
 			}
 			case OPCODE_RIGHT_SHIFT: {
-				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _%" PRIu64 " >> _%" PRIu64 ";\n", o->op_binary.result.index,
-				                   type_string(o->op_binary.result.type.type), o->op_binary.left.index, o->op_binary.right.index);
+				write_binary(code, offset, o, ">>", indentation);
 				break;
 			}
 			case OPCODE_LOAD_FLOAT_CONSTANT:
@@ -831,6 +1144,14 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				break;
 			case OPCODE_CALL: {
 				debug_context context = {0};
+				if (compute_export) {
+					size_t start = *offset;
+					indent(code, offset, indentation);
+					if (write_compute_builtin(code, offset, o, f, main)) {
+						break;
+					}
+					*offset = start;
+				}
 				if (o->op_call.func == add_name("sample")) {
 					check(o->op_call.parameters_size == 3, context, "sample requires three arguments");
 					indent(code, offset, indentation);
@@ -850,28 +1171,11 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					                   get_var(o->op_call.parameters[1], f, main).str, get_var(o->op_call.parameters[2], f, main).str,
 					                   get_var(o->op_call.parameters[3], f, main).str);
 				}
-				else if (o->op_call.func == add_name("group_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_id can not have a parameter");
-					indent(code, offset, indentation);
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_id;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
-				}
-				else if (o->op_call.func == add_name("group_thread_id")) {
-					check(o->op_call.parameters_size == 0, context, "group_thread_id can not have a parameter");
-					indent(code, offset, indentation);
-					*offset +=
-					    sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_thread_id;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
-				}
 				else if (o->op_call.func == add_name("dispatch_thread_id")) {
 					check(o->op_call.parameters_size == 0, context, "dispatch_thread_id can not have a parameter");
 					indent(code, offset, indentation);
 					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_dispatch_thread_id;\n", o->op_call.var.index,
 					                   type_string(o->op_call.var.type.type));
-				}
-				else if (o->op_call.func == add_name("group_index")) {
-					check(o->op_call.parameters_size == 0, context, "group_index can not have a parameter");
-					indent(code, offset, indentation);
-					*offset +=
-					    sprintf(&code[*offset], "var _%" PRIu64 ": %s = _kong_group_index;\n", o->op_call.var.index, type_string(o->op_call.var.type.type));
 				}
 				else if (o->op_call.func == add_name("vertex_id")) {
 					check(o->op_call.parameters_size == 0, context, "vertex_id can not have a parameter");
@@ -904,79 +1208,6 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index,
 					                   o->op_call.parameters[2].index);
 				}
-
-				////
-
-				else if (o->op_call.func == add_name("lerp3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = mix(_%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index,
-					                   o->op_call.parameters[2].index);
-				}
-				else if (o->op_call.func == add_name("lerp4")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = mix(_%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index,
-					                   o->op_call.parameters[2].index);
-				}
-				else if (o->op_call.func == add_name("frac3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = fract(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("abs3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = abs(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("clamp3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = clamp(_%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index,
-					                   o->op_call.parameters[2].index);
-				}
-				else if (o->op_call.func == add_name("min3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = min(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("max3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = max(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("max4")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = max(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("step3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = step(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("pow3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = pow(_%" PRIu64 ", _%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index, o->op_call.parameters[1].index);
-				}
-				else if (o->op_call.func == add_name("floor3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = floor(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("ceil3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = ceil(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("ddx2")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = dpdx(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("ddy2")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = dpdy(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("ddx3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = dpdx(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-				else if (o->op_call.func == add_name("ddy3")) {
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = dpdy(_%" PRIu64 ");\n", o->op_call.var.index,
-					                   type_string(o->op_call.var.type.type), o->op_call.parameters[0].index);
-				}
-
-				////
-
 				else {
 					name_id     func_name_id = o->op_call.func;
 					const char *func_name    = get_name(o->op_call.func);
@@ -1093,7 +1324,7 @@ static char *wgsl_export_fragment2(function *main) {
 
 	size_t offset = 0;
 
-	assert(main->parameters_size > 0);
+	kong_assert(main->parameters_size > 0);
 	type_id pixel_input = main->parameter_types[0].type;
 
 	check(pixel_input != NO_TYPE, context, "fragment input missing");
@@ -1116,58 +1347,70 @@ static char *wgsl_export_fragment2(function *main) {
 	return wgsl;
 }
 
+char *wgsl_export_compute(void) {
+	compute_functions_size = 0;
+
+	function *kernel = NULL;
+	for (function_id i = 0; get_function(i) != NULL; ++i) {
+		if (has_attribute(&get_function(i)->attributes, add_name("compute"))) {
+			kernel                                      = get_function(i);
+			compute_functions[compute_functions_size++] = i;
+			break;
+		}
+	}
+	debug_context context = {0};
+	check(kernel != NULL, context, "Compute function missing");
+
+	char *wgsl = (char *)calloc(1024 * 1024 * 2, 1);
+	check(wgsl != NULL, context, "Could not allocate the wgsl string");
+	size_t offset = 0;
+
+	compute_export     = true;
+	compute_target_var = UINT64_MAX;
+
+	offset += sprintf(&wgsl[offset], "%s", wgsl_ray_query_types);
+	write_types(wgsl, &offset, SHADER_STAGE_COMPUTE, NULL, 0, NO_TYPE, kernel);
+	write_compute_globals(wgsl, &offset, kernel);
+	write_functions(wgsl, &offset, SHADER_STAGE_COMPUTE, kernel);
+
+	compute_export = false;
+	return wgsl;
+}
+
 void wgsl_export2(char **vs, char **fs) {
 	vertex_inputs_size      = 0;
 	fragment_inputs_size    = 0;
 	vertex_functions_size   = 0;
 	fragment_functions_size = 0;
 
-	for (type_id i = 0; get_type(i) != NULL; ++i) {
-		type *t = get_type(i);
-		if (!t->built_in && has_attribute(&t->attributes, add_name("pipe"))) {
-			name_id vertex_shader_name   = NO_NAME;
-			name_id fragment_shader_name = NO_NAME;
+	function_id vertex_id   = find_vertex_function();
+	function_id fragment_id = find_fragment_function();
 
-			for (size_t j = 0; j < t->members.size; ++j) {
-				if (t->members.m[j].name == add_name("vertex")) {
-					vertex_shader_name = t->members.m[j].value.identifier;
-				}
-				else if (t->members.m[j].name == add_name("fragment")) {
-					fragment_shader_name = t->members.m[j].value.identifier;
-				}
-			}
+	debug_context context = {0};
+	check(vertex_id != NO_FUNCTION, context, "vert() missing");
+	check(fragment_id != NO_FUNCTION, context, "frag() missing");
 
-			debug_context context = {0};
-			check(vertex_shader_name != NO_NAME, context, "vertex shader not found");
-			check(fragment_shader_name != NO_NAME, context, "fragment shader not found");
+	function *vertex_shader                 = get_function(vertex_id);
+	vertex_functions[vertex_functions_size] = vertex_id;
+	vertex_functions_size += 1;
 
-			for (function_id i = 0; get_function(i) != NULL; ++i) {
-				function *f = get_function(i);
-				if (f->name == vertex_shader_name) {
-					vertex_functions[vertex_functions_size] = i;
-					vertex_functions_size += 1;
+	size_t vertex_location_offset = 0;
 
-					size_t vertex_location_offset = 0;
+	for (uint32_t parameter_index = 0; parameter_index < vertex_shader->parameters_size; ++parameter_index) {
+		vertex_inputs[vertex_inputs_size]           = vertex_shader->parameter_types[parameter_index].type;
+		vertex_location_offsets[vertex_inputs_size] = vertex_location_offset;
 
-					for (uint32_t parameter_index = 0; parameter_index < f->parameters_size; ++parameter_index) {
-						vertex_inputs[vertex_inputs_size]           = f->parameter_types[parameter_index].type;
-						vertex_location_offsets[vertex_inputs_size] = vertex_location_offset;
-
-						vertex_inputs_size += 1;
-						vertex_location_offset += get_type(f->parameter_types[parameter_index].type)->members.size;
-					}
-				}
-				else if (f->name == fragment_shader_name) {
-					fragment_functions[fragment_functions_size] = i;
-					fragment_functions_size += 1;
-
-					assert(f->parameters_size > 0);
-					fragment_inputs[fragment_inputs_size] = f->parameter_types[0].type;
-					fragment_inputs_size += 1;
-				}
-			}
-		}
+		vertex_inputs_size += 1;
+		vertex_location_offset += get_type(vertex_shader->parameter_types[parameter_index].type)->members.size;
 	}
+
+	function *fragment_shader                   = get_function(fragment_id);
+	fragment_functions[fragment_functions_size] = fragment_id;
+	fragment_functions_size += 1;
+
+	kong_assert(fragment_shader->parameters_size > 0);
+	fragment_inputs[fragment_inputs_size] = fragment_shader->parameter_types[0].type;
+	fragment_inputs_size += 1;
 
 	*vs = wgsl_export_vertex2(get_function(vertex_functions[0]));
 	*fs = wgsl_export_fragment2(get_function(fragment_functions[0]));

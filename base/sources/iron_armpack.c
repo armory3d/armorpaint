@@ -778,7 +778,7 @@ static char *armpack_to_json_map(uint32_t count) {
 		if (i > 0) {
 			result = string("%s,", result);
 		}
-		result = string("%s\"%s%s\":%s", result, key, suffix, value);
+		result = string("%s\"%s%s\":%s", result, json_escape(key), suffix, value);
 	}
 	return string("%s}", result);
 }
@@ -798,7 +798,7 @@ static char *armpack_to_json_value() {
 		return i32_to_string(read_i32());
 	case 0xdb: {
 		char *s = read_string_alloc();
-		return string("\"%s\"", s);
+		return string("\"%s\"", json_escape(s));
 	}
 	case 0xdf:
 		return armpack_to_json_map(read_i32());

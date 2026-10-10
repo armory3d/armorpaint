@@ -12,8 +12,8 @@ float custom_node(logic_node_t *node, int from) {
 }
 
 void on_delete() {
-	plugin_brush_custom_nodes_remove(node_type);
-	plugin_brush_category_remove(category_name);
+	script_brush_custom_nodes_remove(node_type);
+	script_brush_category_remove(category_name);
 }
 
 void main() {
@@ -63,10 +63,10 @@ void main() {
 	n->width = 0;
 	n->flags = 0;
 
-	plugin_brush_category_add(category_name, node_list);
+	script_brush_category_add(category_name, node_list);
 
 	// Brush node
-	plugin_brush_custom_nodes_set(node_type, custom_node);
+	script_brush_custom_nodes_set(node_type, custom_node);
 
 	// Cleanup
 	plugin_notify_on_delete(plugin, on_delete);

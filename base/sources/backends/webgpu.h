@@ -20,24 +20,26 @@ typedef struct WGPUStringView {
 typedef uint64_t WGPUFlags;
 typedef uint32_t WGPUBool;
 
-typedef struct WGPUAdapterImpl           *WGPUAdapter;
-typedef struct WGPUBindGroupImpl         *WGPUBindGroup;
-typedef struct WGPUBindGroupLayoutImpl   *WGPUBindGroupLayout;
-typedef struct WGPUBufferImpl            *WGPUBuffer;
-typedef struct WGPUCommandBufferImpl     *WGPUCommandBuffer;
-typedef struct WGPUCommandEncoderImpl    *WGPUCommandEncoder;
-typedef struct WGPUDeviceImpl            *WGPUDevice;
-typedef struct WGPUInstanceImpl          *WGPUInstance;
-typedef struct WGPUPipelineLayoutImpl    *WGPUPipelineLayout;
-typedef struct WGPUQuerySetImpl          *WGPUQuerySet;
-typedef struct WGPUQueueImpl             *WGPUQueue;
-typedef struct WGPURenderPassEncoderImpl *WGPURenderPassEncoder;
-typedef struct WGPURenderPipelineImpl    *WGPURenderPipeline;
-typedef struct WGPUSamplerImpl           *WGPUSampler;
-typedef struct WGPUShaderModuleImpl      *WGPUShaderModule;
-typedef struct WGPUSurfaceImpl           *WGPUSurface;
-typedef struct WGPUTextureImpl           *WGPUTexture;
-typedef struct WGPUTextureViewImpl       *WGPUTextureView;
+typedef struct WGPUAdapterImpl            *WGPUAdapter;
+typedef struct WGPUBindGroupImpl          *WGPUBindGroup;
+typedef struct WGPUBindGroupLayoutImpl    *WGPUBindGroupLayout;
+typedef struct WGPUBufferImpl             *WGPUBuffer;
+typedef struct WGPUCommandBufferImpl      *WGPUCommandBuffer;
+typedef struct WGPUCommandEncoderImpl     *WGPUCommandEncoder;
+typedef struct WGPUDeviceImpl             *WGPUDevice;
+typedef struct WGPUInstanceImpl           *WGPUInstance;
+typedef struct WGPUPipelineLayoutImpl     *WGPUPipelineLayout;
+typedef struct WGPUQuerySetImpl           *WGPUQuerySet;
+typedef struct WGPUQueueImpl              *WGPUQueue;
+typedef struct WGPURenderPassEncoderImpl  *WGPURenderPassEncoder;
+typedef struct WGPURenderPipelineImpl     *WGPURenderPipeline;
+typedef struct WGPUSamplerImpl            *WGPUSampler;
+typedef struct WGPUShaderModuleImpl       *WGPUShaderModule;
+typedef struct WGPUSurfaceImpl            *WGPUSurface;
+typedef struct WGPUTextureImpl            *WGPUTexture;
+typedef struct WGPUTextureViewImpl        *WGPUTextureView;
+typedef struct WGPUComputePipelineImpl    *WGPUComputePipeline;
+typedef struct WGPUComputePassEncoderImpl *WGPUComputePassEncoder;
 
 struct WGPUAdapterInfo;
 struct WGPUBindGroupEntry;
@@ -1143,6 +1145,27 @@ typedef struct WGPURenderPipelineDescriptor {
 	WGPU_NULLABLE WGPUFragmentState const     *fragment;
 } WGPURenderPipelineDescriptor;
 
+typedef struct WGPUComputeState {
+	WGPUChainedStruct              *nextInChain;
+	WGPUShaderModule                module;
+	WGPUStringView                  entryPoint;
+	size_t                          constantCount;
+	struct WGPUConstantEntry const *constants;
+} WGPUComputeState;
+
+typedef struct WGPUComputePipelineDescriptor {
+	WGPUChainedStruct               *nextInChain;
+	WGPUStringView                   label;
+	WGPU_NULLABLE WGPUPipelineLayout layout;
+	WGPUComputeState                 compute;
+} WGPUComputePipelineDescriptor;
+
+typedef struct WGPUComputePassDescriptor {
+	WGPUChainedStruct                                  *nextInChain;
+	WGPUStringView                                      label;
+	WGPU_NULLABLE struct WGPUPassTimestampWrites const *timestampWrites;
+} WGPUComputePassDescriptor;
+
 #define IMPORT(str) __attribute__((import_module("imports"), import_name(str)))
 
 IMPORT("wgpuDeviceCreateTexture") WGPUTexture wgpuDeviceCreateTexture(WGPUDevice device, WGPUTextureDescriptor const *descriptor);
@@ -1222,3 +1245,21 @@ IMPORT("wgpuCommandEncoderCopyTextureToBuffer")
 void wgpuCommandEncoderCopyTextureToBuffer(WGPUCommandEncoder commandEncoder, WGPUTexelCopyTextureInfo const *source,
                                            WGPUTexelCopyBufferInfo const *destination, WGPUExtent3D const *copySize);
 IMPORT("wgpuBufferMapRead") void wgpuBufferMapRead(WGPUBuffer buffer, uint32_t offset, uint32_t size, void *data);
+IMPORT("wgpuBindGroupLayoutRelease") void wgpuBindGroupLayoutRelease(WGPUBindGroupLayout bindGroupLayout);
+IMPORT("wgpuDeviceCreateComputePipeline")
+WGPUComputePipeline wgpuDeviceCreateComputePipeline(WGPUDevice device, WGPUComputePipelineDescriptor const *descriptor);
+IMPORT("wgpuComputePipelineRelease") void wgpuComputePipelineRelease(WGPUComputePipeline computePipeline);
+IMPORT("wgpuCommandEncoderBeginComputePass")
+WGPUComputePassEncoder wgpuCommandEncoderBeginComputePass(WGPUCommandEncoder commandEncoder, WGPU_NULLABLE WGPUComputePassDescriptor const *descriptor);
+IMPORT("wgpuComputePassEncoderSetPipeline") void wgpuComputePassEncoderSetPipeline(WGPUComputePassEncoder computePassEncoder, WGPUComputePipeline pipeline);
+IMPORT("wgpuComputePassEncoderSetBindGroup")
+void wgpuComputePassEncoderSetBindGroup(WGPUComputePassEncoder computePassEncoder, uint32_t groupIndex, WGPU_NULLABLE WGPUBindGroup group,
+                                        size_t dynamicOffsetCount, uint32_t const *dynamicOffsets);
+IMPORT("wgpuComputePassEncoderDispatchWorkgroups")
+void wgpuComputePassEncoderDispatchWorkgroups(WGPUComputePassEncoder computePassEncoder, uint32_t workgroupCountX, uint32_t workgroupCountY,
+                                              uint32_t workgroupCountZ);
+IMPORT("wgpuComputePassEncoderEnd") void wgpuComputePassEncoderEnd(WGPUComputePassEncoder computePassEncoder);
+IMPORT("wgpuComputePassEncoderRelease") void wgpuComputePassEncoderRelease(WGPUComputePassEncoder computePassEncoder);
+IMPORT("wgpuCommandEncoderCopyTextureToTexture")
+void wgpuCommandEncoderCopyTextureToTexture(WGPUCommandEncoder commandEncoder, WGPUTexelCopyTextureInfo const *source,
+                                            WGPUTexelCopyTextureInfo const *destination, WGPUExtent3D const *copySize);

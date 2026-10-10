@@ -391,9 +391,15 @@ bool iron_file_exists(char *path) {
 	return false;
 }
 
+#ifdef IRON_WASM
+__attribute__((import_module("imports"), import_name("js_delete_file"))) void js_delete_file(const char *path);
+#endif
+
 void iron_delete_file(char *path) {
 #ifdef IRON_IOS
 	IOSDeleteFile(path);
+#elif defined(IRON_WASM)
+	js_delete_file(path);
 #elif defined(IRON_WINDOWS)
 	char cmd[1024];
 	strcpy(cmd, "del /f \"");
@@ -434,10 +440,10 @@ typedef struct _callback_data {
 	void (*func)(char *, buffer_t *);
 } _callback_data_t;
 
-void _https_callback(const char *body, void *callback_data) {
+void _https_callback(int status, const char *body, void *callback_data) {
 	_callback_data_t *cbd    = (_callback_data_t *)callback_data;
 	buffer_t         *buffer = NULL;
-	if (body != NULL) {
+	if (body != NULL && status < 400) {
 		buffer         = malloc(sizeof(buffer_t));
 		buffer->length = cbd->size > 0 ? cbd->size : strlen(body);
 		buffer->buffer = malloc(buffer->length);
@@ -475,7 +481,7 @@ void iron_file_download(char *url, void (*callback)(char *, buffer_t *), i32 siz
 	}
 	url_path[j] = 0;
 
-	iron_net_request(url_base, url_path, NULL, 443, IRON_HTTPS_GET, &_https_callback, cbd, dst_path);
+	iron_net_request(url_base, url_path, NULL, 443, IRON_HTTPS_GET, NULL, &_https_callback, cbd, dst_path);
 }
 
 char     *strings_check_internet_connection(void);

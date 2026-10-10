@@ -21,6 +21,7 @@ bool                     ui_nodes_is_node_menu_op       = false;
 gpu_texture_t           *ui_nodes_grid                  = NULL;
 bool                     ui_nodes_controls_down         = false;
 slot_material_t_array_t *ui_nodes_tabs                  = NULL;
+static char             *ui_nodes_canvas_name_prev      = NULL;
 ui_node_link_t          *_ui_nodes_on_link_drag_link_drag;
 ui_node_t               *_ui_nodes_on_link_drag_node;
 ui_node_socket_t        *_ui_nodes_on_socket_released_socket;
@@ -577,7 +578,7 @@ void ui_nodes_draw_menubar() {
 		g_ui->_w = math_floor(ew + 3);
 		if (ui_icon_button("Back", ICON_ARROW_LEFT, UI_ALIGN_CENTER)) {
 			g_ui->input_released = false;
-			g_config->workspace  = WORKSPACE_PAINT_3D;
+			g_config->workspace  = WORKSPACE_VIEW_3D;
 			config_save();
 			base_update_workspace();
 		}
@@ -596,9 +597,15 @@ void ui_nodes_draw_menubar() {
 	if (full) {
 		char *new_name = c->name; // Applied below once the rename is validated
 		g_ui->_w       = math_floor(math_min(draw_string_width(g_font, g_ui->font_size, new_name) + 15 * UI_SCALE(), 100 * UI_SCALE()));
+		ui_id_t name_id     = ui_widget_id(&c->name, UI_ID_TEXT);
+		bool    was_editing = g_ui->text_selected_id == name_id;
+		if (!was_editing) {
+			ui_nodes_canvas_name_prev = c->name;
+		}
 		ui_set_next_id((ui_id_t)&c->name);
 		ui_text_input(&new_name, "", UI_ALIGN_LEFT, true, false);
 		bool name_changed = ui_item_changed();
+		bool commit       = was_editing && g_ui->text_selected_id != name_id;
 		g_ui->_x += g_ui->_w + 3;
 		g_ui->_y = 2 + start_y;
 		g_ui->_w = ew;
@@ -637,6 +644,14 @@ void ui_nodes_draw_menubar() {
 			else {
 				c->name = string_copy(new_name);
 			}
+		}
+		if (commit && ui_nodes_group_stack->length == 0) {
+			char *name = c->name;
+			if (string_equals(name, "")) {
+				name = ui_nodes_canvas_name_prev;
+			}
+			name    = ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? slot_material_unique_name(c, name) : slot_brush_unique_name(c, name);
+			c->name = string_copy(name);
 		}
 	}
 
@@ -700,44 +715,76 @@ void ui_nodes_draw_menubar() {
 	}
 }
 
+void ui_nodes_update_rect() {
+	ui_nodes_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
+	ui_nodes_wx = math_floor(sys_w()) + ui_toolbar_w(true);
+	ui_nodes_wy = 0;
+
+	if (!ui_base_show) {
+		ui_nodes_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
+		ui_nodes_wx -= ui_toolbar_w(true);
+	}
+	if (!base_view3d_show) {
+		ui_nodes_ww += base_view3d_w();
+	}
+
+	ui_nodes_wh = sys_h();
+	if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
+		ui_nodes_wh += ui_header_h * 2;
+	}
+
+	if (ui_view2d_show) {
+		ui_nodes_wh = g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
+		ui_nodes_wy = sys_h() - g_config->layout->buffer[LAYOUT_SIZE_NODES_H] + ui_header_h;
+		if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
+			ui_nodes_wy += ui_header_h;
+		}
+		else {
+			ui_nodes_wy -= ui_header_h;
+		}
+	}
+
+	if (!base_view3d_show && ui_view2d_show) {
+		ui_nodes_wx = base_view3d_w();
+		ui_nodes_wy = 0;
+		ui_nodes_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
+		ui_nodes_wh = sys_h();
+		if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
+			ui_nodes_wh += ui_header_h * 2;
+		}
+	}
+
+	if (!base_view3d_show) {
+		ui_nodes_wh -= ui_header_h * 4;
+	}
+
+	// Distract free, no header or status bar
+	if (!ui_base_show) {
+		if (ui_view2d_show && base_view3d_show) {
+			ui_nodes_wh = g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
+			ui_nodes_wy = iron_window_height() - ui_nodes_wh;
+		}
+		else {
+			if (!base_view3d_show && !ui_view2d_show) {
+				ui_nodes_wx = 0;
+			}
+			ui_nodes_ww = iron_window_width() - ui_nodes_wx;
+			ui_nodes_wy = 0;
+			ui_nodes_wh = iron_window_height();
+		}
+	}
+}
+
 void ui_nodes_update(void *_) {
 	if (ui_nodes_show && base_ui_enabled) {
 
-		ui_nodes_wx = math_floor(sys_w()) + ui_toolbar_w(true);
-		ui_nodes_wy = ui_header_h * 2;
-
-		if (ui_view2d_show && base_view3d_show) {
-			ui_nodes_wy += sys_h() - g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
-		}
-
-		i32 ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-		if (!ui_base_show) {
-			ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
-			ui_nodes_wx -= ui_toolbar_w(true);
-			ui_nodes_wy = 0;
-		}
-		if (!base_view3d_show) {
-			ww += base_view3d_w();
-		}
-
-		if (!base_view3d_show && ui_view2d_show) {
-			ui_nodes_wx = base_view3d_w();
-			ui_nodes_wy = 0;
-			ui_nodes_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-			ui_nodes_wh = sys_h();
-			if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
-				ui_nodes_wh += ui_header_h * 2;
-			}
-		}
-
-		if (!base_view3d_show) {
-			ui_nodes_wh -= ui_header_h * 4;
-		}
+		ui_nodes_update_rect();
 
 		i32  mx      = mouse_x;
 		i32  my      = mouse_y;
 		bool enabled = true;
-		if (mx < ui_nodes_wx || mx > ui_nodes_wx + ww || my < ui_nodes_wy) {
+		i32  tabs_h  = ui_base_show ? ui_header_h * 2 : 0;
+		if (mx < ui_nodes_wx || mx > ui_nodes_wx + ui_nodes_ww || my < ui_nodes_wy + tabs_h) {
 			enabled = false;
 		}
 		if (g_ui->is_typing || !g_ui->input_enabled) {
@@ -879,51 +926,8 @@ void ui_nodes_update(void *_) {
 	ui_begin(g_ui);
 
 	// Make window
-	ui_nodes_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-	ui_nodes_wx = math_floor(sys_w()) + ui_toolbar_w(true);
-	ui_nodes_wy = 0;
-
-	if (!ui_base_show) {
-		ui_nodes_ww += g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] + ui_toolbar_w(true);
-		ui_nodes_wx -= ui_toolbar_w(true);
-	}
-	if (!base_view3d_show) {
-		ui_nodes_ww += base_view3d_w();
-	}
-
-	i32 ew      = math_floor(UI_ELEMENT_W() * 0.7);
-	ui_nodes_wh = sys_h();
-	if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
-		ui_nodes_wh += ui_header_h * 2;
-	}
-
-	if (ui_view2d_show) {
-		ui_nodes_wh = g_config->layout->buffer[LAYOUT_SIZE_NODES_H];
-		ui_nodes_wy = sys_h() - g_config->layout->buffer[LAYOUT_SIZE_NODES_H] + ui_header_h;
-		if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
-			ui_nodes_wy += ui_header_h;
-		}
-		else {
-			ui_nodes_wy -= ui_header_h;
-		}
-		if (!ui_base_show) {
-			ui_nodes_wy -= ui_header_h * 2;
-		}
-	}
-
-	if (!base_view3d_show && ui_view2d_show) {
-		ui_nodes_wx = base_view3d_w();
-		ui_nodes_wy = 0;
-		ui_nodes_ww = g_config->layout->buffer[LAYOUT_SIZE_NODES_W];
-		ui_nodes_wh = sys_h();
-		if (g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1) {
-			ui_nodes_wh += ui_header_h * 2;
-		}
-	}
-
-	if (!base_view3d_show) {
-		ui_nodes_wh -= ui_header_h * 4;
-	}
+	ui_nodes_update_rect();
+	i32 ew = math_floor(UI_ELEMENT_W() * 0.7);
 
 	ui_nodes_wrap_mouse(ui_nodes_controls_down, ui_nodes_wx, ui_nodes_wy, ui_nodes_ww, ui_nodes_wh);
 
@@ -933,7 +937,7 @@ void ui_nodes_update(void *_) {
 
 	if (ui_window(ui_nodes_hwnd, ui_nodes_wx, ui_nodes_wy, ui_nodes_ww, ui_nodes_wh, false)) {
 
-		if (!g_config->touch_ui) {
+		if (!g_config->touch_ui && ui_base_show) {
 			bool expand = !base_view3d_show && g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] == 0;
 			ui_tab(&ui_nodes_tab, expand ? string_tmp("%s          ", tr("Nodes")) : tr("Nodes"), false, -1, !base_view3d_show);
 
@@ -972,12 +976,12 @@ void ui_nodes_update(void *_) {
 
 		// Nodes
 		bool _input_enabled        = g_ui->input_enabled;
-		i32  header_h              = UI_ELEMENT_H() * 2 + UI_ELEMENT_OFFSET() * 2;
+		i32  header_h              = ui_base_show ? UI_ELEMENT_H() * 2 + UI_ELEMENT_OFFSET() * 2 : 0;
 		bool header_hover          = g_ui->input_y < g_ui->_window_y + header_h;
 		g_ui->input_enabled        = _input_enabled && !ui_nodes_show_menu && !header_hover;
-		g_ui->window_border_right  = g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W];
-		g_ui->window_border_top    = ui_header_h * 2;
-		g_ui->window_border_bottom = g_config->layout->buffer[LAYOUT_SIZE_STATUS_H];
+		g_ui->window_border_right  = ui_base_show ? g_config->layout->buffer[LAYOUT_SIZE_SIDEBAR_W] : 0;
+		g_ui->window_border_top    = ui_base_show ? ui_header_h * 2 : 0;
+		g_ui->window_border_bottom = ui_base_show ? g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] : 0;
 
 		ui_node_canvas(ui_nodes, c);
 		g_ui->input_enabled = _input_enabled;
@@ -1067,7 +1071,9 @@ void ui_nodes_update(void *_) {
 			}
 		}
 
-		ui_nodes_draw_menubar();
+		if (ui_base_show) {
+			ui_nodes_draw_menubar();
+		}
 
 		g_ui->window_border_right  = 0;
 		g_ui->window_border_top    = 0;

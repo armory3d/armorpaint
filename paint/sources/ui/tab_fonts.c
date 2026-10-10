@@ -137,15 +137,11 @@ void tab_fonts_draw(i32 *htab) {
 
 				if (g_context->font == g_project->_->fonts->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 off = row % 2 == 1 ? 1 : 0;
-					i32 w   = 50;
+					i32 w = 50;
 					if (g_config->window_scale > 1) {
 						w += math_floor(g_config->window_scale * 2);
 					}
-					ui_fill(-1, -2, w + 3, 2, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, w - off, w + 3, 2 + off, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, -2, 2, w + 3, g_theme->HIGHLIGHT_COL);
-					ui_fill(w + 1, -2, 2, w + 4, g_theme->HIGHLIGHT_COL);
+					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 
 				uix      = g_ui->_x;

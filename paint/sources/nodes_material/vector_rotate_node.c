@@ -12,10 +12,10 @@ char *vector_rotate_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *ax     = string_tmp("%s_ax", name);
 	char *cosA   = string_tmp("%s_cosA", name);
 	char *sinA   = string_tmp("%s_sinA", name);
-	parser_material_write(parser_material_kong, string_tmp("var %s: float3 = %s - %s;", v, vec, center));
-	parser_material_write(parser_material_kong, string_tmp("var %s: float3 = normalize(%s);", ax, axis));
-	parser_material_write(parser_material_kong, string_tmp("var %s: float = cos(%s%s * (3.14159265 / 180.0));", cosA, invert ? "-" : "", angle));
-	parser_material_write(parser_material_kong, string_tmp("var %s: float = sin(%s%s * (3.14159265 / 180.0));", sinA, invert ? "-" : "", angle));
+	parser_material_write(parser_material_kong, string_tmp("float3 %s = %s - %s;", v, vec, center));
+	parser_material_write(parser_material_kong, string_tmp("float3 %s = normalize(%s);", ax, axis));
+	parser_material_write(parser_material_kong, string_tmp("float %s = cos(%s%s * (3.14159265 / 180.0));", cosA, invert ? "-" : "", angle));
+	parser_material_write(parser_material_kong, string_tmp("float %s = sin(%s%s * (3.14159265 / 180.0));", sinA, invert ? "-" : "", angle));
 	return string_tmp("(%s * %s + cross(%s, %s) * %s + %s * dot(%s, %s) * (1.0 - %s) + %s)", v, cosA, ax, v, sinA, ax, ax, v, cosA, center);
 }
 

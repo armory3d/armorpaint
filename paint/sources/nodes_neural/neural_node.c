@@ -125,15 +125,6 @@ char *neural_node_dir() {
 	return dir;
 }
 
-#ifdef WITH_COMPRESS
-
-void neural_node_download_done_untar(void *_) {
-	char *tar = string("%s/Hunyuan3D_win64.tar", neural_node_dir());
-	untar_here(tar);
-}
-
-#endif
-
 #ifdef IRON_LINUX
 static void neural_node_chmod_x(char *url, char *bin_name) {
 	if (ends_with(url, bin_name)) {
@@ -150,13 +141,6 @@ void neural_node_download_done(char *url) {
 #ifdef IRON_LINUX
 	neural_node_chmod_x(url, "iris");
 	neural_node_chmod_x(url, "llama_vulkan");
-#endif
-
-#ifdef WITH_COMPRESS
-	if (ends_with(url, "Hunyuan3D_win64.tar")) {
-		console_toast(tr("Unpacking Hunyuan3D_win64.tar"));
-		sys_notify_on_next_frame(&neural_node_download_done_untar, NULL);
-	}
 #endif
 }
 

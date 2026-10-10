@@ -18,7 +18,8 @@ void tab_brushes_draw_duplicate(void *_) {
 	i32 i            = _tab_brushes_draw_i;
 	g_context->brush = slot_brush_create(NULL);
 	any_array_push(g_project->_->brushes, g_context->brush);
-	void *cloned             = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
+	ui_node_canvas_t *cloned = util_clone_canvas(g_project->_->brushes->buffer[i]->canvas);
+	cloned->name             = string_copy(slot_brush_unique_name(cloned, cloned->name));
 	g_context->brush->canvas = cloned;
 	context_set_brush(g_context->brush);
 	util_render_make_brush_preview();
@@ -119,15 +120,11 @@ void tab_brushes_draw(i32 *htab) {
 
 				if (g_context->brush == g_project->_->brushes->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 off = row % 2 == 1 ? 1 : 0;
-					i32 w   = 50;
+					i32 w = 50;
 					if (g_config->window_scale > 1) {
 						w += math_floor(g_config->window_scale * 2);
 					}
-					ui_fill(-1, -2, w + 3, 2, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, w - off, w + 3, 2 + off, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, -2, 2, w + 3, g_theme->HIGHLIGHT_COL);
-					ui_fill(w + 1, -2, 2, w + 4, g_theme->HIGHLIGHT_COL);
+					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 
 				uix      = g_ui->_x;

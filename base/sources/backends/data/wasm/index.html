@@ -67,14 +67,6 @@
 		</div>
 	</div>
 
-	<div id="hello-modal" class="modal">
-		<div class="modal-content">
-			<h2>ArmorPaint.app</h2>
-			<p>Experimental! Texture export and ray-tracing is not implemented yet.</p>
-			<button onclick="document.getElementById('hello-modal').style.display='none'">OK</button>
-		</div>
-	</div>
-
 	<script src="start.js"></script>
 	<script>
 		if ("serviceWorker" in navigator) {
@@ -97,9 +89,7 @@
 			const device = await adapter.requestDevice();
 			if (!device) {
 				modal.style.display = 'flex';
-			}
-			else {
-				document.getElementById('hello-modal').style.display = 'flex';
+				return;
 			}
 		}
 		window.addEventListener('DOMContentLoaded', () => {

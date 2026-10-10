@@ -172,6 +172,12 @@ void config_init() {
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
 		g_config->window_scale = 2.0;
 #endif
+#ifdef IRON_WASM
+		g_config->window_scale = sys_display_ppi() / 96.0;
+		if (g_config->window_scale < 1.0) {
+			g_config->window_scale = 1.0;
+		}
+#endif
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 		if (sys_display_ppi() > 330) {
 			g_config->window_scale = 2.5;
@@ -183,7 +189,7 @@ void config_init() {
 		g_config->window_vsync     = true;
 		g_config->window_frequency = sys_display_frequency();
 		g_config->rp_bloom         = 0.0;
-		g_config->rp_vignette      = 0.2;
+		g_config->rp_vignette      = 1.0;
 		g_config->rp_grain         = 0.09;
 		g_config->rp_contrast      = 1.0;
 		g_config->rp_gamma         = 1.0;
@@ -263,7 +269,7 @@ void config_init() {
 		g_config->neural_res          = 512;
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
 		g_config->render_mode         = RENDER_MODE_DEFERRED;
-		g_config->workspace           = WORKSPACE_PAINT_3D;
+		g_config->workspace           = WORKSPACE_VIEW_3D;
 		g_config->workflow            = WORKFLOW_PBR;
 	}
 	else {
@@ -496,14 +502,5 @@ bool config_is_iphone() {
 #endif
 
 bool config_is_raytrace_fast() {
-	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST;
-}
-
-bool config_is_raytrace_multi() {
-	bool multi = g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_FAST || g_config->pathtrace_mode == PATHTRACE_MODE_MULTI_QUALITY;
-	return multi && g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE;
-}
-
-void config_apply_raytrace_multi() {
-	gpu_raytrace_multi = config_is_raytrace_multi();
+	return g_config->pathtrace_mode == PATHTRACE_MODE_FAST;
 }

@@ -374,6 +374,25 @@ void render_path_base_copy_to_gbuffer() {
 	render_path_draw_shader("Scene/copy_mrt3_pass/copy_mrt3RGBA64_pass");
 }
 
+static void render_path_base_draw_layer_pass(i32 layer_pass) {
+	// Objects with an overridden material have only the base mesh context,
+	// draw them in the last pass so they end up in the final gbuffer
+	bool  last_pass            = layer_pass == make_mesh_layer_pass_count - 1;
+	char *context              = make_mesh_context_id(layer_pass);
+	_mesh_object_last_pipeline = NULL;
+	any_array_t *meshes        = scene_meshes;
+	for (i32 i = 0; i < meshes->length; ++i) {
+		mesh_object_t *mesh = (mesh_object_t *)meshes->buffer[i];
+		if (make_mesh_layer_pass_count == 1 || mesh_object_valid_context(mesh, mesh->material, make_mesh_context_id(1))) {
+			mesh_object_render(mesh, context, _render_path_bind_params);
+		}
+		else if (last_pass) {
+			mesh_object_render(mesh, "mesh", _render_path_bind_params);
+		}
+	}
+	render_path_end();
+}
+
 void render_path_base_draw_gbuffer() {
 
 	if (make_material_transluc_used) {
@@ -390,7 +409,7 @@ void render_path_base_draw_gbuffer() {
 	    2);
 	render_path_set_target("gbuffer0", additional, "main", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_paint_bind_layers();
-	render_path_draw_meshes("mesh");
+	render_path_base_draw_layer_pass(0);
 	render_path_paint_unbind_layers();
 	if (make_mesh_layer_pass_count > 1) {
 		render_path_base_make_gbuffer_copy_textures();
@@ -409,7 +428,7 @@ void render_path_base_draw_gbuffer() {
 			render_path_bind_target(string_tmp("gbuffer1%s", pong), "gbuffer1");
 			render_path_bind_target(string_tmp("gbuffer2%s", pong), "gbuffer2");
 			render_path_paint_bind_layers();
-			render_path_draw_meshes(string_tmp("mesh%d", i));
+			render_path_base_draw_layer_pass(i);
 			render_path_paint_unbind_layers();
 		}
 		if (make_mesh_layer_pass_count % 2 == 0) {

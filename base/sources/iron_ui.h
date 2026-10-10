@@ -374,6 +374,7 @@ bool  ui_get_released(float elem_h);
 bool  ui_input_in_rect(float x, float y, float w, float h);
 void  ui_fill(float x, float y, float w, float h, uint32_t color);
 void  ui_rect(float x, float y, float w, float h, uint32_t color, float strength);
+void  ui_rect_round(float x, float y, float w, float h, uint32_t color, float strength);
 int   ui_line_count(char *str);
 char *ui_extract_line(char *str, int line);
 char *ui_extract_line_off(char *str, int line, int *off);

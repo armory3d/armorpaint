@@ -272,6 +272,7 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			d->texpaint                         = any_map_get(old, "texpaint");
 			d->texpaint_nor                     = any_map_get(old, "texpaint_nor");
 			d->texpaint_pack                    = any_map_get(old, "texpaint_pack");
+			d->texpaint_sculpt                  = any_map_get(old, "texpaint_sculpt");
 			d->path_points                      = any_map_get(old, "path_points");
 			d->path_points_world                = any_map_get(old, "path_points_world");
 			d->path_points_camera               = any_map_get(old, "path_points_camera");
@@ -314,6 +315,16 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	return project;
 }
 
+project_t *import_arm_from_version_16(any_map_t *old) {
+	any_array_t *tls = any_map_get(old, "timeline_layers");
+	if (tls != NULL) {
+		for (i32 i = 0; i < tls->length; ++i) {
+			any_map_set(tls->buffer[i], "texpaint_sculpt", NULL);
+		}
+	}
+	return import_arm_from_map_to_arm(old);
+}
+
 project_t *import_arm_from_version_15(any_map_t *old) {
 	any_array_t *stages = any_map_get(old, "stages");
 	any_array_t *tms    = any_map_get(old, "timeline_meshes");
@@ -328,7 +339,7 @@ project_t *import_arm_from_version_15(any_map_t *old) {
 			any_map_set(stages->buffer[i], "nested_mesh", NULL);
 		}
 	}
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_16(old);
 }
 
 project_t *import_arm_from_version_14(any_map_t *old) {
@@ -483,10 +494,10 @@ project_t *import_arm_from_version_0(any_map_t *old) {
 project_t *import_arm_from_old(buffer_t *b) {
 	any_map_t *old                   = armpack_decode_to_map(b);
 	project_t *(*fns[])(any_map_t *) = {
-	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,
-	    import_arm_from_version_4,  import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,
-	    import_arm_from_version_8,  import_arm_from_version_9,  import_arm_from_version_10, import_arm_from_version_11,
-	    import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14, import_arm_from_version_15,
+	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,  import_arm_from_version_4,
+	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
+	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14,
+	    import_arm_from_version_15, import_arm_from_version_16,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

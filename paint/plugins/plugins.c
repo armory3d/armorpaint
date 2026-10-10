@@ -8,16 +8,15 @@
 #include "iron_ui.h"
 #include <stdlib.h>
 
-void *io_svg_parse(char *buf);
-void *io_exr_parse(char *buf, size_t len);
-void *io_psd_parse(uint8_t *buf, size_t len, const char *filename);
-void *io_tiff_parse(uint8_t *buf, size_t len);
-void *io_gltf_parse(char *buf, size_t size, const char *path);
-void *io_gltf_parse_skinned(char *buf, size_t size, const char *path, int frame);
-int   io_gltf_frame_count();
-void *io_fbx_parse(char *buf, size_t size);
-void *io_fbx_parse_skinned(char *buf, size_t size, int frame);
-void  proc_uv_unwrap(void *mesh);
+void     *io_svg_parse(char *buf);
+void     *io_exr_parse(char *buf, size_t len);
+void     *io_psd_parse(uint8_t *buf, size_t len, const char *filename);
+void     *io_tiff_parse(uint8_t *buf, size_t len);
+void     *io_gltf_parse(char *buf, size_t size, const char *path);
+buffer_t *io_gltf_skin_blob(char *buf, size_t size, const char *path);
+void     *util_skin_raw_mesh(buffer_t *blob);
+void     *io_fbx_parse(char *buf, size_t size);
+void     *io_fbx_parse_skinned(char *buf, size_t size);
 
 typedef struct asset {
 	i32   id;
@@ -31,7 +30,6 @@ string_array_t        *path_mesh_formats(void);
 extern any_map_t      *import_texture_importers;
 extern string_array_t *_path_texture_formats;
 string_array_t        *path_texture_formats(void);
-extern any_map_t      *util_mesh_unwrappers;
 extern any_map_t      *data_cached_textures;
 void                   import_texture_run(char *path, bool hdr_as_envmap);
 any_array_t           *project_get_assets(void);
@@ -86,64 +84,29 @@ static void *import_svg(char *path) {
 	return res;
 }
 
-static void plugins_free_raw_mesh(raw_mesh_t *raw) {
-	i16_array_t *arrays[] = {raw->posa, raw->nora, raw->texa, raw->texa1, raw->cola};
-	for (int i = 0; i < 5; ++i) {
-		if (arrays[i] != NULL) {
-			free(arrays[i]->buffer);
-			free(arrays[i]);
-		}
-	}
-	if (raw->inda != NULL) {
-		free(raw->inda->buffer);
-		free(raw->inda);
-	}
-	free(raw->name);
-	free(raw);
-}
-
-bool plugins_skin_data_apply(buffer_t *blob, int frame, i16_array_t *posa, i16_array_t *nora, float *scale_pos) {
-	if (blob == NULL) {
-		return false;
-	}
-
-	raw_mesh_t *raw = io_gltf_parse_skinned((char *)blob->buffer, blob->length, NULL, frame);
-	if (raw == NULL) {
-		return false;
-	}
-
-	memcpy(posa->buffer, raw->posa->buffer, posa->length * sizeof(int16_t));
-	memcpy(nora->buffer, raw->nora->buffer, nora->length * sizeof(int16_t));
-	*scale_pos = raw->scale_pos;
-
-	plugins_free_raw_mesh(raw);
-	return true;
-}
-
-int plugins_skin_frame_count() {
-	return io_gltf_frame_count();
-}
-
 static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
-	if (plugins_skinning_frame == -1) {
-		void *res = io_gltf_parse((char *)b->buffer, b->length, path);
-		data_delete_blob(path);
-		return res;
+	if (b == NULL) {
+		return NULL;
 	}
-	else {
-		raw_mesh_t *raw = io_gltf_parse_skinned((char *)b->buffer, b->length, path, plugins_skinning_frame);
-		if (raw != NULL) {
-			raw->blob = b;
+	if (plugins_skinning_frame != -1) {
+		buffer_t *blob = io_gltf_skin_blob((char *)b->buffer, b->length, path);
+		if (blob != NULL) {
+			data_delete_blob(path);
+			return util_skin_raw_mesh(blob);
 		}
-		return raw;
 	}
+	void *res = io_gltf_parse((char *)b->buffer, b->length, path);
+	data_delete_blob(path);
+	return res;
 }
 
 static void *import_fbx(char *path) {
 	buffer_t *b = data_get_blob(path);
-	void     *res =
-        plugins_skinning_frame == -1 ? io_fbx_parse((char *)b->buffer, b->length) : io_fbx_parse_skinned((char *)b->buffer, b->length, plugins_skinning_frame);
+	if (b == NULL) {
+		return NULL;
+	}
+	void *res = plugins_skinning_frame == -1 ? io_fbx_parse((char *)b->buffer, b->length) : io_fbx_parse_skinned((char *)b->buffer, b->length);
 	data_delete_blob(path);
 	return res;
 }
@@ -172,8 +135,6 @@ void plugins_init() {
 	any_array_push(_path_mesh_formats, "glb");
 	any_map_set(import_mesh_importers, "fbx", import_fbx);
 	any_array_push(_path_mesh_formats, "fbx");
-
-	any_map_set(util_mesh_unwrappers, "uv_unwrap", proc_uv_unwrap);
 
 #ifdef WITH_EXTERNAL
 	external_init();

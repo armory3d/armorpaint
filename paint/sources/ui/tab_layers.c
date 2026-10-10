@@ -236,6 +236,7 @@ void tab_layers_delete_layer(slot_layer_t *l) {
 		tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
 	}
 	tab_stages_prune();
+	base_redraw_status();
 }
 
 void tab_layers_draw_layer_slot_full_delete_layer(void *_) {
@@ -248,28 +249,55 @@ void tab_layers_combo_object_layer_clear(slot_layer_t *l) {
 	layers_update_fill_layers();
 }
 
-bool tab_layers_combo_object(slot_layer_t *l, bool label) {
+static string_array_t *tab_layers_object_items(char *first, i32_array_t *masks) {
 	string_array_t *ar = any_array_create_from_raw(
 	    (void *[]){
-	        tr("Shared"),
+	        first,
 	    },
 	    1);
+	i32_array_push(masks, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p->data->index_array->length == 0) {
+			continue;
+		}
 		any_array_push(ar, p->base->name);
+		i32_array_push(masks, i + 1);
 	}
 	string_array_t *atlases = project_get_used_atlases();
 	if (atlases != NULL) {
 		for (i32 i = 0; i < atlases->length; ++i) {
 			char *a = atlases->buffer[i];
 			any_array_push(ar, a);
+			i32_array_push(masks, g_project->_->paint_objects->length + 1 + i);
 		}
 	}
-	i32 prev_object_mask = l->object_mask;
-	ui_combo(&l->object_mask, ar, tr("Object"), label, UI_ALIGN_LEFT, true);
+	return ar;
+}
+
+static bool tab_layers_object_combo(i32 *value, char *first, char *label, bool show_label) {
+	i32_array_t    *masks = i32_array_create(0);
+	string_array_t *ar    = tab_layers_object_items(first, masks);
+	i32             pos   = i32_array_index_of(masks, *value);
+	if (pos == -1) {
+		pos = 0;
+	}
+	ui_set_next_id((ui_id_t)value);
+	ui_combo(&pos, ar, label, show_label, UI_ALIGN_LEFT, true);
 	bool changed = ui_item_changed();
+	if (changed) {
+		*value = masks->buffer[pos];
+	}
 	array_free(ar);
 	free(ar);
+	array_free(masks);
+	free(masks);
+	return changed;
+}
+
+bool tab_layers_combo_object(slot_layer_t *l, bool label) {
+	i32  prev_object_mask = l->object_mask;
+	bool changed          = tab_layers_object_combo(&l->object_mask, tr("Shared"), tr("Object"), label);
 	if (changed) {
 		i32 new_object_mask = l->object_mask;
 		l->object_mask      = prev_object_mask;
@@ -421,16 +449,21 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	if (tab_layers_layer_name_edit == l->id) {
 		tab_layers_layer_name = string_copy(l->name);
 		char *new_name        = string_copy(ui_text_input(&tab_layers_layer_name, "", UI_ALIGN_LEFT, true, false));
-		tab_stages_rename_layer(l->name, new_name);
+		bool  commit          = g_ui->text_selected_id != ui_widget_id(&tab_layers_layer_name, UI_ID_TEXT);
+		if (commit) {
+			tab_layers_layer_name_edit = -1;
+			if (string_equals(new_name, "") && tab_layers_layer_name_prev != NULL) {
+				new_name = tab_layers_layer_name_prev;
+			}
+			new_name = string_copy(slot_layer_unique_name(l, new_name));
+		}
 		if (l->path_text && slot_layer_is_path(l) && !string_equals(l->name, new_name)) {
 			sys_notify_on_next_frame(&tab_layers_repaint_text_layer, l);
 		}
 		l->name = new_name;
-		if (g_ui->text_selected_id != ui_widget_id(&tab_layers_layer_name, UI_ID_TEXT)) {
-			tab_layers_layer_name_edit = -1;
-			if (tab_layers_layer_name_prev != NULL && !string_equals(tab_layers_layer_name_prev, l->name)) {
-				history_layer_name(l, tab_layers_layer_name_prev);
-			}
+		if (commit && tab_layers_layer_name_prev != NULL && !string_equals(tab_layers_layer_name_prev, l->name)) {
+			tab_stages_rename_layer(tab_layers_layer_name_prev, l->name);
+			history_layer_name(l, tab_layers_layer_name_prev);
 		}
 	}
 	else {
@@ -509,10 +542,10 @@ void tab_layers_draw_layer_highlight(slot_layer_t *l, bool mini) {
 	// Highlight selected
 	if (g_context->layer == l) {
 		if (mini) {
-			ui_rect(1, -step * 2, g_ui->_w / (float)UI_SCALE() - 1, step * 2 + (mini ? -1 : 1), g_theme->HIGHLIGHT_COL, 3);
+			ui_rect_round(1, -step * 2, g_ui->_w / (float)UI_SCALE() - 1, step * 2 + (mini ? -1 : 1), g_theme->HIGHLIGHT_COL, 3);
 		}
 		else {
-			ui_rect(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + (mini ? -2 : 1), g_theme->HIGHLIGHT_COL, 2);
+			ui_rect_round(1, -step * 2 - 1, g_ui->_w / (float)UI_SCALE() - 2, step * 2 + (mini ? -2 : 1), g_theme->HIGHLIGHT_COL, 2);
 		}
 	}
 }
@@ -1163,27 +1196,7 @@ void tab_layers_button_new(char *text) {
 }
 
 void tab_layers_combo_filter() {
-	string_array_t *ar = any_array_create_from_raw(
-	    (void *[]){
-	        tr("All"),
-	    },
-	    1);
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		any_array_push(ar, p->base->name);
-	}
-	string_array_t *atlases = project_get_used_atlases();
-	if (atlases != NULL) {
-		for (i32 i = 0; i < atlases->length; ++i) {
-			char *a = atlases->buffer[i];
-			any_array_push(ar, a);
-		}
-	}
-	ui_combo(&g_context->layer_filter, ar, tr("Filter"), false, UI_ALIGN_LEFT, true);
-	bool changed = ui_item_changed();
-	array_free(ar);
-	free(ar);
-	if (changed) {
+	if (tab_layers_object_combo(&g_context->layer_filter, tr("All"), tr("Filter"), false)) {
 		tab_layers_apply_filter(g_context->layer_filter);
 	}
 }

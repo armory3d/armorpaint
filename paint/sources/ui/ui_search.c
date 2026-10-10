@@ -60,7 +60,8 @@ static char *_ui_search_text = "";
 
 void ui_base_operator_search_menu_draw() {
 	ui_menu_h            = UI_ELEMENT_H() * 8;
-	char *search         = to_lower_case(ui_text_input(&_ui_search_text, "", UI_ALIGN_LEFT, true, true));
+	char *text           = ui_text_input(&_ui_search_text, "", UI_ALIGN_LEFT, true, true);
+	char *search         = to_lower_case(text);
 	bool  search_changed = ui_item_changed();
 	g_ui->changed        = false;
 	if (_ui_search_first) {
@@ -109,9 +110,19 @@ void ui_base_operator_search_menu_draw() {
 	array_free(keys);
 	free(keys);
 
-	if (enter && count == 0) { // Hide popup on enter when command is not found
-		g_ui->changed   = true;
-		_ui_search_text = "";
+	if (count == 0) { // Run as console prompt when command is not found
+		bool run = false;
+		if (text[0] != '\0') {
+			g_theme->BUTTON_COL = g_theme->HIGHLIGHT_COL;
+			run                 = ui_button(tr("Prompt"), UI_ALIGN_LEFT, "enter");
+		}
+		if (enter || run) {
+			g_ui->changed = true;
+			if (text[0] != '\0') {
+				tab_console_run_prompt(text);
+			}
+			_ui_search_text = "";
+		}
 	}
 	g_theme->BUTTON_COL     = _BUTTON_COL;
 	g_theme->FILL_BUTTON_BG = _FILL_BUTTON_BG;

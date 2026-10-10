@@ -6,6 +6,7 @@
 
 void      *json_parse(char *s);
 any_map_t *json_parse_to_map(char *s);
+char      *json_escape(char *s);
 
 void      json_encode_begin();
 char     *json_encode_end();
@@ -20,6 +21,7 @@ void      json_encode_bool(char *k, bool b);
 void      json_encode_begin_array(char *k);
 void      json_encode_end_array();
 void      json_encode_begin_object();
+void      json_encode_begin_object_key(char *k);
 void      json_encode_end_object();
 void      json_encode_map(any_map_t *m);
 buffer_t *json_encode_to_armpack(char *json);

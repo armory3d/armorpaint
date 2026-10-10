@@ -19,8 +19,49 @@ void tab_sounds_delete_sound(slot_sound_t *sound) {
 	ui_base_hwnds->buffer[2]->redraws = 2;
 }
 
+slot_sound_t *_tab_sounds_export_sound;
+
+char *tab_sounds_ext(slot_sound_t *sound) {
+	return ends_with(to_lower_case(sound->file), ".ogg") ? ".ogg" : ".wav";
+}
+
+buffer_t *tab_sounds_get_bytes(slot_sound_t *sound) {
+	if (g_project->packed_assets != NULL) {
+		for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+			packed_asset_t *pa = g_project->packed_assets->buffer[i];
+			if (string_equals(pa->name, sound->file)) {
+				return pa->bytes;
+			}
+		}
+	}
+	return iron_load_blob(sound->file);
+}
+
+void tab_sounds_export(char *path) {
+	slot_sound_t *sound = _tab_sounds_export_sound;
+	char         *ext   = tab_sounds_ext(sound);
+	char         *f     = ui_files_filename;
+	if (string_equals(f, "")) {
+		f = string_copy(tr("untitled"));
+	}
+	if (!ends_with(to_lower_case(f), ext)) {
+		f = string("%s%s", f, ext);
+	}
+	buffer_t *bytes = tab_sounds_get_bytes(sound);
+	if (bytes == NULL) {
+		console_error(string("%s %s", tr("Failed to read sound:"), sound->file));
+		return;
+	}
+	iron_file_save_bytes(string("%s%s%s", path, PATH_SEP, f), bytes, bytes->length);
+}
+
 void tab_sounds_draw_context_menu_draw() {
 	i32 i = _tab_sounds_draw_i;
+	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
+		_tab_sounds_export_sound = g_project->_->sounds->buffer[i];
+		ui_files_filename        = string_copy(_tab_sounds_export_sound->name);
+		ui_files_show(substring(tab_sounds_ext(_tab_sounds_export_sound), 1, 4), true, false, &tab_sounds_export);
+	}
 	if (ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_sounds_delete_sound(g_project->_->sounds->buffer[i]);
 	}
@@ -129,15 +170,11 @@ void tab_sounds_draw(i32 *htab) {
 
 				if (g_context->sound == g_project->_->sounds->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 off = row % 2 == 1 ? 1 : 0;
-					i32 w   = 50;
+					i32 w = 50;
 					if (g_config->window_scale > 1) {
 						w += math_floor(g_config->window_scale * 2);
 					}
-					ui_fill(-1, -2, w + 3, 2, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, w - off, w + 3, 2 + off, g_theme->HIGHLIGHT_COL);
-					ui_fill(-1, -2, 2, w + 3, g_theme->HIGHLIGHT_COL);
-					ui_fill(w + 1, -2, 2, w + 4, g_theme->HIGHLIGHT_COL);
+					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 
 				uix      = g_ui->_x;

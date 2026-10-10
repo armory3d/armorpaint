@@ -258,7 +258,12 @@ void ui_menubar_draw_category_items() {
 		if (ui_menu_button(tr("Open..."), any_map_get(g_keymap, "file_open"), ICON_FOLDER_OPEN)) {
 			project_open();
 		}
-		if (ui_menu_button(tr("Open Recent..."), any_map_get(g_keymap, "file_open_recent"), ICON_REPLAY)) {
+#ifdef IRON_WASM
+		char *open_recent = tr("Cloud Projects...");
+#else
+		char *open_recent = tr("Open Recent...");
+#endif
+		if (ui_menu_button(open_recent, any_map_get(g_keymap, "file_open_recent"), ICON_REPLAY)) {
 			box_projects_show();
 		}
 		if (ui_menu_button(tr("Save"), any_map_get(g_keymap, "file_save"), ICON_SAVE)) {
@@ -267,6 +272,11 @@ void ui_menubar_draw_category_items() {
 		if (ui_menu_button(tr("Save As..."), any_map_get(g_keymap, "file_save_as"), ICON_SAVE_AS)) {
 			project_save_as(false);
 		}
+#ifdef IRON_WASM
+		if (ui_menu_button(tr("Save to Cloud..."), "", ICON_CLOUD)) {
+			box_projects_cloud_save_show(false);
+		}
+#endif
 
 		g_ui->changed = false;
 		ui_check(&g_context->pack_assets_on_save, tr("Pack Assets"), "");
@@ -511,10 +521,16 @@ void ui_menubar_draw_category_items() {
 			g_ui->changed = false; // Close menu
 		}
 
-		if (g_config->experimental && ui_menu_button(tr("Run in Player"), "f5", ICON_PLAY)) {
+		if (ui_menu_button(tr("Run in Player"), "f5", ICON_PLAY)) {
 			base_run_in_player();
 			g_ui->changed = false; // Close menu
 		}
+#ifdef IRON_WASM
+		if (g_config->experimental && ui_menu_button(tr("Share Player Link"), "", ICON_LINK)) {
+			base_share_player();
+			g_ui->changed = false; // Close menu
+		}
+#endif
 
 		context_update_envmap();
 
@@ -756,23 +772,25 @@ void ui_menubar_draw_category_items() {
 		bool            workspace_changed = false;
 		string_array_t *modes             = any_array_create_from_raw(
             (void *[]){
-                tr("Paint 3D"),
-                tr("Paint 2D"),
+                tr("3D View"),
+                tr("2D View"),
                 tr("Nodes"),
                 tr("Script"),
+                tr("Player"),
             },
-            4);
+            5);
 
-		if (g_config->experimental) {
-			any_array_push(modes, tr("Player"));
-		}
-
+		i32 workspace_last = g_config->workspace;
 		for (i32 i = 0; i < modes->length; ++i) {
 			ui_radio((int *)&g_config->workspace, i, modes->buffer[i], "");
 			workspace_changed |= ui_item_changed();
 		}
 
-		if (workspace_changed) {
+		if (workspace_changed && g_config->workspace == WORKSPACE_PLAYER) {
+			g_config->workspace = workspace_last;
+			sys_notify_on_next_frame(player_start, NULL);
+		}
+		else if (workspace_changed) {
 			config_save();
 			base_update_workspace();
 		}
@@ -780,17 +798,21 @@ void ui_menubar_draw_category_items() {
 		ui_menu_separator();
 		ui_menu_align();
 		ui_menu_label(tr("Workflow"), NULL);
-		ui_menu_align();
-		string_array_t *workflow_items = any_array_create_from_raw(
-		    (void *[]){
-		        tr("PBR"),
-		        tr("Base"),
-		        tr("Sculpt"),
-		    },
-		    3);
+		bool            workflow_changed = false;
+		string_array_t *workflows        = any_array_create_from_raw(
+            (void *[]){
+                tr("PBR"),
+                tr("Base"),
+                tr("Sculpt"),
+            },
+            3);
 
-		ui_inline_radio((int *)&g_config->workflow, workflow_items, UI_ALIGN_LEFT);
-		if (ui_item_changed()) {
+		for (i32 i = 0; i < workflows->length; ++i) {
+			ui_radio((int *)&g_config->workflow, i, workflows->buffer[i], "");
+			workflow_changed |= ui_item_changed();
+		}
+
+		if (workflow_changed) {
 			config_save();
 			base_update_workflow();
 		}

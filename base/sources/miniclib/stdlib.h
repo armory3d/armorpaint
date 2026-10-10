@@ -4,6 +4,7 @@
 
 typedef unsigned long size_t;
 #define EXIT_FAILURE 1
+#define alloca       __builtin_alloca
 
 void *malloc(size_t size);
 void *calloc(size_t num, size_t size);

@@ -1,137 +1,365 @@
+#include <metal_stdlib>
 
 using namespace metal;
 using namespace raytracing;
 
-struct Vertex {
-	uint posxy;
-	uint poszw;
-	uint nor;
-	uint tex;
-};
+typedef intersector<triangle_data, instancing, world_space_data> _kong_intersector;
 
-struct RayGenConstantBuffer {
-	float4 v0; // frame, strength, radius, offset
+struct _1_type {
+	float4 v0;
 	float4 v1;
 	float4 v2;
 	float4 v3;
 	float4 v4;
 };
 
-struct RayPayload {
-	float4 color;
-	float3 ray_origin;
-	float3 ray_dir;
-};
+constant float _12 = 6.28318548;
 
-constant int SAMPLES = 4;//64;
+constant int _11 = 4;
 
-uint table_byte(texture2d<float, access::read> tex, int i) {
-	int t = (i & 131071) >> 2;
-	float4 c = tex.read(uint2(uint(t & 127), uint(t >> 7)), 0);
-	int ch = i & 3;
-	return uint((ch == 0 ? c.r : (ch == 1 ? c.g : (ch == 2 ? c.b : c.a))) * 255);
+float3 cos_weighted_hemisphere_direction(uint3 _136, float3 _137, int _138, int _139, int _140, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10);
+float rand(int _56, int _57, int _58, int _59, int _60, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10);
+uint2 table_texel(int _13);
+uint table_channel(float4 _26, int _27);
+
+uint2 table_texel(int _13) {
+	int _15 = 2;
+	int _16 = 131071;
+	int _17 = _13 & _16;
+	int _18 = _17 >> _15;
+	int _14;
+	_14 = _18;
+	int _21 = 127;
+	int _22 = _14 & _21;
+	uint _20 = uint(_22);
+	int _24 = 7;
+	int _25 = _14 >> _24;
+	uint _23 = uint(_25);
+	uint2 _19 = uint2(_20, _23);
+	return _19;
 }
 
-float rand(int pixel_i, int pixel_j, int sample_index, int sample_dimension, int frame, texture2d<float, access::read> sobol, texture2d<float, access::read> scramble, texture2d<float, access::read> rank) {
-	pixel_i += frame * 9;
-	pixel_j += frame * 11;
-	pixel_i = pixel_i & 127;
-	pixel_j = pixel_j & 127;
-	sample_index = sample_index & 255;
-	sample_dimension = sample_dimension & 255;
-
-	int i = (sample_dimension + (pixel_i + pixel_j * 128) * 8) & 131071;
-	int ranked_sample_index = sample_index ^ int(table_byte(rank, i));
-
-	int value = int(sobol.read(uint2(ranked_sample_index, sample_dimension), 0).r * 255);
-
-	i = (sample_dimension % 8) + (pixel_i + pixel_j * 128) * 8;
-	value = value ^ int(table_byte(scramble, i));
-
-	float v = (0.5f + value) / 256.0f;
-	return v;
+uint table_channel(float4 _26, int _27) {
+	int _30 = 3;
+	int _31 = _27 & _30;
+	int _28;
+	_28 = _31;
+	float _32 = _26.w;
+	float _29;
+	_29 = _32;
+	int _33 = 0;
+	bool _34 = _28 == _33;
+	if (_34)
+	{
+		float _37 = _26.x;
+		_29 = _37;
+	}
+	bool _38 = !_34;
+	int _39 = 1;
+	bool _40 = _28 == _39;
+	bool _41 = _38 && _40;
+	if (_41)
+	{
+		float _44 = _26.y;
+		_29 = _44;
+	}
+	bool _45 = !_40;
+	bool _46 = _38 && _45;
+	int _47 = 2;
+	bool _48 = _28 == _47;
+	bool _49 = _46 && _48;
+	if (_49)
+	{
+		float _52 = _26.z;
+		_29 = _52;
+	}
+	float _54 = 255.000000;
+	float _55 = _29 * _54;
+	uint _53 = uint(_55);
+	return _53;
 }
 
-float3 cos_weighted_hemisphere_direction(uint2 tid, float3 n, uint sample, uint seed, int frame, texture2d<float, access::read> sobol, texture2d<float, access::read> scramble, texture2d<float, access::read> rank) {
-	const float PI = 3.1415926535;
-	const float PI2 = PI * 2.0;
-	float f0 = rand(tid.x, tid.y, sample, seed, frame, sobol, scramble, rank);
-	float f1 = rand(tid.x, tid.y, sample, seed + 1, frame, sobol, scramble, rank);
-	float z = f0 * 2.0f - 1.0f;
-	float a = f1 * PI2;
-	float r = sqrt(1.0f - z * z);
-	float x = r * cos(a);
-	float y = r * sin(a);
-	return normalize(n + float3(x, y, z));
+float rand(int _56, int _57, int _58, int _59, int _60, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10) {
+	int _70 = 8;
+	int _71 = 128;
+	int _72 = 127;
+	int _73 = 11;
+	int _74 = _60 * _73;
+	int _75 = _57 + _74;
+	int _76 = _75 & _72;
+	int _77 = _76 * _71;
+	int _78 = 127;
+	int _79 = 9;
+	int _80 = _60 * _79;
+	int _81 = _56 + _80;
+	int _82 = _81 & _78;
+	int _83 = _82 + _77;
+	int _84 = _83 * _70;
+	int _85 = 8;
+	int _86 = 255;
+	int _87 = _59 & _86;
+	int _88 = _87 % _85;
+	int _89 = _88 + _84;
+	int _61;
+	_61 = _89;
+	uint2 _91 = table_texel(_61);
+	float4 _90 = _9.read(_91);
+	float4 _62;
+	_62 = _90;
+	uint _92 = table_channel(_62, _61);
+	uint _63;
+	_63 = _92;
+	int _93 = 8;
+	int _94 = 128;
+	int _95 = 127;
+	int _96 = 11;
+	int _97 = _60 * _96;
+	int _98 = _57 + _97;
+	int _99 = _98 & _95;
+	int _100 = _99 * _94;
+	int _101 = 127;
+	int _102 = 9;
+	int _103 = _60 * _102;
+	int _104 = _56 + _103;
+	int _105 = _104 & _101;
+	int _106 = _105 + _100;
+	int _107 = _106 * _93;
+	int _108 = 255;
+	int _109 = _59 & _108;
+	int _110 = _109 + _107;
+	int _64;
+	_64 = _110;
+	uint2 _112 = table_texel(_64);
+	float4 _111 = _10.read(_112);
+	float4 _65;
+	_65 = _111;
+	uint _113 = table_channel(_65, _64);
+	uint _66;
+	_66 = _113;
+	int _114 = 255;
+	int _115 = _58 & _114;
+	_58 = _115;
+	int _116 = 255;
+	int _117 = _59 & _116;
+	_59 = _117;
+	int _118 = int(_66);
+	int _119 = _58 ^ _118;
+	int _67;
+	_67 = _119;
+	uint _122 = uint(_67);
+	uint _123 = uint(_59);
+	uint2 _121 = uint2(_122, _123);
+	float4 _120 = _8.read(_121);
+	float4 _68;
+	_68 = _120;
+	float _125 = 255.000000;
+	float _126 = _68.x;
+	float _127 = _126 * _125;
+	int _124 = int(_127);
+	int _69;
+	_69 = _124;
+	int _128 = int(_63);
+	int _129 = _69 ^ _128;
+	_69 = _129;
+	float _130 = 256.000000;
+	float _132 = float(_69);
+	float _131 = float(_132);
+	float _133 = 0.500000;
+	float _134 = _133 + _131;
+	float _135 = _134 / _130;
+	return _135;
 }
 
-kernel void raytracingKernel(
-	uint2 tid [[thread_position_in_grid]],
-	constant RayGenConstantBuffer &constant_buffer [[buffer(0)]],
-	texture2d<float, access::read_write> render_target [[texture(0)]],
-	texture2d<float, access::read> mytexture0 [[texture(1)]],
-	texture2d<float, access::read> mytexture1 [[texture(2)]],
-	texture2d<float, access::read> mytexture2 [[texture(3)]],
-	texture2d<float, access::read> mytexture_env [[texture(4)]],
-	texture2d<float, access::read> mytexture_sobol [[texture(5)]],
-	texture2d<float, access::read> mytexture_scramble [[texture(6)]],
-	texture2d<float, access::read> mytexture_rank [[texture(7)]],
-	instance_acceleration_structure scene [[buffer(1)]],
-	device void *indices [[buffer(2)]],
-	device void *vertices [[buffer(3)]]
-) {
-	uint seed = 0;
+float3 cos_weighted_hemisphere_direction(uint3 _136, float3 _137, int _138, int _139, int _140, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10) {
+	uint _150 = _136.x;
+	int _149 = int(_150);
+	uint _152 = _136.y;
+	int _151 = int(_152);
+	float _148 = rand(_149, _151, _138, _139, _140, _8, _9, _10);
+	float _141;
+	_141 = _148;
+	uint _155 = _136.x;
+	int _154 = int(_155);
+	uint _157 = _136.y;
+	int _156 = int(_157);
+	int _158 = 1;
+	int _159 = _139 + _158;
+	float _153 = rand(_154, _156, _138, _159, _140, _8, _9, _10);
+	float _142;
+	_142 = _153;
+	float _160 = 1.000000;
+	float _161 = 2.000000;
+	float _162 = _141 * _161;
+	float _163 = _162 - _160;
+	float _143;
+	_143 = _163;
+	float _164 = _142 * _12;
+	float _144;
+	_144 = _164;
+	float _166 = _143 * _143;
+	float _167 = 1.000000;
+	float _168 = _167 - _166;
+	float _165 = sqrt(_168);
+	float _145;
+	_145 = _165;
+	float _169 = cos(_144);
+	float _170 = _145 * _169;
+	float _146;
+	_146 = _170;
+	float _171 = sin(_144);
+	float _172 = _145 * _171;
+	float _147;
+	_147 = _172;
+	float3 _174 = float3(_146, _147, _143);
+	float3 _175 = _137 + _174;
+	float3 _173 = normalize(_175);
+	return _173;
+}
 
-	float2 xy = float2(tid) + float2(0.5f, 0.5f);
-	float4 tex0 = mytexture0.read(uint2(xy), 0);
-	if (tex0.a == 0.0) {
-		render_target.write(float4(0.0f, 0.0f, 0.0f, 0.0f), tid);
+kernel void raytrace(uint3 _kong_dispatch_thread_id [[thread_position_in_grid]], constant _1_type &_1 [[buffer(0)]], instance_acceleration_structure _2 [[buffer(1)]], texture2d<float, access::read_write> _3 [[texture(0)]], texture2d<float> _4 [[texture(1)]], texture2d<float> _5 [[texture(2)]], texture2d<float> _8 [[texture(5)]], texture2d<float> _9 [[texture(6)]], texture2d<float> _10 [[texture(7)]]) {
+	uint3 _187 = _kong_dispatch_thread_id;
+	uint3 _176;
+	_176 = _187;
+	uint2 _188 = uint2(_3.get_width(), _3.get_height());
+	uint2 _177;
+	_177 = _188;
+	uint _189 = _177.y;
+	uint _190 = _176.y;
+	bool _191 = _190 >= _189;
+	uint _192 = _177.x;
+	uint _193 = _176.x;
+	bool _194 = _193 >= _192;
+	bool _195 = _194 || _191;
+	if (_195)
+	{
 		return;
 	}
-	float3 pos = tex0.rgb;
-	float3 nor = mytexture1.read(uint2(xy), 0).rgb;
-
-	RayPayload payload;
-
-	ray ray;
-	ray.min_distance = constant_buffer.v0.w * 0.01;
-	ray.max_distance = constant_buffer.v0.z * 10.0;
-	ray.origin = pos;
-	float3 accum = float3(0, 0, 0);
-
-	for (int i = 0; i < SAMPLES; ++i) {
-		ray.direction = cos_weighted_hemisphere_direction(tid, nor, i, seed, constant_buffer.v0.x, mytexture_sobol, mytexture_scramble, mytexture_rank);
-		seed += 1;
-
-		intersector<triangle_data, instancing> in;
-		in.assume_geometry_type(geometry_type::triangle);
-		in.force_opacity(forced_opacity::opaque);
-		in.accept_any_intersection(false);
-
-		typename intersector<triangle_data, instancing>::result_type intersection;
-		intersection = in.intersect(ray, scene);
-		if (intersection.type == intersection_type::none) {
-			payload.color = float4(ray.direction, 0);
+	uint2 _199 = _176.xy;
+	float4 _198 = _4.read(_199);
+	float4 _178;
+	_178 = _198;
+	float _200 = 0.000000;
+	float _201 = _178.w;
+	bool _202 = _201 == _200;
+	if (_202)
+	{
+		float _206 = 0.000000;
+		float _207 = 0.000000;
+		float _208 = 0.000000;
+		float _209 = 0.000000;
+		float4 _205 = float4(_206, _207, _208, _209);
+		uint2 _210 = _176.xy;
+		_3.write(_205, _210);
+		return;
+	}
+	float3 _211 = _178.xyz;
+	float3 _179;
+	_179 = _211;
+	uint2 _213 = _176.xy;
+	float4 _212 = _5.read(_213);
+	float4 _180;
+	_180 = _212;
+	float3 _214 = _180.xyz;
+	float3 _181;
+	_181 = _214;
+	ray _182;
+	float _215 = 0.010000;
+	float _216 = _1.v0.w;
+	float _217 = _216 * _215;
+	_182.min_distance = _217;
+	float _218 = 10.000000;
+	float _219 = _1.v0.z;
+	float _220 = _219 * _218;
+	_182.max_distance = _220;
+	_182.origin = _179;
+	float _222 = 0.000000;
+	float _223 = 0.000000;
+	float _224 = 0.000000;
+	float3 _221 = float3(_222, _223, _224);
+	float3 _183;
+	_183 = _221;
+	int _225 = 0;
+	int _184;
+	_184 = _225;
+	{
+		int _229 = 0;
+		int _226;
+		_226 = _229;
+		while (true)
+{
+		bool _233 = _226 < _11;
+		if (!_233) { break; }
+		{
+			float _239 = _1.v0.x;
+			int _238 = int(_239);
+			float3 _237 = cos_weighted_hemisphere_direction(_176, _181, _226, _184, _238, _8, _9, _10);
+			_182.direction = _237;
+			int _240 = 1;
+			_184 += _240;
+			_kong_intersector::result_type _234;
+			{ _kong_intersector i; i.assume_geometry_type(geometry_type::triangle); i.force_opacity(forced_opacity::opaque); i.accept_any_intersection(false); _234 = i.intersect(_182, _2); }
+			bool _242 = _234.type == intersection_type::triangle;
+			bool _243 = !_242;
+			if (_243)
+			{
+				float3 _246 = _182.direction;
+				_183 += _246;
+			}
+			int _247 = 1;
+			_226 += _247;
 		}
-		else {
-			payload.color = float4(0, 0, 0, 1);
 		}
-
-		accum += payload.color.rgb;
 	}
-
-	accum = normalize(accum / SAMPLES) * 0.5 + 0.5;
-
-	if (constant_buffer.v1.y > 0) accum.xyz = float3(accum.x, accum.z, 1.0 - accum.y);
-
-	float3 color = render_target.read(tid).xyz;
-	if (constant_buffer.v0.x == 0) {
-		color = accum.xyz;
+	float _248 = 0.500000;
+	float _249 = 0.500000;
+	float _252 = float(_11);
+	float _251 = float(_252);
+	float3 _253 = _183 / _251;
+	float3 _250 = normalize(_253);
+	float3 _254 = _250 * _249;
+	float3 _255 = _254 + _248;
+	_183 = _255;
+	float _256 = 0.000000;
+	float _257 = _1.v1.y;
+	bool _258 = _257 > _256;
+	if (_258)
+	{
+		float _262 = _183.x;
+		float _263 = _183.z;
+		float _264 = _183.y;
+		float _265 = 1.000000;
+		float _266 = _265 - _264;
+		float3 _261 = float3(_262, _263, _266);
+		_183 = _261;
 	}
-	else {
-		float a = 1.0 / constant_buffer.v0.x;
-		float b = 1.0 - a;
-		color = color * b + accum.xyz * a;
+	uint2 _268 = _176.xy;
+	float4 _267 = _3.read(_268);
+	float4 _185;
+	_185 = _267;
+	float3 _269 = _185.xyz;
+	float3 _186;
+	_186 = _269;
+	float _270 = 0.000000;
+	float _271 = _1.v0.x;
+	bool _272 = _271 == _270;
+	if (_272)
+	{
+		_186 = _183;
 	}
-	render_target.write(float4(color.xyz, 1.0f), tid);
+	bool _275 = !_272;
+	if (_275)
+	{
+		float _279 = _1.v0.x;
+		float _280 = 1.000000;
+		float _281 = _280 / _279;
+		float _276;
+		_276 = _281;
+		float3 _283 = float3(_276, _276, _276);
+		float3 _282 = mix(_186, _183, _283);
+		_186 = _282;
+	}
+	float _285 = 1.000000;
+	float4 _284 = float4(_186, _285);
+	uint2 _286 = _176.xy;
+	_3.write(_284, _286);
 }

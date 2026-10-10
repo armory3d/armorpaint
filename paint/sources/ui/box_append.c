@@ -6,14 +6,6 @@ project_t   *box_append_project           = NULL;
 i32_array_t *box_append_mesh_selected     = NULL;
 i32_array_t *box_append_material_selected = NULL;
 
-static i32_array_t *box_append_zeros(i32 count) {
-	i32_array_t *a = i32_array_create(count);
-	for (i32 i = 0; i < count; ++i) {
-		a->buffer[i] = 0;
-	}
-	return a;
-}
-
 static bool box_append_has_selection() {
 	if (box_append_mesh_selected != NULL) {
 		for (i32 i = 0; i < box_append_mesh_selected->length; ++i) {
@@ -180,7 +172,7 @@ void box_append_show(char *path) {
 
 	i32 mesh_count               = box_append_project->mesh_datas != NULL ? box_append_project->mesh_datas->length : 0;
 	i32 mat_count                = box_append_project->material_nodes != NULL ? box_append_project->material_nodes->length : 0;
-	box_append_mesh_selected     = box_append_zeros(mesh_count);
-	box_append_material_selected = box_append_zeros(mat_count);
+	box_append_mesh_selected     = i32_array_create(mesh_count);
+	box_append_material_selected = i32_array_create(mat_count);
 	ui_box_show_custom(&box_append_draw, 600, 420, &box_append_on_hide, true, tr("Append"));
 }

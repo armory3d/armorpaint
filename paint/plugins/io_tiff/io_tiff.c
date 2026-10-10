@@ -118,10 +118,13 @@ static void lzw_decode(uint8_t *in, size_t in_len, uint8_t *out, size_t out_len)
 		if (code == 257)
 			break;
 
+		if (code > nxt || (code == nxt && old_code < 0))
+			return;
+
 		int stack_top = 0;
 		int cur       = code;
 
-		if (code >= nxt) {
+		if (code == nxt) {
 			// Special case: new code equals next table entry
 			stack[stack_top++] = first[old_code];
 			cur                = old_code;
@@ -138,7 +141,8 @@ static void lzw_decode(uint8_t *in, size_t in_len, uint8_t *out, size_t out_len)
 			suffix[nxt] = stack[stack_top - 1]; // first char of current string
 			first[nxt]  = first[old_code];
 			nxt++;
-			if (nxt == (1 << bit_len) && bit_len < 12)
+			// TIFF LZW uses early change: width grows one code before the table fills
+			if (nxt == (1 << bit_len) - 1 && bit_len < 12)
 				bit_len++;
 		}
 

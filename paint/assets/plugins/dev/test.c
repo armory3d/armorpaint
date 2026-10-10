@@ -290,10 +290,16 @@ void step_import_texture() {
 		if (files->length > 0) {
 			char *name = files->buffer[0];
 			script_import_asset(string("%s/%s", dir_textures, name), false);
-			ok = 1;
+			if (script_get_texture(name) != NULL) {
+				script_texture_delete(name);
+				if (script_get_texture(name) == NULL) {
+					ok = 1;
+				}
+			}
+			script_import_asset(string("%s/%s", dir_textures, name), false);
 		}
 	}
-	check(ok, "texture imported");
+	check(ok, "texture imported, deleted and reimported");
 }
 
 // 15 - Import the exported mesh

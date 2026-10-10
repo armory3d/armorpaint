@@ -195,13 +195,13 @@ char *tilesheet_animation_node_vector(ui_node_t *node, ui_node_socket_t *socket)
 	if (anim_len < 1)
 		anim_len = 1;
 
-	node_shader_add_constant(parser_material_kong, "tilesheet_anim_time: float", "_time");
+	node_shader_add_constant(parser_material_kong, "float tilesheet_anim_time", "_time");
 
 	char *base = parser_material_store_var_name(node);
-	parser_material_write(parser_material_kong, string_tmp("var %s_frame: int = int(%d.0 + (float(int(constants.tilesheet_anim_time * %d.0)) %% %d.0));", base,
+	parser_material_write(parser_material_kong, string_tmp("int %s_frame = int(%d.0 + (float(int(constants.tilesheet_anim_time * %d.0)) %% %d.0));", base,
 	                                                       start_frame, framerate, anim_len));
-	parser_material_write(parser_material_kong, string_tmp("var %s_tx: float = float(int(float(%s_frame) %% %d.0));", base, base, tiles_x));
-	parser_material_write(parser_material_kong, string_tmp("var %s_ty: float = float(int(float(%s_frame) / %d.0));", base, base, tiles_x));
+	parser_material_write(parser_material_kong, string_tmp("float %s_tx = float(int(float(%s_frame) %% %d.0));", base, base, tiles_x));
+	parser_material_write(parser_material_kong, string_tmp("float %s_ty = float(int(float(%s_frame) / %d.0));", base, base, tiles_x));
 
 	return string_tmp("float3((%s_tx + tex_coord.x) / %d.0, (%s_ty + tex_coord.y) / %d.0, 0.0)", base, tiles_x, base, tiles_y);
 }

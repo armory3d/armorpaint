@@ -37,6 +37,17 @@ void project_save_on_next_frame(void *_) {
 }
 
 void project_save(bool save_and_quit) {
+	if (agent_running) {
+		return;
+	}
+
+#ifdef IRON_WASM
+	if (!box_projects_is_cloud_path(g_project->_->filepath) && !starts_with(g_project->_->filepath, "/files/")) {
+		box_projects_cloud_save_show(save_and_quit);
+		return;
+	}
+#endif
+
 	if (string_equals(g_project->_->filepath, "")) {
 #ifdef IRON_IOS
 		char *document_directory = iron_save_dialog("", "");
@@ -50,7 +61,7 @@ void project_save(bool save_and_quit) {
 #endif
 	}
 
-#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS) || defined(IRON_WASM)
 	char *filename = substring(g_project->_->filepath, string_last_index_of(g_project->_->filepath, PATH_SEP) + 1, string_length(g_project->_->filepath) - 4);
 	sys_title_set(string("%s - %s", filename, manifest_title));
 #endif
@@ -78,27 +89,18 @@ void project_save_as(bool save_and_quit) {
 }
 
 void project_cleanup() {
-	if (g_context->merged_object != NULL) {
-		char *merged_handle = g_context->merged_object->data->_->handle;
-		mesh_object_remove(g_context->merged_object);
-		data_delete_mesh(merged_handle);
-		g_context->merged_object = NULL;
-	}
+	util_mesh_remove_merged();
 
 	if (g_project->_->paint_objects != NULL) {
-		for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-			if (p == g_context->paint_object) {
-				continue;
-			}
-			data_delete_mesh(p->data->_->handle);
-			mesh_object_remove(p);
+			object_set_parent(p->base, NULL);
 		}
+		util_mesh_remove_objects(g_project->_->paint_objects, g_context->paint_object);
 	}
 
 	if (g_context->paint_object != NULL) {
-		char *handle = g_context->paint_object->data->_->handle;
-		data_delete_mesh(handle);
+		util_mesh_delete_data_uncache(g_context->paint_object->data);
 	}
 
 	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
@@ -133,7 +135,8 @@ void project_new(bool reset_layers) {
 		project_cleanup();
 		g_project->_->filepath = "";
 	}
-	g_project->stages = NULL;
+	g_project->stages       = NULL;
+	project_scripts_trusted = true;
 
 	if (g_project->_->layers->length == 0) {
 		any_array_push(g_project->_->layers, slot_layer_create("", LAYER_SLOT_TYPE_LAYER, NULL));
@@ -178,7 +181,6 @@ void project_new(bool reset_layers) {
 	}
 
 	mesh_data_t *md = mesh_data_create(raw);
-	any_map_set(data_cached_meshes, "SceneTessellated", md);
 
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
@@ -204,13 +206,14 @@ void project_new(bool reset_layers) {
 
 	g_context->paint_object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
 	transform_build_matrix(g_context->paint_object->base->transform);
-	g_context->paint_object->base->name = "Tessellated";
+	g_context->paint_object->base->name    = "Tessellated";
 	g_context->paint_object->base->visible = true;
 
 	while (g_project->_->materials->length > 0) {
 		slot_material_unload(array_pop(g_project->_->materials));
 	}
 	any_array_push(g_project->_->materials, slot_material_create(m, NULL));
+	tab_meshes_reset_overrides();
 
 	g_context->picker_paint_mask    = false;
 	g_context->picker_viewport_mask = false;
@@ -218,20 +221,17 @@ void project_new(bool reset_layers) {
 	ui_nodes_hwnd->redraws          = 2;
 	ui_nodes_group_stack            = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->material_groups   = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->brushes           = any_array_create_from_raw(
-        (void *[]){
-            slot_brush_create(NULL),
-        },
-        1);
+	g_project->_->brushes           = any_array_create_from_raw((void *[]){}, 0);
+	any_array_push(g_project->_->brushes, slot_brush_create(NULL));
 	g_context->brush    = g_project->_->brushes->buffer[0];
 	g_project->_->fonts = any_array_create_from_raw(
 	    (void *[]){
 	        slot_font_create("default.ttf", g_font, ""),
 	    },
 	    1);
-	g_context->font = g_project->_->fonts->buffer[0];
+	g_context->font      = g_project->_->fonts->buffer[0];
 	g_project->_->sounds = any_array_create_from_raw((void *[]){}, 0);
-	g_context->sound    = NULL;
+	g_context->sound     = NULL;
 	project_set_default_swatches();
 	g_context->swatch                = g_project->swatches->buffer[0];
 	g_context->picked_color          = project_make_swatch(0xffffffff);
@@ -371,10 +371,6 @@ void project_import_mesh(bool replace_existing, void (*done)(void)) {
 	ui_files_show(formats, false, false, &project_import_mesh_on_file_picked);
 }
 
-void project_append_mesh() {
-	project_import_mesh(false, import_mesh_finish_import);
-}
-
 void project_reimport_mesh() {
 	if (g_project->mesh_assets != NULL && g_project->mesh_assets->length > 0 && iron_file_exists(g_project->mesh_assets->buffer[0])) {
 		project_import_mesh_box(g_project->mesh_assets->buffer[0], true, false, true, NULL);
@@ -388,33 +384,35 @@ i32 project_skin_frames() {
 	i32 frames = 0;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
-		if (md->_->skin_frames > frames) {
-			frames = md->_->skin_frames;
-		}
+		frames          = math_max(frames, util_skin_frame_count(md->_->skin_blob));
 	}
 	return frames;
 }
 
+// Poses the skinned meshes at a frame
 bool project_reskin_mesh(int frame) {
-#ifdef WITH_PLUGINS
 	bool any = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_data_t *md = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->data;
-		if (md->_->skin_blob == NULL) {
+		mesh_object_t *o  = g_project->_->paint_objects->buffer[i];
+		mesh_data_t   *md = o->data;
+		if (md->_->skin_blob == NULL || !o->base->visible) {
 			continue;
 		}
 
 		// Each mesh loops over its own animation length
-		i32 mesh_frame = md->_->skin_frames > 0 ? frame % md->_->skin_frames : frame;
-
-		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
-		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
-		if (!plugins_skin_data_apply(md->_->skin_blob, mesh_frame, pos->values, nor->values, &md->scale_pos)) {
+		i32 frames     = util_skin_frame_count(md->_->skin_blob);
+		i32 mesh_frame = frames > 0 ? frame % frames : frame;
+		if (mesh_frame == md->_->skin_frame) {
 			continue;
 		}
 
-		md->_->skin_frames = plugins_skin_frame_count();
+		vertex_array_t *pos = mesh_data_get_vertex_array(md, "pos");
+		vertex_array_t *nor = mesh_data_get_vertex_array(md, "nor");
+		if (!util_skin_apply(md->_->skin_blob, mesh_frame, pos->values, nor->values, &md->scale_pos)) {
+			continue;
+		}
 
+		md->_->skin_frame = mesh_frame;
 		mesh_data_build_vertices(md->_->vertex_buffer, md->vertex_arrays);
 		any = true;
 	}
@@ -423,24 +421,20 @@ bool project_reskin_mesh(int frame) {
 		return false;
 	}
 
-	if (g_context->merged_object != NULL && g_config->workspace != WORKSPACE_PLAYER) {
-		if (!util_mesh_merge_reskin()) {
+	if (g_context->merged_object != NULL && g_config->workspace == WORKSPACE_PLAYER) {
+		util_mesh_merged_stale = true;
+	}
+	else if (g_context->merged_object != NULL) {
+		if (!util_mesh_merge_refresh()) {
 			util_mesh_merge(NULL);
+		}
+		if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+			sculpt_bake_to_mesh();
 		}
 	}
 	g_context->ddirty          = 4;
 	render_path_raytrace_ready = false;
 	return true;
-#else
-	return false;
-#endif
-}
-
-void project_unwrap_mesh(raw_mesh_t *mesh, void (*done)(raw_mesh_t *)) {
-	char *f                = "uv_unwrap";
-	void (*cb)(void *mesh) = any_map_get(util_mesh_unwrappers, f);
-	cb(mesh);
-	done(mesh);
 }
 
 void project_unwrap_mesh_box_draw() {
@@ -456,9 +450,7 @@ void project_unwrap_mesh_box_draw() {
 		console_toast(tr("Unwrapping mesh"));
 #endif
 
-#ifdef WITH_PLUGINS
-		plugin_uv_unwrap_button();
-#endif
+		util_mesh_uv_unwrap(NULL);
 	}
 }
 

@@ -13,8 +13,13 @@ let wgpu_free_ids    = [];
 let wgpu_mapped      = new Map();
 let file_buffer      = null;
 let file_buffer_pos  = 0;
-let file_dropped     = null;
 let virtual_fs       = new Map();
+let file_write_path  = null;
+let file_write_parts = [];
+let file_handles     = new Map(); // /files/<id>/<name> -> FileSystemFileHandle of a picked file
+let folder_handles   = new Map(); // /files/<id> -> FileSystemDirectoryHandle of a picked folder
+let folder_zips      = new Map(); // /files/<id> -> {name, files}, written files are downloaded as a zip
+let file_next_id     = 0;
 let config_json      = "";
 let wasm_update      = null;
 let wasm_can_suspend = false;
@@ -38,19 +43,164 @@ function flush_wasm_queue() {
 	}
 }
 
+// Picked or dropped files live in virtual_fs as /files/<id>/<name>
+function file_add(name, buffer, handle) {
+	let path = `/files/${++file_next_id}/${name}`;
+	virtual_fs.set(path, buffer);
+	if (handle) {
+		file_handles.set(path, handle);
+	}
+	return path;
+}
+
+function malloc_string(str) {
+	let bytes = new TextEncoder().encode(str);
+	let ptr   = instance.exports.wasm_malloc(bytes.length + 1);
+	heapu8.set(bytes, ptr);
+	heapu8[ptr + bytes.length] = 0;
+	return ptr;
+}
+
+function filter_extensions(filters) {
+	return filters.split(",").map(f => f.trim()).filter(f => f !== "").map(f => "." + f);
+}
+
+// Pick files with the File System Access API when available, so they can be saved back, or with an <input> otherwise
+async function pick_files(filters, multiple) {
+	let exts = filter_extensions(filters);
+	if (window.showOpenFilePicker) {
+		try {
+			let types   = exts.length > 0 ? [ {description : exts.join(", "), accept : {"application/octet-stream" : exts}} ] : undefined;
+			let handles = await window.showOpenFilePicker({multiple, types});
+			return Promise.all(handles.map(async handle => ({handle, file : await handle.getFile()})));
+		}
+		catch (e) {
+			return []; // Cancelled
+		}
+	}
+	return new Promise(resolve => {
+		let input      = document.createElement("input");
+		input.type     = "file";
+		input.multiple = multiple;
+		input.accept   = exts.join(",");
+		input.addEventListener("change", () => resolve([...input.files].map(file => ({handle : null, file}))));
+		input.addEventListener("cancel", () => resolve([]));
+		input.click();
+	});
+}
+
+// Suggested name for a save dialog, the default path with the extension of the first filter
+function save_name(exts, default_path) {
+	let name = default_path.substring(default_path.lastIndexOf("/") + 1);
+	if (name === "") {
+		name = "untitled";
+	}
+	if (exts.length > 0 && !name.endsWith(exts[0])) {
+		name = (name.lastIndexOf(".") > 0 ? name.substring(0, name.lastIndexOf(".")) : name) + exts[0];
+	}
+	return name;
+}
+
+function download_file(name, bytes) {
+	let a      = document.createElement("a");
+	a.href     = URL.createObjectURL(new Blob([ bytes ]));
+	a.download = name;
+	a.click();
+	setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+
+async function write_file_handle(handle, bytes) {
+	try {
+		let writable = await handle.createWritable();
+		await writable.write(bytes);
+		await writable.close();
+	}
+	catch (e) {
+		alert(`Writing ${handle.name} failed: ${e.message}`);
+	}
+}
+
+let crc32_table = null;
+function crc32(bytes) {
+	if (crc32_table === null) {
+		crc32_table = new Uint32Array(256);
+		for (let i = 0; i < 256; ++i) {
+			let c = i;
+			for (let k = 0; k < 8; ++k) {
+				c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+			}
+			crc32_table[i] = c;
+		}
+	}
+	let crc = 0xffffffff;
+	for (let i = 0; i < bytes.length; ++i) {
+		crc = crc32_table[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+	}
+	return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Uncompressed zip, used when the browser can not write into a picked folder
+function make_zip(files) {
+	let parts   = [];
+	let central = [];
+	let offset  = 0;
+	for (let [name, bytes] of files) {
+		let name_bytes = new TextEncoder().encode(name);
+		let crc        = crc32(bytes);
+		let local      = new DataView(new ArrayBuffer(30));
+		local.setUint32(0, 0x04034b50, true);
+		local.setUint16(4, 20, true);
+		local.setUint16(6, 0x0800, true); // UTF-8 names
+		local.setUint32(14, crc, true);
+		local.setUint32(18, bytes.length, true);
+		local.setUint32(22, bytes.length, true);
+		local.setUint16(26, name_bytes.length, true);
+		let entry = new DataView(new ArrayBuffer(46));
+		entry.setUint32(0, 0x02014b50, true);
+		entry.setUint16(4, 20, true);
+		entry.setUint16(6, 20, true);
+		entry.setUint16(8, 0x0800, true);
+		entry.setUint32(16, crc, true);
+		entry.setUint32(20, bytes.length, true);
+		entry.setUint32(24, bytes.length, true);
+		entry.setUint16(28, name_bytes.length, true);
+		entry.setUint32(42, offset, true);
+		parts.push(local, name_bytes, bytes);
+		central.push(entry, name_bytes);
+		offset += 30 + name_bytes.length + bytes.length;
+	}
+	let central_size = central.reduce((n, part) => n + part.byteLength, 0);
+	let end          = new DataView(new ArrayBuffer(22));
+	end.setUint32(0, 0x06054b50, true);
+	end.setUint16(8, files.length, true);
+	end.setUint16(10, files.length, true);
+	end.setUint32(12, central_size, true);
+	end.setUint32(16, offset, true);
+	return new Blob([...parts, ...central, end ]);
+}
+
+function flush_folder_zips() {
+	for (let [dir, zip] of folder_zips) {
+		if (zip.files.length > 0) {
+			download_file(zip.name, make_zip(zip.files));
+			folder_zips.delete(dir);
+		}
+	}
+}
+
 function drop_file(name) {
 	let ptr = instance.exports.wasm_malloc(name.length + 1);
 	write_string(ptr, name);
 	instance.exports.wasm_drop_files(ptr);
 }
 
-function net_callback_with_text(callback_id, text) {
+function net_callback_with_text(callback_id, status, text) {
 	let buffer_ptr = 0;
 	if (text !== null) {
 		buffer_ptr = instance.exports.wasm_malloc(text.length + 1);
 		write_string(buffer_ptr, text);
 	}
-	instance.exports.wasm_net_callback(callback_id, buffer_ptr);
+	instance.exports.wasm_net_callback(callback_id, status, buffer_ptr);
 }
 
 async function buffer_map_read_async(pbuffer, offset, size, pdata) {
@@ -180,17 +330,22 @@ function id_to_filter_mode(id) {
 		return "linear";
 }
 
-async function init() {
-	let   wasm_bytes = null;
-	await fetch("./start.wasm").then(res => res.arrayBuffer()).then(buffer => wasm_bytes = new Uint8Array(buffer));
-
-	memory  = new WebAssembly.Memory({initial : 10240, maximum : 10240, shared : true}); // * 65536 = 671088640 (make.js --initial-memory)
+function update_heap_views() {
 	heapu8  = new Uint8Array(memory.buffer);
 	heapu16 = new Uint16Array(memory.buffer);
 	heapu32 = new Uint32Array(memory.buffer);
 	heapi32 = new Int32Array(memory.buffer);
 	heapf32 = new Float32Array(memory.buffer);
 	heapf64 = new Float64Array(memory.buffer);
+}
+
+async function init() {
+	let   wasm_bytes = null;
+	await fetch("./start.wasm").then(res => res.arrayBuffer()).then(buffer => wasm_bytes = new Uint8Array(buffer));
+
+	// * 65536 = amake --initial-memory=268435456, --max-memory=4294967296, malloc grows it
+	memory = new WebAssembly.Memory({initial : 4096, maximum : 65536, shared : true});
+	update_heap_views();
 
 	if (!navigator.gpu) {
 		throw new Error('WebGPU not supported');
@@ -210,17 +365,28 @@ async function init() {
 	}
 	let device = await adapter.requestDevice({
 		requiredFeatures : features,
-		requiredLimits : {maxColorAttachmentBytesPerSample : adapter.limits.maxColorAttachmentBytesPerSample},
+		requiredLimits : {
+			maxColorAttachmentBytesPerSample : adapter.limits.maxColorAttachmentBytesPerSample,
+			maxStorageBufferBindingSize : adapter.limits.maxStorageBufferBindingSize, // Raytrace bvh
+			maxBufferSize : adapter.limits.maxBufferSize,
+		},
 	});
 
-	let canvas    = document.getElementById('iron');
-	canvas.width  = window.innerWidth;
-	canvas.height = window.innerHeight;
-
-	window.addEventListener('resize', () => {
-		canvas.width  = window.innerWidth;
-		canvas.height = window.innerHeight;
-	});
+	let canvas = document.getElementById('iron');
+	let canvas_resize = () => {
+		let dpr       = window.devicePixelRatio || 1;
+		canvas.width  = Math.max(1, Math.round(window.innerWidth * dpr));
+		canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
+	};
+	canvas_resize();
+	window.addEventListener('resize', canvas_resize);
+	let watch_dpr = () => {
+		window.matchMedia('(resolution: ' + window.devicePixelRatio + 'dppx)').addEventListener('change', () => {
+			canvas_resize();
+			watch_dpr();
+		}, {once : true});
+	};
+	watch_dpr();
 
 	let context = canvas.getContext('webgpu');
 	let format  = navigator.gpu.getPreferredCanvasFormat();
@@ -310,6 +476,10 @@ async function init() {
 				        };
 				        if (e.buffer.type === 0x00000002)
 					        e.buffer.type = "uniform";
+				        else if (e.buffer.type === 0x00000003)
+					        e.buffer.type = "storage";
+				        else if (e.buffer.type === 0x00000004)
+					        e.buffer.type = "read-only-storage";
 			        }
 
 			        if (read_u32(i * 88 + pentries + 52) != 0x00000000) { // WGPUSamplerBindingType_BindingNotUsed
@@ -330,6 +500,15 @@ async function init() {
 					        e.texture.sampleType = "float";
 				        else if (e.texture.sampleType === 0x00000003)
 					        e.texture.sampleType = "unfilterable-float";
+			        }
+
+			        if (read_u32(i * 88 + pentries + 76) != 0x00000000) { // WGPUStorageTextureAccess_BindingNotUsed
+				        let access       = read_u32(i * 88 + pentries + 76);
+				        e.storageTexture = {
+					        access : access === 0x00000003 ? "read-only" : access === 0x00000004 ? "read-write" : "write-only",
+					        format : id_to_texture_format(read_u32(i * 88 + pentries + 80)),
+					        viewDimension : "2d"
+				        };
 			        }
 
 			        desc.entries.push(e);
@@ -687,6 +866,56 @@ async function init() {
 		        let copysize = {width : read_u32(pcopysize), height : read_u32(pcopysize + 4), depthOrArrayLayers : read_u32(pcopysize + 8)};
 		        encoder.copyTextureToBuffer(source, destination, copysize);
 			},
+			wgpuBindGroupLayoutRelease : function(pbind_group_layout) {
+		        release_id(pbind_group_layout);
+			},
+			wgpuDeviceCreateComputePipeline : function(pdevice, pdescriptor) {
+		        let device = id_to_ptr(pdevice);
+		        // WGPUComputePipelineDescriptor
+		        let desc     = {layout : id_to_ptr(read_u32(pdescriptor + 12)), compute : {module : id_to_ptr(read_u32(pdescriptor + 20)), entryPoint : "main"}};
+		        let pipeline = device.createComputePipeline(desc);
+		        return ptr_to_id(pipeline);
+			},
+			wgpuComputePipelineRelease : function(pcompute_pipeline) {
+		        release_id(pcompute_pipeline);
+			},
+			wgpuCommandEncoderBeginComputePass : function(pcommand_encoder, pdescriptor) {
+		        let encoder      = id_to_ptr(pcommand_encoder);
+		        let compute_pass = encoder.beginComputePass();
+		        return ptr_to_id(compute_pass);
+			},
+			wgpuComputePassEncoderSetPipeline : function(pcompute_pass_encoder, ppipeline) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.setPipeline(id_to_ptr(ppipeline));
+			},
+			wgpuComputePassEncoderSetBindGroup : function(pcompute_pass_encoder, group_index, pgroup, dynamic_offset_count, pdynamic_offsets) {
+		        let compute_pass    = id_to_ptr(pcompute_pass_encoder);
+		        let dynamic_offsets = [];
+		        for (let i = 0; i < dynamic_offset_count; i++) {
+			        dynamic_offsets.push(read_u32(pdynamic_offsets + i * 4));
+		        }
+		        compute_pass.setBindGroup(group_index, id_to_ptr(pgroup), dynamic_offsets);
+			},
+			wgpuComputePassEncoderDispatchWorkgroups : function(pcompute_pass_encoder, x, y, z) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.dispatchWorkgroups(x, y, z);
+			},
+			wgpuComputePassEncoderEnd : function(pcompute_pass_encoder) {
+		        let compute_pass = id_to_ptr(pcompute_pass_encoder);
+		        compute_pass.end();
+			},
+			wgpuComputePassEncoderRelease : function(pcompute_pass_encoder) {
+		        release_id(pcompute_pass_encoder);
+			},
+			wgpuCommandEncoderCopyTextureToTexture : function(pcommand_encoder, psource, pdestination, pcopysize) {
+		        let encoder = id_to_ptr(pcommand_encoder);
+		        // WGPUTexelCopyTextureInfo
+		        let source      = {texture : id_to_ptr(read_u32(psource))};
+		        let destination = {texture : id_to_ptr(read_u32(pdestination))};
+		        // WGPUExtent3D
+		        let copysize = {width : read_u32(pcopysize), height : read_u32(pcopysize + 4), depthOrArrayLayers : read_u32(pcopysize + 8)};
+		        encoder.copyTextureToTexture(source, destination, copysize);
+			},
 			wgpuBufferMapRead : jspi_supported ? new WebAssembly.Suspending(buffer_map_read) : buffer_map_read_stub,
 			wgpuSurfaceConfigure : function(psurface, pconfig) {
 		        let surface = id_to_ptr(psurface) || context;
@@ -716,19 +945,21 @@ async function init() {
 		        surface.configure(config);
 			},
 
+			js_memory_grow : function() {
+		        update_heap_views();
+			},
 			js_printf : function(format) {
 		        console.log(read_string(format));
 			},
-			js_fopen : function(filename) {
+			js_fopen : function(filename, mode) {
+		        if (read_string(mode).includes("w")) {
+			        file_write_path  = read_string(filename);
+			        file_write_parts = [];
+			        return 2;
+		        }
 		        let str;
 		        if (read_string(filename) === "/./data/config.json" || read_string(filename) === "/./data//config.json") { ////
 			        str = config_json;
-		        }
-		        else if (file_dropped != null) {
-			        file_buffer_pos = 0;
-			        file_buffer     = file_dropped;
-			        file_dropped    = null;
-			        return 1;
 		        }
 		        else if (virtual_fs.has(read_string(filename))) {
 			        file_buffer_pos = 0;
@@ -770,13 +1001,79 @@ async function init() {
 		        return count;
 			},
 			js_fwrite : function(ptr, size, count, stream) {
-		        config_json = read_string_n(ptr, count); ////
+		        if (stream !== 2) {
+			        return 0;
+		        }
+		        file_write_parts.push(heapu8.slice(ptr, ptr + size * count));
+		        return count;
+			},
+			js_fclose : function(stream) {
+		        if (stream !== 2) {
+			        return 0;
+		        }
+		        let path         = file_write_path;
+		        let bytes        = new Uint8Array(file_write_parts.reduce((n, part) => n + part.length, 0));
+		        let pos          = 0;
+		        for (let part of file_write_parts) {
+			        bytes.set(part, pos);
+			        pos += part.length;
+		        }
+		        file_write_path  = null;
+		        file_write_parts = [];
+		        if (path.endsWith("config.json")) {
+			        let str = '';
+			        for (let i = 0; i < bytes.length; ++i) {
+				        str += String.fromCharCode(bytes[i]);
+			        }
+			        config_json = str;
+		        }
+		        // Let the page store the file elsewhere first
+		        else if (window.iron_file_saved && window.iron_file_saved(path, bytes)) {
+		        }
+		        else if (path.startsWith("/files/")) {
+			        let dir  = path.substring(0, path.lastIndexOf("/"));
+			        let name = path.substring(path.lastIndexOf("/") + 1);
+			        // The app may append the extension to the picked name
+			        let handle = file_handles.get(path) || file_handles.get(path.substring(0, path.lastIndexOf(".")));
+			        if (handle) {
+				        write_file_handle(handle, bytes);
+			        }
+			        else if (folder_handles.has(dir)) {
+				        folder_handles.get(dir).getFileHandle(name, {create : true}).then(h => write_file_handle(h, bytes));
+			        }
+			        else if (folder_zips.has(dir)) {
+				        folder_zips.get(dir).files.push([ name, bytes ]);
+			        }
+			        else {
+				        download_file(name, bytes); // No file system access, save as a download
+			        }
+		        }
+		        else {
+			        virtual_fs.set(path, bytes.buffer);
+		        }
+		        return 0;
+			},
+			js_delete_file : function(path) {
+		        path = read_string(path);
+		        if (!(window.iron_file_deleted && window.iron_file_deleted(path))) {
+			        virtual_fs.delete(path);
+		        }
+			},
+			js_rename : function(from, to) {
+		        from = read_string(from);
+		        to = read_string(to);
+		        if (!virtual_fs.has(from)) {
+			        return -1;
+		        }
+		        virtual_fs.set(to, virtual_fs.get(from));
+		        virtual_fs.delete(from);
+		        return 0;
 			},
 			js_time : function() {
 		        return window.performance.now();
 			},
-			js_pow : function(x) {
-		        return Math.pow(x);
+			js_pow : function(base, exponent) {
+		        return Math.pow(base, exponent);
 			},
 			js_sin : function(x) {
 		        return Math.sin(x);
@@ -787,8 +1084,8 @@ async function init() {
 			js_tan : function(x) {
 		        return Math.tan(x);
 			},
-			js_log : function(base, exponent) {
-		        return Math.log(base, exponent);
+			js_log : function(x) {
+		        return Math.log(x);
 			},
 			js_exp : function(x) {
 		        return Math.exp(x);
@@ -814,6 +1111,9 @@ async function init() {
 			},
 			js_canvas_h : function() {
 		        return canvas.height;
+			},
+			js_pixel_ratio : function() {
+		        return window.devicePixelRatio || 1;
 			},
 			js_mouse_set_cursor : function(i) {
 		        if (i == 0) // arrow
@@ -842,33 +1142,99 @@ async function init() {
 			js_load_url : function(str) {
 		        window.open(read_string(str), "_blank");
 			},
-			js_open_dialog : async function() {
-		        let [handle] = await window.showOpenFilePicker({multiple : false});
-		        let file     = await     handle.getFile();
-		        file_dropped = await file.arrayBuffer();
-		        call_wasm(drop_file, file.name);
-			},
-			js_save_dialog : function() {
-		        alert("Not implemented yet.")
+			// With JSPI the module waits for the picked paths, otherwise the files arrive as dropped files
+			js_open_dialog : jspi_supported ? new WebAssembly.Suspending(async function(pfilters, multiple) {
+		        let picked = await pick_files(read_string(pfilters), multiple !== 0);
+		        if (picked.length === 0) {
+			        return 0;
+		        }
+		        let paths = await Promise.all(picked.map(async p => file_add(p.file.name, await p.file.arrayBuffer(), p.handle)));
+		        return malloc_string(paths.join("\n"));
+	        }) : function(pfilters, multiple) {
+		        pick_files(read_string(pfilters), multiple !== 0).then(async picked => {
+			        for (let p of picked) {
+				        let path = file_add(p.file.name, await p.file.arrayBuffer(), p.handle);
+				        call_wasm(drop_file, path);
+			        }
+		        });
+		        return 0;
+	        },
+			// Returns /files/<id>/<name>, saving writes into the picked file, or downloads it when the browser can not pick one
+			js_save_dialog : jspi_supported && window.showSaveFilePicker ? new WebAssembly.Suspending(async function(pfilters, pdefault_path) {
+		        let exts = filter_extensions(read_string(pfilters));
+		        try {
+			        let types  = exts.length > 0 ? [ {description : exts.join(", "), accept : {"application/octet-stream" : exts}} ] : undefined;
+			        let handle = await window.showSaveFilePicker({suggestedName : save_name(exts, read_string(pdefault_path)), types});
+			        let path   = `/files/${++file_next_id}/${handle.name}`;
+			        file_handles.set(path, handle);
+			        return malloc_string(path);
+		        }
+		        catch (e) {
+			        return 0; // Cancelled
+		        }
+	        }) : function(pfilters, pdefault_path) {
+		        let name = save_name(filter_extensions(read_string(pfilters)), read_string(pdefault_path));
+		        return malloc_string(`/files/${++file_next_id}/${name}`);
+	        },
+			// Returns /files/<id>, files written into it go to the picked folder, or into a <name>.zip download
+			js_folder_dialog : jspi_supported && window.showDirectoryPicker ? new WebAssembly.Suspending(async function(pname) {
+		        let dir = `/files/${++file_next_id}`;
+		        try {
+			        folder_handles.set(dir, await window.showDirectoryPicker({mode : "readwrite"}));
+		        }
+		        catch (e) {
+			        return 0; // Cancelled
+		        }
+		        return malloc_string(dir);
+	        }) : function(pname) {
+		        let dir = `/files/${++file_next_id}`;
+		        folder_zips.set(dir, {name : read_string(pname) + ".zip", files : []});
+		        return malloc_string(dir);
+	        },
+			js_audio_init : function(left, right, read, write, size) {
+		        let ctx = new AudioContext();
+		        ctx.audioWorklet.addModule('audio_worklet.js').then(() => {
+			        let node = new AudioWorkletNode(ctx, 'iron-audio', {
+				        outputChannelCount : [ 2 ],
+				        processorOptions : {buffer : memory.buffer, left, right, read, write, size}
+			        });
+			        node.connect(ctx.destination);
+		        });
+		        let resume = () => ctx.resume();
+		        window.addEventListener('pointerdown', resume, {once : true});
+		        window.addEventListener('keydown', resume, {once : true});
+		        return ctx.sampleRate;
 			},
 			js_thread_create : function(func_ptr, param_ptr, done_ptr) {
 		        const worker = new Worker('worker.js');
 		        worker.postMessage({wasm_module : module, memory, func_ptr, param_ptr, done_ptr});
 			},
-			js_net_request : function(purl_base, purl_path, pdata, port, method, callback_id, callbackdata, pdst_path) {
+			js_net_request : function(purl_base, purl_path, pdata, port, method, pheaders, callback_id, callbackdata, pdst_path) {
 		        let url_base = read_string(purl_base);
 		        let url_path = read_string(purl_path);
 		        let dst_path = pdst_path !== 0 ? read_string(pdst_path) : null;
 		        let url      = `https://${url_base}:${port}/${url_path}`;
-                let options = {method : 'GET', headers : {}};
+		        let options  = {method : method === 1 ? 'POST' : 'GET', headers : {}};
+		        if (pdata !== 0) {
+			        options.body = read_string(pdata);
+		        }
+		        if (pheaders !== 0) {
+			        for (let line of read_string(pheaders).split('\r\n')) {
+				        let colon = line.indexOf(':');
+				        if (colon > 0) {
+					        options.headers[line.slice(0, colon)] = line.slice(colon + 1).trim();
+				        }
+			        }
+		        }
 		        if (dst_path) {
-			        fetch(url, options).then(response => response.arrayBuffer()).then(buffer => {
+			        fetch(url, options).then(response => response.arrayBuffer().then(buffer => {
 				        virtual_fs.set(dst_path, buffer);
-				        call_wasm(instance.exports.wasm_net_callback, callback_id, 0);
-			        });
+				        call_wasm(instance.exports.wasm_net_callback, callback_id, response.status, 0);
+			        }), () => { call_wasm(instance.exports.wasm_net_callback, callback_id, 0, 0); });
 		        }
 		        else {
-			        fetch(url, options).then(response => response.text()).then(text => { call_wasm(net_callback_with_text, callback_id, text); });
+			        fetch(url, options).then(response => response.text().then(text => { call_wasm(net_callback_with_text, callback_id, response.status, text); }),
+			                                 () => { call_wasm(net_callback_with_text, callback_id, 0, null); });
 		        }
 			},
 		}
@@ -880,6 +1246,9 @@ async function init() {
 	instance.exports.wasm_start();
 
 	async function update() {
+		if (instance.exports.wasm_audio_update) {
+			instance.exports.wasm_audio_update();
+		}
 		wasm_can_suspend = jspi_supported;
 		try {
 			await wasm_update();
@@ -887,16 +1256,17 @@ async function init() {
 			wasm_can_suspend = false;
 		}
 		flush_wasm_queue();
+		flush_folder_zips();
 		window.requestAnimationFrame(update);
 	}
 	window.requestAnimationFrame(update);
 
 	canvas.addEventListener('contextmenu', (event) => { event.preventDefault(); });
 	canvas.addEventListener('mousedown',
-	                        (event) => { call_wasm(instance.exports.wasm_mousedown, button_to_iron_button(event.button), event.clientX, event.clientY); });
+	                        (event) => { call_wasm(instance.exports.wasm_mousedown, button_to_iron_button(event.button), event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
 	canvas.addEventListener('mouseup',
-	                        (event) => { call_wasm(instance.exports.wasm_mouseup, button_to_iron_button(event.button), event.clientX, event.clientY); });
-	canvas.addEventListener('mousemove', (event) => { call_wasm(instance.exports.wasm_mousemove, event.clientX, event.clientY); });
+	                        (event) => { call_wasm(instance.exports.wasm_mouseup, button_to_iron_button(event.button), event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
+	canvas.addEventListener('mousemove', (event) => { call_wasm(instance.exports.wasm_mousemove, event.clientX * window.devicePixelRatio, event.clientY * window.devicePixelRatio); });
 	canvas.addEventListener('wheel', (event) => { call_wasm(instance.exports.wasm_wheel, event.deltaY); });
 	canvas.addEventListener('keydown', (event) => {
 		if (event.repeat) {
@@ -922,9 +1292,9 @@ async function init() {
 		event.preventDefault();
 		const files = event.dataTransfer.files;
 		if (files.length > 0) {
-			let                  file = files[0];
-			file_dropped              = await file.arrayBuffer();
-			call_wasm(drop_file, file.name);
+			let file = files[0];
+			let path = file_add(file.name, await file.arrayBuffer(), null);
+			call_wasm(drop_file, path);
 		}
 	});
 }
@@ -1077,4 +1447,10 @@ function button_to_iron_button(button) {
 	return button;
 }
 
-init();
+// The page can delay the start, the promise may resolve to a Map of path -> ArrayBuffer to preload
+(window.iron_before_start || Promise.resolve()).then(files => {
+	for (const [path, buffer] of files || []) {
+		virtual_fs.set(path, buffer);
+	}
+	init();
+});

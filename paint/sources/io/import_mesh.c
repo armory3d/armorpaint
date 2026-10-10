@@ -40,6 +40,10 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 		raw_mesh_t *(*importer)(char *path) = any_map_get(import_mesh_importers, ext);
 
 		raw_mesh_t *mesh = importer(path);
+		if (mesh == NULL) {
+			console_error(string("Failed to import '%s'", path));
+			return;
+		}
 		if (string_equals(mesh->name, "")) {
 			mesh->name = string_copy(path_base_name(path));
 		}
@@ -68,6 +72,26 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 #endif
 }
 
+static mesh_object_t *import_mesh_make_root() {
+	// Mesh with no geometry
+	char       *name = string_copy(_import_mesh_unique_name("Root"));
+	raw_mesh_t *mesh = ALLOC_INIT(raw_mesh_t, {.name      = name,
+	                                           .posa      = i16_array_create(0),
+	                                           .nora      = i16_array_create(0),
+	                                           .texa      = i16_array_create(0),
+	                                           .inda      = u32_array_create(0),
+	                                           .scale_pos = 1.0,
+	                                           .scale_tex = 1.0});
+
+	mesh_data_t *md    = mesh_data_create(import_mesh_raw_mesh(mesh));
+	md->_->owns_arrays = true;
+	mesh_object_t *mo  = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
+	mo->base->name     = name;
+	mo->skip_context   = "paint";
+	tab_stages_add_object(name);
+	return mo;
+}
+
 i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 	mesh_object_t *a = *(pa);
 	mesh_object_t *b = *(pb);
@@ -83,10 +107,12 @@ void import_mesh_finish_import(void *_) {
 
 	context_select_paint_object(context_main_object());
 
-	// No mask by default
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->base->visible = true;
+	if (!import_mesh_append) {
+		// No mask by default
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+			p->base->visible = true;
+		}
 	}
 
 	// Keep appended objects at scene root
@@ -99,21 +125,26 @@ void import_mesh_finish_import(void *_) {
 			// Sort by name
 			array_sort(g_project->_->paint_objects, &import_mesh_finish_import_sort);
 
-			// Reparent
-			mesh_object_t *new_parent = g_project->_->paint_objects->buffer[0];
-			object_set_parent(new_parent->base, NULL);
-			for (i32 i = 1; i < g_project->_->paint_objects->length; ++i) {
+			// Parent all meshes to an empty root
+			mesh_object_t *root = import_mesh_make_root();
+			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 				mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-				object_set_parent(p->base, new_parent->base);
+				object_set_parent(p->base, root->base);
+				transform_reset(p->base->transform);
+				transform_build_matrix(p->base->transform);
 			}
+			array_insert(g_project->_->paint_objects, 0, root);
+			g_project->mesh_parents = i32_array_create(0);
 		}
-		context_select_paint_object(context_main_object());
+		context_select_paint_object(import_mesh_append ? context_main_object() : g_project->_->paint_objects->buffer[1]);
 
 		if (g_context->merged_object == NULL) {
 			util_mesh_merge(NULL);
 		}
-		g_context->paint_object->skip_context   = "paint";
-		g_context->merged_object->base->visible = true;
+		if (g_context->merged_object != NULL) {
+			g_context->paint_object->skip_context   = "paint";
+			g_context->merged_object->base->visible = true;
+		}
 	}
 
 	if (import_mesh_append && import_mesh_appended != NULL && array_index_of(g_project->_->paint_objects, import_mesh_appended) >= 0) {
@@ -121,7 +152,7 @@ void import_mesh_finish_import(void *_) {
 	}
 	import_mesh_appended = NULL;
 
-	if (!import_mesh_no_scale) {
+	if (!import_mesh_no_scale && !import_mesh_append) {
 		viewport_scale_to_bounds(2.0);
 	}
 	import_mesh_no_scale = false;
@@ -187,6 +218,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->skin_blob   = mesh->blob;
+	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 
 	g_context->paint_object = context_main_object();
@@ -196,14 +228,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 		viewport_reset();
 	}
 
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		if (p == g_context->paint_object) {
-			continue;
-		}
-		data_delete_mesh(p->data->_->handle);
-		mesh_object_remove(p);
-	}
+	util_mesh_remove_objects(g_project->_->paint_objects, g_context->paint_object);
 
 	char *handle = g_context->paint_object->data->_->handle;
 	if (!string_equals(handle, "SceneSphere") && !string_equals(handle, "ScenePlane")) {
@@ -220,9 +245,6 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
         },
         1);
 	array_delete(old_paint_objects);
-
-	md->_->handle = string_copy(raw->name);
-	any_map_set(data_cached_meshes, md->_->handle, md);
 
 	if (!import_mesh_keep_timeline) {
 		tab_timeline_reset();
@@ -246,7 +268,7 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 		history_reset();
 	}
 
-	g_project->stages = NULL;
+	g_project->stages                      = NULL;
 	g_context->paint_object->base->visible = true;
 	tab_stages_init();
 
@@ -264,6 +286,7 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 
 	mesh_data_t *md    = mesh_data_create(raw);
 	md->_->skin_blob   = mesh->blob;
+	md->_->skin_frame  = -1;
 	md->_->owns_arrays = true;
 
 	object_t      *parent = import_mesh_append ? NULL : g_context->paint_object->base;
@@ -283,8 +306,6 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	if (import_mesh_append && import_mesh_appended == NULL) {
 		import_mesh_appended = object;
 	}
-	md->_->handle = string_copy(raw->name);
-	any_map_set(data_cached_meshes, md->_->handle, md);
 
 	g_context->ddirty = 4;
 

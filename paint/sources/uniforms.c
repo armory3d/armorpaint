@@ -36,7 +36,7 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		return val;
 	}
 	else if (string_equals(link, "_vignette_strength")) {
-		return g_config->rp_vignette;
+		return g_config->rp_vignette * 0.1;
 	}
 	else if (string_equals(link, "_grain_strength")) {
 		return g_config->rp_grain;
@@ -102,14 +102,17 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		if (om <= 0 || om > g_project->_->paint_objects->length) {
 			return 0;
 		}
-		return sculpt_object_vertex_offset(g_project->_->paint_objects->buffer[om - 1]);
+		return sculpt_object_texel_offset(om - 1);
 	}
 	else if (string_equals(link, "_sculpt_mask_count")) {
 		i32 om = slot_layer_get_object_mask(g_context->layer);
 		if (om <= 0 || om > g_project->_->paint_objects->length) {
 			return config_get_texture_res_x() * config_get_texture_res_y();
 		}
-		return g_project->_->paint_objects->buffer[om - 1]->data->index_array->length;
+		return sculpt_object_texel_count(om - 1);
+	}
+	else if (string_equals(link, "_sculpt_cloth_drag")) {
+		return sculpt_get_cloth_drag();
 	}
 	else if (string_equals(link, "_dilate_radius")) {
 		return util_uv_dilatemap != NULL ? g_config->dilate_radius : 0.0;
@@ -152,15 +155,11 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_ssao_frame")) {
 		return scene_camera->frame % 2 == 0 ? 0.0 : 0.5;
 	}
-	if (parser_material_script_links != NULL) {
-		string_array_t *keys   = map_keys(parser_material_script_links);
-		bool            found  = keys->length > 0;
-		char           *script = found ? any_map_get(parser_material_script_links, keys->buffer[0]) : NULL;
-		array_free(keys);
-		free(keys);
-		if (found) {
-			f32 result = script != NULL ? 0.0 : NAN;
-			if (!string_equals(script, "")) {
+	if (parser_material_script_links != NULL && link[0] == '_') {
+		char *script = any_map_get(parser_material_script_links, link + 1);
+		if (script != NULL) {
+			f32 result = 0.0;
+			if (project_scripts_trusted && !string_equals(script, "")) {
 				minic_ctx_t *_ctx = minic_eval(string_tmp("float main() { return %s; }", script));
 				result            = minic_ctx_result(_ctx);
 				minic_ctx_free(_ctx);
@@ -238,7 +237,7 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 		return v;
 	}
 	else if (string_equals(link, "_atlas_transform")) {
-		if (!config_is_raytrace_multi() && !util_mesh_udim_active()) {
+		if (!util_mesh_udim_active() || render_path_raytrace_override_pass) {
 			return (vec4_t){0.0, 0.0, 1.0, 1.0};
 		}
 		i32 stride = util_mesh_atlas_stride();
@@ -433,6 +432,19 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	}
 	else if (string_equals(link, "_texpaint_sculpt_undo")) {
 		return _uniforms_ext_get_target("texpaint_sculpt_ref"); // Per-frame accumulation reference
+	}
+	else if (string_equals(link, "_texpaint_sculpt_stroke")) {
+		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
+		return _uniforms_ext_get_target(string_tmp("texpaint_sculpt_undo%d", i));
+	}
+	else if (string_equals(link, "_sculpt_remap")) {
+		return sculpt_get_remap_texture();
+	}
+	else if (string_equals(link, "_sculpt_adj0")) {
+		return sculpt_get_adj_texture(0);
+	}
+	else if (string_equals(link, "_sculpt_adj1")) {
+		return sculpt_get_adj_texture(1);
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {

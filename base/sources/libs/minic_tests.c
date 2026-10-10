@@ -239,7 +239,7 @@ const char *test14 = "int calls = 0;"
                      "  if ((20 / 2 / 2) != 5) { return 7; }"
                      "  int a = 0 && tick();"
                      "  int b = 1 || tick();"
-                     "  if (calls != 2) { return 8; }"
+                     "  if (calls != 0) { return 8; }"
                      "  return 0;"
                      "}";
 
@@ -502,6 +502,59 @@ void minic_tests() {
 	                  "  c ? n++ : n--; 0 ? (n += 100) : n; if (n != 1) { return 5; }"
 	                  "  int a[] = {7, c ? 8 : 9}; if (a[1] != 8 || a[c > 9 ? 0 : 1] != 8) { return 6; }"
 	                  "  y = 1 + (c ? 2 : 3) * 2; if (y != 5) { return 7; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
+	MINIC_TEST_EXPECT(29,
+	                  "float main() {"
+	                  "  minic_test_context_t *p = NULL;"
+	                  "  if (p != NULL && p->ddirty) { return 1; }"
+	                  "  if (p == NULL || p->ddirty) {} else { return 2; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
+	MINIC_TEST_EXPECT(30,
+	                  "int twice(int x);"
+	                  "float main() {"
+	                  "  int a = 1, b = 2, *pa = &a; int s = 0; int w = 0;"
+	                  "  for (int i = 0; i < 10; ++i) { if (i % 2) { continue; } if (i > 6) { break; } s += i; }"
+	                  "  while (1) { w++; if (w == 5) { break; } }"
+	                  "  if (twice(s) != 24 || *pa + b != 3 || w != 5) { return 1; }"
+	                  "  return 0;"
+	                  "}"
+	                  "int twice(int x) { return x * 2; }",
+	                  0.0f);
+	MINIC_TEST_EXPECT(31, "int half(float x) { return x / 2; } float main() { return half(5.0) - 2; }", 0.0f);
+	MINIC_TEST_EXPECT(32, "int depth(int n) { if (n == 0) { return 0; } return depth(n - 1) + 1; } float main() { return depth(1000) - 1000; }", 0.0f);
+	MINIC_TEST_EXPECT(33, "float main() { if (0) { return nope; } return 0; }", -1.0f);
+	MINIC_TEST_EXPECT(34,
+	                  "enum { T34_A = (1 << 2), T34_B, T34_C = -1, T34_D, T34_E = T34_A | 0x10, T34_F = 1 << 3 + 1 };"
+	                  "float main() { return T34_A + T34_B + T34_C + T34_D + T34_E + T34_F - 44; }",
+	                  0.0f);
+	MINIC_TEST_EXPECT(35,
+	                  "int16_t neg(int16_t x) { return -x; }"
+	                  "float main() {"
+	                  "  int16_t a[3]; a[0] = -2; a[1] = 70000; a[2] = 7;"
+	                  "  if (a[0] != -2 || a[1] != 4464) { return 1; }"
+	                  "  int16_t *p = a; p++; if (*p != 4464 || p[1] != 7) { return 2; }"
+	                  "  char c[4]; int16_t *q = c; q[0] = -2; q[1] = 0x1234;"
+	                  "  if (c[0] != 254 || c[1] != 255 || c[2] != 0x34 || c[3] != 0x12) { return 3; }"
+	                  "  uint16_t *u = c; if (u[0] != 65535 - 1) { return 4; }"
+	                  "  short s = 40000; uint16_t w = -1; if (s != -25536 || w != 65535) { return 5; }"
+	                  "  if ((uint16_t)-1 != 65535 || (int16_t)65535 != -1 || neg(-32768) != -32768) { return 6; }"
+	                  "  w++; if (w != 0) { return 7; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
+	MINIC_TEST_EXPECT(36,
+	                  "int second(int *p) { return p[1]; }"
+	                  "float main() {"
+	                  "  int a[4]; a[0] = 10; a[1] = 20; a[2] = 30; a[3] = 40;"
+	                  "  int *p = a; int i = 1;"
+	                  "  if (*(p + 2) != 30 || second(p + i + 1) != 40 || second(a + 1) != 30) { return 1; }"
+	                  "  int *q = p + 3; q -= 2; if (*q != 20 || *(q - 1) != 10) { return 2; }"
+	                  "  q += 1; if (*q != 30) { return 3; }"
+	                  "  char *s = \"hello\"; if (*(s + 1) != 'e') { return 4; }"
 	                  "  return 0;"
 	                  "}",
 	                  0.0f);

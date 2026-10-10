@@ -1,17 +1,68 @@
 
 #include "global.h"
 
-void script_set_stage(char *name) {
-	if (g_project->stages == NULL) {
-		return;
+static i32 script_stage_index(char *name) {
+	if (g_project->stages == NULL || name == NULL) {
+		return -1;
 	}
 	for (i32 i = 0; i < g_project->stages->length; ++i) {
-		stage_t *s = g_project->stages->buffer[i];
-		if (string_equals(s->name, name)) {
-			tab_stages_selected = i;
-			tab_stages_apply(s);
-			return;
+		if (string_equals(g_project->stages->buffer[i]->name, name)) {
+			return i;
 		}
+	}
+	return -1;
+}
+
+void script_set_stage(char *name) {
+	i32 i = script_stage_index(name);
+	if (i >= 0) {
+		tab_stages_selected = i;
+		tab_stages_apply(g_project->stages->buffer[i]);
+	}
+}
+
+void script_stage_create(char *name) {
+	if (name == NULL || script_stage_index(name) >= 0) {
+		return;
+	}
+	if (g_project->stages == NULL) {
+		g_project->stages = any_array_create_from_raw((void *[]){}, 0);
+	}
+	stage_t *s = tab_stages_create_stage(string_copy(name));
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		string_array_push(s->layers, g_project->_->layers->buffer[i]->name);
+	}
+	any_array_push(g_project->stages, s);
+}
+
+void script_stage_add_object(char *stage, char *object) {
+	i32 i = script_stage_index(stage);
+	if (i < 0 || object == NULL) {
+		return;
+	}
+	stage_t *s = g_project->stages->buffer[i];
+	if (string_array_index_of(s->objects, object) < 0) {
+		string_array_push(s->objects, string_copy(object));
+	}
+}
+
+void script_stage_remove_object(char *stage, char *object) {
+	i32 i = script_stage_index(stage);
+	if (i < 0 || object == NULL) {
+		return;
+	}
+	stage_t *s   = g_project->stages->buffer[i];
+	i32      idx = string_array_index_of(s->objects, object);
+	if (idx >= 0) {
+		array_splice(s->objects, idx, 1);
+	}
+	tab_stages_set_hidden(s, object, false);
+}
+
+void script_stage_set_hidden(char *stage, char *object, bool hidden) {
+	i32 i = script_stage_index(stage);
+	if (i >= 0 && object != NULL) {
+		tab_stages_set_hidden(g_project->stages->buffer[i], string_copy(object), hidden);
 	}
 }
 
@@ -127,11 +178,27 @@ void script_notify_on_update(void *fn) {
 
 void *script_next_frame_fn = NULL;
 void  script_on_next_frame(void *_) {
-    minic_call_fn(script_next_frame_fn, NULL, 0);
+    void *fn             = script_next_frame_fn;
+    script_next_frame_fn = NULL;
+    if (fn != NULL) {
+        minic_call_fn(fn, NULL, 0);
+    }
 }
 void script_notify_on_next_frame(void *fn) {
 	sys_notify_on_next_frame(script_on_next_frame, NULL);
 	script_next_frame_fn = fn;
+}
+
+bool script_is_running(void) {
+	return script_update_fn != NULL || script_next_frame_fn != NULL;
+}
+
+void script_stop(void) {
+	if (script_update_fn != NULL) {
+		sys_remove_update(script_on_update);
+		script_update_fn = NULL;
+	}
+	script_next_frame_fn = NULL;
 }
 
 void *_ui_files_done;
@@ -144,13 +211,122 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
+static any_array_t *script_cloud_init_fns  = NULL;
+static any_array_t *script_cloud_dl_paths  = NULL;
+static any_array_t *script_cloud_dl_fns    = NULL;
+static bool         script_cloud_dl_active = false;
+static void         script_cloud_dl_next(void);
+
+static bool script_cloud_ready(void) {
+	return file_cloud != NULL && any_map_get(file_cloud, "cloud") != NULL;
+}
+
+static void script_cloud_on_init_done(void) {
+	ui_files_file_browser_on_init_cloud_done();
+}
+
+static void script_cloud_wait(void *_) {
+	if (!script_cloud_ready()) {
+		sys_notify_on_next_frame(script_cloud_wait, NULL);
+		return;
+	}
+	any_array_t *fns      = script_cloud_init_fns;
+	script_cloud_init_fns = NULL;
+	for (i32 i = 0; i < fns->length; ++i) {
+		minic_call_fn(fns->buffer[i], NULL, 0);
+	}
+	script_cloud_dl_next();
+}
+
+static void script_cloud_ensure(void *fn) {
+	if (script_cloud_init_fns == NULL) {
+		script_cloud_init_fns = any_array_create(0);
+		if (file_cloud == NULL) {
+			file_init_cloud(script_cloud_on_init_done, g_config->server);
+		}
+		sys_notify_on_next_frame(script_cloud_wait, NULL);
+	}
+	if (fn != NULL) {
+		any_array_push(script_cloud_init_fns, fn);
+	}
+}
+
+void script_cloud_init(void *done) {
+	if (script_cloud_ready()) {
+		minic_call_fn(done, NULL, 0);
+		return;
+	}
+	script_cloud_ensure(done);
+}
+
+static void script_cloud_dl_done(char *dest) {
+	void *fn = array_shift(script_cloud_dl_fns);
+	array_shift(script_cloud_dl_paths);
+	script_cloud_dl_active = false;
+	if (fn != NULL) {
+		minic_val_t args[1] = {minic_val_ptr(dest != NULL ? string_copy(dest) : NULL)};
+		minic_call_fn(fn, args, 1);
+	}
+	script_cloud_dl_next();
+}
+
+static void script_cloud_dl_next(void) {
+	if (script_cloud_dl_active || script_cloud_dl_paths == NULL || script_cloud_dl_paths->length == 0) {
+		return;
+	}
+	if (!script_cloud_ready()) {
+		script_cloud_ensure(NULL);
+		return;
+	}
+	char *path = script_cloud_dl_paths->buffer[0];
+	script_cloud_dl_active = true;
+	if (i32_map_get(file_cloud_sizes, path) < 0) {
+		console_error(string("Cloud file not found: %s", path));
+		script_cloud_dl_done(NULL);
+		return;
+	}
+	file_cache_cloud(path, script_cloud_dl_done, g_config->server);
+}
+
+void script_cloud_download(char *path, void *done) {
+	if (script_cloud_dl_paths == NULL) {
+		script_cloud_dl_paths = any_array_create(0);
+		script_cloud_dl_fns   = any_array_create(0);
+	}
+	any_array_push(script_cloud_dl_paths, string_copy(path));
+	any_array_push(script_cloud_dl_fns, done);
+	script_cloud_dl_next();
+}
+
+static void script_cloud_reset(void) {
+	if (script_cloud_init_fns != NULL) {
+		script_cloud_init_fns->length = 0;
+	}
+	if (script_cloud_dl_paths != NULL) {
+		i32 keep                      = script_cloud_dl_active ? 1 : 0;
+		script_cloud_dl_paths->length = keep;
+		script_cloud_dl_fns->length   = keep;
+		if (keep) {
+			script_cloud_dl_fns->buffer[0] = NULL;
+		}
+	}
+}
+
 char *project_filepath_get() {
+#ifdef IRON_WINDOWS
+	return string_replace_all(g_project->_->filepath, "\\", "/");
+#else
 	return g_project->_->filepath;
+#endif
 }
 char *project_basepath_get() {
-	return substring(g_project->_->filepath, 0, string_last_index_of(g_project->_->filepath, PATH_SEP));
+	char *path = project_filepath_get();
+	return substring(path, 0, string_last_index_of(path, "/"));
 }
 void project_filepath_set(char *s) {
+#ifdef IRON_WINDOWS
+	s = string_replace_all(s, "/", "\\");
+#endif
 	g_project->_->filepath = string_copy(s);
 }
 context_t *script_get_context() {
@@ -179,6 +355,49 @@ slot_material_t *script_get_material(char *s) {
 		}
 	}
 	return NULL;
+}
+
+sound_t *script_get_sound(char *s) {
+	for (int i = 0; i < g_project->_->sounds->length; ++i) {
+		if (string_equals(g_project->_->sounds->buffer[i]->name, s)) {
+			return g_project->_->sounds->buffer[i]->sound;
+		}
+	}
+	return NULL;
+}
+
+i32 script_sound_remove(char *s) {
+	for (int i = 0; i < g_project->_->sounds->length; ++i) {
+		slot_sound_t *sound = g_project->_->sounds->buffer[i];
+		if (string_equals(sound->name, s)) {
+			data_delete_sound(sound->file);
+			array_splice(g_project->_->sounds, i, 1);
+			return 1;
+		}
+	}
+	return 0;
+}
+
+gpu_texture_t *script_get_texture(char *s) {
+	for (int i = 0; i < g_project->_->assets->length; ++i) {
+		if (string_equals(g_project->_->assets->buffer[i]->name, s)) {
+			return g_project->_->assets->buffer[i]->image;
+		}
+	}
+	return NULL;
+}
+
+void script_texture_delete(char *s) {
+	if (s == NULL || g_project == NULL || g_project->_ == NULL || g_project->_->assets == NULL) {
+		return;
+	}
+	for (int i = 0; i < g_project->_->assets->length; ++i) {
+		asset_t *asset = g_project->_->assets->buffer[i];
+		if (string_equals(asset->name, s)) {
+			tab_textures_delete_texture(asset);
+			return;
+		}
+	}
 }
 
 static bool script_paint_active = false;
@@ -210,6 +429,9 @@ static void script_paint_begin_stroke(void) {
 	if (history_undo_layers != NULL) {
 		history_paint();
 	}
+	if (g_context->layer->texpaint_sculpt != NULL) {
+		render_path_sculpt_snapshot_gbuffer();
+	}
 
 	script_paint_active         = true;
 	script_paint_first          = true;
@@ -234,6 +456,10 @@ static void script_paint_at(f32 x, f32 y) {
 	f32 prev_x = script_paint_first ? x : g_context->paint_vec.x;
 	f32 prev_y = script_paint_first ? y : g_context->paint_vec.y;
 
+	if (script_paint_first) {
+		g_context->grab_start_x = x;
+		g_context->grab_start_y = y;
+	}
 	g_context->decal_x          = x;
 	g_context->decal_y          = y;
 	g_context->paint_vec.x      = x;
@@ -337,6 +563,345 @@ static void script_gpu_end(gpu_texture_t *current, bool in_use) {
 	}
 }
 
+buffer_t *script_get_texture_pixels(gpu_texture_t *texture) {
+	if (texture == NULL || texture->format == GPU_TEXTURE_FORMAT_D32) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	buffer_t *b = gpu_get_texture_pixels(texture);
+	script_gpu_end(current, in_use);
+	return b;
+}
+
+bool tab_layers_can_delete(slot_layer_t *l);
+void tab_layers_delete_layer(slot_layer_t *l);
+void base_init_undo_layers();
+
+static bool script_layer_valid(slot_layer_t *l) {
+	return l != NULL && g_project != NULL && g_project->_ != NULL && array_index_of(g_project->_->layers, l) >= 0;
+}
+
+slot_layer_t *script_layer_get(char *name) {
+	if (name == NULL || g_project == NULL || g_project->_ == NULL) {
+		return NULL;
+	}
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		if (string_equals(g_project->_->layers->buffer[i]->name, name)) {
+			return g_project->_->layers->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+void script_layer_set(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	context_set_layer(l);
+	g_context->ddirty = 2;
+}
+
+static slot_layer_t *script_layer_new_cleared(i32 base_color, f32 occlusion, f32 roughness, f32 metallic) {
+	if (g_context == NULL || g_context->layer == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_layer(false, -1, NULL);
+	if (l != NULL) {
+		history_new_layer();
+		slot_layer_clear(l, base_color, NULL, occlusion, roughness, metallic);
+	}
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return l;
+}
+
+slot_layer_t *script_layer_new(void) {
+	return script_layer_new_cleared(0x00000000, 1.0, layers_default_rough, 0.0);
+}
+
+slot_layer_t *script_layer_new_color(i32 base_color, f32 occlusion, f32 roughness, f32 metallic) {
+	return script_layer_new_cleared(base_color, occlusion, roughness, metallic);
+}
+
+slot_layer_t *script_layer_new_fill(void) {
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_layer(false, -1, NULL);
+	if (l != NULL) {
+		history_new_layer();
+		l->uv_type = UV_TYPE_UVMAP;
+		if (g_config->workflow == WORKFLOW_SCULPT) {
+			sculpt_init();
+			sculpt_init_sculpt_texture(l);
+		}
+		history_to_fill_layer();
+		slot_layer_to_fill_layer(l);
+	}
+	script_gpu_end(current, in_use);
+	g_context->rtdirty = 1;
+	g_context->ddirty  = 2;
+	return l;
+}
+
+void script_layer_delete(slot_layer_t *l) {
+	if (!script_layer_valid(l) || !tab_layers_can_delete(l)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	tab_layers_delete_layer(l);
+	script_gpu_end(current, in_use);
+}
+
+i32 script_layer_count(void) {
+	if (g_project == NULL || g_project->_ == NULL) {
+		return 0;
+	}
+	return g_project->_->layers->length;
+}
+
+slot_layer_t *script_layer_at(i32 i) {
+	if (i < 0 || i >= script_layer_count()) {
+		return NULL;
+	}
+	return g_project->_->layers->buffer[i];
+}
+
+i32 script_layer_index(slot_layer_t *l) {
+	if (l == NULL || g_project == NULL || g_project->_ == NULL) {
+		return -1;
+	}
+	return array_index_of(g_project->_->layers, l);
+}
+
+slot_layer_t *script_layer_new_mask(slot_layer_t *l, i32 type) {
+	// type: 0 black, 1 white, 2 fill with the current material
+	if (!script_layer_valid(l) || type < 0 || type > 2) {
+		return NULL;
+	}
+	if (type == 2 && g_context->material == NULL) {
+		return NULL;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t         *m        = layers_new_mask(false, l, -1);
+	if (m != NULL) {
+		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+			slot_material_t *mat = g_project->_->materials->buffer[i];
+			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
+		}
+		if (type == 0) {
+			history_new_black_mask();
+			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+		}
+		else if (type == 1) {
+			history_new_white_mask();
+			slot_layer_clear(m, 0xffffffff, NULL, 1.0, layers_default_rough, 0.0);
+		}
+		else {
+			history_new_fill_mask();
+			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+			slot_layer_to_fill_layer(m);
+		}
+		layers_update_fill_layers();
+	}
+	script_gpu_end(current, in_use);
+	g_context->layers_preview_dirty = true;
+	g_context->rtdirty             = 1;
+	g_context->ddirty              = 2;
+	return m;
+}
+
+slot_layer_t *script_layer_new_group(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return NULL;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	if (slot_layer_is_group(l) || slot_layer_is_in_group(l)) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t         *group    = layers_new_group();
+	if (group != NULL) {
+		context_set_layer(l);
+		array_remove(g_project->_->layers, group);
+		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
+		l->parent = group;
+		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+			slot_material_t *m = g_project->_->materials->buffer[i];
+			tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
+		}
+		context_set_layer(group);
+		history_new_group();
+	}
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return group;
+}
+
+static void script_layer_refill(slot_layer_t *l) {
+	slot_material_t *material = g_context->material;
+	g_context->material       = l->fill_material;
+	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+	layers_update_fill_layers();
+	context_set_material(material);
+}
+
+void script_layer_set_name(slot_layer_t *l, char *name) {
+	if (!script_layer_valid(l) || name == NULL || name[0] == '\0') {
+		return;
+	}
+	char *old_name = l->name;
+	l->name        = string_copy(slot_layer_unique_name(l, name));
+	tab_stages_rename_layer(old_name, l->name);
+	if (ui_base_hwnds != NULL) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+}
+
+void script_layer_update(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	if (l->fill_material != NULL) {
+		script_layer_refill(l);
+	}
+	make_material_parse_mesh_material();
+	script_gpu_end(current, in_use);
+	g_context->layers_preview_dirty = true;
+	g_context->rtdirty              = 1;
+	g_context->ddirty               = 2;
+}
+
+bool script_layer_move(slot_layer_t *l, i32 to) {
+	if (!script_layer_valid(l) || to < 0 || to >= g_project->_->layers->length) {
+		return false;
+	}
+	if (!slot_layer_can_move(l, to)) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	slot_layer_move(l, to);
+	make_material_parse_mesh_material();
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
+	return true;
+}
+
+bool script_layer_set_group(slot_layer_t *l, slot_layer_t *group) {
+	if (!script_layer_valid(l) || !slot_layer_is_layer(l) || slot_layer_is_filter(l)) {
+		return false;
+	}
+	if (group == NULL) {
+		if (l->parent == NULL) {
+			return true;
+		}
+		return script_layer_move(l, g_project->_->layers->length - 1);
+	}
+	if (!script_layer_valid(group) || !slot_layer_is_group(group)) {
+		return false;
+	}
+	if (l->parent == group) {
+		return true;
+	}
+	// Place directly below the group and its masks, slot_layer_move then parents it to the group
+	i32 anchor = array_index_of(g_project->_->layers, group);
+	while (anchor > 0 && slot_layer_is_mask(g_project->_->layers->buffer[anchor - 1]) && g_project->_->layers->buffer[anchor - 1]->parent == group) {
+		--anchor;
+	}
+	i32  from       = array_index_of(g_project->_->layers, l);
+	i32  to         = from < anchor ? anchor - 1 : anchor;
+	bool show_panel = group->show_panel;
+	group->show_panel = true; // A collapsed group would make the move skip past its children
+	bool moved        = script_layer_move(l, to);
+	group->show_panel = show_panel;
+	return moved && l->parent == group;
+}
+
+void script_layer_set_object(slot_layer_t *l, object_t *object) {
+	if (!script_layer_valid(l)) {
+		return;
+	}
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		l = l->parent;
+	}
+	i32 mask = 0;
+	if (object != NULL) {
+		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+			if (g_project->_->paint_objects->buffer[i]->base == object) {
+				mask = i + 1;
+				break;
+			}
+		}
+		if (mask == 0) {
+			return;
+		}
+	}
+	if (l->object_mask == mask) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	context_set_layer(l);
+	history_layer_object();
+	l->object_mask = mask;
+	make_material_parse_mesh_material();
+	if (l->fill_material != NULL) {
+		script_layer_refill(l);
+	}
+	else {
+		layers_set_object_mask();
+	}
+	script_gpu_end(current, in_use);
+	g_context->rtdirty = 1;
+	g_context->ddirty  = 2;
+}
+
+static void script_bake_lightmap_done(void *fn) {
+	if (fn != NULL) {
+		minic_call_fn(fn, NULL, 0);
+	}
+}
+
+void script_bake_lightmap(object_t *o, i32 res, i32 samples, f32 range, char *path, void *done) {
+	if (o == NULL || o->ext == NULL || !string_equals(o->ext_type, "mesh_object_t") || path == NULL) {
+		return;
+	}
+	render_path_raytrace_bake_lightmap(o->ext, res, samples, range, path, script_bake_lightmap_done, done);
+}
+
 void script_quit(void) {
 	iron_stop();
 }
@@ -350,10 +915,19 @@ void script_project_new(void) {
 	g_context->ddirty = 2;
 }
 
+static char *script_resolve_path(char *path) {
+	// iron_file_exists() checks relative paths against the cwd, data_get_blob() against data/
+	if (data_is_abs(path) || data_is_up(path) || starts_with(path, "./")) {
+		return path;
+	}
+	return string("./%s", path);
+}
+
 void script_project_open(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
@@ -366,6 +940,7 @@ void script_import_asset(char *path, bool hdr_as_envmap) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
@@ -374,21 +949,39 @@ void script_import_asset(char *path, bool hdr_as_envmap) {
 	g_context->ddirty = 2;
 }
 
+extern bool import_mesh_clear_layers;
+extern bool import_mesh_no_reset;
+extern bool import_mesh_append;
+
+static void script_append_mesh_finish(i32 first) {
+	if (g_project->_->paint_objects->length > first) {
+		import_mesh_finish_import(NULL);
+	}
+	import_mesh_append = false;
+}
+
 void script_append_mesh(char *path) {
 	if (path == NULL || !iron_file_exists(path)) {
 		return;
 	}
+	path = script_resolve_path(path);
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
+	i32 first = g_project->_->paint_objects->length;
 	import_mesh_run(path, false, false, true);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
 }
 
-extern bool import_mesh_clear_layers;
-extern bool import_mesh_no_reset;
-extern bool import_mesh_append;
+extern int plugins_skinning_frame;
+
+void script_append_mesh_skinned(char *glb_path) {
+	plugins_skinning_frame = 0;
+	script_append_mesh(glb_path);
+	plugins_skinning_frame = -1;
+}
 
 void script_append_mesh_obj(char *data) {
 	if (data == NULL || data[0] == '\0') {
@@ -403,11 +996,90 @@ void script_append_mesh_obj(char *data) {
 	g_context->layer_filter  = 0;
 	buffer_t *b              = buffer_create_from_raw((u8 *)data, strlen(data));
 	obj_parse_y_to_z_up      = false;
+	i32 first                = g_project->_->paint_objects->length;
 	import_obj_parse(b, false);
 	obj_parse_y_to_z_up = true;
 	free(b);
+	script_append_mesh_finish(first);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
+}
+
+bool script_packed_asset_save(char *suffix, char *path) {
+	for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+		packed_asset_t *pa = g_project->packed_assets->buffer[i];
+		if (ends_with(pa->name, suffix)) {
+			iron_file_save_bytes(path, (buffer_t *)pa->bytes, ((buffer_t *)pa->bytes)->length);
+			return true;
+		}
+	}
+	return false;
+}
+
+i32 script_packed_assets_remove(char *search) {
+	if (g_project->packed_assets == NULL || search == NULL) {
+		return 0;
+	}
+	i32 removed = 0;
+	i32 i       = 0;
+	while (i < g_project->packed_assets->length) {
+		if (string_index_of(g_project->packed_assets->buffer[i]->name, search) >= 0) {
+			array_splice(g_project->packed_assets, i, 1);
+			removed++;
+		}
+		else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+i32 script_assets_remove(char *search) {
+	if (search == NULL) {
+		return 0;
+	}
+	i32 removed = 0;
+	i32 i       = 0;
+	while (i < g_project->_->assets->length) {
+		asset_t *a = g_project->_->assets->buffer[i];
+		if (string_index_of(a->file, search) >= 0) {
+			tab_textures_delete_texture(a);
+			removed++;
+		}
+		else {
+			i++;
+		}
+	}
+	return removed;
+}
+
+i32 script_pack_assets(char *search) {
+	if (search == NULL) {
+		return 0;
+	}
+	asset_t_array_t *assets = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+		asset_t *a = g_project->_->assets->buffer[i];
+		if (string_index_of(a->file, search) >= 0 &&
+		    (g_project->packed_assets == NULL || !project_packed_asset_exists(g_project->packed_assets, a->file))) {
+			any_array_push(assets, a);
+		}
+	}
+	i32 packed = assets->length;
+	if (packed > 0) {
+		gpu_texture_t *current;
+		bool           in_use;
+		script_gpu_begin(&current, &in_use);
+		export_arm_pack_assets(g_project, assets);
+		script_gpu_end(current, in_use);
+	}
+	array_free(assets);
+	free(assets);
+	return packed;
+}
+
+void script_set_pack_assets(i32 pack) {
+	g_context->pack_assets_on_save = pack != 0;
 }
 
 void script_export_mesh(char *path) {
@@ -439,7 +1111,7 @@ slot_material_t *script_material_create(char *name) {
 	shader_data_t   *data = g_project->_->materials->buffer[0]->data;
 	slot_material_t *m    = slot_material_create(data, NULL);
 	if (name != NULL && name[0] != '\0') {
-		m->canvas->name = string_copy(name);
+		m->canvas->name = string_copy(slot_material_unique_name(m->canvas, name));
 	}
 	any_array_push(g_project->_->materials, m);
 
@@ -490,7 +1162,11 @@ void script_object_set_material(object_t *o, slot_material_t *m) {
 		script_object_material_slot = m;
 		script_object_material_data = make_mesh_preview_viewport(m);
 	}
+	bool was_paintable = tab_meshes_get_linked_override(o->ext) < 0;
 	tab_meshes_set_override_data(o->ext, index, index >= 0 ? script_object_material_data : NULL);
+	if (was_paintable != (tab_meshes_get_linked_override(o->ext) < 0)) {
+		util_mesh_visibility_changed();
+	}
 	g_project->mesh_materials = i32_array_create(0);
 	g_context->ddirty         = 2;
 }
@@ -679,6 +1355,17 @@ void script_material_set_button(ui_node_t *node, i32 button, f32 value) {
 	but->default_value->buffer[0] = value;
 }
 
+void script_material_set_text(ui_node_t *node, i32 button, char *text) {
+	if (node == NULL || text == NULL || button < 0 || button >= node->buttons->length) {
+		return;
+	}
+	ui_node_button_t *but = node->buttons->buffer[button];
+	but->data             = u8_array_create_from_string(text);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
 void script_material_update(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return;
@@ -760,6 +1447,40 @@ object_t *script_object_duplicate(object_t *o) {
 
 object_t *script_object_clone(char *name) {
 	return script_object_duplicate(script_get_object(name));
+}
+
+void script_object_remove(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return;
+	}
+	if (g_project->_->paint_objects->length < 2 || array_index_of(g_project->_->paint_objects, o->ext) < 0) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	tab_meshes_draw_context_menu_delete(o->ext);
+	script_gpu_end(current, in_use);
+
+	tab_meshes_reset_preview_map();
+	g_context->ddirty = 2;
+	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
+		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	}
+}
+
+void script_object_origin_to_geometry(object_t *o) {
+	if (o == NULL || !string_equals(o->ext_type, "mesh_object_t") || array_index_of(g_project->_->paint_objects, o->ext) < 0) {
+		return;
+	}
+
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	util_mesh_origin_to_geometry(util_mesh_get_hierarchy(o->ext));
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
 }
 
 void script_object_set_name(object_t *o, char *name) {
@@ -923,7 +1644,7 @@ static any_map_t      *custom_mesh_importers    = NULL;
 static any_map_t      *custom_text_importers    = NULL;
 static string_array_t *custom_text_formats      = NULL;
 
-gpu_texture_t *plugin_import_custom_texture(char *path) {
+gpu_texture_t *script_import_custom_texture(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_texture_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -931,7 +1652,7 @@ gpu_texture_t *plugin_import_custom_texture(char *path) {
 	return r.p;
 }
 
-raw_mesh_t *plugin_import_custom_mesh(char *path) {
+raw_mesh_t *script_import_custom_mesh(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_mesh_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
@@ -939,15 +1660,15 @@ raw_mesh_t *plugin_import_custom_mesh(char *path) {
 	return r.p;
 }
 
-void plugin_import_custom_text(char *path) {
+void script_import_custom_text(char *path) {
 	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
 	void       *fn      = any_map_get(custom_text_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_call_fn(fn, args, 1);
 }
 
-void plugin_register_text(char *format, void *fn) {
-	any_map_set(import_text_importers, format, plugin_import_custom_text);
+void script_register_text(char *format, void *fn) {
+	any_map_set(import_text_importers, format, script_import_custom_text);
 
 	if (custom_text_formats == NULL) {
 		custom_text_formats = string_array_create(0);
@@ -963,7 +1684,7 @@ void plugin_register_text(char *format, void *fn) {
 	any_map_set(custom_text_importers, format, fn);
 }
 
-void plugin_unregister_text(char *format) {
+void script_unregister_text(char *format) {
 	map_delete(import_text_importers, format);
 	map_delete(custom_text_importers, format);
 
@@ -974,8 +1695,8 @@ void plugin_unregister_text(char *format) {
 	}
 }
 
-void plugin_register_texture(char *format, void *fn) {
-	any_map_set(import_texture_importers, format, plugin_import_custom_texture);
+void script_register_texture(char *format, void *fn) {
+	any_map_set(import_texture_importers, format, script_import_custom_texture);
 	any_array_push((any_array_t *)_path_texture_formats, format);
 
 	if (custom_texture_importers == NULL) {
@@ -984,13 +1705,13 @@ void plugin_register_texture(char *format, void *fn) {
 	any_map_set(custom_texture_importers, format, fn);
 }
 
-void plugin_unregister_texture(char *format) {
+void script_unregister_texture(char *format) {
 	map_delete(import_texture_importers, format);
 	array_splice((any_array_t *)_path_texture_formats, string_array_index_of(_path_texture_formats, format), 1);
 }
 
-void plugin_register_mesh(char *format, void *fn) {
-	any_map_set(import_mesh_importers, format, plugin_import_custom_mesh);
+void script_register_mesh(char *format, void *fn) {
+	any_map_set(import_mesh_importers, format, script_import_custom_mesh);
 	any_array_push((any_array_t *)_path_mesh_formats, format);
 
 	if (custom_mesh_importers == NULL) {
@@ -999,12 +1720,12 @@ void plugin_register_mesh(char *format, void *fn) {
 	any_map_set(custom_mesh_importers, format, fn);
 }
 
-void plugin_unregister_mesh(char *format) {
+void script_unregister_mesh(char *format) {
 	map_delete(import_mesh_importers, format);
 	array_splice((any_array_t *)_path_mesh_formats, string_array_index_of(_path_mesh_formats, format), 1);
 }
 
-raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
+raw_mesh_t *script_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nora, u32_array_t *inda, float scale_pos) {
 	raw_mesh_t *mesh = calloc(1, sizeof(raw_mesh_t));
 	memset(mesh, 0, sizeof(raw_mesh_t));
 	mesh->name         = name;
@@ -1018,47 +1739,47 @@ raw_mesh_t *plugin_make_raw_mesh(char *name, i16_array_t *posa, i16_array_t *nor
 	return mesh;
 }
 
-void plugin_material_category_add(char *category_name, any_array_t *node_list) {
+void script_material_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_material_categories, category_name);
 	nodes_material_init();
 	any_array_push(nodes_material_list, node_list);
 }
 
-void plugin_brush_category_add(char *category_name, any_array_t *node_list) {
+void script_brush_category_add(char *category_name, any_array_t *node_list) {
 	any_array_push(nodes_brush_categories, category_name);
 	nodes_brush_init();
 	any_array_push(nodes_brush_list, node_list);
 }
 
-void plugin_material_category_remove(char *category_name) {
+void script_material_category_remove(char *category_name) {
 	int i = array_index_of(nodes_material_categories, category_name);
 	array_splice(nodes_material_list, i, 1);
 	array_splice(nodes_material_categories, i, 1);
 }
 
-void plugin_brush_category_remove(char *category_name) {
+void script_brush_category_remove(char *category_name) {
 	int i = array_index_of(nodes_brush_categories, category_name);
 	array_splice(nodes_brush_list, i, 1);
 	array_splice(nodes_brush_categories, i, 1);
 }
 
-void plugin_material_custom_nodes_set(char *node_type, void *fn) {
+void script_material_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_material_custom_nodes, node_type, fn);
 }
 
-void plugin_brush_custom_nodes_set(char *node_type, void *fn) {
+void script_brush_custom_nodes_set(char *node_type, void *fn) {
 	any_map_set(parser_logic_custom_nodes, node_type, fn);
 }
 
-void plugin_material_custom_nodes_remove(char *node_type) {
+void script_material_custom_nodes_remove(char *node_type) {
 	map_delete(parser_material_custom_nodes, node_type);
 }
 
-void plugin_brush_custom_nodes_remove(char *node_type) {
+void script_brush_custom_nodes_remove(char *node_type) {
 	map_delete(parser_logic_custom_nodes, node_type);
 }
 
-void *plugin_material_kong_get() {
+void *script_material_kong_get() {
 	return parser_material_kong;
 }
 
@@ -1154,6 +1875,10 @@ void script_timeline_set_frame(i32 frame) {
 	tab_timeline_set_frame(frame);
 }
 
+void script_timeline_add_keyframe(char *name, i32 frame) {
+	tab_timeline_add_named_keyframe(name, frame);
+}
+
 typedef struct particle {
 	float frame;
 	float x;
@@ -1197,5 +1922,103 @@ void script_draw_particles(gpu_texture_t *texture, float x, float y, float w, fl
 		draw_set_color(col);
 		// draw_sub_image(texture, frame_x * cell_w, frame_y * cell_w, cell_w, cell_w, p->x, p->y);
 		draw_scaled_sub_image(texture, frame_x * cell_w, frame_y * cell_w, cell_w, cell_w, p->x, p->y, cell_w * 2, cell_w * 2);
+	}
+}
+
+void script_reset_runtime(void) {
+	script_stop();
+	tween_reset();
+	sys_remove_update(script_message_draw);
+	_script_message = NULL;
+	sys_remove_update(script_fade_draw);
+	_script_fade_stage   = NULL;
+	_script_fade_opacity = 0.0f;
+	memset(particles, 0, sizeof(particles));
+	_script_tween_transform = NULL;
+	script_cloud_reset();
+#ifdef IRON_AUDIO
+	if (data_cached_sounds != NULL) {
+		string_array_t *keys = map_keys(data_cached_sounds);
+		for (i32 i = 0; i < keys->length; ++i) {
+			audio_stop(any_map_get(data_cached_sounds, keys->buffer[i]));
+		}
+	}
+#endif
+}
+
+typedef struct script_screenshot_request {
+	char *path;
+	i32   frames;
+	void (*done)(void);
+} script_screenshot_request_t;
+
+static any_array_t    *_script_screenshot_queue  = NULL;
+static gpu_texture_t *_script_screenshot_target = NULL;
+static i32            _script_screenshot_frames = 0;
+
+static void script_screenshot_next(void);
+
+static void script_screenshot_end_frame(void *_) {
+	script_screenshot_request_t *r = _script_screenshot_queue->buffer[0];
+	gpu_framebuffer_redirect       = NULL;
+
+	draw_begin(NULL, false, 0);
+	draw_image(_script_screenshot_target, 0, 0);
+	if (agent_running) {
+		agent_draw_overlay();
+	}
+	draw_end();
+
+	buffer_t *pixels = gpu_get_texture_pixels(_script_screenshot_target);
+	for (i32 i = 3; i < pixels->length; i += 4) {
+		pixels->buffer[i] = 255;
+	}
+	iron_write_png(r->path, pixels, _script_screenshot_target->width, _script_screenshot_target->height, 0);
+	gpu_delete_texture(_script_screenshot_target);
+	_script_screenshot_target = NULL;
+
+	array_shift(_script_screenshot_queue);
+	if (r->done != NULL) {
+		r->done();
+	}
+	script_screenshot_next();
+}
+
+static void script_screenshot_capture(void *_) {
+	iron_delay_idle_sleep();
+	script_screenshot_request_t *r = _script_screenshot_queue->buffer[0];
+	if (++_script_screenshot_frames < r->frames) {
+		g_context->ddirty = 2;
+		base_redraw_ui();
+		sys_notify_on_next_frame(script_screenshot_capture, NULL);
+		return;
+	}
+	_script_screenshot_target = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32);
+	gpu_framebuffer_redirect  = _script_screenshot_target;
+	sys_notify_on_end_frame(script_screenshot_end_frame, NULL);
+}
+
+static void script_screenshot_next(void) {
+	if (_script_screenshot_queue->length == 0) {
+		return;
+	}
+	_script_screenshot_frames = 0;
+	sys_notify_on_next_frame(script_screenshot_capture, NULL);
+}
+
+void script_screenshot_queue(char *path, i32 frames, void (*done)(void)) {
+	if (_script_screenshot_queue == NULL) {
+		_script_screenshot_queue = any_array_create(0);
+	}
+	script_screenshot_request_t *r = ALLOC_INIT(script_screenshot_request_t, {.path = string_copy(path), .frames = frames, .done = done});
+	any_array_push(_script_screenshot_queue, r);
+	if (_script_screenshot_queue->length == 1) {
+		script_screenshot_next();
+	}
+}
+
+void script_screenshot(char *path) {
+	if (path != NULL) {
+		script_screenshot_queue(path, 1, NULL);
 	}
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include "webgpu.h"
 
+#define GPU_RAYTRACE_MAX_OBJECTS 64
+
 typedef struct {
 	WGPUBuffer buf;
 	void      *mem;

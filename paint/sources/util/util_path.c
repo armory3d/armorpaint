@@ -465,11 +465,6 @@ static void path_repaint(slot_layer_t *l) {
 
 	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 
-	if (l->texpaint_sculpt != NULL) {
-		// Restore the undeformed base mesh
-		sculpt_import_mesh_pack_to_texture(l->texpaint_sculpt);
-	}
-
 	vec4_t _camera_loc = scene_camera->base->transform->loc;
 	quat_t _camera_rot = scene_camera->base->transform->rot;
 

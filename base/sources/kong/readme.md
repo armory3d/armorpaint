@@ -1,4 +1,4 @@
-minikong based on Kongruent revision 1b0f3b70673122e3b20701cdb434781a065555d7 by RobDangerous.
+minikong with c-like syntax based on Kongruent revision 1b0f3b70673122e3b20701cdb434781a065555d7 by RobDangerous.
 https://github.com/Kode/Kongruent
 
 Copyright (c) 2024 the Kore Development Team

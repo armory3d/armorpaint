@@ -91,8 +91,8 @@ typedef struct mesh_data_runtime {
 	gpu_buffer_t          *vertex_buffer;
 	gpu_buffer_t          *index_buffer;
 	gpu_vertex_structure_t structure;
-	buffer_t              *skin_blob; // Source file bytes
-	i32                    skin_frames;
+	buffer_t              *skin_blob;  // Skinned animation
+	i32                    skin_frame; // Frame the vertices are posed at, -1 = unknown
 	bool                   owns_arrays;
 } mesh_data_runtime_t;
 

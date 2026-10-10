@@ -104,14 +104,12 @@
 #include "nodes_material/wireframe_node.c"
 
 #include "nodes_neural/edit_image_node.c"
-#include "nodes_neural/image_to_3d_mesh_node.c"
 #include "nodes_neural/image_to_pbr_node.c"
 #include "nodes_neural/neural_node.c"
 #include "nodes_neural/neural_node_models.c"
 #include "nodes_neural/repeat_node.c"
 #include "nodes_neural/save_image_node.c"
 #include "nodes_neural/text_to_image_node.c"
-#include "nodes_neural/text_to_text_node.c"
 #include "nodes_neural/upscale_image_node.c"
 
 #include "render/make_bake.c"
@@ -188,6 +186,7 @@
 #include "util/util_clone.c"
 #include "util/util_cursor.c"
 #include "util/util_encode.c"
+#include "util/util_env.c"
 #include "util/util_geom.c"
 #include "util/util_layer.c"
 #include "util/util_mesh.c"
@@ -200,13 +199,17 @@
 #include "util/util_resize.c"
 #include "util/util_select.c"
 #include "util/util_shortcut.c"
+#include "util/util_skin.c"
 #include "util/util_stage.c"
 #include "util/util_stencil.c"
 #include "util/util_texture.c"
 #include "util/util_touch.c"
 #include "util/util_ui.c"
 #include "util/util_uv.c"
+#include "util/util_uv_unwrap.c"
 
+#include "account.c"
+#include "agent.c"
 #include "args.c"
 #include "base.c"
 #include "camera.c"
@@ -325,7 +328,6 @@ void _kickstart() {
 	parser_material_node_values  = any_map_create();
 	parser_material_node_vectors = any_map_create();
 	parser_material_custom_nodes = any_map_create();
-	util_mesh_unwrappers         = any_map_create();
 	ui_header_h                  = ui_header_default_h;
 	ui_header_handle             = ui_window_create();
 	g_plugins                    = any_map_create();
@@ -384,6 +386,9 @@ void _kickstart() {
 	sys_on_y      = base_y;
 
 	iron_set_app_name(manifest_title); // Used to locate external application data folder
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+	args_mcp();
+#endif
 	config_load();
 	config_init();
 	context_init();
@@ -421,6 +426,7 @@ void _kickstart() {
 #ifdef WITH_PLUGINS
 	plugins_init();
 #endif
+	util_skin_init();
 
 	base_init();
 

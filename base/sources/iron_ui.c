@@ -211,6 +211,49 @@ void ui_rect(float x, float y, float w, float h, uint32_t color, float strength)
 	draw_set_color(0xffffffff);
 }
 
+static void ui_draw_round_corner(float cx, float cy, float ro, float ri, float a0) {
+	int segments = 6;
+	for (int i = 0; i < segments; ++i) {
+		float a  = a0 + (IRON_PI / 2.0) * i / segments;
+		float b  = a0 + (IRON_PI / 2.0) * (i + 1) / segments;
+		float ca = cosf(a);
+		float sa = sinf(a);
+		float cb = cosf(b);
+		float sb = sinf(b);
+		draw_filled_triangle(cx + ca * ro, cy + sa * ro, cx + cb * ro, cy + sb * ro, cx + ca * ri, cy + sa * ri);
+		draw_filled_triangle(cx + ca * ri, cy + sa * ri, cx + cb * ro, cy + sb * ro, cx + cb * ri, cy + sb * ri);
+	}
+}
+
+void ui_rect_round(float x, float y, float w, float h, uint32_t color, float strength) {
+	draw_set_color(color);
+	if (!current->enabled) {
+		ui_fade_color(0.25);
+	}
+	float s  = strength;
+	float rx = current->_x + x * UI_SCALE() - s / 2.0;
+	float ry = current->_y + y * UI_SCALE() - s / 2.0;
+	float rw = w * UI_SCALE() + s;
+	float rh = h * UI_SCALE() + s;
+	float r  = 4.0 * UI_SCALE() + s / 2.0;
+	if (r > rw / 2.0) {
+		r = rw / 2.0;
+	}
+	if (r > rh / 2.0) {
+		r = rh / 2.0;
+	}
+	float ri = r - s > 0.0 ? r - s : 0.0;
+	draw_filled_rect(rx + r, ry, rw - r * 2.0, s);
+	draw_filled_rect(rx + r, ry + rh - s, rw - r * 2.0, s);
+	draw_filled_rect(rx, ry + r, s, rh - r * 2.0);
+	draw_filled_rect(rx + rw - s, ry + r, s, rh - r * 2.0);
+	ui_draw_round_corner(rx + r, ry + r, r, ri, IRON_PI);
+	ui_draw_round_corner(rx + rw - r, ry + r, r, ri, IRON_PI * 1.5);
+	ui_draw_round_corner(rx + rw - r, ry + rh - r, r, ri, 0.0);
+	ui_draw_round_corner(rx + r, ry + rh - r, r, ri, IRON_PI * 0.5);
+	draw_set_color(0xffffffff);
+}
+
 void ui_draw_shadow(float x, float y, float w, float h) {
 	float max_offset = 16.0 * UI_SCALE();
 	for (int i = 0; i < 6; i++) {
