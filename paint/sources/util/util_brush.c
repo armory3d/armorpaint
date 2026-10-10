@@ -61,6 +61,7 @@ void util_brush_update() {
 					}
 
 					history_push_undo = true;
+					util_render_pick_fill_reset(); // Mesh may have changed since the last stroke
 
 					if (g_context->tool == TOOL_TYPE_CLONE && g_context->clone_start_x >= 0.0) { // Clone delta
 						g_context->clone_delta_x = (g_context->clone_start_x - mx) / (float)ww;
@@ -69,6 +70,26 @@ void util_brush_update() {
 					}
 					else if (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_UV_ISLAND) {
 						util_uv_uvislandmap_cached = false;
+					}
+				}
+
+				// Fill: keep the mirrored/x-ray candidates following the cursor while painting, so dragging across
+				// faces mirrors them too. They are only recomputed when the pick or the symmetry/x-ray settings
+				// changed. The candidates are baked into the fill shader, so it is recompiled only when one of
+				// them becomes valid/invalid, not on every position update (the values flow through as constants).
+				if (g_context->tool == TOOL_TYPE_FILL && (g_context->fill_type == FILL_TYPE_FACE || g_context->fill_type == FILL_TYPE_ANGLE) &&
+				    (g_context->sym_x || g_context->sym_y || g_context->sym_z || g_context->xray)) {
+					bool was_sym_x_valid = g_context->fill_sym_x_valid;
+					bool was_sym_y_valid = g_context->fill_sym_y_valid;
+					bool was_sym_z_valid = g_context->fill_sym_z_valid;
+					bool was_xray_valid  = g_context->fill_xray_valid;
+
+					util_render_pick_pos_nor_tex();
+					util_render_pick_fill_candidates();
+
+					if (g_context->fill_sym_x_valid != was_sym_x_valid || g_context->fill_sym_y_valid != was_sym_y_valid ||
+					    g_context->fill_sym_z_valid != was_sym_z_valid || g_context->fill_xray_valid != was_xray_valid) {
+						make_material_parse_paint_material(false);
 					}
 				}
 
