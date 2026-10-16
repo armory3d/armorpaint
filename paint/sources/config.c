@@ -8,6 +8,10 @@ typedef struct version {
 
 bool config_loaded = false;
 
+#ifdef IRON_MACOS
+float iron_display_backing_scale(void);
+#endif
+
 void config_load() {
 	char *path = "";
 	if (path_is_protected()) {
@@ -156,8 +160,8 @@ void config_init() {
 		g_config->window_w           = 1720;
 		g_config->window_h           = 960;
 #ifdef IRON_MACOS
-		g_config->window_w *= 2;
-		g_config->window_h *= 2;
+		g_config->window_w *= iron_display_backing_scale();
+		g_config->window_h *= iron_display_backing_scale();
 #endif
 		g_config->window_x     = -1;
 		g_config->window_y     = -1;
@@ -165,8 +169,11 @@ void config_init() {
 		if (sys_display_width() >= 2560 && sys_display_height() >= 1600) {
 			g_config->window_scale = 2.0;
 		}
-#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
+#if defined(IRON_ANDROID) || defined(IRON_IOS)
 		g_config->window_scale = 2.0;
+#endif
+#ifdef IRON_MACOS
+		g_config->window_scale = iron_display_backing_scale();
 #endif
 #ifdef IRON_WASM
 		g_config->window_scale = sys_display_ppi() / 96.0;

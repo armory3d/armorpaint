@@ -422,6 +422,10 @@ int iron_primary_display(void) {
 
 void iron_display_init(void) {}
 
+float iron_display_backing_scale(void) {
+	return [[NSScreen mainScreen] backingScaleFactor];
+}
+
 iron_display_mode_t iron_display_current_mode(int display) {
 	NSArray            *screens    = [NSScreen screens];
 	NSScreen           *screen     = screens[display];
