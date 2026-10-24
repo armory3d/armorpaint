@@ -27,6 +27,8 @@ bool            mouse_moved             = false;
 f32             mouse_movement_x        = 0.0f;
 f32             mouse_movement_y        = 0.0f;
 f32             mouse_wheel_delta       = 0.0f;
+f32             mouse_trackpad_x        = 0.0f;
+f32             mouse_trackpad_y        = 0.0f;
 f32             mouse_last_x            = -1.0f;
 f32             mouse_last_y            = -1.0f;
 
@@ -126,6 +128,8 @@ void input_register(void) {
 	mouse_movement_x  = 0.0f;
 	mouse_movement_y  = 0.0f;
 	mouse_wheel_delta = 0.0f;
+	mouse_trackpad_x  = 0.0f;
+	mouse_trackpad_y  = 0.0f;
 	mouse_last_x      = -1.0f;
 	mouse_last_y      = -1.0f;
 
@@ -324,6 +328,8 @@ void mouse_end_frame(void) {
 	mouse_movement_x                                                                                             = 0;
 	mouse_movement_y                                                                                             = 0;
 	mouse_wheel_delta                                                                                            = 0;
+	mouse_trackpad_x                                                                                             = 0;
+	mouse_trackpad_y                                                                                             = 0;
 }
 
 void mouse_reset(void) {
@@ -414,6 +420,12 @@ void mouse_move_listener(i32 x, i32 y, i32 movement_x, i32 movement_y) {
 
 void mouse_wheel_listener(f32 delta) {
 	mouse_wheel_delta = delta;
+}
+
+void mouse_trackpad_listener(f32 dx, f32 dy) {
+	// Can be called multiple times per frame
+	mouse_trackpad_x += dx;
+	mouse_trackpad_y += dy;
 }
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)

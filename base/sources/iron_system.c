@@ -389,6 +389,10 @@ void iron_internal_mouse_trigger_scroll(float delta) {
 	}
 }
 
+void iron_internal_trackpad_trigger_scroll(float dx, float dy) {
+	mouse_trackpad_listener(dx, dy);
+}
+
 void iron_internal_mouse_window_activated() {
 	if (iron_mouse_is_locked()) {
 		iron_mouse_hide();

@@ -302,6 +302,7 @@ void iron_internal_mouse_trigger_press(int button, int x, int y);
 void iron_internal_mouse_trigger_release(int button, int x, int y);
 void iron_internal_mouse_trigger_move(int x, int y);
 void iron_internal_mouse_trigger_scroll(float delta);
+void iron_internal_trackpad_trigger_scroll(float dx, float dy);
 void iron_internal_mouse_window_activated();
 void iron_internal_mouse_window_deactivated();
 void iron_pen_set_press_callback(void (*value)(int /*x*/, int /*y*/, float /*pressure*/));
