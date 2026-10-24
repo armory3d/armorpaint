@@ -27,6 +27,8 @@ extern bool            mouse_moved;
 extern f32             mouse_movement_x;
 extern f32             mouse_movement_y;
 extern f32             mouse_wheel_delta;
+extern f32             mouse_trackpad_x; // Two-finger drag, accumulated per frame
+extern f32             mouse_trackpad_y;
 extern f32             mouse_last_x;
 extern f32             mouse_last_y;
 
@@ -42,6 +44,7 @@ void mouse_down_listener(i32 index, i32 x, i32 y);
 void mouse_up_listener(i32 index, i32 x, i32 y);
 void mouse_move_listener(i32 x, i32 y, i32 movement_x, i32 movement_y);
 void mouse_wheel_listener(f32 delta);
+void mouse_trackpad_listener(f32 dx, f32 dy);
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 extern f32 mouse_pinch_dist;

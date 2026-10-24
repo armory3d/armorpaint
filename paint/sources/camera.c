@@ -6,6 +6,17 @@ f32    camera_ease          = 1.0;
 bool   camera_controls_down = false;
 vec4_t camera_dir           = (vec4_t){0.0, 0.0, 0.0, 1.0};
 
+// Trackpad two-finger drag (macOS): rotate, shift - pan, ctrl - zoom, alt - rotate envmap.
+// Trackpad deltas are in points, mouse movement is in pixels
+#define CAMERA_TRACKPAD_SCALE 2.0f
+static f32  camera_move_x         = 0.0; // Drag deltas used by rotate, pan and envmap actions
+static f32  camera_move_y         = 0.0;
+static bool camera_trackpad_pan   = false;
+static bool camera_trackpad_zoom  = false;
+static bool camera_trackpad_down  = false; // Wheel events of a trackpad drag must not zoom
+static bool camera_trackpad_start = false; // First event of a trackpad gesture
+static i32  camera_trackpad_idle  = 100;   // Frames since the last trackpad event
+
 static bool camera_wrap_mouse() {
 	if (mouse_view_x() < 0 || mouse_view_x() > sys_w() || mouse_view_y() < 0 || mouse_view_y() > sys_h()) {
 		if (!g_config->wrap_mouse || !camera_controls_down) {
@@ -34,7 +45,7 @@ static bool camera_wrap_mouse() {
 static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
-	f32 move_y              = ruler ? 0.0 : mouse_movement_y;
+	f32 move_y              = ruler ? 0.0 : camera_move_y;
 
 	if (g_context->camera_pivot == CAMERA_PIVOT_CURSOR) {
 		static f32  pivot_x     = 0;
@@ -43,7 +54,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 		static bool pivot_valid = false;
 
 		bool rotate_started =
-		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
+		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap) || camera_trackpad_start;
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
 			pivot_valid = util_render_picked_on_mesh();
@@ -55,7 +66,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 		}
 
 		if (pivot_valid) {
-			f32 angle_x = -mouse_movement_x / 100.0 * g_config->camera_rotation_speed;
+			f32 angle_x = -camera_move_x / 100.0 * g_config->camera_rotation_speed;
 			f32 angle_y = -move_y / 100.0 * g_config->camera_rotation_speed;
 
 			transform_rotate(camera->base->transform, vec4_z_axis(), angle_x);
@@ -83,7 +94,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 
 	f32 dist = camera_distance();
 	transform_move(camera->base->transform, camera_object_look_world(camera), dist);
-	transform_rotate(camera->base->transform, vec4_z_axis(), -mouse_movement_x / 100.0 * g_config->camera_rotation_speed);
+	transform_rotate(camera->base->transform, vec4_z_axis(), -camera_move_x / 100.0 * g_config->camera_rotation_speed);
 	transform_rotate(camera->base->transform, camera_object_right_world(camera), -move_y / 100.0 * g_config->camera_rotation_speed);
 	vec4_t up_world = camera_object_up_world(camera);
 	if (up_world.z < 0 && !g_config->camera_upside_down) {
@@ -95,7 +106,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 	camera_object_t *camera = scene_camera;
 	camera_redraws          = 2;
-	f32          move_y     = ruler ? 0.0 : mouse_movement_y;
+	f32          move_y     = ruler ? 0.0 : camera_move_y;
 	transform_t *t          = context_main_object()->base->transform;
 	vec4_t       up         = transform_up(t);
 
@@ -106,7 +117,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 		static bool pivot_valid = false;
 
 		bool rotate_started =
-		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
+		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap) || camera_trackpad_start;
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
 			pivot_valid = util_render_picked_on_mesh();
@@ -118,7 +129,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 		}
 
 		if (pivot_valid) {
-			f32    angle_x = (mouse_movement_x / 120.0) * g_config->camera_rotation_speed;
+			f32    angle_x = (camera_move_x / 120.0) * g_config->camera_rotation_speed;
 			f32    angle_y = (move_y / 120.0) * g_config->camera_rotation_speed;
 			vec4_t right   = camera_object_right_world(camera);
 
@@ -144,7 +155,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 		return;
 	}
 
-	transform_rotate(t, up, (mouse_movement_x / 120.0) * g_config->camera_rotation_speed);
+	transform_rotate(t, up, (camera_move_x / 120.0) * g_config->camera_rotation_speed);
 	vec4_t right = camera_object_right_world(camera);
 	transform_rotate(t, right, (move_y / 120.0) * g_config->camera_rotation_speed);
 	transform_build_matrix(t);
@@ -182,7 +193,14 @@ static void camera_zoom_action(bool modif_key) {
 		transform_move(camera->base->transform, camera_object_look(camera), f);
 	}
 
-	if (mouse_wheel_delta != 0 && !modif_key) {
+	if (camera_trackpad_zoom) {
+		camera_redraws = 2;
+		f32 f          = -camera_move_y / (float)(150.0 * (1.0 / (camera_distance() / 2.0)));
+		f *= camera_get_zoom_speed();
+		transform_move(camera->base->transform, camera_object_look(camera), f);
+	}
+
+	if (mouse_wheel_delta != 0 && !modif_key && !camera_trackpad_down) {
 		camera_redraws = 2;
 		f32 f          = mouse_wheel_delta * (-0.2) * ((camera_distance() / 4.0));
 		f *= camera_get_zoom_speed();
@@ -261,11 +279,12 @@ i32 camera_index() {
 
 void camera_pan_action(bool modif, bool default_keymap) {
 	camera_object_t *camera = scene_camera;
-	if (keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) || (mouse_down("middle") && !modif && default_keymap)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) || (mouse_down("middle") && !modif && default_keymap) ||
+	    camera_trackpad_pan) {
 		camera_redraws                 = 2;
 		f32    f                       = 150 * (1.0 / (float)(camera_distance() / 4.0));
-		vec4_t look                    = vec4_mult(transform_look(camera->base->transform), mouse_movement_y / (float)f * g_config->camera_pan_speed);
-		vec4_t right                   = vec4_mult(transform_right(camera->base->transform), -mouse_movement_x / (float)f * g_config->camera_pan_speed);
+		vec4_t look                    = vec4_mult(transform_look(camera->base->transform), camera_move_y / (float)f * g_config->camera_pan_speed);
+		vec4_t right                   = vec4_mult(transform_right(camera->base->transform), -camera_move_x / (float)f * g_config->camera_pan_speed);
 		camera->base->transform->loc   = vec4_add(camera->base->transform->loc, look);
 		camera->base->transform->loc   = vec4_add(camera->base->transform->loc, right);
 		camera_origins[camera_index()] = vec4_add(camera_origins[camera_index()], look);
@@ -300,6 +319,19 @@ void camera_update(void *_) {
 		return;
 	}
 
+	bool trackpad = mouse_trackpad_x != 0 || mouse_trackpad_y != 0;
+	camera_trackpad_start = trackpad && camera_trackpad_idle > 6;
+	camera_trackpad_idle  = trackpad ? 0 : camera_trackpad_idle + 1;
+	bool trackpad_pan     = trackpad && keyboard_down("shift");
+	bool trackpad_zoom    = trackpad && !trackpad_pan && keyboard_down("control");
+	bool trackpad_envmap  = trackpad && !trackpad_pan && !trackpad_zoom && keyboard_down("alt");
+	bool trackpad_rotate  = trackpad && !trackpad_pan && !trackpad_zoom && !trackpad_envmap;
+	camera_trackpad_pan   = trackpad_pan;
+	camera_trackpad_zoom  = trackpad_zoom;
+	camera_trackpad_down  = trackpad;
+	camera_move_x         = trackpad ? mouse_trackpad_x * CAMERA_TRACKPAD_SCALE : mouse_movement_x;
+	camera_move_y         = trackpad ? mouse_trackpad_y * CAMERA_TRACKPAD_SCALE : mouse_movement_y;
+
 	bool modif_key      = keyboard_down("alt") || keyboard_down("shift") || keyboard_down("control");
 	bool modif          = modif_key || string_equals(any_map_get(g_keymap, "action_rotate"), "middle");
 	bool default_keymap = string_equals(g_config->keymap, "default.json");
@@ -310,14 +342,14 @@ void camera_update(void *_) {
 	    keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_STARTED) ||
 	    keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_STARTED) ||
 	    keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && (!modif || ruler)) ||
-	    (mouse_started("middle") && !modif) || (mouse_wheel_delta != 0 && !modif_key)) {
+	    (mouse_started("middle") && !modif) || (mouse_wheel_delta != 0 && !modif_key) || trackpad) {
 		camera_controls_down = true;
 	}
 	else if (!keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) &&
 	         !keymap_shortcut(any_map_get(g_keymap, "action_zoom"), SHORTCUT_TYPE_DOWN) &&
 	         !keymap_shortcut(any_map_get(g_keymap, "action_pan"), SHORTCUT_TYPE_DOWN) &&
 	         !keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN) && !(mouse_down("right") && !modif) &&
-	         !(mouse_down("middle") && !modif) && (mouse_wheel_delta == 0 && !modif_key)) {
+	         !(mouse_down("middle") && !modif) && (mouse_wheel_delta == 0 && !modif_key) && !trackpad) {
 		camera_controls_down = false;
 	}
 
@@ -328,7 +360,7 @@ void camera_update(void *_) {
 	camera_controls_t controls = g_context->camera_controls;
 
 	bool rotate_down =
-	    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && (!modif || ruler) && default_keymap);
+	    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_DOWN) || (mouse_down("right") && (!modif || ruler) && default_keymap) || trackpad_rotate;
 
 	if (controls == CAMERA_CONTROLS_ORBIT && rotate_down) {
 		camera_orbit_action(modif, default_keymap, ruler);
@@ -349,9 +381,9 @@ void camera_update(void *_) {
 		camera_set_pivot_center_to_mouse();
 	}
 
-	if (keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN)) {
+	if (keymap_shortcut(any_map_get(g_keymap, "rotate_envmap"), SHORTCUT_TYPE_DOWN) || trackpad_envmap) {
 		camera_redraws = 2;
-		g_context->envmap_angle -= mouse_movement_x / 100.0;
+		g_context->envmap_angle -= camera_move_x / 100.0;
 	}
 
 	if (camera_redraws > 0) {

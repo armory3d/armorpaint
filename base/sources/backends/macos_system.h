@@ -25,6 +25,7 @@
 - (void)rightMouseUp:(NSEvent *)theEvent;
 - (void)rightMouseDragged:(NSEvent *)theEvent;
 - (void)scrollWheel:(NSEvent *)theEvent;
+- (void)magnifyWithEvent:(NSEvent *)theEvent;
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender;
 - (BOOL)performDragOperation:(id<NSDraggingInfo>)sender;
 - (BOOL)acceptsFirstResponder;

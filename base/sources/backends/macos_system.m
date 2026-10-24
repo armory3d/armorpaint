@@ -324,8 +324,26 @@ static int get_mouse_y(NSEvent *event) {
 }
 
 - (void)scrollWheel:(NSEvent *)theEvent {
+	if ([theEvent hasPreciseScrollingDeltas]) {
+		// Trackpad two-finger drag. Still send the wheel event so ui panels scroll
+		iron_internal_mouse_trigger_scroll(-[theEvent deltaY]);
+		float dx = [theEvent scrollingDeltaX];
+		float dy = [theEvent scrollingDeltaY];
+		// Report finger direction regardless of the "natural scrolling" setting
+		if (![theEvent isDirectionInvertedFromDevice]) {
+			dx = -dx;
+			dy = -dy;
+		}
+		iron_internal_trackpad_trigger_scroll(dx, dy);
+		return;
+	}
 	float delta = [theEvent deltaY];
 	iron_internal_mouse_trigger_scroll(-delta);
+}
+
+- (void)magnifyWithEvent:(NSEvent *)theEvent {
+	// Pinch gesture zooms like the mouse wheel
+	iron_internal_mouse_trigger_scroll(-[theEvent magnification] * 10.0f);
 }
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
