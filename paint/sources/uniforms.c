@@ -408,6 +408,10 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	else if (string_equals(link, "_sculpt_adj1")) {
 		return sculpt_get_adj_texture(1);
 	}
+	else if (string_equals(link, "_texplugin_overlay")) {
+		plugin_tool_t *t = plugin_tool_overlay();
+		return t != NULL ? t->overlay : ((render_target_t *)any_map_get(render_path_render_targets, "empty_black"))->_image;
+	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {
 			render_target_t *rt = any_map_get(render_path_render_targets, "empty_white");

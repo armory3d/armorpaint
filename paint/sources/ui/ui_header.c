@@ -538,6 +538,10 @@ void ui_header_draw_tool_properties() {
 			}
 		}
 	}
+	else if (g_context->tool >= TOOL_TYPE_PLUGIN) {
+		plugin_tool_t *t = plugin_tool_get(g_context->tool);
+		plugin_tool_call(t, t->on_header);
+	}
 	else if (g_context->tool == TOOL_TYPE_SELECT) {
 		g_ui->enabled = g_context->select_active;
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {

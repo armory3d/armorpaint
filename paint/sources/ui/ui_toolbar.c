@@ -13,6 +13,12 @@ static i32 ui_toolbar_object_tool_icons[] = {ICON_EMPTY,   ICON_PLANE, ICON_CUBE
                                              ICON_CAPSULE, ICON_TORUS, ICON_TEXT3D, ICON_PATH,     ICON_CURVE};
 
 bool ui_toolbar_tool_visible(i32 tool) {
+	if (tool == TOOL_TYPE_BAKE) {
+		return false; // Used by the Bake Texture node only
+	}
+	if (tool >= TOOL_TYPE_PLUGIN) {
+		return g_config->tools == TOOLS_PAINT;
+	}
 	if (g_config->tools == TOOLS_SCULPT) {
 		// Brush is replaced by the sculpt mode icons
 		return tool != TOOL_TYPE_BRUSH && tool != TOOL_TYPE_PARTICLE && tool != TOOL_TYPE_COLORID && tool != TOOL_TYPE_PICKER && tool != TOOL_TYPE_MATERIAL &&
@@ -150,8 +156,8 @@ void ui_toolbar_draw_sculpt_tool(sculpt_type_t mode, gpu_texture_t *img, i32 ico
 		_ui_toolbar_i = mode;
 		sys_notify_on_next_frame(&ui_toolbar_draw_tool_select_sculpt, NULL);
 	}
-	// Sculpt modes get their own ids past the tools, so switching modes does not open the properties menu
-	ui_toolbar_handle_release(image_state, visible, TOOL_TYPE_BAKE + 1 + mode);
+	// Sculpt modes get their own negative ids, so switching modes does not open the properties menu
+	ui_toolbar_handle_release(image_state, visible, -1 - mode);
 
 	if (g_ui->is_hovered) {
 		string_array_t *names = any_array_create_from_raw_tmp(
@@ -184,6 +190,9 @@ void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 	i32  tile_x  = tile_y % 2 == 0 ? tool % 12 : (11 - (tool % 12));
 	i32  _y      = g_ui->_y;
 	i32  tile_i  = util_tool_is_object_tool(tool) ? ui_toolbar_object_tool_icons[tool - TOOL_TYPE_EMPTY] : tile_y * 12 + tile_x;
+	if (tool >= TOOL_TYPE_PLUGIN) {
+		tile_i = plugin_tool_get(tool)->icon;
+	}
 
 	ui_state_t image_state = ui_toolbar_draw_icon(g_context->tool == tool, visible, tile_i, img, icon_accent);
 

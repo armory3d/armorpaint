@@ -294,7 +294,6 @@ void _kickstart() {
 	        _tr("Bake"), // Hidden, used by Bake Texture node
 	    },
 	    25);
-	ui_toolbar_tool_names->length--; // Hide Bake tool
 
 	ui_toolbar_tooltip_extras = any_array_create_from_raw(
 	    (void *[]){
@@ -322,8 +321,9 @@ void _kickstart() {
 	        "",
 	        "",
 	        "",
+	        "",
 	    },
-	    24);
+	    25);
 
 	uniforms_ext_ortho_p    = mat4_ortho(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
 	import_mesh_importers   = any_map_create();

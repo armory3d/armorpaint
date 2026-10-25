@@ -280,6 +280,7 @@ typedef enum {
 	TOOL_TYPE_PATH      = 22,
 	TOOL_TYPE_CURVE     = 23,
 	TOOL_TYPE_BAKE      = 24, // Hidden, used by Bake Texture node
+	TOOL_TYPE_PLUGIN    = 25, // First tool added by plugins, see plugin_register_tool
 } tool_type_t;
 
 typedef enum {

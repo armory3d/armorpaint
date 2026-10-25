@@ -56,7 +56,7 @@ void util_brush_update() {
 						g_context->last_paint_vec_y = g_context->last_paint_y;
 					}
 
-					history_push_undo = true;
+					history_push_undo = g_context->tool < TOOL_TYPE_PLUGIN; // Plugin tools do not paint layers
 
 					if (g_context->tool == TOOL_TYPE_CLONE && g_context->clone_start_x >= 0.0) { // Clone delta
 						g_context->clone_delta_x = (g_context->clone_start_x - mx) / (float)ww;
@@ -72,7 +72,13 @@ void util_brush_update() {
 				}
 
 				g_context->brush_time += sys_delta();
-				brush_output_node_run();
+				if (g_context->tool >= TOOL_TYPE_PLUGIN) {
+					plugin_tool_t *t = plugin_tool_get(g_context->tool);
+					plugin_tool_call(t, t->on_stroke);
+				}
+				else {
+					brush_output_node_run();
+				}
 			}
 		}
 	}
@@ -82,6 +88,11 @@ void util_brush_update() {
 		g_context->prev_paint_vec_y    = -1;
 		g_context->brush_blend_dirty   = true; // Update brush mask
 		g_context->layer_preview_dirty = true; // Update layer preview
+
+		if (g_context->tool >= TOOL_TYPE_PLUGIN) {
+			plugin_tool_t *t = plugin_tool_get(g_context->tool);
+			plugin_tool_call(t, t->on_stroke_end);
+		}
 
 		// New color id picked, update fill layer
 		if (g_context->tool == TOOL_TYPE_COLORID && g_context->layer->fill_material != NULL) {

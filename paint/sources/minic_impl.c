@@ -211,6 +211,24 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
+static void *_ui_box_commands;
+static void *_ui_box_on_hide;
+
+static void _ui_box_show_custom_commands(void) {
+	minic_call_fn(_ui_box_commands, NULL, 0);
+}
+
+static void _ui_box_show_custom_on_hide(void) {
+	minic_call_fn(_ui_box_on_hide, NULL, 0);
+}
+
+// Draggable window drawn by a script function, on_hide may be NULL
+void ui_box_show_custom2(void *commands, i32 mw, i32 mh, void *on_hide, char *title) {
+	_ui_box_commands = commands;
+	_ui_box_on_hide  = on_hide;
+	ui_box_show_custom(_ui_box_show_custom_commands, mw, mh, _ui_box_show_custom_on_hide, true, title);
+}
+
 static any_array_t *script_cloud_init_fns  = NULL;
 static any_array_t *script_cloud_dl_paths  = NULL;
 static any_array_t *script_cloud_dl_fns    = NULL;
