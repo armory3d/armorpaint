@@ -396,7 +396,7 @@ void mouse_move_listener(i32 x, i32 y, i32 movement_x, i32 movement_y) {
 		mouse_last_x = (f32)x;
 		mouse_last_y = (f32)y;
 	}
-	if (iron_mouse_is_locked()) {
+	if (iron_mouse_is_locked() || iron_mouse_movement_only) {
 		// Can be called multiple times per frame
 		mouse_movement_x += (f32)movement_x;
 		mouse_movement_y += (f32)movement_y;

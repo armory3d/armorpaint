@@ -2850,6 +2850,13 @@ void ui_mouse_down(ui_t *ui, int button, int x, int y) {
 
 void ui_mouse_move(ui_t *ui, int x, int y, int movement_x, int movement_y) {
 #if !defined(IRON_ANDROID) && !defined(IRON_IOS)
+	if (iron_mouse_movement_only) {
+		ui->input_dx += movement_x;
+		ui->input_dy += movement_y;
+		ui->input_started_x -= movement_x;
+		ui->input_started_y -= movement_y;
+		return;
+	}
 	ui_set_input_position(ui, x, y);
 #endif
 }

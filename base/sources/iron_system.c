@@ -407,6 +407,9 @@ static int  preLockY = 0;
 static int  lastX    = 0;
 static int  lastY    = 0;
 
+bool iron_mouse_trackpad_drag = false; // Two finger trackpad drag acts as right mouse button
+bool iron_mouse_movement_only = false; // Move callback reports movement without changing the position
+
 void iron_internal_mouse_trigger_press(int button, int x, int y) {
 	lastX = x;
 	lastY = y;
@@ -437,6 +440,14 @@ void iron_internal_mouse_trigger_move(int x, int y) {
 	lastY = y;
 	if (mouse_move_callback != NULL && (movementX != 0 || movementY != 0)) {
 		mouse_move_callback(x, y, movementX, movementY, mouse_move_callback_data);
+	}
+}
+
+void iron_internal_mouse_trigger_movement(int movement_x, int movement_y) {
+	if (mouse_move_callback != NULL && (movement_x != 0 || movement_y != 0)) {
+		iron_mouse_movement_only = true;
+		mouse_move_callback(lastX, lastY, movement_x, movement_y, mouse_move_callback_data);
+		iron_mouse_movement_only = false;
 	}
 }
 

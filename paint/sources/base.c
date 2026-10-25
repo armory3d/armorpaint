@@ -437,6 +437,9 @@ void base_update(void *_) {
 	ui_base_update(NULL);
 	camera_update(NULL);
 
+	bool in_3d               = mouse_view_x() >= 0 && mouse_view_x() <= sys_w() && mouse_view_y() >= 0 && mouse_view_y() <= sys_h();
+	iron_mouse_trackpad_drag = base_ui_enabled && (in_3d || context_in_2d_view(ui_view2d_type) || context_in_nodes());
+
 	if (base_player) {
 		player_running             = true;
 		render_path_raytrace_ready = false;
