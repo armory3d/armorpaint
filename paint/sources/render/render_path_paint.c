@@ -1029,11 +1029,38 @@ void render_path_paint_end() {
 	g_context->pdirty--;
 }
 
+static void render_path_paint_commands_low_poly() {
+	mesh_object_t *merged = g_context->merged_object;
+	if (merged == NULL || !merged->base->visible) {
+		render_path_paint_commands_paint(true);
+		return;
+	}
+	mesh_object_t *high_poly     = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
+	mesh_object_t *_paint_object = g_context->paint_object;
+	merged->base->visible        = false;
+	i32 last                     = -1;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != high_poly && p->base->visible) {
+			last = i;
+		}
+	}
+	for (i32 i = 0; i <= last; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != high_poly && p->base->visible) {
+			context_select_paint_object(p);
+			render_path_paint_commands_paint(i == last); // Dilate once all objects are drawn
+		}
+	}
+	merged->base->visible = true;
+	context_select_paint_object(_paint_object);
+}
+
 void _render_path_paint_final() {
 	g_context->bake_type = _render_path_paint_bake_type;
 	make_material_parse_paint_material(false);
 	g_context->pdirty = 1;
-	render_path_paint_commands_paint(true);
+	render_path_paint_commands_low_poly();
 	g_context->pdirty        = 0;
 	render_path_paint_baking = false;
 }
@@ -1046,7 +1073,7 @@ void _render_path_paint_deriv() {
 	g_context->bake_type = BAKE_TYPE_HEIGHT;
 	make_material_parse_paint_material(false);
 	g_context->pdirty = 1;
-	render_path_paint_commands_paint(true);
+	render_path_paint_commands_low_poly();
 	g_context->pdirty = 0;
 	if (render_path_paint_push_undo_last) {
 		history_paint();
@@ -1095,10 +1122,18 @@ void render_path_paint_draw() {
 					mesh_object_t *_paint_object = g_context->paint_object;
 					mesh_object_t *high_poly     = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
 					bool           _visible      = high_poly->base->visible;
+					mesh_object_t *merged        = g_context->merged_object;
+					bool           _merged       = merged != NULL && merged->base->visible;
 					high_poly->base->visible     = true;
+					if (_merged) {
+						merged->base->visible = false; // Draw the high poly alone
+					}
 					context_select_paint_object(high_poly);
 					render_path_paint_commands_paint(true);
 					high_poly->base->visible = _visible;
+					if (_merged) {
+						merged->base->visible = true;
+					}
 					if (render_path_paint_push_undo_last) {
 						history_paint();
 					}
