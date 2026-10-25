@@ -303,6 +303,9 @@ static void dock_default_leaf(dock_node_t *l, i32 id) {
 	tab_draw_t *tab = ui_base_get_tab(id);
 	if (tab != NULL) {
 		tab->closed = tab->closed_default;
+		if (id == TAB_MATERIALS && g_config->materials == MATERIALS_SWATCHES && !args_player) {
+			tab->closed = true;
+		}
 		dock_leaf_add(l, id, -1);
 	}
 }
