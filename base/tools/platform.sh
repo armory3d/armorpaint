@@ -7,4 +7,6 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 	fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
 	IRON_PLATFORM=macos
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* || "$OS" == "Windows_NT" || "$(uname -s)" == "MINGW"* || "$(uname -s)" == "MSYS"* ]]; then
+	IRON_PLATFORM=windows_x64
 fi
