@@ -17,39 +17,52 @@ jobs:
         with:
           repository: armory3d/armorpaint
           submodules: recursive
+          fetch-depth: 0 # Ensures all git history/submodules sync perfectly
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Add MSBuild & Clang tools to PATH
+      - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Install Clang Compiler Tools for Visual Studio
-        shell: powershell
+      - name: Manually Unpack V8 Libraries (Fallback)
+        shell: cmd
         run: |
-          # ArmorPaint requires Clang tools for Windows to compile the generated solution
-          Start-Process -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" -ArgumentList "modify --id Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.ClangCompiler --quiet --norestart" -Wait -NoNewWindow
+          :: If the V8 engine archive exists, extract it manually so the build script doesn't fail trying to do it
+          if exist "armorcore\v8\libraries\win32\release\v8_monolith.7z" (
+            echo "Unpacking V8 dependencies..."
+            7z x "armorcore\v8\libraries\win32\release\v8_monolith.7z" -o"armorcore\v8\libraries\win32\release\" -y
+          )
 
       - name: Generate Visual Studio Project
         shell: cmd
         run: |
           cd paint
-          node ..\base\make
+          :: Force node to find the specific script file explicitly, and target Direct3D11/12
+          node ..\base\make.js --graphics direct3d11
+          
+          :: Fallback check: if the above layout didn't catch the newer unified structure, try the alternate entrypoint
+          if not exist "build\ArmorPaint.sln" if not exist "build\armorpaint.slnx" (
+            node ..\base\make --graphics direct3d11
+          )
 
       - name: Compile Solution with MSBuild
         shell: cmd
         run: |
           cd paint
-          # Compiles the newly generated solution file
-          msbuild build\ArmorPaint.sln /p:Configuration=Release /p:Platform=x64
+          :: Determine if the generated file is a legacy .sln or modern .slnx file
+          if exist "build\ArmorPaint.sln" (
+            msbuild build\ArmorPaint.sln /p:Configuration=Release /p:Platform=x64
+          ) else (
+            msbuild build\armorpaint.slnx /p:Configuration=Release /p:Platform=x64
+          )
           
       - name: Prepare Deployment Package
         shell: cmd
         run: |
           mkdir out
-          # Bundle the executable back inside the data container folder (krom) so assets load properly
           copy paint\build\x64\Release\ArmorPaint.exe paint\build\krom\ArmorPaint.exe
           xcopy /E /I paint\build\krom out\
 
