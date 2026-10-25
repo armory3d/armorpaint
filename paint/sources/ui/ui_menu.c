@@ -164,7 +164,7 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 	char *tooltip = "";
 	i32   textw   = draw_string_width(g_font, g_ui->font_size, text);
 	f32   wmax    = g_config->touch_ui ? 0.9 : 0.8;
-	if (textw > _w * wmax) {
+	if (textw > _w * wmax && align != UI_ALIGN_LEFT) { // Left aligned text is truncated with ".." by ui_button
 		tooltip = text;
 		text    = "";
 		textw   = 0;
