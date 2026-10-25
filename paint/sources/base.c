@@ -1164,11 +1164,12 @@ string_array_t *base_get_viewport_modes() {
 	        tr("Subsurface"),
 	        tr("TexCoord"),
 	        tr("Object Normal"),
+	        tr("World Normal"),
 	        tr("Material ID"),
 	        tr("Object ID"),
 	        tr("Mask"),
 	    },
-	    15);
+	    16);
 
 	if (gpu_raytrace_supported()) {
 		any_array_push(modes, tr("Path Traced"));
@@ -1192,11 +1193,12 @@ string_array_t *base_get_viewport_mode_shortcuts() {
 	        "s",
 	        "t",
 	        "1",
+	        "w",
 	        "2",
 	        "3",
 	        "4",
 	    },
-	    15);
+	    16);
 
 	if (gpu_raytrace_supported()) {
 		any_array_push(shortcuts, "p");

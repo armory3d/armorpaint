@@ -616,6 +616,9 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			kong->frag_nattr = true;
 			node_shader_write_frag(kong, "output[1] = float4(input.nattr, 1.0);");
 		}
+		else if (g_context->viewport_mode == VIEWPORT_MODE_WORLD_NORMAL) {
+			node_shader_write_frag(kong, "output[1] = float4(n * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5), 1.0);");
+		}
 		else if (g_context->viewport_mode == VIEWPORT_MODE_MATERIAL_ID) {
 			i32 id = g_context->layer->id;
 			node_shader_add_texture(kong, string_tmp("texpaint_nor%s", i32_to_string(id)), NULL);

@@ -168,6 +168,8 @@ viewport_mode_t ui_menubar_string_to_viewport_mode(char *s) {
 		return VIEWPORT_MODE_TEXCOORD;
 	if (string_equals(s, tr("Object Normal")))
 		return VIEWPORT_MODE_OBJECT_NORMAL;
+	if (string_equals(s, tr("World Normal")))
+		return VIEWPORT_MODE_WORLD_NORMAL;
 	if (string_equals(s, tr("Material ID")))
 		return VIEWPORT_MODE_MATERIAL_ID;
 	if (string_equals(s, tr("Object ID")))
@@ -204,6 +206,8 @@ char *ui_menubar_viewport_mode_to_string(viewport_mode_t m) {
 		return "TexCoord";
 	if (m == VIEWPORT_MODE_OBJECT_NORMAL)
 		return "Object Normal";
+	if (m == VIEWPORT_MODE_WORLD_NORMAL)
+		return "World Normal";
 	if (m == VIEWPORT_MODE_MATERIAL_ID)
 		return "Material ID";
 	if (m == VIEWPORT_MODE_OBJECT_ID)

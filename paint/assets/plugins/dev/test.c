@@ -962,7 +962,7 @@ void step_envmap() {
 // 30 - Lightmap bakes run over many frames, the scene changes under them while they run
 
 int bakes_done          = 0;
-int viewport_path_trace = 15; // VIEWPORT_MODE_PATH_TRACE
+int viewport_path_trace = 16; // VIEWPORT_MODE_PATH_TRACE
 
 void on_bake_done() {
 	bakes_done += 1;
@@ -1050,8 +1050,8 @@ void step_bake_cancel() {
 void step_viewport_modes() {
 	context_t *ctx = script_get_context();
 	int        mode = sub;
-	if (mode > 15) {
-		mode = 15;
+	if (mode > 16) {
+		mode = 16;
 	}
 	context_set_viewport_mode(mode);
 	if (ctx->viewport_mode != mode) {
