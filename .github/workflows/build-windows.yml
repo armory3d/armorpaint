@@ -1,1 +1,41 @@
+name: Build ArmorPaint (Windows x64)
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Compile ArmorPaint
+        shell: bash
+        run: |
+          cd paint
+          ../base/make --compile
+
+      - name: Show build output
+        if: success()
+        shell: pwsh
+        run: |
+          if (Test-Path 'paint/build') {
+            Get-ChildItem -Path 'paint/build' -Recurse -File |
+              Select-Object FullName, Length
+          } else {
+            Write-Error 'Expected build directory paint/build was not created.'
+          }
+
+      - name: Upload compiled build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArmorPaint-Windows-x64
+          path: paint/build/**
+          if-no-files-found: error
+          retention-days: 7
