@@ -1570,7 +1570,9 @@ void step_viewport_shader() {
 		return;
 	}
 	check(viewport_shader_calls > 0, string("viewport shader called %d times", viewport_shader_calls));
+	check(ctx->viewport_mode == 17, "viewport shader switches to the plugin mode"); // VIEWPORT_MODE_PLUGIN
 	context_set_viewport_shader(NULL);
+	check(ctx->viewport_mode == 0, "removing the viewport shader returns to lit");
 	script_layer_update(ctx->layer);
 	int calls = viewport_shader_calls;
 	script_layer_update(ctx->layer);
@@ -2451,7 +2453,7 @@ void run_step(int s) {
 }
 
 int step_count      = 82;
-int expected_checks = 221;
+int expected_checks = 223;
 
 void next_frame() {
 	if (sub == 0) {
