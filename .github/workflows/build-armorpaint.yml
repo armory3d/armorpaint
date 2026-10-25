@@ -15,7 +15,6 @@ jobs:
       - name: Checkout Repository Recursively
         uses: actions/checkout@v4
         with:
-          # If building directly from a fork or custom repo, make sure to pull submodules
           repository: armory3d/armorpaint
           submodules: recursive
 
@@ -24,10 +23,16 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Add MSBuild to PATH
+      - name: Add MSBuild & Clang tools to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Generate Visual Studio Solution
+      - name: Install Clang Compiler Tools for Visual Studio
+        shell: powershell
+        run: |
+          # ArmorPaint requires Clang tools for Windows to compile the generated solution
+          Start-Process -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" -ArgumentList "modify --id Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.ClangCompiler --quiet --norestart" -Wait -NoNewWindow
+
+      - name: Generate Visual Studio Project
         shell: cmd
         run: |
           cd paint
@@ -36,16 +41,17 @@ jobs:
       - name: Compile Solution with MSBuild
         shell: cmd
         run: |
+          cd paint
+          # Compiles the newly generated solution file
           msbuild build\ArmorPaint.sln /p:Configuration=Release /p:Platform=x64
-
+          
       - name: Prepare Deployment Package
         shell: cmd
         run: |
           mkdir out
-          :: Copy the built executable to the deployment runtime directory
-          copy build\x64\Release\ArmorPaint.exe build\krom\ArmorPaint.exe
-          :: Move the full runtime game/app data folder into the final artifact folder
-          xcopy /E /I build\krom out\
+          # Bundle the executable back inside the data container folder (krom) so assets load properly
+          copy paint\build\x64\Release\ArmorPaint.exe paint\build\krom\ArmorPaint.exe
+          xcopy /E /I paint\build\krom out\
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
