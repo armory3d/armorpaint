@@ -513,7 +513,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			return con_mesh;
 		}
 		kong->frag_vvec = true;
-		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, vvec, tex_coord);");
+		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, input.eye_dir, tex_coord);");
 		node_shader_write_frag(kong, "n = ntex * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
 		node_shader_write_frag(kong, "n.y = -n.y;");
 		node_shader_write_frag(kong, "n = normalize(TBN * n);");
