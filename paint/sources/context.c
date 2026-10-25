@@ -510,9 +510,34 @@ void context_update_envmap() {
 	}
 }
 
+// A viewport shader shows in the plugin viewport mode, removing it returns to lit
 void context_set_viewport_shader(void *viewport_shader) {
 	g_context->viewport_shader = viewport_shader;
-	context_set_render_path();
+	viewport_mode_t mode       = g_context->viewport_mode;
+	if (viewport_shader != NULL) {
+		mode = VIEWPORT_MODE_PLUGIN;
+	}
+	else if (mode == VIEWPORT_MODE_PLUGIN) {
+		mode = VIEWPORT_MODE_LIT;
+	}
+	if (g_context->paint_object == NULL) { // Plugins start before the scene exists
+		g_context->viewport_mode = mode;
+		context_set_render_path();
+	}
+	else if (mode != g_context->viewport_mode) {
+		context_set_viewport_mode(mode);
+	}
+	else {
+		make_material_parse_mesh_material();
+	}
+}
+
+void context_set_viewport_texture(gpu_texture_t *image) {
+	bool bound                  = g_context->viewport_texture != NULL;
+	g_context->viewport_texture = image;
+	if (bound != (image != NULL) && g_context->viewport_mode == VIEWPORT_MODE_PLUGIN) {
+		make_material_parse_mesh_material(); // Adds or removes the texviewport binding
+	}
 }
 
 void context_set_render_path_on_next_frame(void *_) {
@@ -520,11 +545,11 @@ void context_set_render_path_on_next_frame(void *_) {
 }
 
 void context_set_render_path() {
-	if (g_config->render_mode == RENDER_MODE_FORWARD || g_context->viewport_shader != NULL) {
-		render_path_commands = render_path_forward_commands;
+	if (context_use_deferred()) {
+		render_path_commands = render_path_deferred_commands;
 	}
 	else {
-		render_path_commands = render_path_deferred_commands;
+		render_path_commands = render_path_forward_commands;
 	}
 	sys_notify_on_next_frame(&context_set_render_path_on_next_frame, NULL);
 }

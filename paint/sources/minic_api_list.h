@@ -659,6 +659,7 @@ X1(mesh_geo_input_image, "p:mesh_geo_image_t(p:char name)", p, p)
 X4(mesh_geo_image_sample, "f(p:mesh_geo_image_t img,f u,f v,i channel)", f, p, f, f, i)
 
 X1(context_set_viewport_shader, "v(p viewport_shader)", v, p)
+X1(context_set_viewport_texture, "v(p:gpu_texture_t image)", v, p)
 X1(context_set_viewport_mode, "v(i mode)", v, i)
 X1(context_set_camera_controls, "v(i i)", v, i)
 X2(node_shader_write_frag, "v(p:node_shader_t raw,p:char s)", v, p, p)

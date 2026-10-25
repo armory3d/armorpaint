@@ -276,6 +276,7 @@ typedef struct context {
 	f64                         select_time;
 	viewport_mode_t             viewport_mode;
 	void                       *viewport_shader;
+	gpu_texture_t              *viewport_texture;
 	bool                        hscale_was_changed;
 	mesh_format_t               export_mesh_format;
 	i32                         export_mesh_index;

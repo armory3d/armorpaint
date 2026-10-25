@@ -74,6 +74,7 @@ typedef enum {
 	VIEWPORT_MODE_OBJECT_ID     = 14,
 	VIEWPORT_MODE_MASK          = 15,
 	VIEWPORT_MODE_PATH_TRACE    = 16,
+	VIEWPORT_MODE_PLUGIN        = 17,
 } viewport_mode_t;
 
 // Layouts to reset the docked tabs to

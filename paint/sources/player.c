@@ -141,10 +141,10 @@ void player_runtime_reset() {
 
 void player_runtime_restore_context() {
 	g_context->camera_controls = player_base_camera_controls;
-	context_set_viewport_mode(player_base_viewport_mode);
 	if (g_context->viewport_shader != player_base_viewport_shader) {
 		context_set_viewport_shader(player_base_viewport_shader);
 	}
+	context_set_viewport_mode(player_base_viewport_mode);
 	context_select_tool(player_base_tool);
 }
 
