@@ -1035,16 +1035,20 @@ static void render_path_paint_commands_low_poly() {
 		render_path_paint_commands_paint(true);
 		return;
 	}
-	mesh_object_t *high_poly     = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
-	mesh_object_t *_paint_object = g_context->paint_object;
-	merged->base->visible        = false;
-	i32 last                     = -1;
+	mesh_object_t *high_poly = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
+	i32            last      = -1;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		if (p != high_poly && p->base->visible) {
 			last = i;
 		}
 	}
+	if (last < 0) { // The high poly is the only mesh, it bakes onto itself
+		render_path_paint_commands_paint(true);
+		return;
+	}
+	mesh_object_t *_paint_object = g_context->paint_object;
+	merged->base->visible        = false;
 	for (i32 i = 0; i <= last; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		if (p != high_poly && p->base->visible) {
@@ -1169,9 +1173,14 @@ void render_path_paint_draw() {
 					g_context->merged_object->base->visible = _visible;
 			}
 			else if (render_path_paint_is_rt_bake()) {
+				bool dispatched = false;
 				if (!render_path_raytrace_bake_lightmap_busy()) {
-					render_path_raytrace_bake_commands(make_material_parse_paint_material);
+					dispatched = render_path_raytrace_bake_commands(make_material_parse_paint_material);
 					render_path_paint_dilate(true, false);
+				}
+				// The raytrace setup frame and frames waiting on a lightmap bake trace no rays, keep their sample
+				if (!dispatched && g_context->pdirty > 0) {
+					g_context->pdirty++;
 				}
 			}
 			else {
