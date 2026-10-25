@@ -8,6 +8,7 @@
 void *plugin;
 int   box_tab  = 0;
 bool  box_open = false;
+bool  expanded = true; // Plugins tab panel
 
 char *map_names[13];
 char *map_suffixes[13];
@@ -16,6 +17,8 @@ bool  map_enabled[13];
 
 int   res_index       = 1;
 float rays            = 64;
+int   device          = 0;  // Raytraced maps on the GPU 0 or CPU 1
+float gpu_samples     = 16; // 64 rays each
 int   axis            = 0; // XYZ, X, Y, Z, -X, -Y, -Z
 int   up_axis         = 0; // Z, Y
 float ao_strength     = 1.0;
@@ -181,10 +184,26 @@ void finish() {
 	}
 }
 
+// Occlusion, bent normal and thickness from the low poly can bake on the GPU
+bool gpu_available() {
+	return !use_high && bake_maps_gpu_supported();
+}
+
+bool use_gpu(int type) {
+	return device == 0 && gpu_available() && (type == 10 || type == 12 || type == 13);
+}
+
 void start_next() {
 	while (queue_i < queue_len) {
-		int type = map_types[queue[queue_i]];
-		if (bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res)) {
+		int  type = map_types[queue[queue_i]];
+		bool started;
+		if (use_gpu(type)) {
+			started = bake_maps_gpu_start(type, gpu_samples, ao_strength, ao_radius, ao_offset);
+		}
+		else {
+			started = bake_maps_start(type, rays, axis, up_axis, use_high, bake_res, bake_res);
+		}
+		if (started) {
 			return;
 		}
 		console_error("Unable to bake, check that the mesh has a UV map");
@@ -336,7 +355,76 @@ void inpaint_header() {
 	}
 }
 
+// Baked map preview in the plugin viewport mode
+char *view_suffix = NULL; // Map shown, NULL when not viewing
+char *view_start  = NULL; // Clicked, switched in on_update outside of the ui pass
+bool  add_layer   = false; // Add Baked Layer clicked
+
+char *map_name() {
+	return string_equals(out_name, "") ? default_name() : out_name;
+}
+
+gpu_texture_t *map_texture(char *suffix) {
+	return script_get_texture(string("%s_%s.png", map_name(), suffix));
+}
+
+void gray_shader(void *shader) {
+	node_shader_write_frag(shader, "float view_v = sample_lod(texviewport, sampler_linear, tex_coord, 0.0).r;");
+	node_shader_write_frag(shader, "output_color = float3(view_v, view_v, view_v);");
+}
+
+// Tangent space map decoded like the layer normals, shown in world space
+void normal_shader(void *shader) {
+	node_shader_write_frag(shader, "float3 view_n = sample_lod(texviewport, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
+	node_shader_write_frag(shader, "if (dot(view_n, view_n) < 0.25) { view_n = float3(0.0, 0.0, 1.0); }"); // Empty texels
+	node_shader_write_frag(shader, "view_n.y = 0.0 - view_n.y;");
+	node_shader_write_frag(shader, "view_n = normalize(TBN * view_n);");
+	node_shader_write_frag(shader, "output_color = view_n * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5);");
+}
+
+// The shader points into this plugin, it must not outlive the view
+void view_end() {
+	view_suffix = NULL;
+	context_set_viewport_texture(NULL);
+	context_set_viewport_shader(NULL); // Back to lit when still in the plugin mode
+}
+
+void view_button(char *label, char *suffix) {
+	bake_maps_ui_enabled(map_texture(suffix) != NULL);
+	if (ui_button(label, UI_ALIGN_CENTER, "")) {
+		view_start = suffix;
+	}
+	bake_maps_ui_enabled(true);
+}
+
 void on_update() {
+	if (view_start != NULL && map_texture(view_start) != NULL) {
+		view_suffix = view_start;
+		context_set_viewport_texture(map_texture(view_suffix));
+		if (string_equals(view_suffix, "normal")) {
+			context_set_viewport_shader(normal_shader);
+		}
+		else {
+			context_set_viewport_shader(gray_shader);
+		}
+	}
+	else if (view_suffix != NULL) {
+		if (script_get_context()->viewport_mode != 17) { // VIEWPORT_MODE_PLUGIN, left through the mode menus
+			view_end();
+		}
+		else {
+			context_set_viewport_texture(map_texture(view_suffix)); // Rebaked or deleted maps
+		}
+	}
+	view_start = NULL;
+	if (add_layer) {
+		add_layer              = false;
+		slot_material_t *baked = script_get_material(string("%s Baked", map_name()));
+		if (baked != NULL) {
+			script_material_set(baked);
+			script_layer_new_fill();
+		}
+	}
 	if (!running) {
 		return;
 	}
@@ -459,8 +547,21 @@ void draw_settings() {
 	}
 	if (any_selected(10, 13) || any_selected(12, 12)) { // Occlusion, thickness, bent normal
 		ui_text("Raytracing", UI_ALIGN_LEFT, 0);
-		ui_slider(&rays, "Rays", 4, 512, true, 1, true, UI_ALIGN_RIGHT, true);
-		rays = floor(rays);
+		if (gpu_available()) {
+			string_array_t *device_combo = string_array_create(2);
+			device_combo->buffer[0]      = "GPU";
+			device_combo->buffer[1]      = "CPU";
+			ui_combo(&device, device_combo, "Bake on", true, UI_ALIGN_LEFT, true);
+		}
+		if (device == 0 && gpu_available()) {
+			ui_slider(&gpu_samples, "Samples", 1, 128, true, 1, true, UI_ALIGN_RIGHT, true);
+			gpu_samples = floor(gpu_samples);
+			ui_text(string("64 rays per sample, at the layer resolution (%d)", bake_maps_gpu_res()), UI_ALIGN_LEFT, 0);
+		}
+		else {
+			ui_slider(&rays, "Rays", 4, 512, true, 1, true, UI_ALIGN_RIGHT, true);
+			rays = floor(rays);
+		}
 	}
 	if (any_selected(10, 10)) {
 		ui_text("Ambient Occlusion", UI_ALIGN_LEFT, 0);
@@ -616,6 +717,9 @@ void on_hide() {
 }
 
 void on_ui() {
+	if (!ui_panel(&expanded, "Bake Maps", false, true, false)) {
+		return;
+	}
 	if (ui_button("Bake Mesh Maps...", UI_ALIGN_CENTER, "")) {
 		if (string_equals(out_folder, "")) {
 			out_folder = default_folder(); // Project folder when saved
@@ -623,6 +727,19 @@ void on_ui() {
 		box_open = true;
 		ui_box_show_custom2(draw_box, 1100, 720, on_hide, "Bake Mesh Maps");
 	}
+	ui_row4();
+	ui_text("View", UI_ALIGN_LEFT, 0);
+	view_button("AO", "ao");
+	view_button("Normal", "normal");
+	view_button("Cavity", "cavity");
+
+	// The baked maps through the regular lighting, as a fill layer
+	slot_material_t *baked = script_get_material(string("%s Baked", map_name()));
+	bake_maps_ui_enabled(baked != NULL);
+	if (ui_button("Add Baked Layer", UI_ALIGN_CENTER, "") && baked != NULL) {
+		add_layer = true;
+	}
+	bake_maps_ui_enabled(true);
 }
 
 void on_delete() {
@@ -634,6 +751,9 @@ void on_delete() {
 		ui_box_hide(); // The window draws through this plugin's functions
 	}
 	bake_maps_inpaint_end();
+	if (view_suffix != NULL) {
+		view_end();
+	}
 	release();
 }
 

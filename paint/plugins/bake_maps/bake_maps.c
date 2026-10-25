@@ -39,6 +39,12 @@ void               import_texture_run(char *path, bool hdr_as_envmap);
 void               project_reimport_texture(asset_t *asset);
 void               console_error(char *s);
 buffer_t          *iron_load_blob(char *file);
+bool               bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data);
+gpu_texture_t     *gpu_create_render_target(i32 width, i32 height, i32 format);
+i32                config_get_texture_res_x();
+i32                config_get_texture_res_y();
+extern bool        bake_texture_node_baking;
+extern i32         render_path_raytrace_bake_current_sample;
 unsigned char     *stbi_load_from_memory(unsigned char const *buffer, int len, int *x, int *y, int *comp, int req_comp);
 void               stbi_image_free(void *p);
 
@@ -1625,7 +1631,10 @@ static bool bake_rays_prepare_layout(i32 w, i32 h) {
 
 // bool bake_maps_start(int type, int rays, int axis, int up_axis, bool use_high, int w, int h):
 // starts one map on worker threads, type is a bake_type_t or 14 for cavity
+static bool bake_maps_gpu_last; // Defined with the gpu bake below
+
 static minic_val_t bake_maps_start(minic_val_t *a, int n) {
+	bake_maps_gpu_last = false;
 	i32  type     = bake_maps_arg_i(a, n, 0);
 	bool use_high = bake_maps_arg_i(a, n, 4) != 0 && bake_rays_hp.count > 0;
 	i32  w        = bake_maps_arg_i(a, n, 5);
@@ -1681,8 +1690,107 @@ static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	return minic_val_int(1);
 }
 
+// Raytraced maps can bake on the gpu through the core bake path (Bake Texture node), from the low poly
+// at the layer resolution. step, progress, cancel and save then work on that bake.
+static render_target_t *bake_maps_gpu_rt        = NULL;
+static bool             bake_maps_gpu_running   = false;
+static bool             bake_maps_gpu_cancelled = false;
+static bool             bake_maps_gpu_last      = false; // The finished map is the gpu one
+static u8              *bake_maps_gpu_out       = NULL;  // RGBA8 like bake_rays_out
+static i32              bake_maps_gpu_w         = 0;
+static i32              bake_maps_gpu_h         = 0;
+static i32              bake_maps_gpu_samples   = 1;
+static i32              bake_maps_gpu_saved_samples;
+static f32              bake_maps_gpu_saved_ao[3];
+
+static void bake_maps_gpu_restore() {
+	g_context->bake_samples     = bake_maps_gpu_saved_samples;
+	g_context->bake_ao_strength = bake_maps_gpu_saved_ao[0];
+	g_context->bake_ao_radius   = bake_maps_gpu_saved_ao[1];
+	g_context->bake_ao_offset   = bake_maps_gpu_saved_ao[2];
+}
+
+static void bake_maps_gpu_done(void *_) {
+	bake_maps_gpu_running = false;
+	bake_maps_gpu_restore();
+	if (bake_maps_gpu_cancelled) {
+		return;
+	}
+	gpu_texture_t *t      = bake_maps_gpu_rt->_image;
+	buffer_t      *pixels = gpu_get_texture_pixels(t);
+	if (bake_maps_gpu_w != t->width || bake_maps_gpu_h != t->height) {
+		free(bake_maps_gpu_out);
+		bake_maps_gpu_out = malloc(t->width * t->height * 4);
+		bake_maps_gpu_w   = t->width;
+		bake_maps_gpu_h   = t->height;
+	}
+	memcpy(bake_maps_gpu_out, pixels->buffer, t->width * t->height * 4);
+#ifdef IRON_BGRA
+	buffer_t out = {.buffer = bake_maps_gpu_out, .length = t->width * t->height * 4};
+	buffer_bgra_swap(&out); // Render targets read back in the native order
+#endif
+	bake_maps_gpu_last = true;
+}
+
+// bool bake_maps_gpu_supported(): raytraced maps can bake on the gpu
+static minic_val_t bake_maps_gpu_supported(minic_val_t *a, int n) {
+	return minic_val_int(gpu_raytrace_supported() ? 1 : 0);
+}
+
+// int bake_maps_gpu_res(): gpu maps bake at the layer resolution
+static minic_val_t bake_maps_gpu_res(minic_val_t *a, int n) {
+	return minic_val_int(config_get_texture_res_x());
+}
+
+// bool bake_maps_gpu_start(int type, int samples, float ao_strength, float ao_radius, float ao_offset):
+// starts a raytraced map (occlusion, bent normal, thickness) on the gpu, 64 rays per sample
+static minic_val_t bake_maps_gpu_start(minic_val_t *a, int n) {
+	if (bake_texture_node_baking || bake_rays_working || !gpu_raytrace_supported()) {
+		return minic_val_int(0);
+	}
+	i32 w = config_get_texture_res_x();
+	i32 h = config_get_texture_res_y();
+	if (bake_maps_gpu_rt == NULL) {
+		bake_maps_gpu_rt         = render_target_create();
+		bake_maps_gpu_rt->name   = "bake_maps_gpu";
+		bake_maps_gpu_rt->width  = w;
+		bake_maps_gpu_rt->height = h;
+		bake_maps_gpu_rt->format = "RGBA32";
+		render_path_create_render_target(bake_maps_gpu_rt);
+	}
+	else if (bake_maps_gpu_rt->width != w || bake_maps_gpu_rt->height != h) {
+		gpu_delete_texture(bake_maps_gpu_rt->_image);
+		bake_maps_gpu_rt->width  = w;
+		bake_maps_gpu_rt->height = h;
+		bake_maps_gpu_rt->_image = gpu_create_render_target(w, h, GPU_TEXTURE_FORMAT_RGBA32);
+	}
+
+	bake_maps_gpu_saved_samples = g_context->bake_samples;
+	bake_maps_gpu_saved_ao[0]   = g_context->bake_ao_strength;
+	bake_maps_gpu_saved_ao[1]   = g_context->bake_ao_radius;
+	bake_maps_gpu_saved_ao[2]   = g_context->bake_ao_offset;
+	bake_maps_gpu_samples       = bake_rays_imax(bake_maps_arg_i(a, n, 1), 1);
+	g_context->bake_samples     = bake_maps_gpu_samples;
+	g_context->bake_ao_strength = bake_maps_arg_f(a, n, 2);
+	g_context->bake_ao_radius   = bake_maps_arg_f(a, n, 3);
+	g_context->bake_ao_offset   = bake_maps_arg_f(a, n, 4);
+
+	bake_maps_gpu_cancelled = false;
+	bake_maps_gpu_last      = false;
+	bake_maps_gpu_running   = true;
+	if (!bake_to_target(bake_maps_gpu_rt, bake_maps_arg_i(a, n, 0), bake_maps_gpu_done, NULL)) {
+		bake_maps_gpu_running = false;
+		bake_maps_gpu_restore();
+		return minic_val_int(0);
+	}
+	return minic_val_int(1);
+}
+
 // float bake_maps_progress(): 0..1 for the current map
 static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
+	if (bake_maps_gpu_running) {
+		return minic_val_float(bake_rays_fmin(render_path_raytrace_bake_current_sample / (f32)bake_maps_gpu_samples, 1.0));
+	}
 	if (!bake_rays_working || bake_rays_h == 0) {
 		return minic_val_float(1.0);
 	}
@@ -1694,6 +1802,9 @@ static minic_val_t bake_maps_progress(minic_val_t *a, int n) {
 
 // bool bake_maps_step(): true once the current map is done, poll every update
 static minic_val_t bake_maps_step(minic_val_t *a, int n) {
+	if (bake_maps_gpu_running) {
+		return minic_val_int(0);
+	}
 	if (!bake_rays_working) {
 		return minic_val_int(1);
 	}
@@ -1718,6 +1829,10 @@ static minic_val_t bake_maps_step(minic_val_t *a, int n) {
 
 // void bake_maps_cancel()
 static minic_val_t bake_maps_cancel(minic_val_t *a, int n) {
+	if (bake_maps_gpu_running) {
+		bake_maps_gpu_cancelled = true;
+		g_context->pdirty       = 0; // The core bake finishes on the next update
+	}
 	bake_rays_cancelled = true;
 	bake_rays_join();
 	return minic_val_int(0);
@@ -1728,15 +1843,18 @@ static minic_val_t bake_maps_cancel(minic_val_t *a, int n) {
 static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	char *folder    = bake_maps_arg_s(a, n, 0);
 	char *file_name = bake_maps_arg_s(a, n, 1);
-	if (bake_rays_out == NULL || folder == NULL || file_name == NULL) {
+	if ((bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out) == NULL || folder == NULL || file_name == NULL) {
 		return minic_val_int(0);
 	}
+	u8      *out    = bake_maps_gpu_last ? bake_maps_gpu_out : bake_rays_out;
+	i32      w      = bake_maps_gpu_last ? bake_maps_gpu_w : bake_rays_w;
+	i32      h      = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
 	char    *file   = string("%s%s%s", folder, PATH_SEP, file_name);
-	buffer_t pixels = {.buffer = bake_rays_out, .length = bake_rays_w * bake_rays_h * 4};
+	buffer_t pixels = {.buffer = out, .length = w * h * 4};
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
 #endif
-	iron_write_png(file, &pixels, bake_rays_w, bake_rays_h, 0);
+	iron_write_png(file, &pixels, w, h, 0);
 #ifdef IRON_BGRA
 	buffer_bgra_swap(&pixels);
 #endif
@@ -1833,6 +1951,11 @@ static minic_val_t bake_maps_end_images(minic_val_t *a, int n) {
 
 // void bake_maps_end(): releases everything, the high poly can take gigabytes
 static minic_val_t bake_maps_end(minic_val_t *a, int n) {
+	free(bake_maps_gpu_out);
+	bake_maps_gpu_out  = NULL;
+	bake_maps_gpu_w    = 0;
+	bake_maps_gpu_h    = 0;
+	bake_maps_gpu_last = false;
 	bake_rays_cancelled = true;
 	bake_rays_join();
 	bake_rays_free_images();
@@ -2536,6 +2659,9 @@ void bake_maps_init() {
 	minic_register("bake_maps_set_curvature", "v(f,f,f,i)", bake_maps_set_curvature);
 	minic_register("bake_maps_set_cavity", "v(f,f)", bake_maps_set_cavity);
 	minic_register("bake_maps_start", "b(i,i,i,i,b,i,i)", bake_maps_start);
+	minic_register("bake_maps_gpu_supported", "b()", bake_maps_gpu_supported);
+	minic_register("bake_maps_gpu_res", "i()", bake_maps_gpu_res);
+	minic_register("bake_maps_gpu_start", "b(i,i,f,f,f)", bake_maps_gpu_start);
 	minic_register("bake_maps_progress", "f()", bake_maps_progress);
 	minic_register("bake_maps_step", "b()", bake_maps_step);
 	minic_register("bake_maps_cancel", "v()", bake_maps_cancel);
