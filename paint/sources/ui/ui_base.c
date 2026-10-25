@@ -108,10 +108,6 @@ void ui_base_menu_draw_viewport_mode() {
 
 	string_array_t *modes     = base_get_viewport_modes();
 	string_array_t *shortcuts = base_get_viewport_mode_shortcuts();
-	if (gpu_raytrace_supported()) {
-		any_array_push(modes, tr("Path Traced"));
-		any_array_push(shortcuts, "p");
-	}
 	for (i32 i = 0; i < modes->length; ++i) {
 		ui_radio(&mode, i, modes->buffer[i], shortcuts->buffer[i]);
 		mode_changed |= ui_item_changed();
