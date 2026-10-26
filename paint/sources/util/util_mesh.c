@@ -2880,7 +2880,7 @@ u32_array_t *util_mesh_connected_indices(mesh_data_t *g, i32 tri) {
 }
 
 // Triangle of o hit by the ray, closest to its origin, -1 on a miss
-i32 util_mesh_raycast_triangle(mesh_object_t *o, struct ray *ray) {
+i32 util_mesh_raycast_triangle(mesh_object_t *o, ray_t *ray) {
 	i16_array_t *va0     = o->data->vertex_arrays->buffer[0]->values;
 	u32_array_t *inda    = o->data->index_array;
 	mat4_t       m       = o->base->transform->world_unpack;
