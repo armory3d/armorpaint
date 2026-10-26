@@ -14,6 +14,27 @@ void tab_brushes_draw_make_brush_preview(void *_) {
 	g_context->brush = _brush;
 }
 
+static bool tab_brushes_preview_pending = false;
+
+void tab_brushes_draw_make_selected_preview(void *_) {
+	// Wait for the startup init on frame 2
+	if (g_context->frame < 3) {
+		sys_notify_on_next_frame(&tab_brushes_draw_make_selected_preview, NULL);
+		return;
+	}
+	tab_brushes_preview_pending = false;
+	if (g_context->brush->preview_ready) {
+		return;
+	}
+	make_material_parse_brush();
+	brush_output_node_parse_inputs();
+	util_render_make_brush_preview();
+	// Skipped while sculpting, redrawing would request it again
+	if (g_context->brush->preview_ready) {
+		ui_dock_redraw(-1);
+	}
+}
+
 void tab_brushes_draw_duplicate(void *_) {
 	i32 i            = _tab_brushes_draw_i;
 	g_context->brush = slot_brush_create(NULL);
@@ -61,6 +82,12 @@ void tab_brushes_draw_edit() {
 
 void tab_brushes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Brushes"), false, -1, false)) {
+		// The parameters panel shows the stroke preview of the selected brush
+		if (!g_context->brush->preview_ready && !tab_brushes_preview_pending) {
+			tab_brushes_preview_pending = true;
+			sys_notify_on_next_frame(&tab_brushes_draw_make_selected_preview, NULL);
+		}
+
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){

@@ -11,6 +11,7 @@ typedef struct slot_brush {
 	struct ui_node_canvas *canvas;
 	struct gpu_texture    *image;      // 200px
 	struct gpu_texture    *image_icon; // 50px
+	struct gpu_texture    *image_wave; // Stroke preview, generated at runtime
 	bool                   preview_ready;
 	i32                    id;
 } slot_brush_t;

@@ -262,6 +262,7 @@ bool                      args_player                       = false;
 bool                      args_background                   = false;
 bool                      agent_running                     = false;
 i32                       util_render_material_preview_size = 256;
+f32                       util_render_brush_wave_strip      = 0.25; // Wave preview height relative to its width
 i32                       util_render_node_preview_size     = 512;
 i32                       util_render_decal_preview_size    = 512;
 i32                       util_render_layer_preview_size    = 200;

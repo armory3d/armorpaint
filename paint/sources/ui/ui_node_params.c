@@ -297,6 +297,18 @@ static void ui_node_params_draw_preview(gpu_texture_t *img) {
 	g_ui->_w -= size + 2 * UI_SCALE();
 }
 
+// Stroke preview of the brush, spans the width of the panel
+static void ui_node_params_draw_brush_preview() {
+	gpu_texture_t *img = g_context->brush->image_wave;
+	f32            w   = math_floor(g_ui->_window_w - 24 * UI_SCALE());
+	f32            h   = math_floor(w * util_render_brush_wave_strip);
+	if (img != NULL && g_context->brush->preview_ready) {
+		draw_set_color(0xffffffff);
+		draw_scaled_image(img, g_ui->_x + (g_ui->_w - w) / 2.0, g_ui->_y, w, h);
+	}
+	ui_end_element_of_size(h);
+}
+
 static void ui_node_params_draw_buttons(ui_node_t *node) {
 	for (i32 i = 0; i < node->buttons->length; ++i) {
 		ui_node_button_t *but = node->buttons->buffer[i];
@@ -371,6 +383,27 @@ static void ui_node_params_clear(f32 y) {
 	}
 }
 
+// Lay out the parameters below the window, the elements are skipped there but still advance the layout
+static f32 ui_node_params_measure(i32 canvas_type, ui_node_t *node) {
+	f32 _x   = g_ui->_x;
+	f32 _y   = g_ui->_y;
+	f32 _w   = g_ui->_w;
+	f32 y    = g_ui->current_window->texture.height + g_ui->current_window->scroll_offset + 1;
+	g_ui->_y = y;
+	g_ui->_w -= 8 * UI_SCALE();
+	if (canvas_type == CANVAS_TYPE_BRUSH) {
+		ui_node_params_draw_brush_preview();
+	}
+	g_ui->_w -= ui_node_params_socket_w();
+	ui_node_params_draw_buttons(node);
+	ui_node_params_draw_inputs(canvas_type, node);
+	f32 h    = g_ui->_y - y;
+	g_ui->_x = _x;
+	g_ui->_y = _y;
+	g_ui->_w = _w;
+	return h;
+}
+
 void ui_node_params_draw(i32 canvas_type, bool *show) {
 	// Apply the picked texture once the combo is closed, escape submits the initial value
 	if (ui_node_params_combo_id != 0 && g_ui->submit_combo_id == ui_node_params_combo_id && g_ui->combo_selected_id == 0) {
@@ -393,6 +426,10 @@ void ui_node_params_draw(i32 canvas_type, bool *show) {
 	f32 pad    = UI_ELEMENT_OFFSET() * 2;
 	g_ui->_y += pad;
 	// Parameters rest on the button when there is space, placed by their height in the last frame
+	// Measured up front when shown for the first time, the misplaced frame would reserve a scrollbar
+	if (*show && ui_node_params_heights[canvas_type] == 0) {
+		ui_node_params_heights[canvas_type] = ui_node_params_measure(canvas_type, node);
+	}
 	f32 params_h = ui_node_params_heights[canvas_type];
 	if (*show && g_ui->_y + pad + params_h < bottom) {
 		g_ui->_y = bottom - pad - params_h;
@@ -406,6 +443,9 @@ void ui_node_params_draw(i32 canvas_type, bool *show) {
 		ui_node_params_clear(section_y);
 		f32 params_y = g_ui->_y;
 		ui_node_params_begin(canvas_type);
+		if (canvas_type == CANVAS_TYPE_BRUSH) {
+			ui_node_params_draw_brush_preview();
+		}
 		g_ui->_w -= ui_node_params_socket_w();
 		ui_node_params_draw_buttons(node);
 		ui_node_params_draw_inputs(canvas_type, node);
