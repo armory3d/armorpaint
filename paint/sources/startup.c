@@ -31,7 +31,7 @@ static float startup_cos(int k) {
 
 static int16_t startup_quantize(float f) {
 	f *= 32767.0f;
-	return (int16_t)(f + copysignf(0.5f, f));
+	return (int16_t)(f + (f < 0.0f ? -0.5f : 0.5f));
 }
 
 // Buffers come zeroed from calloc, only xyz and the color channel are written
