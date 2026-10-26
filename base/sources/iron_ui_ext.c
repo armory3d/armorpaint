@@ -383,7 +383,7 @@ int ui_color_wheel(uint32_t *value, ui_color_state_t *state, bool alpha, float w
 	(*value) = ui_color(round(state->red * 255.0), round(state->green * 255.0), round(state->blue * 255.0), round(a * 255.0));
 
 	if (color_preview) {
-		ui_text("", UI_ALIGN_RIGHT, (*value));
+		ui_swatch((*value));
 	}
 
 	char          *strings[] = {"RGB", "HSV", "Hex"};

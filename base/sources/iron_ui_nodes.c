@@ -634,14 +634,14 @@ void ui_node_draw_body(ui_node_t *node, ui_node_canvas_t *canvas, float nx, floa
 			draw_string(ui_tr(inp->name), nx + ui_p(12), ny - ui_p(3));
 			ui_node_socket_t *soc = inp;
 			draw_set_color(0xff000000);
-			draw_filled_rect(nx + w - ui_p(38), ny - ui_p(6), ui_p(36), ui_p(18));
+			ui_draw_rect(true, false, nx + w - ui_p(38), ny - ui_p(6), ui_p(36), ui_p(18));
 			float *val = (float *)soc->default_value->buffer;
 			draw_set_color(ui_color(val[0] * 255, val[1] * 255, val[2] * 255, 255));
 			float rx = nx + w - ui_p(37);
 			float ry = ny - ui_p(5);
 			float rw = ui_p(34);
 			float rh = ui_p(16);
-			draw_filled_rect(rx, ry, rw, rh);
+			ui_draw_rect(true, false, rx, ry, rw, rh);
 			float ix = current->input_x - wx;
 			float iy = current->input_y - wy;
 			if (current->input_started && ix > rx && iy > ry && ix < rx + rw && iy < ry + rh) {
