@@ -147,6 +147,9 @@ typedef struct config {
 	i32                  zoom_direction;
 	bool                 wrap_mouse;
 	bool                 show_asset_names;
+	bool                 material_params;
+	bool                 brush_params;
+	bool                 mesh_params;
 	bool                 touch_ui;
 	bool                 splash_screen;
 	bool                 header_pinned;   // Tool properties in the header, floating toolbar otherwise

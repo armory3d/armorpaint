@@ -233,6 +233,8 @@ void tab_brushes_draw(i32 *htab) {
 				}
 			}
 		}
+
+		ui_node_params_draw(CANVAS_TYPE_BRUSH, &g_config->brush_params);
 	}
 }
 

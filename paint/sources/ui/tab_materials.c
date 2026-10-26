@@ -445,30 +445,17 @@ static void tab_materials_setup_swatches_on_next_frame(void *_) {
 	m->canvas->name          = string_copy(slot_material_unique_name(canvas, "Swatch"));
 
 	ui_node_t *output = NULL;
-	f32        x      = 0.0;
-	f32        y      = 0.0;
-	for (i32 i = canvas->nodes->length - 1; i >= 0; --i) {
+	for (i32 i = 0; i < canvas->nodes->length; ++i) {
 		ui_node_t *n = canvas->nodes->buffer[i];
 		if (string_equals(n->type, "OUTPUT_MATERIAL_PBR")) {
 			output = n;
-		}
-		else if (string_equals(n->type, "RGB")) {
-			x = n->x;
-			y = n->y;
-			for (i32 j = canvas->links->length - 1; j >= 0; --j) {
-				ui_node_link_t *l = canvas->links->buffer[j];
-				if (l->from_id == n->id || l->to_id == n->id) {
-					array_remove(canvas->links, l);
-				}
-			}
-			array_remove(canvas->nodes, n);
 		}
 	}
 
 	nodes_material_init();
 	ui_node_t *picker = ui_nodes_make_node(nodes_material_get_node_t("PICKER"), m->nodes, canvas);
-	picker->x         = x;
-	picker->y         = y;
+	picker->x         = output != NULL ? output->x - 264 : 0.0;
+	picker->y         = output != NULL ? output->y : 0.0;
 	any_array_push(canvas->nodes, picker);
 
 	if (output != NULL) {
@@ -541,6 +528,7 @@ void tab_materials_draw_full(i32 *htab) {
 		ui_end_sticky();
 		ui_separator(3, false);
 		tab_materials_draw_slots(false);
+		ui_node_params_draw(CANVAS_TYPE_MATERIAL, &g_config->material_params);
 	}
 }
 
@@ -567,11 +555,9 @@ void tab_materials_accept_swatch_drop(swatch_color_t *swatch) {
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	for (i32 i = 0; i < g_context->material->canvas->nodes->length; ++i) {
 		ui_node_t *node = g_context->material->canvas->nodes->buffer[i];
-		if (string_equals(node->type, "RGB")) {
-			node->outputs->buffer[0]->default_value = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
-			                                                                color_get_bb(swatch->base) / 255.0, color_get_ab(swatch->base) / 255.0);
-		}
-		else if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+		if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+			node->inputs->buffer[0]->default_value            = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
+			                                                                          color_get_bb(swatch->base) / 255.0, color_get_ab(swatch->base) / 255.0);
 			node->inputs->buffer[1]->default_value->buffer[0] = swatch->opacity;
 			node->inputs->buffer[2]->default_value->buffer[0] = swatch->occlusion;
 			node->inputs->buffer[3]->default_value->buffer[0] = swatch->roughness;

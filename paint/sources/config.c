@@ -98,6 +98,9 @@ void config_save() {
 	json_encode_i32("zoom_direction", g_config->zoom_direction);
 	json_encode_bool("wrap_mouse", g_config->wrap_mouse);
 	json_encode_bool("show_asset_names", g_config->show_asset_names);
+	json_encode_bool("material_params", g_config->material_params);
+	json_encode_bool("brush_params", g_config->brush_params);
+	json_encode_bool("mesh_params", g_config->mesh_params);
 	json_encode_bool("touch_ui", g_config->touch_ui);
 	json_encode_bool("splash_screen", g_config->splash_screen);
 	json_encode_bool("header_pinned", g_config->header_pinned);
@@ -262,6 +265,9 @@ void config_init() {
 		g_config->brush_alpha_discard = 0.1;
 		g_config->brush_live          = false;
 		g_config->show_asset_names    = false;
+		g_config->material_params     = true;
+		g_config->brush_params        = true;
+		g_config->mesh_params         = false;
 		g_config->dilate_radius       = 2;
 		g_config->blender             = "";
 		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;

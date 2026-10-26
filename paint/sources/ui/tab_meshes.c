@@ -1802,6 +1802,8 @@ void tab_meshes_draw(i32 *htab) {
 				break;
 			}
 		}
+
+		ui_node_params_draw(CANVAS_TYPE_MESH, &g_config->mesh_params);
 	}
 }
 

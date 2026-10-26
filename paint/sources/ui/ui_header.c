@@ -207,7 +207,7 @@ void ui_header_draw_tool_properties() {
 	}
 	else if (g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL) {
 
-		ui_state_t state = ui_text("", 0, color_set_ab(g_context->picked_color->base, 255));
+		ui_state_t state = ui_swatch(color_set_ab(g_context->picked_color->base, 255));
 		if (state == UI_STATE_STARTED) {
 			base_drag_off_x  = -(mouse_x - g_ui->_x - g_ui->_window_x - 3);
 			base_drag_off_y  = -(mouse_y - g_ui->_y - g_ui->_window_y + 1);
@@ -236,7 +236,7 @@ void ui_header_draw_tool_properties() {
 			i32 _w = g_ui->_w;
 			g_ui->_w /= 2;
 
-			ui_text("", 0, g_context->picked_color->normal);
+			ui_swatch(g_context->picked_color->normal);
 			if (g_ui->is_hovered && g_ui->input_released && g_ui->combo_selected_id == 0) {
 				ui_menu_draw(&ui_header_draw_tool_properties_color_picker_normal, -1, -1);
 			}

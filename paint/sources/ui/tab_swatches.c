@@ -7,14 +7,27 @@ i32            _tab_swatches_draw_i;
 swatch_color_t tab_swatches_edit_prev;
 bool           tab_swatches_large = false;
 
+// White rounded rect, tinted with the swatch color
 gpu_texture_t *tab_swatches_empty_get() {
 	if (_tab_swatches_empty == NULL) {
-		u8_array_t *b       = u8_array_create(4);
-		b->buffer[0]        = 255;
-		b->buffer[1]        = 255;
-		b->buffer[2]        = 255;
-		b->buffer[3]        = 255;
-		_tab_swatches_empty = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+		i32         size   = 64;
+		f32         radius = 10.0;
+		u8_array_t *b      = u8_array_create(size * size * 4);
+		for (i32 y = 0; y < size; ++y) {
+			for (i32 x = 0; x < size; ++x) {
+				// Distance into the corner circle, anti-aliased edge
+				f32 cx           = math_max(math_max(radius - (x + 0.5), (x + 0.5) - (size - radius)), 0.0);
+				f32 cy           = math_max(math_max(radius - (y + 0.5), (y + 0.5) - (size - radius)), 0.0);
+				f32 d            = math_sqrt(cx * cx + cy * cy);
+				f32 alpha        = math_min(math_max(radius - d + 0.5, 0.0), 1.0);
+				i32 i            = (y * size + x) * 4;
+				b->buffer[i + 0] = 255;
+				b->buffer[i + 1] = 255;
+				b->buffer[i + 2] = 255;
+				b->buffer[i + 3] = alpha * 255;
+			}
+		}
+		_tab_swatches_empty = gpu_create_texture_from_bytes(b, size, size, GPU_TEXTURE_FORMAT_RGBA32);
 		array_free(b);
 		free(b);
 	}

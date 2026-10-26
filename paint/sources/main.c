@@ -193,6 +193,7 @@
 #include "ui/ui_header.c"
 #include "ui/ui_menu.c"
 #include "ui/ui_menubar.c"
+#include "ui/ui_node_params.c"
 #include "ui/ui_nodes.c"
 #include "ui/ui_search.c"
 #include "ui/ui_toolbar.c"

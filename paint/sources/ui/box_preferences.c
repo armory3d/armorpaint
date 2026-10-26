@@ -295,7 +295,7 @@ void box_preferences_theme_tab() {
 			    },
 			    2);
 			ui_row(row);
-			ui_text("", 0, val);
+			ui_swatch(val);
 			if (g_ui->is_hovered && g_ui->input_released) {
 				_box_preferences_i = i;
 				ui_menu_draw(&box_preferences_theme_tab_theme_field_menu, -1, -1);
