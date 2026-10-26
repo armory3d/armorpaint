@@ -498,6 +498,10 @@ void render_path_paint_commands_paint(bool dilation) {
 				}
 			}
 
+			if (g_context->tool == TOOL_TYPE_PICKER && g_context->color_picker_callback == NULL && !g_context->picker_select_material) {
+				tab_materials_apply_picked_color(g_context->picked_color);
+			}
+
 			// Update fill layers which are using materials containing a PICKER node
 			slot_material_t *_material = g_context->material;
 			for (i32 i = 0; i < g_project->_->materials->length; ++i) {

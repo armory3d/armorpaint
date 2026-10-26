@@ -93,11 +93,6 @@ typedef enum {
 } tools_t;
 
 typedef enum {
-	MATERIALS_NODES    = 0,
-	MATERIALS_SWATCHES = 1,
-} materials_t;
-
-typedef enum {
 	RENDER_MODE_DEFERRED   = 0,
 	RENDER_MODE_FORWARD    = 1,
 	RENDER_MODE_PATH_TRACE = 2,

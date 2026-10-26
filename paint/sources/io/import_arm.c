@@ -1263,7 +1263,6 @@ void import_arm_run_project(char *path) {
 	sys_notify_on_next_frame(&import_arm_run_project_on_next_frame, NULL);
 
 	base_update_tools();
-	tab_materials_setup_swatches();
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 	g_context->ddirty = 4;

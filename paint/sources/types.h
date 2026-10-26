@@ -184,7 +184,6 @@ typedef struct config {
 	bool                 view2d_grid_show;
 	i32                  view2d_grid_cell;
 	bool                 view2d_grid_snap;
-	materials_t          materials;
 } config_t;
 
 typedef struct slot_material {

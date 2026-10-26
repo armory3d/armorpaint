@@ -265,6 +265,9 @@ void ui_view2d_render_color_pick(void *_) {
 	if (g_context->color_picker_callback != NULL) {
 		g_context->color_picker_callback(g_context->picked_color);
 	}
+	else {
+		tab_materials_apply_picked_color(g_context->picked_color);
+	}
 }
 
 // Height of the tab names and the header drawn on top of the image, the image is centered in the area below

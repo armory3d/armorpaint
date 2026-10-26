@@ -46,6 +46,10 @@ static void tab_swatches_create_material_on_next_frame(void *swatch) {
 	tab_materials_accept_swatch_drop(swatch);
 }
 
+static void tab_swatches_apply_picked_color_on_next_frame(void *_) {
+	tab_materials_apply_picked_color(g_context->picked_color);
+}
+
 void tab_swatches_draw_menu() {
 	i32 i = _tab_swatches_draw_i;
 
@@ -120,6 +124,7 @@ void tab_swatches_draw_edit_menu() {
 		g_context->swatch         = g_context->swatch; // Trigger material preview update
 		g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 		ui_header_handle->redraws = 2;
+		sys_notify_on_next_frame(&tab_swatches_apply_picked_color_on_next_frame, NULL);
 	}
 
 	i32 index = array_index_of(g_project->swatches, g_context->swatch);
@@ -262,6 +267,7 @@ void tab_swatches_draw(i32 *htab) {
 					base_drag_swatch          = g_context->swatch;
 					g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 					ui_header_handle->redraws = 2;
+					sys_notify_on_next_frame(&tab_swatches_apply_picked_color_on_next_frame, NULL);
 				}
 				else if (state == UI_STATE_HOVERED) {
 					tab_swatches_drag_pos = (mouse_x > uix + g_ui->_window_x + slotw / 2.0)

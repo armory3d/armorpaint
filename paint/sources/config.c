@@ -140,7 +140,6 @@ void config_save() {
 	json_encode_bool("view2d_grid_show", g_config->view2d_grid_show);
 	json_encode_i32("view2d_grid_cell", g_config->view2d_grid_cell);
 	json_encode_bool("view2d_grid_snap", g_config->view2d_grid_snap);
-	json_encode_i32("materials", g_config->materials);
 	char *config_json = json_encode_end();
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
@@ -286,7 +285,6 @@ void config_init() {
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
 		g_config->render_mode         = RENDER_MODE_DEFERRED;
 		g_config->tools               = TOOLS_PAINT;
-		g_config->materials           = MATERIALS_NODES;
 	}
 	else {
 		// Discard old config

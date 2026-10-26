@@ -600,7 +600,7 @@ void base_init() {
 
 	args_run();
 
-	if (g_config->tools != TOOLS_PAINT || g_config->materials != MATERIALS_NODES) {
+	if (g_config->tools != TOOLS_PAINT) {
 		base_update_tools();
 	}
 

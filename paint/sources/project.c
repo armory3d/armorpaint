@@ -251,7 +251,6 @@ void project_new(bool reset_layers) {
 	tab_stages_init();
 	tab_meshes_reset_preview_map();
 	base_update_tools();
-	tab_materials_setup_swatches();
 	project_set_default_envmap();
 	context_select_tool(TOOL_TYPE_BRUSH);
 	scene_camera->data->near_plane      = 0.01;

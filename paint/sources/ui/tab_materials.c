@@ -427,60 +427,6 @@ void tab_materials_button_new_on_next_frame(void *_) {
 	history_new_material();
 }
 
-// Swatches mode paints through a "Swatch" material driven by the Picker node
-static void tab_materials_setup_swatches_on_next_frame(void *_) {
-	if (g_config->materials != MATERIALS_SWATCHES || args_player) {
-		return;
-	}
-	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-		slot_material_t *m = g_project->_->materials->buffer[i];
-		if (string_equals(m->canvas->name, "Swatch")) {
-			context_set_material(m);
-			return;
-		}
-	}
-
-	slot_material_t  *m      = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
-	ui_node_canvas_t *canvas = m->canvas;
-	m->canvas->name          = string_copy(slot_material_unique_name(canvas, "Swatch"));
-
-	ui_node_t *output = NULL;
-	for (i32 i = 0; i < canvas->nodes->length; ++i) {
-		ui_node_t *n = canvas->nodes->buffer[i];
-		if (string_equals(n->type, "OUTPUT_MATERIAL_PBR")) {
-			output = n;
-		}
-	}
-
-	nodes_material_init();
-	ui_node_t *picker = ui_nodes_make_node(nodes_material_get_node_t("PICKER"), m->nodes, canvas);
-	picker->x         = output != NULL ? output->x - 264 : 0.0;
-	picker->y         = output != NULL ? output->y : 0.0;
-	any_array_push(canvas->nodes, picker);
-
-	if (output != NULL) {
-		// Picker outputs match the Material Output inputs one to one
-		for (i32 i = 0; i < picker->outputs->length && i < output->inputs->length; ++i) {
-			any_array_push(canvas->links, project_create_node_link(canvas->links, picker->id, i, output->id, i));
-		}
-		output->inputs->buffer[3]->default_value->buffer[0] = 0.8; // Roughness
-	}
-
-	any_array_push(g_project->_->materials, m);
-	g_context->material = m;
-	tab_materials_update_material();
-	history_new_material();
-}
-
-void tab_materials_setup_swatches() {
-	if (g_config->materials != MATERIALS_SWATCHES || args_player) {
-		return;
-	}
-	ui_base_close_tab(TAB_MATERIALS);
-	ui_base_show_tab(TAB_SWATCHES);
-	sys_notify_on_next_frame(&tab_materials_setup_swatches_on_next_frame, NULL);
-}
-
 void tab_materials_button_new(char *text) {
 	if (ui_icon_button(text, ICON_PLUS, UI_ALIGN_CENTER)) {
 		sys_notify_on_next_frame(&tab_materials_button_new_on_next_frame, NULL);
@@ -549,6 +495,33 @@ void tab_materials_accept_material_drop(slot_material_t *material) {
 		array_insert(g_project->_->materials, new_pos, material);
 		tab_meshes_on_material_reordered(mat_pos, new_pos);
 	}
+}
+
+// Copy picked values into the Material Output node when it is the only node in the selected material
+void tab_materials_apply_picked_color(swatch_color_t *swatch) {
+	ui_node_canvas_t *canvas = g_context->material->canvas;
+	if (canvas->nodes->length != 1 || !string_equals(canvas->nodes->buffer[0]->type, "OUTPUT_MATERIAL_PBR")) {
+		return;
+	}
+	ui_node_t *node                                   = canvas->nodes->buffer[0];
+	node->inputs->buffer[0]->default_value            = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
+	                                                                          color_get_bb(swatch->base) / 255.0, 1.0);
+	node->inputs->buffer[1]->default_value->buffer[0] = swatch->opacity;
+	node->inputs->buffer[2]->default_value->buffer[0] = swatch->occlusion;
+	node->inputs->buffer[3]->default_value->buffer[0] = swatch->roughness;
+	node->inputs->buffer[4]->default_value->buffer[0] = swatch->metallic;
+	node->inputs->buffer[5]->default_value            = f32_array_create_xyz(color_get_rb(swatch->normal) / 255.0, color_get_gb(swatch->normal) / 255.0,
+	                                                                         color_get_bb(swatch->normal) / 255.0);
+	node->inputs->buffer[7]->default_value->buffer[0] = swatch->height;
+	tab_materials_update_material();
+	if (layers_is_fill_material()) {
+		layers_update_fill_layers();
+	}
+	if (layers_is_path_material()) {
+		layers_update_path_layers();
+	}
+	tab_meshes_refresh_overrides(g_context->material);
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 }
 
 void tab_materials_accept_swatch_drop(swatch_color_t *swatch) {
