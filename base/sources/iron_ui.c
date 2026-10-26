@@ -1854,7 +1854,7 @@ void ui_draw_arrow(bool selected, bool align_right) {
 			draw_filled_triangle(x + UI_ARROW_SIZE(), y - 1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() + 1, x, y + UI_ARROW_SIZE() / 2.0);
 		}
 		else {
-			draw_filled_triangle(x + UI_ARROW_SIZE(), y - 0.1, x, y + UI_ARROW_SIZE() + 0.1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() / 2.0);
+			draw_filled_triangle(x, y - 0.1, x, y + UI_ARROW_SIZE() + 0.1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() / 2.0);
 		}
 	}
 }
@@ -2291,6 +2291,13 @@ int ui_text(char *text, int align, int bg) {
 	return started ? UI_STATE_STARTED : released ? UI_STATE_RELEASED : down ? UI_STATE_DOWN : UI_STATE_IDLE;
 }
 
+int ui_swatch(uint32_t color) {
+	draw_set_color(color);
+	ui_draw_rect(true, false, current->_x + current->button_offset_y, current->_y + current->button_offset_y, current->_w - current->button_offset_y * 2,
+	             UI_BUTTON_H());
+	return ui_text("", 0, 0x00000000);
+}
+
 bool ui_tab(int *value, char *text, bool vertical, uint32_t color, bool align_right) {
 	current->item_changed = false;
 	if (current->tab_count == 0) { // First tab
@@ -2564,6 +2571,52 @@ bool ui_radio(int *value, int position, char *text, char *label) {
 	return (*value) == position;
 }
 
+void ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar) {
+	string_array_t *texts_copy = &current->combo_texts;
+	char           *label_copy = current->combo_label;
+	for (int i = 0; i < texts_copy->length; ++i) {
+		free(texts_copy->buffer[i]);
+	}
+	texts_copy->length = 0;
+	for (int i = 0; i < texts->length; ++i) {
+		string_array_push(texts_copy, string_copy(texts->buffer[i]));
+	}
+	if (label != NULL) {
+		strncpy(label_copy, label, sizeof(current->combo_label) - 1);
+		label_copy[sizeof(current->combo_label) - 1] = '\0';
+	}
+	current->input_enabled                 = false;
+	current->combo_selected_id             = id;
+	current->combo_selected_window         = current->current_window;
+	current->combo_selected_align          = align;
+	current->combo_selected_texts          = texts_copy;
+	current->combo_selected_images         = NULL;
+	current->combo_selected_label          = label != NULL ? label_copy : NULL;
+	current->combo_selected_x              = current->_x + current->_window_x;
+	current->combo_selected_y              = current->_y + current->_window_y + UI_ELEMENT_H();
+	current->combo_selected_w              = current->_w;
+	current->combo_selected_texts_filtered = 0;
+	current->combo_search_bar              = search_bar;
+	for (int i = 0; i < texts->length; ++i) { // Adapt combo list width to combo item width
+		int w = (int)draw_string_width(current->ops->font, current->font_size, texts->buffer[i]) + 10;
+		if (current->combo_selected_w < w) {
+			current->combo_selected_w = w;
+		}
+	}
+	if (current->combo_selected_w > current->_w * 2.0) {
+		current->combo_selected_w = current->_w * 2.0;
+	}
+	if (current->combo_selected_w > current->_w) {
+		current->combo_selected_w += UI_TEXT_OFFSET();
+	}
+	if (current->combo_selected_x + current->combo_selected_w > iron_window_width() - current->window_border_right) {
+		float x                   = current->_x + current->_window_x + current->_w - current->combo_selected_w;
+		current->combo_selected_x = x > 0 ? x : 0;
+	}
+	current->combo_to_submit     = value;
+	current->combo_initial_value = value;
+}
+
 int ui_combo(int *value, string_array_t *texts, char *label, bool show_label, int align, bool search_bar) {
 	current->item_changed = false;
 	ui_id_t id            = ui_widget_id(value, UI_ID_COMBO);
@@ -2574,49 +2627,7 @@ int ui_combo(int *value, string_array_t *texts, char *label, bool show_label, in
 	}
 	if (ui_get_released(UI_ELEMENT_H())) {
 		if (current->combo_selected_id == 0) {
-			string_array_t *texts_copy = &current->combo_texts;
-			char           *label_copy = current->combo_label;
-			for (int i = 0; i < texts_copy->length; ++i) {
-				free(texts_copy->buffer[i]);
-			}
-			texts_copy->length = 0;
-			for (int i = 0; i < texts->length; ++i) {
-				string_array_push(texts_copy, string_copy(texts->buffer[i]));
-			}
-			if (label != NULL) {
-				strncpy(label_copy, label, sizeof(current->combo_label) - 1);
-				label_copy[sizeof(current->combo_label) - 1] = '\0';
-			}
-			current->input_enabled                 = false;
-			current->combo_selected_id             = id;
-			current->combo_selected_window         = current->current_window;
-			current->combo_selected_align          = align;
-			current->combo_selected_texts          = texts_copy;
-			current->combo_selected_images         = NULL;
-			current->combo_selected_label          = label != NULL ? label_copy : NULL;
-			current->combo_selected_x              = current->_x + current->_window_x;
-			current->combo_selected_y              = current->_y + current->_window_y + UI_ELEMENT_H();
-			current->combo_selected_w              = current->_w;
-			current->combo_selected_texts_filtered = 0;
-			current->combo_search_bar              = search_bar;
-			for (int i = 0; i < texts->length; ++i) { // Adapt combo list width to combo item width
-				int w = (int)draw_string_width(current->ops->font, current->font_size, texts->buffer[i]) + 10;
-				if (current->combo_selected_w < w) {
-					current->combo_selected_w = w;
-				}
-			}
-			if (current->combo_selected_w > current->_w * 2.0) {
-				current->combo_selected_w = current->_w * 2.0;
-			}
-			if (current->combo_selected_w > current->_w) {
-				current->combo_selected_w += UI_TEXT_OFFSET();
-			}
-			if (current->combo_selected_x + current->combo_selected_w > iron_window_width() - current->window_border_right) {
-				float x                   = current->_x + current->_window_x + current->_w - current->combo_selected_w;
-				current->combo_selected_x = x > 0 ? x : 0;
-			}
-			current->combo_to_submit     = (*value);
-			current->combo_initial_value = (*value);
+			ui_combo_open(id, (*value), texts, label, align, search_bar);
 		}
 	}
 	if (id == current->submit_combo_id) {

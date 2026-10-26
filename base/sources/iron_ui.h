@@ -312,6 +312,7 @@ void  ui_end_region();
 bool  ui_window(ui_window_t *handle, int x, int y, int w, int h, bool drag); // Returns true if redraw is needed
 bool  ui_button(char *text, int align, char *label);
 int   ui_text(char *text, int align, int bg);
+int   ui_swatch(uint32_t color);
 bool  ui_tab(int *value, char *text, bool vertical, uint32_t color, bool align_right);
 bool  ui_tab_changed(ui_window_t *window, int *value);
 bool  ui_panel(bool *value, char *text, bool is_tree, bool filled, bool align_right);
@@ -321,6 +322,7 @@ char *ui_text_input(char **value, char *label, int align, bool editable, bool li
 bool  ui_check(bool *value, char *text, char *label);
 bool  ui_radio(int *value, int position, char *text, char *label);
 int   ui_combo(int *value, string_array_t *texts, char *label, bool show_label, int align, bool search_bar);
+void  ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar);
 float ui_parse_float(char *text);
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
 void  ui_row(f32_array_t *ratios);
