@@ -126,7 +126,8 @@ void util_cursor_render(void *_) {
 		}
 	}
 
-	if (g_context->brush_lazy_radius > 0 && !g_context->brush_locked && !slot_layer_is_path(g_context->layer) &&
+	bool in_paint_area = context_in_paint_area() && !context_in_nodes();
+	if (in_paint_area && g_context->brush_lazy_radius > 0 && !g_context->brush_locked && !slot_layer_is_path(g_context->layer) &&
 	    (g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_DECAL || g_context->tool == TOOL_TYPE_TEXT ||
 	     g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR || g_context->tool == TOOL_TYPE_PARTICLE)) {
 		draw_filled_rect(mx - 1, my - 1, 2, 2);
