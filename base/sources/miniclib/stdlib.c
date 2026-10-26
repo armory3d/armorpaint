@@ -205,6 +205,10 @@ double atof(const char *str) {
 	return strtod(str, NULL);
 }
 
+int atoi(const char *str) {
+	return (int)strtol(str, NULL, 10);
+}
+
 int abs(int n) {
 	return n < 0 ? -n : n;
 }
