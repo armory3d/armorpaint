@@ -88,7 +88,7 @@ ui_state_t tab_layers_draw_layer_icon(slot_layer_t *l, i32 i, f32 uix, f32 uiy, 
 		g_ui->_x -= 1 * UI_SCALE();
 	}
 
-	if (l->parent != NULL) {
+	if (mini && l->parent != NULL) {
 		g_ui->_x += (icon_h - icon_h * 0.9) / 2.0;
 		icon_h *= 0.9;
 		if (l->parent->parent != NULL) {
@@ -398,6 +398,24 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	f32 uiy    = g_ui->_y;
 
 	bool has_children = tab_layers_has_children(l);
+	bool has_combos   = !slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l);
+
+	// Columns: eye | indent | icon | name | combo | expand arrow
+	i32 depth = 0;
+	for (slot_layer_t *p = l->parent; p != NULL; p = p->parent) {
+		++depth;
+	}
+	f32 eye_x    = uix + 4;
+	f32 eye_w    = 18 * UI_SCALE();
+	f32 indent_x = eye_x + eye_w + 10 * UI_SCALE();
+	i32 icon_h   = (UI_ELEMENT_H() - 3) * 2;
+	f32 icon_x   = indent_x + depth * 14 * UI_SCALE();
+	f32 name_x   = icon_x + icon_h + 8 * UI_SCALE();
+	f32 arrow_w  = 24 * UI_SCALE();
+	f32 arrow_x  = uix + uiw - arrow_w;
+	f32 combo_w  = uiw * 0.30;
+	f32 combo_x  = arrow_x - combo_w;
+	f32 name_end = has_combos ? combo_x : arrow_x;
 
 	// Draw eye icon
 	f32_array_t *row = f32_array_create_from_raw_tmp(
@@ -408,8 +426,9 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	ui_row(row);
 	gpu_texture_t *icons = resource_get("icons.k");
 	rect_t        *r     = resource_tile18(icons, l->visible ? ICON18_EYE_ON : ICON18_EYE_OFF);
-	g_ui->_x             = uix + 4;
+	g_ui->_x             = eye_x;
 	g_ui->_y             = uiy + 3 + center;
+	g_ui->_w             = eye_w;
 	i32  col             = g_theme->HOVER_COL + 0x00282828;
 	bool parent_hidden   = l->parent != NULL && (!l->parent->visible || (l->parent->parent != NULL && !l->parent->parent->visible));
 	if (parent_hidden) {
@@ -419,30 +438,17 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		tab_layers_layer_toggle_visible(l);
 	}
 
-	// Nested offset
-	f32 offx = 0.0;
-	if (l->parent != NULL) {
-		offx = 14 * UI_SCALE();
-		if (l->parent->parent != NULL) {
-			offx += 14 * UI_SCALE();
-		}
-	}
-
 	// Layer icon
-	i32 icon_h       = (UI_ELEMENT_H() - 3) * 2;
-	g_ui->_x         = uix + uiw * 0.08 + offx;
+	g_ui->_x         = icon_x;
 	g_ui->_y         = uiy + 3;
-	g_ui->_w         = math_max(uiw * 0.16, icon_h);
+	g_ui->_w         = icon_h;
 	ui_state_t state = tab_layers_draw_layer_icon(l, i, uix, uiy, false);
 	tab_layers_handle_layer_icon_state(l, i, state, uix, uiy);
 
 	// Draw layer name
-	bool has_blending = !slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l);
-	f32  name_x       = math_max(uix + uiw * 0.25 + offx, uix + uiw * 0.08 + offx + icon_h + 4 * UI_SCALE());
-	f32  name_right   = has_blending ? uix + uiw * 0.60 : (has_children ? uix + uiw * 0.90 : uix + uiw); // Blending combo / panel / window edge
-	g_ui->_x          = name_x;
-	g_ui->_y          = uiy + center;
-	g_ui->_w          = name_right - name_x;
+	g_ui->_x = name_x;
+	g_ui->_y = uiy + center;
+	g_ui->_w = math_max(name_end - name_x, 0);
 	if (tab_layers_layer_name_edit == l->id) {
 		tab_layers_layer_name = string_copy(l->name);
 		char *new_name        = string_copy(ui_text_input(&tab_layers_layer_name, "", UI_ALIGN_LEFT, true, false));
@@ -501,28 +507,32 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 		}
 	}
 
-	// Blending combo
-	if (!slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l) && l->texpaint_sculpt == NULL) {
-		g_ui->_x = uix + uiw * 0.60;
-		g_ui->_y = uiy;
-		g_ui->_w = uiw * 0.30;
-		tab_layers_combo_blending(l, false);
-	}
-
-	// Object combo
-	if (!slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l)) {
-		g_ui->_x = uix + uiw * 0.60;
-		g_ui->_y = l->texpaint_sculpt != NULL ? uiy + center : uiy + center * 2;
-		g_ui->_w = uiw * 0.30;
+	// Object combo, blending is in the context menu
+	if (has_combos) {
+		g_ui->_x = combo_x;
+		g_ui->_y = uiy + center;
+		g_ui->_w = combo_w;
 		tab_layers_combo_object(l, false);
 	}
 
-	// Panel
+	// Expand arrow, enlarged and centered in its column
 	if (has_children) {
-		g_ui->_x = uix + uiw * 0.90;
-		g_ui->_y = uiy + center;
-		g_ui->_w = uiw * 0.15;
+		i32 arrow_size       = g_theme->ARROW_SIZE;
+		i32 label_col        = g_theme->LABEL_COL;
+		f32 arrow_offset_x   = g_ui->arrow_offset_x;
+		f32 arrow_offset_y   = g_ui->arrow_offset_y;
+		g_theme->ARROW_SIZE  = math_floor(arrow_size * 1.6);
+		g_theme->LABEL_COL   = col; // Same as the eye icon
+		g_ui->arrow_offset_x = (arrow_w - UI_ARROW_SIZE()) / 2.0;
+		g_ui->arrow_offset_y = (UI_ELEMENT_H() - UI_ARROW_SIZE()) / 2.0;
+		g_ui->_x             = arrow_x;
+		g_ui->_y             = uiy + center;
+		g_ui->_w             = arrow_w;
 		ui_panel(&l->show_panel, "", false, false, true);
+		g_theme->ARROW_SIZE  = arrow_size;
+		g_theme->LABEL_COL   = label_col;
+		g_ui->arrow_offset_x = arrow_offset_x;
+		g_ui->arrow_offset_y = arrow_offset_y;
 	}
 
 	g_ui->_x = uix;
@@ -686,11 +696,6 @@ void tab_layers_draw_layer_context_menu_draw() {
 			ui_menu_keep_open = true;
 		}
 
-		if (!slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l) && l->texpaint_sculpt == NULL) {
-			if (tab_layers_combo_blending(l, true)) {
-				ui_menu_keep_open = true;
-			}
-		}
 		if (slot_layer_is_layer(l) && !slot_layer_is_filter(l)) {
 			if (tab_layers_combo_object(l, true)) {
 				ui_menu_keep_open = true;
@@ -753,6 +758,13 @@ void tab_layers_draw_layer_context_menu_draw() {
 
 	if (ui_menu_button(tr("Duplicate"), "ctrl+d", ICON_DUPLICATE)) {
 		sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_duplicate, NULL);
+	}
+
+	if (!slot_layer_is_group(l) && !slot_layer_is_mask(l) && !slot_layer_is_filter(l) && l->texpaint_sculpt == NULL) {
+		ui_menu_align();
+		if (tab_layers_combo_blending(l, true)) {
+			ui_menu_keep_open = true;
+		}
 	}
 
 	ui_menu_align();
