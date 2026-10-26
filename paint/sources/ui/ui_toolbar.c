@@ -285,6 +285,8 @@ void ui_toolbar_header_menu_draw() {
 	if (ui_menu_button(tr("Toggle Header"), "", ICON_PROPERTIES)) {
 		g_config->header_pinned = false;
 	}
+	ui_menu_separator();
+	ui_menubar_draw_tools();
 }
 
 static void ui_toolbar_draw_window(ui_window_t *handle, i32 x, i32 y, i32 h) {
@@ -295,14 +297,19 @@ static void ui_toolbar_draw_window(ui_window_t *handle, i32 x, i32 y, i32 h) {
 		bool           light       = col > 0xff666666;
 		i32            icon_accent = light ? 0xff666666 : -1;
 
-		// Properties icon
+		// Menu icon
 		if (!context_is_floating_toolbar()) {
-			g_ui->_y -= 4 * UI_SCALE();
-			rect_t *rect = resource_tile50(img, ICON_PROPERTIES);
-			if (ui_sub_image(img, light ? 0xff666666 : g_theme->BUTTON_COL, -1.0, rect->x, rect->y, rect->w, rect->h) == UI_STATE_RELEASED) {
+			i32 _w   = g_ui->_w;
+			g_ui->_x += 2;
+			g_ui->_y += 2;
+			g_ui->_w = ui_toolbar_w(false) - 4;
+			if (ui_icon_button("", ICON_MENU, UI_ALIGN_CENTER)) {
 				ui_menu_draw(&ui_toolbar_header_menu_draw, -1, -1);
 			}
-			g_ui->_y -= 4 * UI_SCALE();
+			g_ui->image_scroll_align = false; // Reset by ui_icon_button
+			g_ui->_w                 = _w;
+			g_ui->_x -= 2;
+			g_ui->_y += 2;
 		}
 
 		if (g_config->tools == TOOLS_SCULPT) {

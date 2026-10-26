@@ -789,26 +789,30 @@ void ui_menubar_draw_category_items() {
 		}
 
 		ui_menu_separator();
-		ui_menu_align();
-		ui_menu_label(tr("Tools"), NULL);
-		bool            tools_changed = false;
-		string_array_t *tools_items   = any_array_create_from_raw(
-            (void *[]){
-                tr("Paint"),
-                tr("Sculpt"),
-                tr("Object"),
-            },
-            3);
+		ui_menubar_draw_tools();
+	}
+}
 
-		for (i32 i = 0; i < tools_items->length; ++i) {
-			ui_radio((int *)&g_config->tools, i, tools_items->buffer[i], "");
-			tools_changed |= ui_item_changed();
-		}
+void ui_menubar_draw_tools() {
+	ui_menu_align();
+	ui_menu_label(tr("Tools"), NULL);
+	bool            tools_changed = false;
+	string_array_t *tools_items   = any_array_create_from_raw(
+        (void *[]){
+            tr("Paint"),
+            tr("Sculpt"),
+            tr("Object"),
+        },
+        3);
 
-		if (tools_changed) {
-			config_save();
-			base_update_tools();
-		}
+	for (i32 i = 0; i < tools_items->length; ++i) {
+		ui_radio((int *)&g_config->tools, i, tools_items->buffer[i], "");
+		tools_changed |= ui_item_changed();
+	}
+
+	if (tools_changed) {
+		config_save();
+		base_update_tools();
 	}
 }
 

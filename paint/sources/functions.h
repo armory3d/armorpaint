@@ -5,6 +5,7 @@
 #include "enums.h"
 #include "iron_draw.h"
 #include "iron_obj.h"
+#include "iron_raycast.h"
 #include "iron_ui.h"
 #include "types.h"
 
@@ -468,6 +469,7 @@ void                   ui_menubar_init();
 i32                    ui_menu_top_y();
 void                   ui_menubar_render_ui();
 void                   ui_menubar_update_w();
+void                   ui_menubar_draw_tools();
 bool                   ui_menubar_icon_button(i32 i);
 char                  *_tr(char *s);
 char                  *vtr(char *id, any_map_t *vars);
@@ -868,7 +870,7 @@ void                      util_mesh_merge_geometry();
 void                      util_mesh_merge_geometry_objects(mesh_object_t_array_t *merged);
 void                      util_mesh_split(mesh_object_t *o);
 u32_array_t              *util_mesh_connected_indices(mesh_data_t *g, i32 tri);
-i32                       util_mesh_raycast_triangle(mesh_object_t *o, struct ray *ray);
+i32                       util_mesh_raycast_triangle(mesh_object_t *o, ray_t *ray);
 void                      util_mesh_swap_axis(mesh_object_t_array_t *objects, i32 a, i32 b);
 void                      util_mesh_flip_normals(mesh_object_t_array_t *objects);
 void                      util_mesh_calc_normals(mesh_object_t_array_t *objects, bool smooth);
