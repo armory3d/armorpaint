@@ -191,11 +191,22 @@ void export_k(const char *from, const char *to) {
 		img = read_png_jpg(from);
 	}
 
-	int   pixel_size      = img.is_hdr ? 8 : 4;
+	// Gray or gray+alpha source, store luminance and alpha only
+	int  x, y, n;
+	bool is_gray = !img.is_hdr && stbi_info(from, &x, &y, &n) && n <= 2;
+	if (is_gray) {
+		unsigned char *rgba = (unsigned char *)img.data;
+		for (int i = 0; i < img.width * img.height; ++i) {
+			rgba[i * 2]     = rgba[i * 4];
+			rgba[i * 2 + 1] = rgba[i * 4 + 3];
+		}
+	}
+
+	int   pixel_size      = img.is_hdr ? 8 : is_gray ? 2 : 4;
 	int   max             = LZ4_compress_bound(img.width * img.height * pixel_size);
 	char *compressed      = malloc(max);
 	int   compressed_size = LZ4_compress_default((char *)img.data, compressed, img.width * img.height * pixel_size, max);
-	write_k(img.width, img.height, img.is_hdr ? "LZ4F" : "LZ4 ", compressed, compressed_size, to);
+	write_k(img.width, img.height, img.is_hdr ? "LZ4F" : is_gray ? "LZ4G" : "LZ4 ", compressed, compressed_size, to);
 	free(compressed);
 	free(img.data);
 }
