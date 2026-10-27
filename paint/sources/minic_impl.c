@@ -1119,6 +1119,18 @@ bool script_layer_add_path_point(slot_layer_t *l, f32 x, f32 y) {
 	return l->path_points->length > count;
 }
 
+void script_layer_repaint_path(slot_layer_t *l) {
+	// Repaints with the current path material, after its nodes or the path points changed
+	if (!script_layer_valid(l) || !slot_layer_is_path(l)) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	util_layer_repaint_path(l);
+	script_layer_op_end(current, in_use);
+}
+
 static void script_bake_lightmap_done(void *fn) {
 	if (fn != NULL) {
 		minic_call_fn(fn, NULL, 0);

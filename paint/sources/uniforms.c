@@ -157,6 +157,9 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_timeline_frame")) {
 		return (f32)tab_timeline_selected_frame;
 	}
+	else if (string_equals(link, "_path_length")) {
+		return util_layer_path_length();
+	}
 	if (parser_material_script_links != NULL && link[0] == '_') {
 		char *script = any_map_get(parser_material_script_links, link + 1);
 		if (script != NULL) {
@@ -273,6 +276,12 @@ vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) 
 		bool   down = mouse_down("left") || pen_down("tip");
 		vec4_t v    = (vec4_t){g_context->last_paint_vec_x, g_context->last_paint_vec_y, down ? 1.0 : 0.0, 0.0};
 		return v;
+	}
+	else if (string_equals(link, "_path_a")) {
+		return util_layer_path_segment_a();
+	}
+	else if (string_equals(link, "_path_b")) {
+		return util_layer_path_segment_b();
 	}
 	else if (string_equals(link, "_envmap_data")) {
 		return (vec4_t){g_context->envmap_angle, math_sin(-g_context->envmap_angle), math_cos(-g_context->envmap_angle), scene_world->strength * 2.0};

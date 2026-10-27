@@ -407,8 +407,7 @@ void base_update(void *_) {
 		ui_node_canvas_t *canvas          = g_context->material->canvas;
 		for (i32 i = 0; i < canvas->nodes->length; ++i) {
 			ui_node_t *n = canvas->nodes->buffer[i];
-			if ((string_equals(n->type, "SCRIPT_CPU") && project_scripts_trusted) ||
-			    (string_equals(n->type, "SHADER_GPU") && string_index_of(shader_node_text(n), "constants.") != -1)) {
+			if ((string_equals(n->type, "SCRIPT_CPU") && project_scripts_trusted) || (string_equals(n->type, "SHADER_GPU") && shader_node_is_live(n))) {
 				has_script_node = true;
 				break;
 			}

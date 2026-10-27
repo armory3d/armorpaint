@@ -7,11 +7,24 @@ char *shader_node_text(ui_node_t *node) {
 }
 
 static char *shader_node_constants[][3] = {
-    {"time", "float", "_time"},
-    {"frame", "float", "_timeline_frame"},
+    {"time", "float", "_time"},      {"frame", "float", "_timeline_frame"},    {"path_a", "float4", "_path_a"},
+    {"path_b", "float4", "_path_b"}, {"path_length", "float", "_path_length"},
 };
 
 static i32 shader_node_constants_count = sizeof(shader_node_constants) / sizeof(shader_node_constants[0]);
+
+static char *shader_node_live_constants[] = {"constants.time", "constants.frame"};
+
+// Reads a constant that changes every frame
+bool shader_node_is_live(ui_node_t *node) {
+	char *text = shader_node_text(node);
+	for (i32 i = 0; i < sizeof(shader_node_live_constants) / sizeof(shader_node_live_constants[0]); ++i) {
+		if (string_index_of(text, shader_node_live_constants[i]) != -1) {
+			return true;
+		}
+	}
+	return false;
+}
 
 // Parameter name of an input: socket name in lower case, other characters replaced by _
 // NULL when the name is already taken
@@ -73,6 +86,8 @@ char *shader_node_reference() {
 		string_buffer_append(&sb, string("%s %s constants.%s", i > 0 ? "," : "", shader_node_constants[i][1], shader_node_constants[i][0]));
 	}
 	string_buffer_append(&sb, "\n"
+	                          "//     Path layers paint the material one segment at a time: path_a.xyz and path_b.xyz are the segment ends in world\n"
+	                          "//     space like, .w their arc length along the path, path_length the arc length of the path.\n"
 	                          "//     Inputs: script_material_add_input(sh, \"VALUE\", \"Bark Scale\") adds a VALUE, VECTOR or RGBA input socket.\n"
 	                          "//     The shader text reads it as a variable named after the socket, in lower case with other characters\n"
 	                          "//     replaced by _: float bark_scale. VECTOR and RGBA are float3.\n"
