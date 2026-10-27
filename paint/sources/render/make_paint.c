@@ -5,6 +5,57 @@ bool make_paint_is_raytraced_bake() {
 	return g_context->bake_type == BAKE_TYPE_INIT;
 }
 
+#define MAKE_PAINT_CACHE_SIZE 4
+
+typedef struct make_paint_cached_shader {
+	char *kong;
+	char *vs;
+	char *fs;
+	i32   vs_size;
+	i32   fs_size;
+} make_paint_cached_shader_t;
+
+static make_paint_cached_shader_t make_paint_cache[MAKE_PAINT_CACHE_SIZE];
+static i32                        make_paint_cache_next = 0;
+
+// Size 0 means text output
+static char *make_paint_copy_shader(char *s, i32 size) {
+	i32   n   = size > 0 ? size : (i32)strlen(s) + 1;
+	char *res = malloc(n);
+	memcpy(res, s, n);
+	return res;
+}
+
+// Callers own the returned shaders
+static void make_paint_create_shaders(char *kong, char **vs, char **fs, i32 *vs_size, i32 *fs_size) {
+	for (i32 i = 0; i < MAKE_PAINT_CACHE_SIZE; ++i) {
+		make_paint_cached_shader_t *c = &make_paint_cache[i];
+		if (c->kong != NULL && strcmp(c->kong, kong) == 0) {
+			*vs      = make_paint_copy_shader(c->vs, c->vs_size);
+			*fs      = make_paint_copy_shader(c->fs, c->fs_size);
+			*vs_size = c->vs_size;
+			*fs_size = c->fs_size;
+			return;
+		}
+	}
+
+	gpu_create_shaders_from_kong(kong, vs, fs, vs_size, fs_size);
+	if (*vs == NULL || *fs == NULL || (*vs_size == 0 && (*vs)[0] == '\0')) {
+		return; // Failed to compile
+	}
+
+	make_paint_cached_shader_t *c = &make_paint_cache[make_paint_cache_next];
+	make_paint_cache_next         = (make_paint_cache_next + 1) % MAKE_PAINT_CACHE_SIZE;
+	free(c->kong);
+	free(c->vs);
+	free(c->fs);
+	c->kong    = string_copy(kong);
+	c->vs      = make_paint_copy_shader(*vs, *vs_size);
+	c->fs      = make_paint_copy_shader(*fs, *fs_size);
+	c->vs_size = *vs_size;
+	c->fs_size = *fs_size;
+}
+
 bool make_paint_is_zero_constant(char *s) {
 	char *end;
 	f32   f = strtof(s, &end);
@@ -655,8 +706,8 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	sculpt_make_paint_run(kong);
 
 	con_paint->data->shader_from_source = true;
-	gpu_create_shaders_from_kong(node_shader_get(kong), &con_paint->data->vertex_shader, &con_paint->data->fragment_shader,
-	                             &con_paint->data->_->vertex_shader_size, &con_paint->data->_->fragment_shader_size);
+	make_paint_create_shaders(node_shader_get(kong), &con_paint->data->vertex_shader, &con_paint->data->fragment_shader,
+	                          &con_paint->data->_->vertex_shader_size, &con_paint->data->_->fragment_shader_size);
 
 	return con_paint;
 }
