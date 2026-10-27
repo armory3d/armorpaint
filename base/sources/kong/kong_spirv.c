@@ -1096,6 +1096,14 @@ static spirv_id write_op_composite_construct(instructions_buffer *instructions, 
 	return result;
 }
 
+static spirv_id splat_to_vector(instructions_buffer *instructions, type_id to, type_id from_type, spirv_id from) {
+	if (!is_vector(to) || !is_vector_or_scalar(from_type) || is_vector(from_type)) {
+		return from;
+	}
+	spirv_id constituents[4] = {from, from, from, from};
+	return write_op_composite_construct(instructions, convert_type_to_spirv_id(to), constituents, (uint16_t)vector_size(to));
+}
+
 static spirv_id write_op_composite_extract(instructions_buffer *instructions, spirv_id type, spirv_id composite, uint32_t *indices, uint16_t indices_size) {
 	spirv_id result = allocate_index();
 
@@ -2859,7 +2867,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 				else {
 					spirv_id loaded = write_op_load(instructions, convert_type_to_spirv_id(access_kong_type), pointer);
-					spirv_id from   = get_var(instructions, o->op_store_access_list.from);
+					spirv_id from   = splat_to_vector(instructions, access_kong_type, o->op_store_access_list.from.type.type,
+					                                  get_var(instructions, o->op_store_access_list.from));
 
 					if (o->type == OPCODE_ADD_AND_STORE_ACCESS_LIST) {
 						if (vector_base_type(access_kong_type) == float_id) {
@@ -2965,8 +2974,9 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 		case OPCODE_SUB_AND_STORE_VARIABLE:
 		case OPCODE_MULTIPLY_AND_STORE_VARIABLE:
 		case OPCODE_DIVIDE_AND_STORE_VARIABLE: {
-			spirv_id from = get_var(instructions, o->op_store_var.from);
-			spirv_id to   = get_var(instructions, o->op_store_var.to);
+			spirv_id from =
+			    splat_to_vector(instructions, o->op_store_var.to.type.type, o->op_store_var.from.type.type, get_var(instructions, o->op_store_var.from));
+			spirv_id to = get_var(instructions, o->op_store_var.to);
 			spirv_id result;
 
 			switch (o->type) {

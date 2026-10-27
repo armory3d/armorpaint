@@ -74,7 +74,7 @@ void render_path_preview_commands_preview() {
 	    },
 	    1);
 	render_path_set_target("mgbuffer0", additional, "mmain", GPU_CLEAR_NONE, 0, 0.0);
-	render_path_draw_meshes("mesh");
+	render_path_base_draw_meshes(render_path_base_mesh_scon(0), true);
 
 	// Deferred light
 	render_path_set_target("mtex", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
@@ -111,7 +111,7 @@ void render_path_preview_commands_decal() {
 	    },
 	    1);
 	render_path_set_target("mgbuffer0", additional, "mmain", GPU_CLEAR_NONE, 0, 0.0);
-	render_path_draw_meshes("mesh");
+	render_path_base_draw_meshes(render_path_base_mesh_scon(0), true);
 
 	// Deferred light
 	char *output = "mtex";

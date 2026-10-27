@@ -865,7 +865,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 		}
 	}
 
-	if (g_context->select_active && has_wposition) {
+	if (g_context->select_active && !g_context->select_2d && has_wposition) {
 		node_shader_add_constant(kong, "float4x4 VP", "_view_proj_matrix");
 		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
 		node_shader_write_frag(kong, "float4 select_sp4 = constants.VP * float4(wposition.xyz, 1.0);");
@@ -1286,8 +1286,8 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 
 	// Reconstruct the faceted normal from the deformed world position
 	node_shader_write_attrib_frag(kong, "float3 n = normalize(cross(ddx(input.wposition), ddy(input.wposition)));");
-	bool culled = string_equals(kong->context->data->cull_mode, "clockwise") &&
-	              !(make_material_transluc_used && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE);
+	bool culled =
+	    string_equals(kong->context->data->cull_mode, "clockwise") && !(make_material_transluc_used && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE);
 	if (culled) {
 		node_shader_add_constant(kong, "float3 eye", "_camera_pos");
 		node_shader_write_attrib_frag(kong, "if (dot(n, constants.eye - input.wposition) < 0.0) { n = -n; }");
@@ -1549,8 +1549,7 @@ void render_path_sculpt_displace_pass(char *texpaint_sculpt) {
 	render_path_bind_target("texpaint_blend1", "paintmask");
 	render_path_bind_target("gbuffer0_undo", "gbuffer0_undo");
 
-	shader_data_t    *mat            = g_project->_->paint_objects->buffer[0]->material;
-	shader_context_t *shader_context = shader_data_get_context(mat, "paint");
+	shader_context_t *shader_context = make_material_paint_scon;
 
 	gpu_set_pipeline(shader_context->_->pipe);
 	uniforms_set_context_consts(shader_context, _render_path_bind_params);

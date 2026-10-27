@@ -155,7 +155,7 @@ string_array_t *path_displacement_ext(void) {
 	return _path_displacement_ext;
 }
 
-static bool has_ext(char *path, char *ext) {
+bool path_has_ext(char *path, char *ext) {
 	size_t len_path = strlen(path);
 	size_t len_ext  = strlen(ext);
 	if (len_path < len_ext + 1 || path[len_path - len_ext - 1] != '.') {
@@ -168,6 +168,10 @@ static bool has_ext(char *path, char *ext) {
 		}
 	}
 	return true;
+}
+
+char *path_ext(char *path) {
+	return to_lower_case(path + string_last_index_of(path, ".") + 1);
 }
 
 static char *data_path(void) {
@@ -264,7 +268,7 @@ char *path_base_name(char *path) {
 
 static bool path_has_format(char *path, string_array_t *formats) {
 	for (uint32_t i = 0; i < formats->length; ++i) {
-		if (has_ext(path, formats->buffer[i])) {
+		if (path_has_ext(path, formats->buffer[i])) {
 			return true;
 		}
 	}
@@ -284,19 +288,19 @@ bool path_is_sound(char *path) {
 }
 
 bool path_is_font(char *path) {
-	return has_ext(path, "ttf") || has_ext(path, "ttc") || has_ext(path, "otf");
+	return path_has_ext(path, "ttf") || path_has_ext(path, "ttc") || path_has_ext(path, "otf");
 }
 
 bool path_is_project(char *path) {
-	return has_ext(path, "arm");
+	return path_has_ext(path, "arm");
 }
 
 bool path_is_plugin(char *path) {
-	return has_ext(path, "c");
+	return path_has_ext(path, "c");
 }
 
 bool path_is_json(char *path) {
-	return has_ext(path, "json");
+	return path_has_ext(path, "json");
 }
 
 bool path_is_text(char *path) {
@@ -304,11 +308,11 @@ bool path_is_text(char *path) {
 }
 
 bool path_is_ext_format(char *path) {
-	return has_ext(path, "stl") || has_ext(path, "svg");
+	return path_has_ext(path, "stl") || path_has_ext(path, "svg");
 }
 
 bool path_is_lut(char *path) {
-	return has_ext(path, "cube");
+	return path_has_ext(path, "cube");
 }
 
 bool path_is_known(char *path) {

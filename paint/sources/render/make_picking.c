@@ -27,7 +27,7 @@ void make_picking_run(node_shader_t *kong) {
 	// constants.gbuffer_size.y)].ba;");
 	node_shader_write_frag(
 	    kong, "float4 tex_coord_inp4 = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * constants.gbuffer_size.y))];");
-	node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba;");
+	node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba + tex_coord_inp4.rg;");
 
 	if (g_context->tool == TOOL_TYPE_COLORID) {
 		kong->frag_out = "float4";

@@ -454,6 +454,10 @@ LRESULT WINAPI IronWindowsMessageProcedure(HWND hWnd, UINT msg, WPARAM wParam, L
 		else {
 			iron_internal_mouse_window_deactivated();
 			iron_internal_background_callback();
+			for (int i = 0; i < 256; ++i) {
+				keyPressed[i] = false;
+			}
+			controlDown = false;
 #ifdef HANDLE_ALT_ENTER
 			altDown = false;
 #endif
@@ -999,26 +1003,28 @@ static DWORD getExStyle(int features) {
 
 int iron_window_x() {
 	RECT rect;
-	GetWindowRect(windows[0].handle, &rect);
-	windows[0].x = rect.left;
+	if (GetWindowRect(windows[0].handle, &rect)) {
+		windows[0].x = rect.left;
+	}
 	return windows[0].x;
 }
 
 int iron_window_y() {
 	RECT rect;
-	GetWindowRect(windows[0].handle, &rect);
-	windows[0].y = rect.top;
+	if (GetWindowRect(windows[0].handle, &rect)) {
+		windows[0].y = rect.top;
+	}
 	return windows[0].y;
 }
 
 int iron_window_width() {
-	RECT rect;
+	RECT rect = {0};
 	GetClientRect(windows[0].handle, &rect);
 	return rect.right;
 }
 
 int iron_window_height() {
-	RECT rect;
+	RECT rect = {0};
 	GetClientRect(windows[0].handle, &rect);
 	return rect.bottom;
 }

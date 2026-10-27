@@ -141,6 +141,8 @@ static bool alt      = false;
 static bool cmd      = false;
 static bool capslock = false;
 
+static bool trackpad_hide_shift = false; // Shift selects the middle mouse button for trackpad drag
+
 - (void)flagsChanged:(NSEvent *)theEvent {
 	if (shift) {
 		iron_internal_keyboard_trigger_key_up(KEY_CODE_SHIFT);
@@ -163,7 +165,7 @@ static bool capslock = false;
 		capslock = false;
 	}
 
-	if ([theEvent modifierFlags] & NSShiftKeyMask) {
+	if (([theEvent modifierFlags] & NSShiftKeyMask) && !trackpad_hide_shift) {
 		iron_internal_keyboard_trigger_key_down(KEY_CODE_SHIFT);
 		shift = true;
 	}
@@ -323,9 +325,78 @@ static int get_mouse_y(NSEvent *event) {
 	iron_internal_mouse_trigger_move(get_mouse_x(theEvent), get_mouse_y(theEvent));
 }
 
+static bool   trackpad_drag    = false;
+static int    trackpad_button  = 1;
+static double trackpad_lift    = 0.0; // Fingers lifted, waiting for momentum scrolling
+static float  trackpad_x       = 0.0f; // Movement remainder
+static float  trackpad_y       = 0.0f;
+
+static void trackpad_release(void) {
+	trackpad_drag = false;
+	trackpad_lift = 0.0;
+	int x;
+	int y;
+	iron_mouse_get_position(&x, &y);
+	iron_internal_mouse_trigger_release(trackpad_button, x, y);
+	if (trackpad_hide_shift) {
+		trackpad_hide_shift = false;
+		if ([NSEvent modifierFlags] & NSEventModifierFlagShift) {
+			iron_internal_keyboard_trigger_key_down(KEY_CODE_SHIFT);
+			shift = true;
+		}
+	}
+}
+
 - (void)scrollWheel:(NSEvent *)theEvent {
+	// Two finger trackpad drag - right mouse button, shift - middle mouse button, continues with momentum scrolling
+	NSEventPhase phase    = [theEvent phase];
+	NSEventPhase momentum = [theEvent momentumPhase];
+	if ([theEvent hasPreciseScrollingDeltas] &&
+	    (trackpad_drag || (phase == NSEventPhaseBegan && iron_mouse_trackpad_drag && !iron_mouse_is_locked()))) {
+		if (phase == NSEventPhaseBegan || phase == NSEventPhaseMayBegin) { // Fingers down, stops momentum
+			trackpad_lift = 0.0;
+			if (!trackpad_drag) {
+				trackpad_drag   = true;
+				trackpad_button = ([theEvent modifierFlags] & NSEventModifierFlagShift) ? 2 : 1;
+				trackpad_x      = 0.0f;
+				trackpad_y      = 0.0f;
+				if (trackpad_button == 2 && shift) { // Plain middle mouse button drag
+					trackpad_hide_shift = true;
+					shift               = false;
+					iron_internal_keyboard_trigger_key_up(KEY_CODE_SHIFT);
+				}
+				iron_internal_mouse_trigger_press(trackpad_button, get_mouse_x(theEvent), get_mouse_y(theEvent));
+			}
+		}
+		else if (phase == NSEventPhaseChanged || momentum == NSEventPhaseBegan || momentum == NSEventPhaseChanged) {
+			trackpad_lift = 0.0;
+			float scale   = [[[NSApplication sharedApplication] mainWindow] backingScaleFactor];
+			float dir     = [theEvent isDirectionInvertedFromDevice] ? 1.0f : -1.0f; // Follow the fingers
+			trackpad_x += [theEvent scrollingDeltaX] * scale * dir;
+			trackpad_y += [theEvent scrollingDeltaY] * scale * dir;
+			int movement_x = (int)trackpad_x;
+			int movement_y = (int)trackpad_y;
+			trackpad_x -= movement_x;
+			trackpad_y -= movement_y;
+			// Cursor stays in place
+			iron_internal_mouse_trigger_movement(movement_x, movement_y);
+		}
+		else if (phase == NSEventPhaseEnded) {
+			trackpad_lift = [theEvent timestamp];
+		}
+		else if (phase == NSEventPhaseCancelled || momentum == NSEventPhaseEnded || momentum == NSEventPhaseCancelled) {
+			trackpad_release();
+		}
+		return;
+	}
+
 	float delta = [theEvent deltaY];
 	iron_internal_mouse_trigger_scroll(-delta);
+}
+
+- (void)magnifyWithEvent:(NSEvent *)theEvent {
+	// Pinch to zoom - mouse wheel
+	iron_internal_mouse_trigger_scroll(-[theEvent magnification] * 10.0f);
 }
 
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
@@ -421,6 +492,10 @@ int iron_primary_display(void) {
 }
 
 void iron_display_init(void) {}
+
+float iron_display_backing_scale(void) {
+	return [[NSScreen mainScreen] backingScaleFactor];
+}
 
 iron_display_mode_t iron_display_current_mode(int display) {
 	NSArray            *screens    = [NSScreen screens];
@@ -568,13 +643,23 @@ id get_metal_queue(void) {
 }
 
 bool iron_internal_handle_messages(void) {
-	NSEvent *event = [myapp nextEventMatchingMask:NSAnyEventMask
-	                                    untilDate:[NSDate distantPast]
-	                                       inMode:NSDefaultRunLoopMode
-	                                      dequeue:YES]; // distantPast: non-blocking
-	if (event != nil) {
-		[myapp sendEvent:event];
-		[myapp updateWindows];
+	NSEvent *event;
+	while ((event = [myapp nextEventMatchingMask:NSAnyEventMask
+	                                   untilDate:[NSDate distantPast]
+	                                      inMode:NSDefaultRunLoopMode
+	                                     dequeue:YES]) != nil) { // distantPast: non-blocking
+		// Key up is not delivered to the view while cmd is held, keys would stay down
+		if ([event type] == NSEventTypeKeyUp && ([event modifierFlags] & NSEventModifierFlagCommand)) {
+			[[myapp keyWindow] sendEvent:event];
+		}
+		else {
+			[myapp sendEvent:event];
+		}
+	}
+	[myapp updateWindows];
+	
+	if (trackpad_lift > 0.0 && [[NSProcessInfo processInfo] systemUptime] - trackpad_lift > 0.1) {
+		trackpad_release();
 	}
 
 	// Sleep for a frame to limit the calls when the window is not visible.
@@ -604,6 +689,10 @@ static void create_window(iron_window_options_t *options) {
 	[window setAcceptsMouseMovedEvents:YES];
 	[[window contentView] addSubview:view];
 	[window center];
+	if (options->x >= 0 && options->y >= 0) {
+		float scale = [[NSScreen mainScreen] backingScaleFactor];
+		[window setFrameTopLeftPoint:NSMakePoint(options->x / scale, [[NSScreen mainScreen] frame].size.height - options->y / scale)];
+	}
 
 	windows[0].handle = window;
 	windows[0].view   = view;
@@ -698,7 +787,9 @@ const char *iron_language(void) {
 	return language;
 }
 
-void iron_internal_shutdown(void) {}
+void iron_internal_shutdown(void) {
+	iron_internal_shutdown_callback();
+}
 
 const char *iron_internal_save_path(void) {
 	NSArray  *paths        = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES);
@@ -774,17 +865,34 @@ void iron_internal_call_resize_callback(int width, int height) {
 - (void)windowDidResignMain:(NSNotification *)notification {
 }
 
+- (void)windowDidResignKey:(NSNotification *)notification {
+	iron_internal_background_callback();
+	shift    = false;
+	ctrl     = false;
+	alt      = false;
+	cmd      = false;
+	capslock = false;
+}
+
+- (void)windowDidBecomeKey:(NSNotification *)notification {
+	iron_internal_foreground_callback();
+}
+
 - (void)windowDidBecomeMain:(NSNotification *)notification {
 }
 
 @end
 
 int iron_window_x() {
-	return 0;
+	NSWindow *window = windows[0].handle;
+	return [window frame].origin.x * [window backingScaleFactor];
 }
 
 int iron_window_y() {
-	return 0;
+	NSWindow *window = windows[0].handle;
+	NSRect    frame  = [window frame];
+	float     top    = [[NSScreen mainScreen] frame].size.height - (frame.origin.y + frame.size.height);
+	return top * [window backingScaleFactor];
 }
 
 void iron_window_resize(int width, int height) {}

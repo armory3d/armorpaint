@@ -21,7 +21,7 @@ void tab_fonts_delete_font_on_next_frame(slot_font_t *font) {
 
 void tab_fonts_delete_font(slot_font_t *font) {
 	sys_notify_on_next_frame(&tab_fonts_delete_font_on_next_frame, font);
-	ui_base_hwnds->buffer[2]->redraws = 2;
+	ui_dock_redraw(2);
 }
 
 void tab_fonts_draw_context_menu_draw() {

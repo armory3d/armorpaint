@@ -432,6 +432,15 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 	return l;
 }
 
+static void slot_layer_draw_resized(gpu_texture_t *src, i32 res_x, i32 res_y) {
+	if (layers_crop) {
+		draw_scaled_sub_image(src, layers_crop_x, layers_crop_y, res_x, res_y, 0, 0, res_x, res_y);
+	}
+	else {
+		draw_scaled_image(src, 0, 0, res_x, res_y);
+	}
+}
+
 void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 	i32        res_x = config_get_texture_res_x();
 	i32        res_y = config_get_texture_res_y();
@@ -448,7 +457,7 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 		raw->texpaint            = gpu_create_render_target(res_x, res_y, format);
 		draw_begin(raw->texpaint, false, 0);
 		draw_set_pipeline(pipe);
-		draw_scaled_image(_texpaint, 0, 0, res_x, res_y);
+		slot_layer_draw_resized(_texpaint, res_x, res_y);
 		draw_set_pipeline(NULL);
 		draw_end();
 
@@ -457,7 +466,7 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 			raw->texpaint_nor = gpu_create_render_target(res_x, res_y, format);
 			draw_begin(raw->texpaint_nor, false, 0);
 			draw_set_pipeline(pipe);
-			draw_scaled_image(_texpaint_nor, 0, 0, res_x, res_y);
+			slot_layer_draw_resized(_texpaint_nor, res_x, res_y);
 			draw_set_pipeline(NULL);
 			draw_end();
 		}
@@ -467,7 +476,7 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 			raw->texpaint_pack = gpu_create_render_target(res_x, res_y, format);
 			draw_begin(raw->texpaint_pack, false, 0);
 			draw_set_pipeline(pipe);
-			draw_scaled_image(_texpaint_pack, 0, 0, res_x, res_y);
+			slot_layer_draw_resized(_texpaint_pack, res_x, res_y);
 			draw_set_pipeline(NULL);
 			draw_end();
 		}
@@ -499,7 +508,7 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 
 		draw_begin(raw->texpaint, false, 0);
 		draw_set_pipeline(pipes_copy8);
-		draw_scaled_image(_texpaint, 0, 0, res_x, res_y);
+		slot_layer_draw_resized(_texpaint, res_x, res_y);
 		draw_set_pipeline(NULL);
 		draw_end();
 
@@ -525,8 +534,8 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 
 void slot_layer_to_fill_layer_on_next_frame(void *_) {
 	make_material_parse_paint_material(true);
-	g_context->layer_preview_dirty                    = true;
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	g_context->layer_preview_dirty = true;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 void slot_layer_to_fill_layer(slot_layer_t *raw) {
@@ -546,8 +555,8 @@ void slot_layer_to_paint_layer(slot_layer_t *raw) {
 		util_layer_update_path();
 	}
 	make_material_parse_paint_material(true);
-	g_context->layer_preview_dirty                    = true;
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	g_context->layer_preview_dirty = true;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 bool slot_layer_is_visible(slot_layer_t *raw) {
@@ -687,6 +696,19 @@ slot_layer_t_array_t *slot_layer_get_filters(slot_layer_t *raw, bool include_gro
 		}
 	}
 	return children;
+}
+
+bool slot_layer_has_visible_filter(slot_layer_t *raw) {
+	slot_layer_t_array_t *filters = slot_layer_get_filters(raw, false);
+	if (filters == NULL) {
+		return false;
+	}
+	for (i32 i = 0; i < filters->length; ++i) {
+		if (slot_layer_is_visible(filters->buffer[i])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 f32 slot_layer_get_opacity(slot_layer_t *raw) {
@@ -873,7 +895,7 @@ void slot_layer_move(slot_layer_t *raw, i32 to) {
 
 	context_set_layer(raw);
 	history_order_layers(to);
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 
 	array_remove(g_project->_->layers, raw);
 	array_insert(g_project->_->layers, to, raw);
@@ -963,8 +985,5 @@ void slot_layer_move(slot_layer_t *raw, i32 to) {
 		}
 	}
 
-	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-		slot_material_t *m = g_project->_->materials->buffer[i];
-		tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
-	}
+	tab_layers_remap_all_layer_pointers(pointers);
 }

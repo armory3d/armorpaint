@@ -312,7 +312,9 @@ char *path_normalize(char *p) {
 }
 
 char *path_extname(char *p) {
-	return js_substring(p, str_last_index_of(p, "."), (int)strlen(p));
+	char *base = path_basename(p);
+	int   dot  = str_last_index_of(base, ".");
+	return dot < 0 ? "" : js_substring(base, dot, (int)strlen(base));
 }
 
 char *path_basename(char *p) {
@@ -320,7 +322,9 @@ char *path_basename(char *p) {
 }
 
 char *path_basename_noext(char *p) {
-	return js_substring(p, str_last_index_of(p, path_sep) + 1, str_last_index_of(p, "."));
+	char *base = path_basename(p);
+	int   dot  = str_last_index_of(base, ".");
+	return dot < 0 ? base : js_substring(base, 0, dot);
 }
 
 char *path_dirname(char *p) {

@@ -1,0 +1,862 @@
+(tömörített)
+(csomagolva)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+2D Nézet
+3D
+3D Nézet
+A
+Névjegy
+Névjegy...
+Abszolút
+Hozzáadás
+Animáció hozzáadása
+Színminta hozzáadása
+Új színminta hozzáadása
+Kiválasztott szín hozzáadása a mintákhoz
+Összes
+Minden feldolgozás helyben történik
+Fejjel lefelé álló kamera engedélyezése
+Alfa
+Alfa eldobása
+Mennyiség
+Szög
+Szög elvetése
+Animáció
+Anizotrópia
+Hozzáfűzés
+Alkalmazás
+Eltolás alkalmazása
+Szűrő alkalmazása
+Maszk alkalmazása
+Csomópontok alkalmazása
+Szobrászat alkalmazása
+Skinning alkalmazása
+Arkusz koszinusz
+Arkusz szinusz
+Arkusz tangens 2
+Arkusz tangens
+Tömb
+Asset
+Atlasz
+Atlaszok
+Attribútum
+Auto
+Átlag
+Tengely
+B
+Hátul
+Sütés (Bake)
+Anyag sütése...
+Textúra sütése
+Sütés textúrákra
+Sávok
+Alap
+Alapszín
+Hajlított normál
+Élletörés
+Eltérés (Bias)
+Bitek
+Fekete maszk
+Blender futtatható fájl
+A Blender elérési útja nincs beállítva
+Keverés
+Ragyogás (Bloom)
+Elmosás (Blur)
+Környezeti térkép elmosása
+Elmosás típusa
+Könyvjelző
+Logikai
+Alul
+Pattanás
+Doboz
+Tégla textúra
+Tégla szélessége
+Fényerő
+Fényerő/Kontraszt
+Böngésző
+Ecset
+Ecset dőlésszöge
+Ecset keménysége
+Ecset átlátszatlansága
+Ecset kimenet
+Ecset sugara
+Ecset...
+Ecsetek
+Bucka (Bump)
+Sötétítés (Burn)
+Normálok számítása
+Kamera
+Kamera pásztázási sebesség
+Kamera forgási sebesség
+Kamera textúra
+Kamera nagyítási sebesség
+Mégse
+Háttér rögzítése
+Kimenet rögzítése
+Képernyőkép rögzítése
+Videó rögzítése
+Plafon (Ceil)
+Cella mérete pixelben
+Középpont
+Csatornák
+Frissítések keresése...
+Sakktábla textúra
+Szorítás (Clamp)
+Faktor szorítása
+Eredmény szorítása
+Agyag
+Törlés
+Réteg törlése
+Színminták törlése
+Vágás vége
+Vágás kezdete
+Vágás (Clipping)
+Klónozás
+Bezárás
+Szövet
+Felhő
+Felhőprojektek...
+Felhő szerver
+Felhőprojektek
+Szín
+Szín 1
+Szín 2
+Szín ID
+Szín ID térkép
+Szín maszk
+Színátmenet (Ramp)
+Színtér
+SzínID
+Kombinálás
+Szín egyesítése
+XYZ egyesítése
+Iránytű
+Megerősítés
+Konzol
+Konzol modell
+Állandó
+Folytassa a böngészőben.
+Kontraszt
+Közreműködők
+Átalakítás erről
+Átalakítás erre
+Másolás
+Hex kód másolása
+Koszinusz
+Nem sikerült letölteni:
+Darabszám
+Gyűrés
+Színréteg létrehozása
+Anyag létrehozása
+Vektoriális szorzat
+Hátoldalak elrejtése
+Kurzor
+Görbület
+Görbület textúra
+Görbe
+Görbített
+Egyéni
+Kivágás
+Sötétítés
+Hibakeresés
+Matrica
+Egyszerűsítés
+Alapértelmezett kamera vezérlők
+Alapértelmezett kamera látószög
+Alapértelmezett kamera középpont
+Alapértelmezett rétegfelbontás
+Alapértelmezett mód
+Törlés
+Ecset törlése
+Réteg törlése
+Anyag törlése
+Csomópont csoport törlése
+Színminta törlése
+Nem használtak törlése
+Delta
+Mélység
+Mélység elvetése
+Derivált
+Asztal
+Cél
+Részletesség
+Részletesség érdessége
+Részletesség méretezése
+Átlós
+Különbség
+Tágítás sugara
+Festett textúrák tágítása az illesztési hibák elkerülésére
+Méretek
+DirectX Normal Map
+Irány
+Nagyítás iránya
+Irányított
+Lemez
+Elmozdulás (Displacement)
+Megjelenítés
+Távolság
+Torzítás
+Zavarmentes mód
+Osztás
+Világosítás (Dodge)
+Pont
+Skaláris szorzat
+Le
+Letöltés
+Letöltött fájl innen:
+Letöltés folyamatban
+Húzza ide a fájlokat
+Húzza a kiválasztott színt a mintákhoz, anyagokhoz, rétegekhez vagy a csomópont szerkesztőbe
+Rajzolás
+Élő ecset előnézet a nézetablakban
+Duplikálás
+Ecset duplikálása
+Réteg duplikálása
+Anyag duplikálása
+Színminta duplikálása
+Szerkesztés
+Kép szerkesztése
+Csomópontok szerkesztése
+Szkript szerkesztése
+Szakasz szerkesztése
+Színminta szerkesztése
+Időszalag szerkesztése
+UV térkép szerkesztése
+Szerkesztés a Szkript lapon
+Szerkesztés a Szövegszerkesztőben
+Kibocsátás (Emission)
+Üres
+Vég képkocka
+Környezet
+Környezet szöge
+Környezeti térkép
+Környezeti térkép gömbök
+Környezeti térkép...
+Radír
+Hiba: .arm fájl szükséges
+Hiba: .hdr fájl szükséges
+Hiba: Ellenőrizze az internetkapcsolatot a felhő eléréséhez
+Hiba: A textúra nem található
+Hiba: Nem sikerült beolvasni a betűtípus adatokat
+Hiba: Nem sikerült beolvasni a háló adatokat
+Hiba: Ismeretlen asset formátum
+Kizárás
+Kilépés
+Kísérleti funkciók
+Kitevő
+Exportálás
+Ecset exportálása
+Ikon exportálása
+Anyag exportálása
+Háló exportálása
+Player exportálása
+Textúrák exportálása
+Színminták exportálása
+Textúra fájlok exportálása
+Háló exportálása...
+Textúrák exportálása...
+F1
+F2
+Fak
+Lap
+Faktor
+Az anyag importálása nem sikerült
+Nem sikerült beolvasni a hangot:
+Gyors
+Jellemző kimenet
+Fájl
+Kitöltés
+Kitöltő réteg
+Kitöltő maszk
+Kitöltési mód
+Szűrő
+Textúrák szűrése
+Lapos
+Lapítás
+Float görbe
+Padló
+Lefelé kerekített modulo
+Repülés (Fly)
+Repülés mód:\nTartsa lenyomva a jobb egérgombot és az alábbi parancsok egyikét:\nmozgassa az egeret a forgatáshoz.\nw, fel vagy felfelé görgetés az előre mozgáshoz.\ns, le vagy lefelé görgetés a hátra mozgáshoz.\na vagy balra a balra mozgáshoz.\nd vagy jobbra a jobbra mozgáshoz.\ne a felfelé mozgáshoz.\nq a lefelé mozgáshoz.\nTartsa a shiftet a gyorsabb, vagy az altot a lassabb mozgáshoz.
+Látószög (FoV)
+A mappa nem tartalmaz textúrákat
+Betűtípus
+Betűtípus...
+Betűtípusok
+Formátum
+Tört
+Képkocka
+Képkockák száma
+Képkockasebesség
+Képkockasebesség
+Képkockák
+Frekvencia
+Súrlódás
+Maximumból
+Minimumból
+Elöl
+Teljes
+Bolyhosság
+G
+Gabor textúra
+Gamma
+Generált
+Geometria
+Geometria az origóba
+Kezdés
+Megfogás
+Színátmenet textúra
+Gravitáció X
+Gravitáció Y
+Gravitáció Z
+Nagyobb mint
+Rácscella
+Rácshoz igazítás
+Csoport
+Csoport bemenet
+Csoport kimenet
+Keménység
+Magasság
+Magasság keverése
+Súgó
+3D Nézet elrejtése
+High Poly
+Előzmények
+Tartsa lenyomva a(z) {action_paint} gombot a törléshez\nTartsa lenyomva a(z) {brush_ruler} és {action_paint} gombokat egyenes vonal törléséhez (vonalzó mód)
+Tartsa lenyomva a(z) {action_paint} gombot a festéshez\nTartsa lenyomva a(z) {brush_ruler} és {action_paint} gombokat egyenes vonal festéséhez (vonalzó mód)
+Tartsa lenyomva a {brush_opacity} gombot és mozgassa az egeret balra az átlátszatlanság csökkentéséhez\nTartsa lenyomva a {brush_opacity} gombot és mozgassa az egeret jobbra az átlátszatlanság növeléséhez
+Tartsa lenyomva a {brush_radius} gombot és mozgassa az egeret balra, vagy nyomja meg a {brush_radius_decrease} gombot a sugár csökkentéséhez\nTartsa lenyomva a {brush_radius} gombot és mozgassa az egeret jobbra, vagy nyomja meg a {brush_radius_increase} gombot a sugár növeléséhez
+Tartsa lenyomva a(z) {decal_mask} gombot a matrica maszkon való festéshez
+Tartsa lenyomva a(z) {decal_mask} gombot a szöveg maszkként történő használatához
+Tartsa lenyomva a(z) {set_clone_source} gombot a forrás beállításához
+Vízszintes
+Vízszintes (Invertált)
+Hogyan használd
+Árnyalat
+Árnyalat/Telítettség/Érték (HSV)
+Hiperbolikus koszinusz
+Hiperbolikus szinusz
+Hiperbolikus tangens
+Kép textúra
+Képből PBR
+Importálás
+Háló importálása
+Színminták importálása
+Betűtípus fájl importálása
+Háló fájl importálása
+Színminták importálása
+Textúra fájl importálása
+Importálás...
+Háló importálása...
+Bemenet
+Bejövő
+Felfújás
+Infó: Az asset már importálva van
+Bemenet
+Vizsgálat szkriptként
+Anyag előnézetének azonnali frissítése csomópont módosításakor
+Intenzitás
+Felület
+Interpolálás
+Érvénytelen exportálási könyvtár
+Érvénytelen szkript útvonal
+Érvénytelen textúra típus
+Inverz négyzetgyök
+Invertálás
+Szín invertálása
+Maszk invertálása
+Kijelölés megfordítása
+Hibakövető
+Iterációk
+Egyesítés
+Kulcskocka
+Billentyűkiosztás
+Billentyűkiosztás importálva:
+Lakunaritás
+Nyelv
+Réteg
+Réteg szöge
+Réteg keverés
+Réteg maszk
+Réteg objektuma
+Réteg átlátszatlansága
+Réteg UV méretezése
+Réteg UV típusa
+Réteg láthatósága
+Rétegek
+Lusta sugár
+Lusta lépés
+Balra
+Hossz
+Kisebb mint
+Szintek
+Élettartam
+Világosítás
+Lightmap
+Lineáris
+Lineáris fény
+Megvilágított
+Élő ecset előnézet
+Élő anyag előnézet
+Helyzet
+Logaritmus
+Mágikus textúra
+Egyedivé tétel
+Kézikönyv
+Tartomány leképzése
+Leképzés
+Maszk
+Maszk színe
+Massza
+Anyag
+Anyag ID
+Anyag Index
+Anyag kimenet
+Anyag...
+Anyagok
+Matematika
+Max
+Maximum
+Egyesítés lefelé
+Geometria összevonása
+Csoport egyesítése
+Rétegek egyesítése
+Háló
+Háló bemenet
+Háló kimenet
+Háló...
+Hálók
+Fémes (Metallic)
+Min
+Min Max
+Minimum
+Tükrözés
+Keverés
+Szín keverése
+Normal Map keverése
+Mobil
+Mód
+Modell
+Modellek
+Modellek könyvtára...
+Módosító
+Módosítás
+Animáció módosítása
+Modulo
+Habarcs
+Habarcs mérete
+Habarcs simítása
+Szorzás
+Név
+Neurális
+Új
+Új fekete maszk
+Új ecset
+Új szín
+Új kitöltő maszk
+Új csoport
+Új billentyűkiosztás
+Új réteg
+Új anyag
+Új bővítmény
+Új előbeállítás
+Új projekt
+Új projekt...
+Új színminta
+Új téma
+Új fehér maszk
+Következő
+Nem
+Nincs válasz
+Csomópont
+Csomópont előnézetek
+Csomópontok
+Zaj szemcse
+Zaj textúra
+Nincs
+Normál
+Normál keverés
+Normal Map
+Normal Map 1
+Normal Map 2
+Normalizálás
+Nem elérhető hibakereső változatban
+Nincs megvalósítva
+OK
+Objektum
+Objektum ID
+Objektum Index
+Objektum Infó
+Objektum Normál
+Okklúzió (AO)
+Eltolás
+Régi szín
+Átlátszatlanság
+Átlátszatlanság mód
+Böngésző megnyitása
+Tartalmazó könyvtár megnyitása...
+Megnyitás külsőleg
+Legutóbbi megnyitása...
+Megnyitás böngészőben
+Megnyitás...
+Projekt megnyitása
+Művelet
+Szemközti
+Keringés
+Keringés és forgatás mód:\n{rotate_shortcut} vagy a jobb egérgomb mozgatása a forgatáshoz.\n{zoom_shortcut} vagy görgetés a nagyításhoz.\n{pan_shortcut} vagy a középső egérgomb mozgatása a pásztázáshoz.
+Rétegek sorrendje
+2D irány
+3D irány
+Origó a geometriához
+Ortografikus
+Kimenet
+Átfedés (Overlay)
+PBR
+Assetek becsomagolása
+Csomagolás a projektbe
+Kitöltés (Padding)
+Festés
+Festő réteg
+Festő maszk
+Parametrikus
+Szülő
+Parciális derivált
+Részecske
+Beillesztés
+Útvonal
+Path Traced
+Path Tracer
+Szünet
+Toll
+Ceruza
+Objektumonként
+UDIM csempénként
+Perspektivikus
+Fázis
+Fáziseltolás
+Fizika
+Kiválasztott szín
+Pipetta
+Rögzítés a fejléchez
+Csípés
+Ping-Pong
+Középpont (Pivot)
+Pixel méret
+Plató
+Lejátszás
+Player
+Player...
+Bővítmény importálva:
+Bővítmények
+Pont
+Hegyesség (Pointiness)
+Pozíció
+Utófeldolgozás
+Hatvány
+Beállítások
+Beállítások...
+Előbeállítás
+Előbeállítás importálva:
+Előbeállítások
+Nyomás érzékenység
+Előző
+Előző mappa
+Feldolgozás...
+Vetítés (Project)
+Projekt elmentve
+Projektek
+Prompt
+Minőség
+Kvantálás
+R
+RGB görbék
+RGB -> Fekete-fehér
+RGBA
+Sugárirányú
+Sugár
+Véletlenszerű
+Véletlenszerűség
+Tartomány
+Arány
+Legutóbbi
+Mégsem von vissza: {step}
+Visszatükröződés
+Frissítés
+Újraimportálás
+Háló újraimportálása
+Textúrák újraimportálása
+Relatív eltolás
+Eltávolítás
+Réteg átnevezése
+Renderelő
+Áttájolt
+Ismétlés
+Csere
+Szín cseréje
+Meglévő felülírása
+Színminták helyettesítése
+Hiba jelentése
+Funkció kérése
+Visszaállítás
+Környezeti térkép visszaállítása
+Elrendezés visszaállítása
+Felbontás
+Visszaállítás
+Színminták visszaállítása
+Alapértelmezett színminták visszaállítása
+Jobbra
+Gyűrűk
+Forgatás
+Forgás
+Érdesség (Roughness)
+Kerekítés
+Sor magassága
+Futtatás
+Futtatás a Playerben
+Fut...
+SSAO
+Minták
+Telítettség
+Mentés
+Mentés másként...
+Kép mentése
+Először mentse a projektet
+Először mentse a projektet a felhőbe
+Mentés a felhőbe
+Mentés a felhőbe...
+Mentés lemezre...
+Projekt mentése...
+Fogazott
+Méretezés
+X méretezés
+Képernyő (Screen)
+Szkript
+Szkript csomópontok
+Szkript megnyitva
+Szkriptek
+Szobrászat
+Szobrász réteg
+Keresés
+Csomópontok keresése
+Szegmensek
+Kijelölés
+Összes kijelölése
+Rejtettek kijelölése
+Anyag kiválasztása
+Láthatók kijelölése
+Kiválasztva
+Érzékenység
+Szín szétválasztása
+Vektor szétválasztása
+XYZ szétválasztása
+Forrás beállítása
+Beállítás Szín ID térképként
+Beállítás környezeti térképként
+Beállítás maszkként
+Forrás beállítása...
+Beállítás
+Shader
+Alakzat
+Player hivatkozás megosztása
+Megosztott
+2D Nézet megjelenítése
+Asset nevek mutatása
+Rács megjelenítése
+Csomópont szerkesztő megjelenítése
+Csomópont előnézetének mutatása alapértelmezésként minden csomóponton
+Előjel
+Bejelentkezés...
+Kijelentkezés
+A bejelentkezés lejárt, próbálja újra
+Jelentkezzen be a projektek felhőben való tárolásához.
+Jelentkezzen be armorpaint.org fiókkal.
+Bejelentkezve
+Bejelentkezve mint
+Bejelentkezés folyamatban...
+Szinusz
+Méret
+Hely
+Simítás
+Elkenés
+Illesztés
+Kódrészletek
+Aljzat
+Lágy fény
+Rendezés
+Hang
+Hang importálva:
+Hangok
+Gömb
+Gömb alakú
+Indítóképernyő
+Szétválasztás
+Felosztás e szerint
+Osztott nézet
+Háló felosztása objektumokra
+Négyzetgyök
+Lapítás
+Szakasz
+Kezdő képkocka
+Stencil
+Lépéskorlát elérve
+Leállítás
+Rögzítés leállítása
+Megosztás leállítása
+Egyenes
+Erősség
+Nyújtás
+Felosztás
+Felszín alatti (Subsurface)
+Kivonás
+Szuperminta (Super Sample)
+Színminták
+Színminták...
+Szimmetria
+Tangens
+Cél
+Sablon
+Sablonok
+Terep
+Textúra koordináta
+Texelek
+Szöveg
+Szöveg textúra
+Szövegből Kép
+Textúra
+Textúra koordináta
+Textúra importálva:
+Textúra...
+Textúrák
+Textúrák exportálva
+Textúrák...
+Téma
+Téma importálva:
+Vastagság
+Mozaik
+Mozaik X
+Mozaik Y
+Csempézett
+Mozaikok X
+Mozaikok Y
+Mozaiklap
+Mozaiklap animáció
+Idő
+Időszalag
+Fokra
+Kitöltő réteggé
+Kitöltő maszkká
+Rétegre
+Maszkká
+Maximumra
+Minimumra
+Festő réteggé
+Festő maszkká
+Radiánra
+Teljes képernyő ki/be
+Fejléc ki/be
+Eszközök
+Fent
+Érintőképernyős UI
+Transzformáció
+Objektum transzformálása
+Áttetszőség
+Háromszög
+Vágás
+Triplanar
+Csonkolás
+Csonkolt modulo
+Megbízik a projekt szkriptjeiben?
+Átmenet
+Csavarás
+Típus
+UDIM Csempe
+UI méretezés
+UV
+UV sziget
+UV térkép
+UV méretezés
+UV kibontás
+UV térkép
+Nem sikerült ellenőrizni a frissítéseket.\nKérjük látogasson el a {url} oldalra.
+Visszavonási lépések
+Visszavonás: {step}
+Kibontás
+Háló kibontása
+Háló kibontása...
+Fel
+Felfelé tengely
+Frissítés
+Frissítés érhető el!\nKérjük látogasson el a {url} oldalra.
+Kép felnagyítása
+Használat
+Segédprogramok
+Érték
+Érték
+Szórás
+Vektor
+Vektor görbék
+Vektor matematika
+Vektor forgatása
+Vektor transzformálása
+Csúcspont szín (Vertex Color)
+Függőleges
+Függőleges (Invertált)
+Függőleges és Vízszintes
+Függőleges és Vízszintes (Invertált)
+Nézet
+Nézetablak
+Nézetablak maszk
+Nézetablak mód
+Vignetta
+Látható
+Voronoi textúra
+Görbítés (Warp)
+Hullám profil
+Hullám textúra
+Hullám típusa
+Újdonságok
+Fehér maszk
+Kifehérítés
+Szélesség
+Ablak
+Drótváz
+Munkaterület
+Világ
+Egér átfordítása
+Kamera mozgatása közben az egér átfordul a képernyő szélein
+X
+Röntgen
+XYZ
+Y
+Igen
+Minden naprakész!
+Z
+Nagyítás
+Kicsinyítés
+Nagyítás igazítása
+Keverés típusa
+Színtér
+Keresés: Ctrl+F
+Mégse: Esc
+fBM
+Fájl
+GPU memória
+Színátmenet típusa
+Csomópontok
+Művelet
+csomagolt
+player
+Bővítmény engedélyezve
+Kérés (Prompt)
+sRGB
+Forrás
+Háromszögek
+típus
+Névtelen
+x
+{shortcut} és egér mozgatása

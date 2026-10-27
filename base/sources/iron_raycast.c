@@ -43,7 +43,7 @@ ray_t *raycast_get_ray(f32 input_x, f32 input_y, camera_object_t *camera) {
 vec4_t raycast_box_intersect(transform_t *transform, f32 input_x, f32 input_y, camera_object_t *camera) {
 	ray_t *ray = raycast_get_ray(input_x, input_y, camera);
 	vec4_t c   = (vec4_t){transform_world_x(transform), transform_world_y(transform), transform_world_z(transform), 0.0};
-	vec4_t s   = (vec4_t){transform->dim.x, transform->dim.y, transform->dim.z, 0.0};
+	vec4_t s   = transform_dim(transform);
 	return ray_intersect_box(ray, c, s);
 }
 

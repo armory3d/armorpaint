@@ -20,11 +20,11 @@
 
 typedef struct object object_t;
 
-typedef struct obj_t_array {
-	struct obj **buffer;
-	int          length;
-	int          capacity;
-} obj_t_array_t;
+typedef struct object_desc_t_array {
+	struct object_desc **buffer;
+	int                  length;
+	int                  capacity;
+} object_desc_t_array_t;
 
 typedef struct vertex_array_t_array {
 	struct vertex_array **buffer;
@@ -62,23 +62,18 @@ typedef struct bind_tex_t_array {
 	int               capacity;
 } bind_tex_t_array_t;
 
-typedef struct obj_runtime {
-	void *_gc; // Link to armpack_decode result
-} obj_runtime_t;
-
-typedef struct obj {
-	char          *name;
-	char          *type; // object, mesh_object, camera_object
-	char          *data_ref;
-	f32_array_t   *transform;
-	f32_array_t   *dimensions;
-	bool           visible;
-	bool           spawn; // Auto add object when creating scene
-	void          *anim;  // TODO: deprecated
-	char          *material_ref;
-	obj_t_array_t *children;
-	obj_runtime_t *_;
-} obj_t;
+typedef struct object_desc {
+	char                  *name;
+	char                  *type; // object, mesh_object, camera_object
+	char                  *data_ref;
+	f32_array_t           *transform;
+	f32_array_t           *dimensions;
+	bool                   visible;
+	bool                   spawn; // Auto add object when creating scene
+	void                  *anim;  // TODO: deprecated
+	char                  *material_ref;
+	object_desc_t_array_t *children;
+} object_desc_t;
 
 typedef struct vertex_array {
 	char        *attrib;
@@ -91,8 +86,10 @@ typedef struct mesh_data_runtime {
 	gpu_buffer_t          *vertex_buffer;
 	gpu_buffer_t          *index_buffer;
 	gpu_vertex_structure_t structure;
-	buffer_t              *skin_blob;  // Skinned animation
-	i32                    skin_frame; // Frame the vertices are posed at, -1 = unknown
+	buffer_t              *skin_blob;          // Skinned animation
+	i32                    skin_frame;         // Frame the vertices are posed at, -1 = unknown
+	i32                    skin_pending_frame; // Frame to pose at once back in view
+	bool                   skin_pending;
 	bool                   owns_arrays;
 } mesh_data_runtime_t;
 
@@ -161,7 +158,7 @@ typedef struct irradiance {
 
 typedef struct scene {
 	char        *name;
-	any_array_t *objects;      // obj_t[]
+	any_array_t *objects;      // object_desc_t[]
 	any_array_t *mesh_datas;   // mesh_data_t[]
 	any_array_t *camera_datas; // camera_data_t[]
 	char        *camera_ref;
@@ -258,8 +255,7 @@ typedef struct mesh_object {
 	shader_data_t *material;
 	f32            camera_dist;
 	bool           frustum_culling;
-	char          *skip_context;  // Do not draw this context
-	char          *force_context; // Draw only this context
+	bool           culled; // Outside the camera frustum when last drawn
 } mesh_object_t;
 
 typedef struct transform {
@@ -272,7 +268,10 @@ typedef struct transform {
 	mat4_t    world_unpack;
 	bool      dirty;
 	object_t *object;
-	vec4_t    dim;
+	vec4_t    dim;      // Bounds size in model space
+	vec4_t    extent;   // Max distance from the origin per axis, valid when measured
+	bool      has_dim;  // Mesh objects without dim are measured on the next matrix build
+	bool      measured; // dim and extent come from the mesh data
 	float     radius;
 } transform_t;
 
@@ -286,15 +285,12 @@ typedef struct {
 typedef struct object {
 	i32               uid;
 	float             urandom;
-	obj_t            *raw;
 	char             *name;
 	transform_t      *transform;
 	object_t         *parent;
 	any_array_t      *children;
 	bool              visible;
-	bool              culled;
 	bool              is_empty;
-	bool              owns_raw;
 	void             *ext;
 	char             *ext_type;
 	object_runtime_t *_;
@@ -333,6 +329,7 @@ void         transform_rotate(transform_t *raw, vec4_t axis, float f);
 void         transform_move(transform_t *raw, vec4_t axis, float f);
 void         transform_compute_radius(transform_t *raw);
 void         transform_compute_dim(transform_t *raw);
+vec4_t       transform_dim(transform_t *raw);
 vec4_t       transform_look(transform_t *raw);
 vec4_t       transform_right(transform_t *raw);
 vec4_t       transform_up(transform_t *raw);
@@ -462,10 +459,9 @@ extern gpu_pipeline_t *_mesh_object_last_pipeline;
 mesh_object_t         *mesh_object_create(mesh_data_t *data, shader_data_t *material);
 void                   mesh_object_set_data(mesh_object_t *raw, mesh_data_t *data);
 void                   mesh_object_remove(mesh_object_t *raw);
-bool                   mesh_object_cull_material(mesh_object_t *raw, char *context);
-bool                   mesh_object_cull_mesh(mesh_object_t *raw, char *context, camera_object_t *camera);
-void                   mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_params);
-bool                   mesh_object_valid_context(mesh_object_t *raw, shader_data_t *mat, char *context);
+bool                   mesh_object_cull(mesh_object_t *raw, camera_object_t *camera);
+void                   mesh_object_render(mesh_object_t *raw, shader_context_t *scontext, string_array_t *bind_params);
+void                   mesh_object_draw(mesh_object_t *raw, shader_context_t *scontext, string_array_t *bind_params);
 
 extern mat4_t _uniforms_mat;
 extern mat4_t _uniforms_mat2;
@@ -570,15 +566,15 @@ camera_object_t *scene_add_camera_object(camera_data_t *data, object_t *parent);
 void             scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *objects);
 void             scene_add_scene(char *scene_name);
 i32              scene_get_objects_count(any_array_t *objects);
-object_t        *_scene_spawn_object_tree(obj_t *obj, object_t *parent, bool spawn_children);
+object_t        *_scene_spawn_object_tree(object_desc_t *obj, object_t *parent, bool spawn_children);
 object_t        *scene_spawn_object(char *name, object_t *parent, bool spawn_children);
-obj_t           *scene_get_raw_object_by_name(scene_t *format, char *name);
-obj_t           *scene_traverse_objs(any_array_t *children, char *name);
-object_t        *scene_create_object(obj_t *o, scene_t *format, object_t *parent);
-object_t        *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, shader_data_t *material);
-object_t        *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, obj_t *o);
-object_t        *scene_return_object(object_t *object, obj_t *o);
-void             scene_gen_transform(obj_t *object, transform_t *transform);
+object_desc_t   *scene_get_raw_object_by_name(scene_t *format, char *name);
+object_desc_t   *scene_traverse_objs(any_array_t *children, char *name);
+object_t        *scene_create_object(object_desc_t *o, scene_t *format, object_t *parent);
+object_t        *scene_create_mesh_object(object_desc_t *o, scene_t *format, object_t *parent, shader_data_t *material);
+object_t        *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, object_desc_t *o);
+object_t        *scene_return_object(object_t *object, object_desc_t *o);
+void             scene_gen_transform(object_desc_t *object, transform_t *transform);
 
 // ██████╗ ███████╗███╗   ██╗██████╗ ███████╗██████╗     ██████╗  █████╗ ████████╗██╗  ██╗
 // ██╔══██╗██╔════╝████╗  ██║██╔══██╗██╔════╝██╔══██╗    ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║
@@ -606,7 +602,6 @@ bool                 render_path_ready(void);
 void                 render_path_render_frame(void);
 void                 render_path_set_target(char *target, string_array_t *additional, char *depth_buffer, gpu_clear_t flags, i32 color, f32 depth);
 void                 render_path_end(void);
-void                 render_path_draw_meshes(char *context);
 void                 render_path_draw_skydome(char *handle);
 void                 render_path_bind_target(char *target, char *uniform);
 void                 render_path_draw_shader(char *handle);

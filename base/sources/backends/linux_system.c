@@ -501,6 +501,8 @@ static int xk_to_iron(KeySym symbol) {
 		return KEY_CODE_BACKSPACE;
 	if (symbol == XK_Tab)
 		return KEY_CODE_TAB;
+	if (symbol == XK_ISO_Left_Tab)
+		return KEY_CODE_TAB; // Shift+Tab
 	if (symbol == XK_Return)
 		return KEY_CODE_RETURN;
 	if (symbol == XK_Shift_L)

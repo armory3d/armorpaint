@@ -8,8 +8,8 @@ bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) 
 	if (i < 0 || i >= g_project->_->assets->length) { // 9999 - Texture deleted, use pink now
 		return NULL;
 	}
-	char *filepath = parser_material_enum_data(base_combo_enum_texts(image_node->type)->buffer[i]);
-	if (string_equals(filepath, "") || string_index_of(filepath, ".") == -1) {
+	char *filepath = g_project->_->assets->buffer[i]->file;
+	if (string_index_of(filepath, ".") == -1) {
 		return NULL;
 	}
 	return parser_material_make_bind_tex(tex_name, filepath);
@@ -20,7 +20,8 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 	node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
 	node_shader_add_texture(parser_material_kong, tex_name, NULL);
 	char *uv_name = "";
-	if (string_equals(node->type, "TEX_IMAGE") && parser_material_get_input_link(node->inputs->buffer[0]) != NULL) {
+	// Image nodes pasted from a mesh canvas have no vector input
+	if (string_equals(node->type, "TEX_IMAGE") && node->inputs->length > 0 && parser_material_get_input_link(node->inputs->buffer[0]) != NULL) {
 		uv_name = string_copy(parser_material_parse_vector_input(node->inputs->buffer[0]));
 	}
 	else {
@@ -61,7 +62,7 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 		else {
 			parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
 		}
-		if (!ends_with(tex->file, ".jpg")) { // Pre-mult alpha
+		if (!path_has_ext(tex->file, "jpg") && !path_has_ext(tex->file, "jpeg")) { // Pre-mult alpha
 			parser_material_write(parser_material_kong, string_tmp("%s.rgb = %s.rgb * %s.a;", tex_store, tex_store, tex_store));
 		}
 	}

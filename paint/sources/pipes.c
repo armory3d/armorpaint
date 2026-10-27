@@ -238,6 +238,46 @@ void pipes_init() {
 		pipes_cursor_decal_texdecal     = 1;
 		pipes_cursor_decal_gbuffer0     = 2;
 	}
+
+	{
+		pipes_cursor_2d                  = gpu_create_pipeline();
+		pipes_cursor_2d->vertex_shader   = sys_get_shader("cursor_2d.vert");
+		pipes_cursor_2d->fragment_shader = sys_get_shader("cursor_2d.frag");
+		gpu_vertex_structure_t *vs       = ALLOC_INIT(gpu_vertex_structure_t, {0});
+		gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
+		gpu_vertex_structure_add(vs, "tex", GPU_VERTEX_DATA_F32_2X);
+		gpu_vertex_structure_add(vs, "col", GPU_VERTEX_DATA_F32_4X);
+		pipes_cursor_2d->input_layout            = vs;
+		pipes_cursor_2d->blend_source            = GPU_BLEND_SOURCE_ALPHA;
+		pipes_cursor_2d->blend_destination       = GPU_BLEND_INV_SOURCE_ALPHA;
+		pipes_cursor_2d->alpha_blend_source      = GPU_BLEND_ONE;
+		pipes_cursor_2d->alpha_blend_destination = GPU_BLEND_INV_SOURCE_ALPHA;
+		gpu_pipeline_compile(pipes_cursor_2d);
+		pipes_offset           = 0;
+		pipes_cursor_2d_center = pipes_get_constant_location("float2");
+		pipes_cursor_2d_size   = pipes_get_constant_location("float2");
+		pipes_cursor_2d_radius = pipes_get_constant_location("float");
+		pipes_cursor_2d_width  = pipes_get_constant_location("float");
+	}
+
+	{
+
+		pipes_outline                  = gpu_create_pipeline();
+		pipes_outline->vertex_shader   = sys_get_shader("outline.vert");
+		pipes_outline->fragment_shader = sys_get_shader("outline.frag");
+		gpu_vertex_structure_t *vs     = ALLOC_INIT(gpu_vertex_structure_t, {0});
+		gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
+		pipes_outline->input_layout            = vs;
+		pipes_outline->blend_source            = GPU_BLEND_SOURCE_ALPHA;
+		pipes_outline->blend_destination       = GPU_BLEND_INV_SOURCE_ALPHA;
+		pipes_outline->alpha_blend_source      = GPU_BLEND_ZERO;
+		pipes_outline->alpha_blend_destination = GPU_BLEND_ONE;
+		gpu_pipeline_compile(pipes_outline);
+		pipes_offset           = 0;
+		pipes_outline_color    = pipes_get_constant_location("float4");
+		pipes_outline_tex_step = pipes_get_constant_location("float2");
+		pipes_outline_tex      = 0;
+	}
 }
 
 i32 pipes_get_constant_location(char *type) {

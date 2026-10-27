@@ -201,66 +201,6 @@ void export_obj_run(char *path, mesh_object_t_array_t *paint_objects) {
 	array_delete(o);
 }
 
-void export_obj_run_fast(char *path, mesh_object_t_array_t *paint_objects) {
-	// Skips merging shared vertices
-
-	u8_array_t *o = u8_array_create(0);
-	export_obj_write_string(o, "# armorpaint.org\n");
-
-	i32 poff = 0;
-	i32 noff = 0;
-	i32 toff = 0;
-	for (i32 i = 0; i < paint_objects->length; ++i) {
-		mesh_object_t *p    = paint_objects->buffer[i];
-		mesh_data_t   *mesh = p->data;
-		f32            inv  = 1 / 32767.0;
-		f32            sc   = p->data->scale_pos * inv;
-		i16_array_t   *posa = mesh->vertex_arrays->buffer[0]->values;
-		i16_array_t   *nora = mesh->vertex_arrays->buffer[1]->values;
-		i16_array_t   *texa = mesh->vertex_arrays->buffer[2]->values;
-
-		i32 pi = posa->length / 4.0;
-		i32 ni = pi;
-		i32 ti = pi;
-
-		export_obj_write_string(o, "o ");
-		export_obj_write_string(o, p->base->name);
-		export_obj_write_char(o, '\n');
-		for (i32 j = 0; j < pi; ++j) {
-			export_obj_write_vec(o, "v ", posa->buffer[j * 4] * sc, posa->buffer[j * 4 + 2] * sc, -posa->buffer[j * 4 + 1] * sc, true);
-		}
-		for (i32 j = 0; j < ni; ++j) {
-			export_obj_write_vec(o, "vn ", nora->buffer[j * 2] * inv, posa->buffer[j * 4 + 3] * inv, -nora->buffer[j * 2 + 1] * inv, true);
-		}
-		for (i32 j = 0; j < ti; ++j) {
-			export_obj_write_vec(o, "vt ", texa->buffer[j * 2] * inv, 1.0 - texa->buffer[j * 2 + 1] * inv, 0.0, false);
-		}
-
-		u32_array_t *inda = mesh->index_array;
-		for (i32 j = 0; j < math_floor(inda->length / 3.0); ++j) {
-			i32 pf[3];
-			i32 tf[3];
-			i32 nf[3];
-			for (i32 k = 0; k < 3; ++k) {
-				i32 v = inda->buffer[j * 3 + k];
-				pf[k] = v + 1 + poff;
-				tf[k] = v + 1 + toff;
-				nf[k] = v + 1 + noff;
-			}
-			export_obj_write_face(o, pf, tf, nf);
-		}
-		poff += pi;
-		noff += ni;
-		toff += ti;
-	}
-
-	if (!ends_with(path, ".obj")) {
-		path = string_tmp("%s.obj", path);
-	}
-	iron_file_save_bytes(path, o, 0);
-	array_delete(o);
-}
-
 void export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects) {
 	slot_layer_t_array_t *sculpt_layers = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {

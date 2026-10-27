@@ -39,21 +39,19 @@ static bool _compass_compare_quat(quat_t a, quat_t b) {
 }
 
 void render_compass() {
-	if (!g_context->show_compass || g_config->workspace == WORKSPACE_PLAYER || g_context->capturing_screenshot) {
+	if (!g_context->show_compass || base_player || g_context->capturing_screenshot) {
 		return;
 	}
 
 	camera_object_t *cam     = scene_camera;
 	mesh_object_t   *compass = scene_get_child(".Compass")->ext;
 
-	bool      _visible     = compass->base->visible;
-	object_t *_parent      = compass->base->parent;
-	quat_t    crot         = cam->base->transform->rot;
-	f32       ratio        = sys_w() / (float)sys_h();
-	mat4_t    _P           = cam->p;
-	cam->p                 = mat4_ortho(-8 * ratio, 8 * ratio, -8, 8, -2, 2);
-	compass->base->visible = true;
-	compass->base->parent  = cam->base;
+	object_t *_parent     = compass->base->parent;
+	quat_t    crot        = cam->base->transform->rot;
+	f32       ratio       = sys_w() / (float)sys_h();
+	mat4_t    _P          = cam->p;
+	cam->p                = mat4_ortho(-8 * ratio, 8 * ratio, -8, 8, -2, 2);
+	compass->base->parent = cam->base;
 
 	f32  compass_x    = 7.4;
 	f32  compass_y    = 7.0;
@@ -74,8 +72,7 @@ void render_compass() {
 	compass->base->transform->rot   = (quat_t){-crot.x, -crot.y, -crot.z, crot.w};
 	compass->base->transform->scale = (vec4_t){0.4, 0.4, 0.4, 1.0};
 	transform_build_matrix(compass->base->transform);
-	compass->frustum_culling = false;
-	mesh_object_render(compass, "overlay", NULL);
+	mesh_object_draw(compass, render_path_base_own_scon(compass), NULL);
 
 	if (_compass_hovered != NULL) {
 		line_draw_color    = _compass_hovered == _compass_hitbox_x ? 0xffff0000 : _compass_hovered == _compass_hitbox_y ? 0xff00ff00 : 0xff0000ff;
@@ -83,9 +80,8 @@ void render_compass() {
 		shape_draw_sphere(_compass_hovered->transform->world);
 	}
 
-	cam->p                 = _P;
-	compass->base->visible = _visible;
-	compass->base->parent  = _parent;
+	cam->p                = _P;
+	compass->base->parent = _parent;
 }
 
 void render_compass_update() {

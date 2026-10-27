@@ -37,7 +37,15 @@ void util_shortcut_undo_redo() {
 void util_shortcut_global() {
 	if (!g_ui->is_typing) {
 		if (keymap_shortcut(any_map_get(g_keymap, "toggle_node_editor"), SHORTCUT_TYPE_STARTED)) {
-			ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? ui_base_show_material_nodes() : ui_base_show_brush_nodes();
+			if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
+				ui_base_show_material_nodes();
+			}
+			else if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+				ui_base_show_mesh_nodes();
+			}
+			else {
+				ui_base_show_brush_nodes();
+			}
 		}
 		else if (keymap_shortcut(any_map_get(g_keymap, "toggle_browser"), SHORTCUT_TYPE_STARTED)) {
 			ui_base_toggle_browser();
@@ -90,15 +98,13 @@ void util_shortcut_global() {
 	if (keyboard_started(any_map_get(g_keymap, "view_distract_free")) || (keyboard_started("escape") && !ui_base_show && !ui_box_show)) {
 		bool allow = true;
 #ifdef IRON_WASM
-		allow = g_config->workspace != WORKSPACE_PLAYER;
+		allow = !base_player;
 #endif
 		if (allow) {
 			ui_base_toggle_distract_free();
 		}
 	}
-	if (keyboard_started("f5") && g_config->workspace != WORKSPACE_PLAYER) {
-		// g_config->workspace = WORKSPACE_PLAYER;
-		// base_update_workspace();
+	if (keyboard_started("f5") && !base_player) {
 		base_run_in_player();
 	}
 
@@ -167,7 +173,7 @@ void util_shortcut_viewport() {
 	bool is_typing = g_ui->is_typing;
 	if (!is_typing) {
 		if (keymap_shortcut(any_map_get(g_keymap, "select_material"), SHORTCUT_TYPE_DOWN)) {
-			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+			ui_dock_redraw(TAB_AREA_SIDEBAR1);
 			for (i32 i = 1; i < 10; ++i) {
 				if (keyboard_started(i32_to_string(i))) {
 					context_select_material(i - 1);
@@ -175,7 +181,7 @@ void util_shortcut_viewport() {
 			}
 		}
 		else if (keymap_shortcut(any_map_get(g_keymap, "select_layer"), SHORTCUT_TYPE_DOWN)) {
-			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+			ui_dock_redraw(TAB_AREA_SIDEBAR0);
 			for (i32 i = 1; i < 10; ++i) {
 				if (keyboard_started(i32_to_string(i))) {
 					context_select_layer(i - 1);
@@ -188,7 +194,10 @@ void util_shortcut_viewport() {
 	if (context_in_paint_area() && !is_typing) {
 
 		if (!mouse_down("right")) { // Fly mode off
-			if (keymap_shortcut(any_map_get(g_keymap, "tool_brush"), SHORTCUT_TYPE_STARTED)) {
+			if (g_config->tools == TOOLS_OBJECT) {
+				// Cursor tool only
+			}
+			else if (keymap_shortcut(any_map_get(g_keymap, "tool_brush"), SHORTCUT_TYPE_STARTED)) {
 				context_select_tool(TOOL_TYPE_BRUSH);
 			}
 			else if (keymap_shortcut(any_map_get(g_keymap, "tool_eraser"), SHORTCUT_TYPE_STARTED)) {

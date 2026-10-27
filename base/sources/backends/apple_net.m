@@ -46,7 +46,7 @@ static NSURLSession *download_session          = nil;
 	NSMutableData            *memoryData   = objc_getAssociatedObject(task, @"memoryData");
 	iron_https_callback_t     callback     = cbVal ? [cbVal pointerValue] : NULL;
 	void                     *callbackdata = dataVal ? [dataVal pointerValue] : NULL;
-	int                       status       = error == nil && [task.response isKindOfClass:[NSHTTPURLResponse class]] ? (int)((NSHTTPURLResponse *)task.response).statusCode : 0;
+	int status = error == nil && [task.response isKindOfClass:[NSHTTPURLResponse class]] ? (int)((NSHTTPURLResponse *)task.response).statusCode : 0;
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (dstPath) {
 			callback(status, NULL, callbackdata);
@@ -62,8 +62,8 @@ static NSURLSession *download_session          = nil;
 
 @end
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
-                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, iron_https_callback_t callback,
+                      void *callbackdata, const char *dst_path) {
 	if (!download_session) {
 		NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
 		NSOperationQueue          *queue  = [[NSOperationQueue alloc] init];

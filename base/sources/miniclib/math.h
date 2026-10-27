@@ -45,4 +45,5 @@ double fmod(double x, double y);
 float  fmodf(float x, float y);
 
 int isnan(float x);
+int isfinite(float x);
 #define NAN (0.0F / 0.0F)

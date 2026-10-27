@@ -39,20 +39,9 @@ static void input_node_grid_snap() {
 	f32 tw;
 	f32 th;
 	if (in_2d) {
-		i32 headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
-		i32 apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
-		if (!base_view3d_show) {
-			apph = base_h();
-		}
-		i32 wm  = fmin(ui_view2d_ww, ui_view2d_wh);
-		i32 itw = wm * 0.9 * ui_view2d_pan_scale;
-		i32 ith = itw * (tex->height / (float)tex->width);
-		i32 itx = ui_view2d_ww / 2.0 - itw / 2.0 + ui_view2d_pan_x;
-		i32 ity = apph / 2.0 - ith / 2.0 + ui_view2d_pan_y;
-		tw      = itw;
-		th      = ith;
-		tx      = ui_view2d_wx + itx;
-		ty      = ui_view2d_wy + ity;
+		ui_view2d_tex_rect(tex->height / (float)tex->width, &tx, &ty, &tw, &th);
+		tx += ui_view2d_wx;
+		ty += ui_view2d_wy;
 	}
 	else {
 		f32 wm = fmin(base_w(), base_h());
@@ -62,8 +51,8 @@ static void input_node_grid_snap() {
 		ty     = base_y() + base_h() / 2.0 - th / 2.0;
 	}
 
-	f32 sx = input_node_coords.x * base_w() + base_x();
-	f32 sy = input_node_coords.y * base_h() + base_y();
+	f32 sx = base_paint_screen_x(input_node_coords.x);
+	f32 sy = base_paint_screen_y(input_node_coords.y);
 
 	// Snap to nearest cell center
 	f32 u    = (sx - tx) / tw;
@@ -74,35 +63,31 @@ static void input_node_grid_snap() {
 	sx       = tx + (px / tex->width) * tw;
 	sy       = ty + (py / tex->height) * th;
 
-	input_node_coords.x = (sx - base_x()) / base_w();
-	input_node_coords.y = (sy - base_y()) / base_h();
+	input_node_coords.x = base_paint_x(sx);
+	input_node_coords.y = base_paint_y(sy);
 }
 
 void input_node_update(float_node_t *self) {
-	if (g_context->split_view) {
-		g_context->view_index = mouse_view_x() > base_w() / 2.0 ? 1 : 0;
-	}
-
 	bool  decal_mask  = context_is_decal_mask_paint();
 	char *ruler_paint = string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint"));
 	bool  lazy_paint  = g_context->brush_lazy_radius > 0 && (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
                                                            keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
 
-	f32 paint_x = mouse_view_x() / (float)sys_w();
-	f32 paint_y = mouse_view_y() / (float)sys_h();
+	f32 paint_x = base_paint_x(mouse_x);
+	f32 paint_y = base_paint_y(mouse_y);
 
 	if (mouse_started("left")) {
-		input_node_start_x = mouse_view_x() / (float)sys_w();
-		input_node_start_y = mouse_view_y() / (float)sys_h();
+		input_node_start_x = paint_x;
+		input_node_start_y = paint_y;
 	}
 
 	if (pen_down("tip")) {
-		paint_x = pen_view_x() / (float)sys_w();
-		paint_y = pen_view_y() / (float)sys_h();
+		paint_x = base_paint_x(pen_x);
+		paint_y = base_paint_y(pen_y);
 	}
 	if (pen_started("tip")) {
-		input_node_start_x = pen_view_x() / (float)sys_w();
-		input_node_start_y = pen_view_y() / (float)sys_h();
+		input_node_start_x = base_paint_x(pen_x);
+		input_node_start_y = base_paint_y(pen_y);
 	}
 
 	if (keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN)) {
@@ -121,10 +106,6 @@ void input_node_update(float_node_t *self) {
 	if (!lazy_paint || slot_layer_is_path(g_context->layer)) {
 		input_node_coords.x = paint_x;
 		input_node_coords.y = paint_y;
-	}
-
-	if (g_context->split_view) {
-		g_context->view_index = -1;
 	}
 
 	if (input_node_lock_begin) {

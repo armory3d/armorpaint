@@ -22,8 +22,7 @@ static bool agent_mcp     = false;
 static char *agent_code_guide = "Reply with C code only in a ```c fence. " AGENT_RULES;
 
 static char *agent_qwen_guide = "Edit the ArmorPaint project in steps, each a C script that modifies the project. Reply with the "
-                                "next step only, in a ```c fence. " AGENT_RULES AGENT_SCRIPTS
-                                "To save a project script, start its fence "
+                                "next step only, in a ```c fence. " AGENT_RULES AGENT_SCRIPTS "To save a project script, start its fence "
                                 "with ```c scripts/<name>.c instead. To run a task script as the next step, reply 'Run: scripts/<name>.c' "
                                 "only. When finished, reply 'Done.'.\n";
 
@@ -246,6 +245,19 @@ static char *agent_nodes_reference(void) {
 		}
 	}
 
+	nodes_mesh_init();
+
+	string_buffer_append(&sb, "//\n// Mesh nodes reference:\n");
+
+	for (i32 i = 0; i < nodes_mesh_list->length; ++i) {
+		ui_node_t_array_t *c = (ui_node_t_array_t *)nodes_mesh_list->buffer[i];
+		for (i32 j = 0; j < c->length; ++j) {
+			agent_write_node(&sb, c->buffer[j]);
+		}
+	}
+	string_buffer_append(&sb, "// MESH_OUTPUT | in: 0 Mesh\n");
+	string_buffer_append(&sb, nodes_mesh_reference());
+
 	char *result = string_copy(string_buffer_get(&sb));
 	string_buffer_free(&sb);
 	return result;
@@ -288,7 +300,7 @@ static char *agent_exe(void) {
 	}
 #elif !defined(IRON_WASM)
 	// A bare name was found through PATH and resolves the same from any directory
-	char path[4096];
+	char  path[4096];
 	char *exe = iron_get_arg(0);
 	if (exe[0] != '/' && string_index_of(exe, "/") >= 0 && getcwd(path, sizeof(path)) != NULL) {
 		return string("%s/%s", path, exe);
@@ -299,8 +311,7 @@ static char *agent_exe(void) {
 
 static char *agent_mcp_guide(char *dir) {
 	return string("Edit the ArmorPaint project '%s' in steps with the armorpaint tools, each step a C script that modifies the "
-	              "project. " AGENT_RULES AGENT_SCRIPTS
-	              "Run a step with the step tool, it returns the log and a screenshot. The step files are kept in '%s'.\n"
+	              "project. " AGENT_RULES AGENT_SCRIPTS "Run a step with the step tool, it returns the log and a screenshot. The step files are kept in '%s'.\n"
 	              "Start over from the original project with the restore tool, then replay the steps to keep.\n"
 	              "Project scripts are '%s/scripts/<name>.c', edit them as files. Run a task script like a step with the run tool.\n"
 	              "Test by playing with the play tool. It returns the log and a screenshot and rolls the project back. The test "
@@ -491,8 +502,8 @@ static void agent_scripts_sync(void) {
 			array_insert(g_project->script_datas, 0, data);
 		}
 	}
-	tab_scripts_minimap_dirty                         = true;
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	tab_scripts_minimap_dirty = true;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 static void agent_finish(char *s) {
@@ -524,12 +535,13 @@ static void agent_eval_finish(void *_) {
 static void agent_eval_wait(void *_) {
 	iron_delay_idle_sleep();
 	bool timed_out = sys_time() - agent_eval_start > agent_eval_timeout;
-	if (script_is_running() && !timed_out) {
+	if ((script_is_running() || render_path_raytrace_bake_lightmap_busy()) && !timed_out) {
 		return;
 	}
 	sys_remove_update(agent_eval_wait);
 	if (timed_out) {
 		script_stop();
+		render_path_raytrace_bake_lightmap_cancel();
 		console_log("Script timed out");
 	}
 	agent_eval_ok = !timed_out && minic_error_count == 0;

@@ -104,7 +104,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	}
 	else {
 		kong->frag_vvec = true;
-		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, vvec, tex_coord);");
+		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, input.eye_dir, tex_coord);");
 		node_shader_write_frag(kong, "n = nortan * 2.0 - 1.0;");
 		node_shader_write_frag(kong, "n.y = -n.y;");
 		node_shader_write_frag(kong, "n = normalize(TBN * n);");

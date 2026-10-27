@@ -41,6 +41,7 @@ char      *armpack_decode_to_json_omit_large_arrays(buffer_t *b);
 float      armpack_map_get_f32(any_map_t *map, char *key);
 int        armpack_map_get_i32(any_map_t *map, char *key);
 void       armpack_map_set_i32(any_map_t *map, char *key, int value);
+void       armpack_map_set_f32(any_map_t *map, char *key, float value);
 
 void armpack_write_u8(uint8_t i);
 void armpack_write_i16(int16_t i);

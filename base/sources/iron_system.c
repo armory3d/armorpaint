@@ -169,7 +169,10 @@ void iron_internal_foreground_callback(void) {
 	}
 }
 
+static void keyboard_release_all(void);
+
 void iron_internal_background_callback(void) {
+	keyboard_release_all();
 	if (background_callback != NULL) {
 		background_callback(background_callback_data);
 	}
@@ -311,15 +314,31 @@ void iron_keyboard_set_key_press_callback(void (*value)(unsigned /*character*/, 
 	keyboard_key_press_callback_data = data;
 }
 
+static bool keyboard_keys_held[256];
+
 void iron_internal_keyboard_trigger_key_down(int key_code) {
+	if (key_code >= 0 && key_code < 256) {
+		keyboard_keys_held[key_code] = true;
+	}
 	if (keyboard_key_down_callback != NULL) {
 		keyboard_key_down_callback(key_code, keyboard_key_down_callback_data);
 	}
 }
 
 void iron_internal_keyboard_trigger_key_up(int key_code) {
+	if (key_code >= 0 && key_code < 256) {
+		keyboard_keys_held[key_code] = false;
+	}
 	if (keyboard_key_up_callback != NULL) {
 		keyboard_key_up_callback(key_code, keyboard_key_up_callback_data);
+	}
+}
+
+static void keyboard_release_all(void) {
+	for (int i = 0; i < 256; ++i) {
+		if (keyboard_keys_held[i]) {
+			iron_internal_keyboard_trigger_key_up(i);
+		}
 	}
 }
 
@@ -388,6 +407,9 @@ static int  preLockY = 0;
 static int  lastX    = 0;
 static int  lastY    = 0;
 
+bool iron_mouse_trackpad_drag = false; // Two finger trackpad drag acts as right mouse button
+bool iron_mouse_movement_only = false; // Move callback reports movement without changing the position
+
 void iron_internal_mouse_trigger_press(int button, int x, int y) {
 	lastX = x;
 	lastY = y;
@@ -418,6 +440,14 @@ void iron_internal_mouse_trigger_move(int x, int y) {
 	lastY = y;
 	if (mouse_move_callback != NULL && (movementX != 0 || movementY != 0)) {
 		mouse_move_callback(x, y, movementX, movementY, mouse_move_callback_data);
+	}
+}
+
+void iron_internal_mouse_trigger_movement(int movement_x, int movement_y) {
+	if (mouse_move_callback != NULL && (movement_x != 0 || movement_y != 0)) {
+		iron_mouse_movement_only = true;
+		mouse_move_callback(lastX, lastY, movement_x, movement_y, mouse_move_callback_data);
+		iron_mouse_movement_only = false;
 	}
 }
 
@@ -1202,6 +1232,9 @@ void sys_remove_update(void (*f)(void *data)) {
 }
 
 char *sys_buffer_to_string(buffer_t *b) {
+	if (b == NULL) {
+		return NULL;
+	}
 	char *str = string_alloc(b->length + 1);
 	memcpy(str, b->buffer, b->length);
 	return str;

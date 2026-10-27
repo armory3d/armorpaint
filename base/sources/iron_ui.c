@@ -33,6 +33,8 @@ bool  ui_is_copy                               = false;
 bool  ui_is_paste                              = false;
 void (*ui_on_border_hover)(ui_window_t *, int) = NULL; // Mouse over window border, use for resizing
 void (*ui_on_tab_drop)(int *, int, int *, int) = NULL; // Tab reorder via drag and drop
+void (*ui_on_tab_context_menu)(int *, int)     = NULL; // Tab name was right clicked
+bool (*ui_on_tab_dock)(int *)                  = NULL; // Tab group takes part in drag and drop, all groups do when not set
 #ifdef WITH_EVAL
 #include "libs/minic.h"
 #endif
@@ -54,6 +56,10 @@ float UI_ELEMENT_W() {
 
 float UI_ELEMENT_H() {
 	return theme->ELEMENT_H * UI_SCALE();
+}
+
+float UI_TEXT_AREA_LINE_H() {
+	return (int)(theme->ELEMENT_H * 0.85) * UI_SCALE();
 }
 
 float UI_ELEMENT_OFFSET() {
@@ -211,18 +217,111 @@ void ui_rect(float x, float y, float w, float h, uint32_t color, float strength)
 	draw_set_color(0xffffffff);
 }
 
-static void ui_draw_round_corner(float cx, float cy, float ro, float ri, float a0) {
-	int segments = 6;
-	for (int i = 0; i < segments; ++i) {
-		float a  = a0 + (IRON_PI / 2.0) * i / segments;
-		float b  = a0 + (IRON_PI / 2.0) * (i + 1) / segments;
-		float ca = cosf(a);
-		float sa = sinf(a);
-		float cb = cosf(b);
-		float sb = sinf(b);
-		draw_filled_triangle(cx + ca * ro, cy + sa * ro, cx + cb * ro, cy + sb * ro, cx + ca * ri, cy + sa * ri);
-		draw_filled_triangle(cx + ca * ri, cy + sa * ri, cx + cb * ro, cy + sb * ro, cx + cb * ri, cy + sb * ri);
+static void ui_bake_round_corner(gpu_texture_t *tex, int size, float ro, float ri) {
+	uint8_t *pixels = (uint8_t *)malloc(size * size * 4);
+	for (int y = 0; y < size; ++y) {
+		for (int x = 0; x < size; ++x) {
+			float dx = size - (x + 0.5);
+			float dy = size - (y + 0.5);
+			float d  = sqrtf(dx * dx + dy * dy);
+			float a  = fmin(fmax(ro - d + 0.5, 0.0), 1.0);
+			if (ri >= 0.0) {
+				a -= fmin(fmax(ri - d + 0.5, 0.0), 1.0);
+			}
+			uint8_t *p = pixels + (y * size + x) * 4;
+			p[0] = p[1] = p[2] = 255;
+			p[3]               = (uint8_t)(a * 255.0 + 0.5);
+		}
 	}
+	gpu_texture_init_from_bytes(tex, pixels, size, size, GPU_TEXTURE_FORMAT_RGBA32, false);
+	free(pixels);
+}
+
+static void ui_bake_circle(gpu_texture_t *tex, int size, float ro, float ri) {
+	uint8_t *pixels = (uint8_t *)malloc(size * size * 4);
+	for (int y = 0; y < size; ++y) {
+		for (int x = 0; x < size; ++x) {
+			float    dx = size / 2.0 - (x + 0.5);
+			float    dy = size / 2.0 - (y + 0.5);
+			float    d  = sqrtf(dx * dx + dy * dy);
+			float    a  = fmin(fmax(ro - d + 0.5, 0.0), 1.0);
+			float    in = fmin(fmax(ri - d + 0.5, 0.0), 1.0);
+			uint8_t *p  = pixels + (y * size + x) * 4;
+			p[0] = p[1] = p[2] = (uint8_t)(255.0 - 85.0 * in + 0.5);
+			p[3]               = (uint8_t)(a * 255.0 + 0.5);
+		}
+	}
+	gpu_texture_init_from_bytes(tex, pixels, size, size, GPU_TEXTURE_FORMAT_RGBA32, false);
+	free(pixels);
+}
+
+static float ui_segment_dist(float px, float py, float x0, float y0, float x1, float y1) {
+	float vx = x1 - x0;
+	float vy = y1 - y0;
+	float t  = ((px - x0) * vx + (py - y0) * vy) / (vx * vx + vy * vy);
+	t        = fmin(fmax(t, 0.0), 1.0);
+	float dx = px - (x0 + vx * t);
+	float dy = py - (y0 + vy * t);
+	return sqrtf(dx * dx + dy * dy);
+}
+
+static void ui_bake_check(gpu_texture_t *tex, int size, float x0, float y0, float x1, float y1, float x2, float y2, float hs) {
+	uint8_t *pixels = (uint8_t *)malloc(size * size * 4);
+	for (int y = 0; y < size; ++y) {
+		for (int x = 0; x < size; ++x) {
+			float    d = fmin(ui_segment_dist(x + 0.5, y + 0.5, x0, y0, x1, y1), ui_segment_dist(x + 0.5, y + 0.5, x1, y1, x2, y2));
+			float    a = fmin(fmax(hs - d + 0.5, 0.0), 1.0);
+			uint8_t *p = pixels + (y * size + x) * 4;
+			p[0] = p[1] = p[2] = 255;
+			p[3]               = (uint8_t)(a * 255.0 + 0.5);
+		}
+	}
+	gpu_texture_init_from_bytes(tex, pixels, size, size, GPU_TEXTURE_FORMAT_RGBA32, false);
+	free(pixels);
+}
+
+static void ui_bake_shadow(gpu_texture_t *tex, int size, float rc) {
+	uint8_t *pixels = (uint8_t *)malloc(size * size * 4);
+	for (int y = 0; y < size; ++y) {
+		for (int x = 0; x < size; ++x) {
+			float    d = sqrtf((x + 0.5) * (x + 0.5) + (y + 0.5) * (y + 0.5));
+			float    t = fmin(fmax((d - rc) / (size - rc), 0.0), 1.0);
+			uint8_t *p = pixels + (y * size + x) * 4;
+			p[0] = p[1] = p[2] = 0;
+			p[3]               = (uint8_t)((1.0 - t) * (1.0 - t) * 255.0 + 0.5);
+		}
+	}
+	gpu_texture_init_from_bytes(tex, pixels, size, size, GPU_TEXTURE_FORMAT_RGBA32, false);
+	free(pixels);
+}
+
+#define UI_ROUND_CACHE_SIZE 8
+
+typedef struct ui_round_cache {
+	int           r;
+	int           s;
+	gpu_texture_t image;
+} ui_round_cache_t;
+
+static ui_round_cache_t ui_round_cache[UI_ROUND_CACHE_SIZE];
+static int              ui_round_cache_next = 0;
+
+static gpu_texture_t *ui_get_round_corner(int r, int s) {
+	for (int i = 0; i < UI_ROUND_CACHE_SIZE; ++i) {
+		if (ui_round_cache[i].r == r && ui_round_cache[i].s == s) {
+			return &ui_round_cache[i].image;
+		}
+	}
+	draw_flush();
+	ui_round_cache_t *c = &ui_round_cache[ui_round_cache_next];
+	ui_round_cache_next = (ui_round_cache_next + 1) % UI_ROUND_CACHE_SIZE;
+	if (c->image.width != 0) {
+		gpu_texture_destroy(&c->image);
+	}
+	c->r = r;
+	c->s = s;
+	ui_bake_round_corner(&c->image, r, r, r - s);
+	return &c->image;
 }
 
 void ui_rect_round(float x, float y, float w, float h, uint32_t color, float strength) {
@@ -230,37 +329,65 @@ void ui_rect_round(float x, float y, float w, float h, uint32_t color, float str
 	if (!current->enabled) {
 		ui_fade_color(0.25);
 	}
-	float s  = strength;
-	float rx = current->_x + x * UI_SCALE() - s / 2.0;
-	float ry = current->_y + y * UI_SCALE() - s / 2.0;
-	float rw = w * UI_SCALE() + s;
-	float rh = h * UI_SCALE() + s;
-	float r  = 4.0 * UI_SCALE() + s / 2.0;
-	if (r > rw / 2.0) {
-		r = rw / 2.0;
+	int s  = (int)(strength + 0.5);
+	int rx = (int)(current->_x + x * UI_SCALE() - strength / 2.0);
+	int ry = (int)(current->_y + y * UI_SCALE() - strength / 2.0);
+	int rw = (int)(w * UI_SCALE() + strength);
+	int rh = (int)(h * UI_SCALE() + strength);
+	int r  = (int)(4.0 * UI_SCALE() + strength / 2.0 + 0.5);
+	if (s < 1) {
+		s = 1;
 	}
-	if (r > rh / 2.0) {
-		r = rh / 2.0;
+	if (r > rw / 2) {
+		r = rw / 2;
 	}
-	float ri = r - s > 0.0 ? r - s : 0.0;
-	draw_filled_rect(rx + r, ry, rw - r * 2.0, s);
-	draw_filled_rect(rx + r, ry + rh - s, rw - r * 2.0, s);
-	draw_filled_rect(rx, ry + r, s, rh - r * 2.0);
-	draw_filled_rect(rx + rw - s, ry + r, s, rh - r * 2.0);
-	ui_draw_round_corner(rx + r, ry + r, r, ri, IRON_PI);
-	ui_draw_round_corner(rx + rw - r, ry + r, r, ri, IRON_PI * 1.5);
-	ui_draw_round_corner(rx + rw - r, ry + rh - r, r, ri, 0.0);
-	ui_draw_round_corner(rx + r, ry + rh - r, r, ri, IRON_PI * 0.5);
+	if (r > rh / 2) {
+		r = rh / 2;
+	}
+	if (r > 0) {
+		gpu_texture_t *corner = ui_get_round_corner(r, s);
+		draw_scaled_image(corner, rx, ry, r, r);
+		draw_scaled_image(corner, rx, ry + rh, r, -r);
+		draw_scaled_image(corner, rx + rw, ry, -r, r);
+		draw_scaled_image(corner, rx + rw, ry + rh, -r, -r);
+	}
+	draw_filled_rect(rx + r, ry, rw - r * 2, s);
+	draw_filled_rect(rx + r, ry + rh - s, rw - r * 2, s);
+	draw_filled_rect(rx, ry + r, s, rh - r * 2);
+	draw_filled_rect(rx + rw - s, ry + r, s, rh - r * 2);
 	draw_set_color(0xffffffff);
 }
 
 void ui_draw_shadow(float x, float y, float w, float h) {
-	float max_offset = 16.0 * UI_SCALE();
-	for (int i = 0; i < 6; i++) {
-		float offset = (max_offset / 6) * (i + 1);
-		float a      = 0.04 - (0.04 / 6) * i;
-		draw_set_color(((uint8_t)(a * 255) << 24) | (0 << 16) | (0 << 8) | 0);
-		ui_draw_rect(true, false, x - offset, y, w + offset * 2, h + offset);
+	gpu_texture_t *img = &current->shadow_image;
+	int            t   = img->width;
+	if (t == 0) {
+		return;
+	}
+	int r  = current->filled_round_corner_image.width;
+	int xl = (int)x + r;
+	int xr = (int)(x + w) - r;
+	int yb = (int)(y + h) - r;
+	int yt = (int)y + t / 2;
+	if (yt > yb) {
+		yt = yb;
+	}
+	if (xl > xr) {
+		xl = xr = (int)(x + w / 2.0);
+	}
+	int   ht = yt - (int)y;
+	float e  = t - 1.0;
+	draw_set_color(0x24000000);
+	draw_scaled_sub_image(img, 0.5, 0.5, e, e, xr, yb, t, t);
+	draw_scaled_sub_image(img, 0.5, 0.5, e, e, xl, yb, -t, t);
+	draw_scaled_sub_image(img, 0.5, 0.5, 0, e, xl, yb, xr - xl, t);
+	draw_scaled_sub_image(img, 0.5, 0.5, e, 0, xr, yt, t, yb - yt);
+	draw_scaled_sub_image(img, 0.5, 0.5, e, 0, xl, yt, -t, yb - yt);
+	draw_scaled_sub_image(img, 0.5, 0.5, 0, 0, xl, yt, xr - xl, yb - yt);
+	if (ht > 0) {
+		draw_scaled_sub_image(img, 0.5, 0.5, e, e, xr, yt, t, -ht);
+		draw_scaled_sub_image(img, 0.5, 0.5, e, e, xl, yt, -t, -ht);
+		draw_scaled_sub_image(img, 0.5, 0.5, 0, e, xl, yt, xr - xl, -ht);
 	}
 }
 
@@ -341,8 +468,10 @@ void ui_draw_round_bottom(float x, float y, float w) {
 }
 
 bool ui_is_char(int code) {
-	return (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+	return (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code == '_';
 }
+
+void (*ui_text_coloring_draw)(char *text, char *rest, float x, float y) = NULL;
 
 int ui_check_start(int i, char *text, char **start, int start_count) {
 	for (int x = 0; x < start_count; ++x) {
@@ -435,10 +564,11 @@ void ui_draw_string(char *text, float x_offset, float y_offset, int align, bool 
 	}
 
 	if (ui_dynamic_glyph_load) {
-		int len = strlen(text);
-		for (int i = 0; i < len; ++i) {
-			if (text[i] > 126 && !draw_font_has_glyph((int)text[i])) {
-				int glyph = text[i];
+		for (int i = 0; text[i] != '\0';) {
+			int l     = 0;
+			int glyph = string_utf8_decode(&text[i], &l);
+			i += l > 0 ? l : 1;
+			if (glyph > 126 && !draw_font_has_glyph(glyph)) {
 				draw_font_add_glyph(glyph);
 			}
 		}
@@ -474,6 +604,9 @@ void ui_draw_string(char *text, float x_offset, float y_offset, int align, bool 
 				draw_string(result.colored, current->_x + x_offset, current->_y + current->font_offset_y + y_offset);
 			}
 			strcpy(temp, result.uncolored);
+		}
+		if (ui_text_coloring_draw != NULL) {
+			ui_text_coloring_draw(text, temp, current->_x + x_offset, current->_y + current->font_offset_y + y_offset);
 		}
 		draw_set_color(current->text_coloring->default_color);
 		draw_string(temp, current->_x + x_offset, current->_y + current->font_offset_y + y_offset);
@@ -655,6 +788,7 @@ void ui_end_input() {
 	}
 
 	current->is_key_pressed    = false;
+	current->key_char          = 0;
 	current->input_started     = false;
 	current->input_started_r   = false;
 	current->input_released    = false;
@@ -710,10 +844,9 @@ char *ui_extract_line_off(char *str, int line, int *off) {
 	str += *off;
 	static char temp[1024];
 	int         pos    = 0;
-	int         len    = strlen(str);
 	int         line_i = 0;
 	int         i      = 0;
-	for (i = 0; i < len; ++i) {
+	for (i = 0; str[i] != '\0'; ++i) {
 		if (str[i] == '\n') {
 			line_i++;
 			if (line_i > line) {
@@ -728,7 +861,9 @@ char *ui_extract_line_off(char *str, int line, int *off) {
 		if (line_i > line) {
 			break;
 		}
-		temp[pos++] = str[i];
+		if (pos < (int)sizeof(temp) - 1) {
+			temp[pos++] = str[i];
+		}
 	}
 	temp[pos] = 0;
 	*off += i;
@@ -1059,56 +1194,37 @@ void ui_bake_elements() {
 	if (current->check_select_image.width != 0) {
 		gpu_texture_destroy(&current->check_select_image);
 	}
-	float r = UI_CHECK_SELECT_SIZE();
-	gpu_render_target_init(&current->check_select_image, r, r, GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(&current->check_select_image, true, 0x00000000);
-	draw_set_color(0xffffffff);
-	draw_line(0, r / 2.0, r / 2.0 - 2.0 * UI_SCALE(), r - 2.0 * UI_SCALE(), 2.0 * UI_SCALE());
-	draw_line(r / 2.0 - 3.0 * UI_SCALE(), r - 3.0 * UI_SCALE(), r / 2.0 + 5.0 * UI_SCALE(), r - 11.0 * UI_SCALE(), 2.0 * UI_SCALE());
-	draw_end();
+	float sc = UI_SCALE();
+	int   r  = (int)UI_CHECK_SELECT_SIZE();
+	ui_bake_check(&current->check_select_image, r, 0.7 * sc, r / 2.0 + 0.7 * sc, r / 2.0 - 2.3 * sc, r - 2.3 * sc, r / 2.0 + 5.0 * sc, r - 9.6 * sc, sc);
 
 	if (current->radio_image.width != 0) {
 		gpu_texture_destroy(&current->radio_image);
 	}
-	r = UI_CHECK_SIZE();
-	gpu_render_target_init(&current->radio_image, r, r, GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(&current->radio_image, true, 0x00000000);
-	draw_set_color(0xffaaaaaa);
-	draw_filled_circle(r / 2.0, r / 2.0, r / 2.0, 0);
-	draw_set_color(0xffffffff);
-	draw_circle(r / 2.0, r / 2.0, r / 2.0, 0, 1.0 * UI_SCALE());
-	draw_end();
+	r = (int)UI_CHECK_SIZE();
+	ui_bake_circle(&current->radio_image, r, r / 2.0, r / 2.0 - sc);
 
 	if (current->radio_select_image.width != 0) {
 		gpu_texture_destroy(&current->radio_select_image);
 	}
-	r = UI_CHECK_SELECT_SIZE();
-	gpu_render_target_init(&current->radio_select_image, r, r, GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(&current->radio_select_image, true, 0x00000000);
-	draw_set_color(0xffaaaaaa);
-	draw_filled_circle(r / 2.0, r / 2.0, 4.5 * UI_SCALE(), 0);
-	draw_set_color(0xffffffff);
-	draw_filled_circle(r / 2.0, r / 2.0, 4.0 * UI_SCALE(), 0);
-	draw_end();
+	r = (int)UI_CHECK_SELECT_SIZE();
+	ui_bake_circle(&current->radio_select_image, r, 4.5 * sc, 4.0 * sc);
 
 	if (current->filled_round_corner_image.width != 0) {
 		gpu_texture_destroy(&current->filled_round_corner_image);
 	}
-	r = 4.0 * UI_SCALE();
-	gpu_render_target_init(&current->filled_round_corner_image, r, r, GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(&current->filled_round_corner_image, true, 0x00000000);
-	draw_set_color(0xffffffff);
-	draw_filled_circle(r, r, r, 0);
-	draw_end();
+	r = (int)(4.0 * sc);
+	ui_bake_round_corner(&current->filled_round_corner_image, r, r, -1.0);
 
 	if (current->round_corner_image.width != 0) {
 		gpu_texture_destroy(&current->round_corner_image);
 	}
-	gpu_render_target_init(&current->round_corner_image, r, r, GPU_TEXTURE_FORMAT_RGBA32);
-	draw_begin(&current->round_corner_image, true, 0x00000000);
-	draw_set_color(0xffffffff);
-	draw_circle(r, r, r, 0, 1);
-	draw_end();
+	ui_bake_round_corner(&current->round_corner_image, r, r, r - 1.0);
+
+	if (current->shadow_image.width != 0) {
+		gpu_texture_destroy(&current->shadow_image);
+	}
+	ui_bake_shadow(&current->shadow_image, (int)(16.0 * UI_SCALE()) + r, r);
 
 	current->elements_baked = true;
 }
@@ -1275,6 +1391,12 @@ static int ui_tab_indent_count(char *str, int cursor_x, int len) {
 	return n;
 }
 
+#ifdef IRON_MACOS
+#define UI_ALT_TYPES true // Option+key types characters
+#else
+#define UI_ALT_TYPES false
+#endif
+
 static void ui_update_text_edit(int align, bool editable) {
 	char text[UI_TEXT_MAX];
 	strcpy(text, current->text_selected);
@@ -1413,7 +1535,8 @@ static void ui_update_text_edit(int align, bool editable) {
 		         current->key_code != KEY_CODE_SHIFT && current->key_code != KEY_CODE_CAPS_LOCK && current->key_code != KEY_CODE_CONTROL &&
 		         current->key_code != KEY_CODE_META && current->key_code != KEY_CODE_ALT && current->key_code != KEY_CODE_UP &&
 		         current->key_code != KEY_CODE_DOWN && current->key_char >= 32 && (!current->is_ctrl_down || current->is_alt_down) && // AltGr = ctrl+alt
-		         !(current->key_code >= KEY_CODE_F1 && current->key_code <= KEY_CODE_F24)) {
+		         !(current->key_code >= KEY_CODE_F1 && current->key_code <= KEY_CODE_F24) &&
+		         (!current->is_alt_down || current->is_ctrl_down || UI_ALT_TYPES)) { // Alt shortcuts are not typed
 			ui_remove_chars_at(text, current->highlight_anchor, current->cursor_x - current->highlight_anchor);
 			ui_insert_char_at(text, current->highlight_anchor, current->key_char);
 
@@ -1422,7 +1545,7 @@ static void ui_update_text_edit(int align, bool editable) {
 		bool selecting =
 		    current->is_shift_down && (current->key_code == KEY_CODE_LEFT || current->key_code == KEY_CODE_RIGHT || current->key_code == KEY_CODE_SHIFT ||
 		                               current->key_code == KEY_CODE_HOME || current->key_code == KEY_CODE_END);
-		// isCtrlDown && isAltDown is the condition for AltGr was pressed
+		// is_ctrl_down && is_alt_down is the condition for AltGr was pressed
 		// AltGr is part of the German keyboard layout and part of key combinations like AltGr + e -> €
 		bool ctrl_nav = current->is_ctrl_down && !current->is_shift_down &&
 		                (current->key_code == KEY_CODE_LEFT || current->key_code == KEY_CODE_RIGHT || current->key_code == KEY_CODE_HOME ||
@@ -1542,7 +1665,8 @@ void ui_draw_tabs() {
 	if (current->current_window == NULL) {
 		return;
 	}
-	float tab_x                 = 0.0;
+	float tab_x                 = current->tab_offset_x;
+	current->tab_offset_x       = 0.0;
 	float tab_y                 = 0.0;
 	float tab_h_min             = UI_BUTTON_H() * 1.1;
 	float header_h              = current->current_window->drag_enabled ? UI_HEADER_DRAG_H() : 0;
@@ -1577,6 +1701,15 @@ void ui_draw_tabs() {
 	float base_y   = current->tab_vertical ? current->_y + 10 : current->_y + 2;
 	bool  _enabled = current->enabled;
 
+	// Faded and disabled tabs are buttons, tabs can not be dropped in between them
+	int   dock_count = 0;
+	float dock_end_x = 0.0;
+	float drop_x     = -1.0;
+	bool  dock       = ui_on_tab_drop != NULL && (ui_on_tab_dock == NULL || ui_on_tab_dock(current->tab_handle));
+	bool  dragging   = dock && current->drag_tab_handle != NULL && !current->tab_vertical;
+	bool  dropped    = false;
+	bool  hover_dock = false;
+
 	for (int i = 0; i < current->tab_count; ++i) {
 		current->enabled = current->tab_enabled[i];
 		current->_x      = current->tab_vertical ? tab_x + UI_ELEMENT_W() * 0.1 : tab_x;
@@ -1593,15 +1726,33 @@ void ui_draw_tabs() {
 		bool started  = ui_get_started(tab_h);
 		bool pushed   = ui_get_pushed(tab_h);
 		bool hover    = ui_get_hover(tab_h);
-		if (ui_on_tab_drop != NULL) {
+		bool dockable = current->tab_colors[i] != -2 && current->tab_enabled[i];
+		if (dockable) {
+			dock_count = i + 1;
+			dock_end_x = current->_x + current->_w + 1;
+		}
+		if (dock && dockable) {
 			if (started) {
 				current->drag_tab_handle   = current->tab_handle;
 				current->drag_tab_position = i;
 			}
-			if (current->drag_tab_handle != NULL && hover && current->input_released) {
-				ui_on_tab_drop(current->tab_handle, i, current->drag_tab_handle, current->drag_tab_position);
-				ui_select_tab(i);
+			if (current->drag_tab_handle != NULL && hover) {
+				hover_dock = true;
+				bool same  = current->drag_tab_handle == current->tab_handle;
+				if (!same || current->drag_tab_position != i) {
+					// Tab lands after the hovered one when moving to the right
+					bool after = same && current->drag_tab_position < i;
+					drop_x     = after ? current->_x + current->_w : current->_x;
+				}
+				if (current->input_released) {
+					ui_on_tab_drop(current->tab_handle, i, current->drag_tab_handle, current->drag_tab_position);
+					ui_select_tab(i);
+					dropped = true;
+				}
 			}
+		}
+		if (ui_on_tab_context_menu != NULL && dock && dockable && hover && current->input_released_r) {
+			ui_on_tab_context_menu(current->tab_handle, i);
 		}
 		if (released) {
 			ui_select_tab(i);
@@ -1663,6 +1814,26 @@ void ui_draw_tabs() {
 		}
 	}
 
+	// Dock at the end when dropping the tab next to the tab names
+	if (dragging && !dropped && !hover_dock &&
+	    ui_input_in_rect(current->_window_x, current->_window_y + header_h, current->_window_w, current->button_offset_y + tab_h + 2)) {
+		bool same = current->drag_tab_handle == current->tab_handle;
+		int  to   = same ? dock_count - 1 : dock_count;
+		if (!same || current->drag_tab_position != to) {
+			drop_x = dock_end_x;
+			if (current->input_released) {
+				ui_on_tab_drop(current->tab_handle, to, current->drag_tab_handle, current->drag_tab_position);
+				ui_select_tab(to);
+			}
+		}
+	}
+	if (dragging && drop_x >= 0 && !current->input_released) {
+		// Drop marker
+		draw_set_color(theme->HIGHLIGHT_COL);
+		draw_filled_rect(current->button_offset_y + drop_x - 1, base_y + current->button_offset_y, 2 * UI_SCALE(), tab_h);
+		current->current_window->redraws = 2; // Clear the marker once the mouse leaves
+	}
+
 	current->enabled = _enabled;
 	ui_set_hovered_tab_name(*current->tab_handle >= 0 ? current->tab_names[(*current->tab_handle)] : "");
 
@@ -1683,7 +1854,7 @@ void ui_draw_arrow(bool selected, bool align_right) {
 			draw_filled_triangle(x + UI_ARROW_SIZE(), y - 1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() + 1, x, y + UI_ARROW_SIZE() / 2.0);
 		}
 		else {
-			draw_filled_triangle(x + UI_ARROW_SIZE(), y - 0.1, x, y + UI_ARROW_SIZE() + 0.1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() / 2.0);
+			draw_filled_triangle(x, y - 0.1, x, y + UI_ARROW_SIZE() + 0.1, x + UI_ARROW_SIZE(), y + UI_ARROW_SIZE() / 2.0);
 		}
 	}
 }
@@ -2120,6 +2291,13 @@ int ui_text(char *text, int align, int bg) {
 	return started ? UI_STATE_STARTED : released ? UI_STATE_RELEASED : down ? UI_STATE_DOWN : UI_STATE_IDLE;
 }
 
+int ui_swatch(uint32_t color) {
+	draw_set_color(color);
+	ui_draw_rect(true, false, current->_x + current->button_offset_y, current->_y + current->button_offset_y, current->_w - current->button_offset_y * 2,
+	             UI_BUTTON_H());
+	return ui_text("", 0, 0x00000000);
+}
+
 bool ui_tab(int *value, char *text, bool vertical, uint32_t color, bool align_right) {
 	current->item_changed = false;
 	if (current->tab_count == 0) { // First tab
@@ -2393,6 +2571,52 @@ bool ui_radio(int *value, int position, char *text, char *label) {
 	return (*value) == position;
 }
 
+void ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar) {
+	string_array_t *texts_copy = &current->combo_texts;
+	char           *label_copy = current->combo_label;
+	for (int i = 0; i < texts_copy->length; ++i) {
+		free(texts_copy->buffer[i]);
+	}
+	texts_copy->length = 0;
+	for (int i = 0; i < texts->length; ++i) {
+		string_array_push(texts_copy, string_copy(texts->buffer[i]));
+	}
+	if (label != NULL) {
+		strncpy(label_copy, label, sizeof(current->combo_label) - 1);
+		label_copy[sizeof(current->combo_label) - 1] = '\0';
+	}
+	current->input_enabled                 = false;
+	current->combo_selected_id             = id;
+	current->combo_selected_window         = current->current_window;
+	current->combo_selected_align          = align;
+	current->combo_selected_texts          = texts_copy;
+	current->combo_selected_images         = NULL;
+	current->combo_selected_label          = label != NULL ? label_copy : NULL;
+	current->combo_selected_x              = current->_x + current->_window_x;
+	current->combo_selected_y              = current->_y + current->_window_y + UI_ELEMENT_H();
+	current->combo_selected_w              = current->_w;
+	current->combo_selected_texts_filtered = 0;
+	current->combo_search_bar              = search_bar;
+	for (int i = 0; i < texts->length; ++i) { // Adapt combo list width to combo item width
+		int w = (int)draw_string_width(current->ops->font, current->font_size, texts->buffer[i]) + 10;
+		if (current->combo_selected_w < w) {
+			current->combo_selected_w = w;
+		}
+	}
+	if (current->combo_selected_w > current->_w * 2.0) {
+		current->combo_selected_w = current->_w * 2.0;
+	}
+	if (current->combo_selected_w > current->_w) {
+		current->combo_selected_w += UI_TEXT_OFFSET();
+	}
+	if (current->combo_selected_x + current->combo_selected_w > iron_window_width() - current->window_border_right) {
+		float x                   = current->_x + current->_window_x + current->_w - current->combo_selected_w;
+		current->combo_selected_x = x > 0 ? x : 0;
+	}
+	current->combo_to_submit     = value;
+	current->combo_initial_value = value;
+}
+
 int ui_combo(int *value, string_array_t *texts, char *label, bool show_label, int align, bool search_bar) {
 	current->item_changed = false;
 	ui_id_t id            = ui_widget_id(value, UI_ID_COMBO);
@@ -2403,45 +2627,7 @@ int ui_combo(int *value, string_array_t *texts, char *label, bool show_label, in
 	}
 	if (ui_get_released(UI_ELEMENT_H())) {
 		if (current->combo_selected_id == 0) {
-			string_array_t *texts_copy = &current->combo_texts;
-			char           *label_copy = current->combo_label;
-			for (int i = 0; i < texts_copy->length; ++i) {
-				free(texts_copy->buffer[i]);
-			}
-			texts_copy->length = 0;
-			for (int i = 0; i < texts->length; ++i) {
-				string_array_push(texts_copy, string_copy(texts->buffer[i]));
-			}
-			if (label != NULL) {
-				strncpy(label_copy, label, sizeof(current->combo_label) - 1);
-				label_copy[sizeof(current->combo_label) - 1] = '\0';
-			}
-			current->input_enabled                 = false;
-			current->combo_selected_id             = id;
-			current->combo_selected_window         = current->current_window;
-			current->combo_selected_align          = align;
-			current->combo_selected_texts          = texts_copy;
-			current->combo_selected_images         = NULL;
-			current->combo_selected_label          = label != NULL ? label_copy : NULL;
-			current->combo_selected_x              = current->_x + current->_window_x;
-			current->combo_selected_y              = current->_y + current->_window_y + UI_ELEMENT_H();
-			current->combo_selected_w              = current->_w;
-			current->combo_selected_texts_filtered = 0;
-			current->combo_search_bar              = search_bar;
-			for (int i = 0; i < texts->length; ++i) { // Adapt combo list width to combo item width
-				int w = (int)draw_string_width(current->ops->font, current->font_size, texts->buffer[i]) + 10;
-				if (current->combo_selected_w < w) {
-					current->combo_selected_w = w;
-				}
-			}
-			if (current->combo_selected_w > current->_w * 2.0) {
-				current->combo_selected_w = current->_w * 2.0;
-			}
-			if (current->combo_selected_w > current->_w) {
-				current->combo_selected_w += UI_TEXT_OFFSET();
-			}
-			current->combo_to_submit     = (*value);
-			current->combo_initial_value = (*value);
+			ui_combo_open(id, (*value), texts, label, align, search_bar);
 		}
 	}
 	if (id == current->submit_combo_id) {
@@ -2675,6 +2861,13 @@ void ui_mouse_down(ui_t *ui, int button, int x, int y) {
 
 void ui_mouse_move(ui_t *ui, int x, int y, int movement_x, int movement_y) {
 #if !defined(IRON_ANDROID) && !defined(IRON_IOS)
+	if (iron_mouse_movement_only) {
+		ui->input_dx += movement_x;
+		ui->input_dy += movement_y;
+		ui->input_started_x -= movement_x;
+		ui->input_started_y -= movement_y;
+		return;
+	}
 	ui_set_input_position(ui, x, y);
 #endif
 }
@@ -2778,7 +2971,7 @@ void ui_key_down(ui_t *ui, int key_code) {
 	case KEY_CODE_CONTROL:
 		ui->is_ctrl_down = true;
 		break;
-#ifdef IRON_DARWIN
+#ifdef IRON_MACOS
 	case KEY_CODE_META:
 		ui->is_ctrl_down = true;
 		break;
@@ -2825,7 +3018,7 @@ void ui_key_up(ui_t *ui, int key_code) {
 	case KEY_CODE_CONTROL:
 		ui->is_ctrl_down = false;
 		break;
-#ifdef IRON_DARWIN
+#ifdef IRON_MACOS
 	case KEY_CODE_META:
 		ui->is_ctrl_down = false;
 		break;
@@ -2949,7 +3142,7 @@ void ui_theme_default(ui_theme_t *t) {
 	t->BUTTON_COL        = 0xff323232;
 	t->PRESSED_COL       = 0xff212121;
 	t->TEXT_COL          = 0xfff7f7f7;
-	t->LABEL_COL         = 0xffcfcfcf;
+	t->LABEL_COL         = 0xffc4c4c4;
 	t->SEPARATOR_COL     = 0xff202020;
 	t->HIGHLIGHT_COL     = 0xff205d9c;
 	t->FONT_SIZE         = 13;

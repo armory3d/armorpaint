@@ -444,7 +444,8 @@ void args_run_script(void *_) {
 		data = tab_scripts_find(substring(args_script_path, 2, string_length(args_script_path)));
 	}
 	if (data != NULL) {
-		minic_eval(data);
+		char *name = substring(args_script_path, 2, string_length(args_script_path));
+		minic_eval_named(tab_scripts_expand(data, name), name);
 	}
 	else {
 		buffer_t *b = iron_load_blob(args_script_path);
@@ -452,7 +453,7 @@ void args_run_script(void *_) {
 			iron_log(tr("Invalid script path"));
 		}
 		else {
-			minic_eval(sys_buffer_to_string(b));
+			minic_eval_named(tab_scripts_expand(sys_buffer_to_string(b), args_script_path), args_script_path);
 			iron_delete_blob(b);
 		}
 	}
@@ -531,7 +532,7 @@ void args_run_on_next_frame(void *_) {
 		if (string_equals(f, "")) {
 			f = string_copy(tr("untitled"));
 		}
-		export_mesh_run(string("%s%s%s", args_export_mesh_path, PATH_SEP, f), NULL, true);
+		export_mesh_run(string("%s%s%s", args_export_mesh_path, PATH_SEP, f), NULL);
 	}
 	else if (args_export_material) {
 		g_context->write_icon_on_export = true;
@@ -543,6 +544,9 @@ void args_run_on_next_frame(void *_) {
 	}
 	else if (args_script) {
 		sys_notify_on_next_frame(&args_run_script, NULL);
+	}
+	else if (args_background && args_export_textures) {
+		sys_notify_on_next_frame(&args_run_script_quit, NULL); // Runs after the export queue
 	}
 	else if (args_background) {
 		iron_stop();

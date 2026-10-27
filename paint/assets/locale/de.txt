@@ -1,0 +1,862 @@
+(komprimiert)
+(gepackt)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+2D Ansicht
+3D
+3D Ansicht
+A
+Über
+Über...
+Absolutbetrag
+Hinzufügen
+Animation hinzufügen
+Farbfeld hinzufügen
+Neues Farbfeld hinzufügen
+Gewählte Farbe zu Farbfeldern hinzufügen
+Alle
+Alle Verarbeitung erfolgt lokal auf dem Gerät
+Kamera über Kopf erlauben
+Alpha
+Alpha verwerfen
+Stärke
+Winkel
+Winkel verwerfen
+Animation
+Anisotropie
+Hinzufügen
+Anwenden
+Displacement anwenden
+Filter anwenden
+Maske anwenden
+Nodes anwenden
+Skulptur anwenden
+Skinning anwenden
+Arkuskosinus
+Arkussinus
+Arkustangens 2
+Arkustangens
+Array
+Asset
+Atlas
+Atlanten
+Attribut
+Automatisch
+Mittelwert
+Achse
+B
+Hinten
+Baken
+Material baken...
+Textur baken
+Auf Textur backen
+Bänder
+Basis
+Base Color
+Gekrümmte Normalen
+Abschrägung
+Bias
+Bits
+Schwarze Maske
+Blender Programm
+Blender Programmpfad nicht gesetzt
+Vermischen
+Bloom
+Unschärfe
+Hintergrundbild weichzeichnen
+Unschärfe Typ
+Lesezeichen
+Boolesch
+Unten
+Sprungkraft
+Box
+Backstein Textur
+Backstein Breite
+Helligkeit
+Helligkeit/Kontrast
+Browser
+Pinsel
+Pinselwinkel
+Pinselhärte
+Pinseldeckkraft
+Pinselausgabe
+Pinselradius
+Pinsel...
+Pinsel
+Bump
+Nachbelichten
+Normalen berechnen
+Kamera
+Kamera Schwenkgeschwindigkeit
+Kamera Rotationsgeschwindigkeit
+Kameratextur
+Kamera Zoomgeschwindigkeit
+Abbrechen
+Hintergrund aufnehmen
+Ausgabe aufnehmen
+Bildschirmfoto aufnehmen
+Video aufnehmen
+Aufrunden
+Zellengröße in Pixeln
+Mitte
+Kanäle
+Auf Updates prüfen...
+Schach Textur
+Begrenzen
+Faktor begrenzen
+Ergebnis begrenzen
+Ton
+Leeren
+Ebene leeren
+Farbfelder leeren
+Clip Ende
+Clip Start
+Clipping
+Klonen
+Schließen
+Stoff
+Cloud
+Cloud-Projekte...
+Cloud Server
+Cloud-Projekte
+Farbe
+1. Farbe
+2. Farbe
+Farb ID
+Color ID Map
+Farbmaske
+Farbgradient
+Farbraum
+FarbID
+Kombinieren
+Farbe zusammenführen
+XYZ zusammenführen
+Kompass
+Bestätigen
+Konsole
+Konsolen Modell
+Konstant
+Im Browser fortfahren.
+Kontrast
+Mitwirkende
+Umwandeln von
+Umwandeln zu
+Kopieren
+Hex-Code kopieren
+Kosinus
+Download fehlgeschlagen:
+Anzahl
+Falte
+Farbebene erzeugen
+Material erzeugen
+Kreuzprodukt
+Rückseiten ausblenden
+Cursor
+Krümmung
+Krümmungstextur
+Kurve
+Gebogen
+Benutzerdefiniert
+Ausschneiden
+Abdunkeln
+Debug
+Aufkleber
+Dezimieren
+Standard Kamerasteuerung
+Standard Kamera Sichtfeld
+Standard Kamera Drehpunkt
+Standard Layerauflösung
+Standard Modus
+Löschen
+Pinsel löschen
+Ebene löschen
+Material Löschen
+Node Gruppe löschen
+Farbfeld löschen
+Unbenutzte löschen
+Delta
+Tiefe
+Tiefe verwerfen
+Ableitung
+Desktop
+Ziel
+Detail
+Detail Roughness
+Detail Skalierung
+Diagonal
+Unterschied
+Radius erweitern
+Gemalte Texturen ausweiten, um Seams zu vermeiden
+Abmessungen
+DirectX Normal Map
+Richtung
+Zoomrichtung
+Gerichtet
+Festplatte
+Displacement
+Anzeige
+Abstand
+Verzerrung
+Interface ein-/ausblenden
+Dividieren
+Abwedeln
+Skalarprodukt
+Skalarprodukt
+Unten
+Download
+Datei heruntergeladen von
+Lädt herunter
+Hier Dateien per Drag & Drop ablegen
+Gewählte Farbe per Drag & Drop in Farbfeldern, Materialien, Ebenen pder dem Node Editor ablegen.
+Zeichnen
+Zeichne Echtzeit-Pinselvorschau im Ansichtsfenster
+Duplizieren
+Pinsel duplizieren
+Ebene duplizieren
+Material duplizieren
+Farbfeld duplizieren
+Bearbeiten
+Bild bearbeiten
+Nodes bearbeiten
+Skript bearbeiten
+Stage bearbeiten
+Farbfeld bearbeiten
+Zeitleiste bearbeiten
+UV Map bearbeiten
+Im Script Tab bearbeiten
+Im Texteditor bearbeiten
+Emission
+Leer
+Endbild
+Umgebung
+Umgebungswinkel
+Hintergrundbild
+Hintergrundbild Kugeln
+Hintergrundbild...
+Radiergummi
+Fehler: .arm Datei erwartet
+Fehler: .hdr Datei erwartet
+Fehler: Internetverbindung für den Cloudzugriff prüfen
+Fehler: Textur konnte nicht gefunden werden
+Fehler: Fontdaten konnten nicht gelesen werden
+Fehler: Meshdaten konnten nicht gelesen werden
+Fehler: Unbekanntes Asset Format
+Ausschluss
+Beenden
+Experimentelle Funktionen
+Exponent
+Exportieren
+Pinsel exportieren
+Icon exportieren
+Material exportieren
+Mesh exportieren
+Player exportieren
+Texturen exportieren
+Farbfelder exportieren
+Texturdateien exportieren
+Mesh wird exportiert
+Texturen werden exportiert
+F1
+F2
+Fac
+Face
+Faktor
+Material konnte nicht importiert werden
+Sound konnte nicht gelesen werden:
+Schnell
+Feature Ausgabe
+Datei
+Füllen
+Füllebene
+Füllmaske
+Füllmodus
+Filter
+Texturen filtern
+Flach
+Abflachen
+Float Kurve
+Abrunden
+Abgerundetes Modulo
+Fliegen
+Flugmodus:\nHalten Sie die rechte Maustaste und einen der folgenden Befehle:\nMaus bewegen zum Drehen.\nw, oben oder nach oben scrollen für vorwärts.\ns, unten oder nach unten scrollen für rückwärts.\na oder links für links.\nd oder rechts für rechts.\ne für aufwärts.\nq für abwärts.\nShift halten für schneller oder Alt für langsamer.
+Sichtfeld
+Ordner enthält keine Texturen
+Schriftart
+Schriftart...
+Schriftarten
+Format
+Nachkommastellen
+Bild
+Bildanzahl
+Bildrate
+Bildrate
+Bilder
+Frequenz
+Reibung
+Von Max
+Von Min
+Vorn
+Voll
+Unschärfe
+G
+Gabor Textur
+Gamma
+Generiert
+Geometrie
+Geometrie in den Ursprung
+Loslegen
+Greifen
+Farbverlauf Textur
+Gravitation X
+Gravitation Y
+Gravitation Z
+Größer als
+Gitterzelle
+Gitterausrichtung
+Gruppe
+Gruppeneingabe
+Gruppenausgabe
+Härte
+Height
+Höhenmischung
+Hilfe
+3D Ansicht ausblenden
+High Poly
+Verlauf
+{action_paint} gedrückt halten um zu raddieren\n{brush_ruler} gedrückt halten und {action_paint} drücken um eine gerade Linie wegzuraddieren (Lineal)
+{action_paint} gedrückt halten um zu malen\n{brush_ruler} gedrückt halten und {action_paint} drücken um eine gerade Linie zu malen (Lineal)
+{brush_opacity} gedrückt halten und Maus nach links bewegen, um die Deckkraft zu verringern\n{brush_opacity} gedrückt halten und Maus nach rechts bewegen, um die Deckkraft zu erhöhen
+{brush_radius} gedrückt halten und Maus nach links bewegen oder {brush_radius_decrease} drücken, um den Radius zu verkleinern\n{brush_radius} gedrückt halten und Maus nach rechts bewegen oder {brush_radius_increase} drücken, um den Radius zu vergrößern
+{decal_mask} gedrückt halten um auf einer Aufklebermaske zu zeichnen
+{decal_mask} gedrückt halten um Text als Maske zu verwenden
+{set_clone_source} gedrückt halten um die Quelle zu setzen
+Horizontal
+Umgekehrt horizontal
+How to
+Farbton
+Farbton/Sättigung/Helligkeit
+Kosinus Hyperbolicus
+Sinus Hyperbolicus
+Tangens Hyperbolicus
+Bild Textur
+Bild zu PBR
+Importieren
+Mesh importieren
+Farbfelder importieren
+Schriftart importieren
+Mesh importieren
+Farbfelder importieren
+Textur importieren
+Importieren...
+Mesh wird importiert
+Eingang
+Einkommend
+Aufblasen
+Info: Asset bereits importiert
+Eingabe
+Als Skript untersuchen
+Aktualisiere das Material bei Node-Änderung sofort
+Intensität
+Oberfläche
+Interpolieren
+Ungültiges Exportverzeichnis
+Ungültiger Skriptpfad
+Ungültiger Texturtyp
+Reziproke Quadratwurzel
+Invertieren
+Farbe invertieren
+Maske invertieren
+Auswahl invertieren
+Fehler verfolgen
+Iterationen
+Verbinden
+Keyframe
+Tastenbelegung
+Tastenbelegung importiert:
+Lakunarität
+Sprache
+Ebene
+Ebenenwinkel
+Ebenenüberblendung
+Ebenenmaske
+Ebenenobjekt
+Ebenendeckkraft
+Ebenen UV Skalierung
+Ebenen UV Typ
+Ebenensichtbarkeit
+Ebenen
+Träger Radius
+Träger Schritt
+Links
+Länge
+Kleiner als
+Stufen
+Lebensdauer
+Aufhellen
+Lightmap
+Linear
+Lineares Licht
+Beleuchtet (Lit)
+Echtzeit Pinselvorschau
+Echtzeit Materialvorschau
+Position
+Logarithmus
+Magie Textur
+Einzigartig machen
+Handbuch
+Bereich abbilden
+Mapping
+Maske
+Maskenfarbe
+Masse
+Material
+Material ID
+Material Index
+Ergebnismaterial
+Material...
+Materialien
+Mathematik
+Max
+Maximum
+Nach unten vereinen
+Geometrie vereinen
+Gruppe vereinigen
+Ebenen zusammenfassen
+Mesh
+Mesh-Eingabe
+Mesh-Ausgabe
+Mesh...
+Meshes
+Metallic
+Min
+Min Max
+Minumum
+Spiegeln
+Mix
+Farben mischen
+Mix Normal Map
+Mobil
+Modus
+Modell
+Modelle
+Modelle Ordner...
+Modifikator
+Ändern
+Animation ändern
+Modulo
+Mörtelfarbe
+Mörtelgröße
+Mörtel Glättung
+Multiplizieren
+Name
+Neural
+Neu
+Neue schwarze Maske
+Neuer Pinsel
+Neue Farbe
+Neue Füllmaske
+Neue Gruppe
+Neue Tastenbelegung
+Neue Ebene
+Neues Material
+Neues Plugin
+Neue Vorlage
+Neues Projekt
+Neues Projekt...
+Neues Farbfeld
+Neues Theme
+Neue weiße Maske
+Weiter
+Nein
+Keine Antwort
+Node
+Node Vorschauen
+Nodes
+Rausch Körnung
+Rausch Textur
+Keins
+Normale
+Normalen mischen
+Normal Map
+Normal Map 1
+Normal Map 2
+Normieren
+Nicht verfügbar im Debug Build
+Nicht implementiert
+OK
+Objekt
+Objekt ID
+Objekt Index
+Objekt Information
+Objekt Normale
+Occlusion
+Offset
+Alte Farbe
+Deckkraft
+Deckkraft Modus
+Browser öffnen
+Beinhaltenden Ordner öffnen...
+Extern öffnen
+Zuletzt verwendetes...
+Im Browser öffnen
+Öffnen...
+Projekt wird geöffnet
+Operation
+Gegenüber
+Umkreisen
+Modus Umkreisen und Drehen:\n{rotate_shortcut} oder rechte Maustaste bewegen zum Drehen.\n{zoom_shortcut} oder Scrollen zum Zoomen.\n{pan_shortcut} oder mittlere Maustaste bewegen zum Schwenken.
+Ebenen umordnen
+Orientierung 2D
+Orientierung 3D
+Ursprung zur Geometrie
+Orthografisch
+Ausgang
+Überlagern
+PBR
+Assets zusammenpacken
+In Projekt packen
+Abstand
+Malen
+Malebene
+Zeichenmaske
+Parametrisch
+Eltern
+Partielle Ableitung
+Partikel
+Einfügen
+Pfad
+Pfadverfolgung
+Pfadverfolger
+Pause
+Stift
+Bleistift
+Pro Objekt
+Pro Udim Tile
+Perspektivisch
+Phase
+Phasenverschiebung
+Physik
+Gewählte Farbe
+Pipette
+Oben festpinnen
+Zusammenziehen
+Ping-Pong
+Drehpunkt
+Pixelgröße
+Plateau
+Abspielen
+Player
+Player...
+Plugin importiert:
+Plugins
+Punkt
+Spitzheit
+Position
+Nachbearbeitung
+Potenz
+Einstellungen
+Einstellungen...
+Vorlage
+Vorlage importiert:
+Vorlagen
+Kontrolle für Anpressdruck
+Zurück
+Vorheriger Ordner
+Verarbeite...
+Projizieren
+Projekt gespeichert
+Projekte
+Prompt
+Qualität
+Quantisieren
+R
+RGB Kurven
+RGB zu Graustufen
+RGBA
+Radial
+Radius
+Zufall
+Zufälligkeit
+Bereich
+Verhältnis
+Neuste
+Wiederherstellen {step}
+Spiegeln
+Aktualisieren
+Erneut importieren
+Mesh neu importieren
+Texturen neu importieren
+Relativer Offset
+Entfernen
+Ebene umbenennen
+Renderer
+Umorientiert
+Wiederholen
+Ersetzen
+Farbe ersetzen
+Bestehende ersetzen
+Farbfelder ersetzen
+Fehler melden
+Funktion vorschlagen
+Zurücksetzen
+Hintergrundbild Zurücksetzen
+Layout zurücksetzen
+Auflösung
+Wiederherstellen
+Farbfelder wiederherstellen
+Standardfarbfelder wiederherstellen
+Rechts
+Ringe
+Drehen
+Drehung
+Roughness
+Runden
+Reihenhöhe
+Ausführen
+Im Player ausführen
+Läuft...
+SSAO
+Samples
+Sättigung
+Speichern
+Speichern unter...
+Bild speichern
+Projekt zuerst speichern
+Speichern Sie das Projekt zuerst in der Cloud
+In Cloud speichern
+In Cloud speichern...
+Auf Datenträger speichern...
+Projekt wird gespeichert
+Sägezahn
+Skalierung
+X skalieren
+Verdecken
+Skript
+Skript-Nodes
+Skript geöffnet
+Skripte
+Skulptur
+Skulpturebene
+Suchen
+Nach Nodes suchen
+Segmente
+Auswählen
+Alles auswählen
+Verborgene auswählen
+Material wählen
+Sichtbare auswählen
+Ausgewählt
+Sensibilität
+Farbe aufteilen
+Vektor aufteilen
+XYZ auftrennen
+Quelle setzen
+Farbe als ID Map setzen
+Als Hintergrundbild setzen
+Als Maske setzen
+Quelle wird gesetzt
+Einrichtung
+Shader
+Form
+Player-Link teilen
+Geteilt
+2D Ansicht anzeigen
+Namen der Assets anzeigen
+Gitter anzeigen
+Node Editor anzeigen
+Node-Vorschau standardmäßig auf jedem Node anzeigen
+Signum
+Anmelden...
+Abmelden
+Anmeldung abgelaufen, bitte erneut versuchen
+Melden Sie sich an, um Projekte in der Cloud zu speichern.
+Mit armorpaint.org-Konto anmelden.
+Angemeldet
+Angemeldet als
+Anmeldung läuft...
+Sinus
+Größe
+Slot
+Glatt
+Verwischen
+Snap
+Snippets
+Buchse
+Weiches Licht
+Sortieren
+Sound
+Sound importiert:
+Sounds
+Kugel
+Sphärisch
+Begrüßungsbildschirm
+Aufteilen
+Aufteilen nach
+Geteilte Ansicht
+Mesh in Objekte aufteilen
+Quadratwurzel
+Quetschung
+Stage
+Startbild
+Schablone
+Schrittlimit erreicht
+Stoppen
+Aufnahme stoppen
+Teilen beenden
+Gerade
+Stärke
+Dehnen
+Unterteilen
+Subsurface
+Subtrahieren
+Supersampling
+Farbfelder
+Farbfelder...
+Symmetrie
+Tangente
+Ziel
+Vorlage
+Vorlagen
+Terrain
+Texturkoordinaten
+Texels
+Text
+Text Textur
+Text zu Bild
+Textur
+Texturkoordinate
+Textur importiert:
+Textur...
+Texturen
+Texturen exportiert.
+Texturen...
+Theme
+Theme importiert:
+Dicke
+Kachel
+Kachel X
+Kachel Y
+Gekachelt
+Kacheln X
+Kacheln Y
+Tilesheet
+Tilesheet Animation
+Zeit
+Zeitleiste
+Nach Gradmaß
+Zu Füllebene
+Zu Füllmaske
+Zu Ebene
+Zu Maske
+Nach Max
+Nach Min
+Zu Malebene
+Zu Zeichenmaske
+Nach Bogenmaß
+In Vollbild umschalten
+Werkzeugleiste umschalten
+Werkzeuge
+Oben
+Touch UI
+Transformation
+Objekt transformieren
+Lichtdurchlässigkeit
+Dreieck
+Trimmen
+Triplanar
+Abschneiden
+Abgeschnittenes Modulo
+Projektskripten vertrauen?
+Tween
+Verdrehen
+Typ
+UDIM Kachel
+Skalierung der Oberfläche
+UV
+UV Insel
+UV Map
+UV Skalierung
+UV Unwrap
+UV Map
+Konnte nicht nach Updates suchen.\nBitte {url} aufsuchen.
+Schritte rückgängig
+Rückgängig {step}
+Unwrap
+Unwrap Mesh
+Mesh wird unwrapped
+Oben
+Vertikale Achse
+Update
+Update verfügbar!\nBitte {url} aufsuchen.
+Bild hochskalieren
+Verwendung
+Werkzeuge
+Helligkeit
+Wert
+Varianz
+Vektor
+Vektorkurve
+Vektor Mathematik
+Vektor drehen
+Vektor transformieren
+Vertex Farbe
+Vertikal
+Umgekehrt vertikal
+Vertikal und horizontal
+Umgekehrt vertikal und horizontal
+Ansicht
+Ansichtsfenster
+Ansichtsfenster Maske
+Ansichtsfenster Modus
+Vignette
+Sichtbar
+Voronoi Textur
+Warp
+Wellenprofil
+Wellen Textur
+Wellentyp
+Neuigkeiten
+Weiße Maske
+Whiteout
+Breite
+Fenster
+Drahtgitter
+Arbeitsbereich
+Welt
+Maus herumführen
+Bei der Steuerung der Kamera die Maus um die Ansichtsgrenzen herumführen.
+X
+X-Ray
+XYZ
+Y
+Ja
+ArmorPaint ist auf dem neuesten Stand!
+Z
+Vergrößern
+Verkleinern
+Auf Fenstergröße zoomen
+Überblendungsart
+Farbraum
+Suchen mit ctrl+f
+Abbrechen mit esc
+fBM
+Datei
+GPU-Speicher
+Farbverlauf Art
+Nodes
+Operation
+gepackt
+player
+Plugin aktiviert
+Eingabe
+sRGB
+Quelle
+Dreiecke
+Typ
+unbenannt
+x
+{shortcut} und Maus bewegen

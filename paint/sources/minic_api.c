@@ -16,6 +16,7 @@
 #include "iron_string.h"
 #include "iron_system.h"
 #include "iron_ui.h"
+#include "iron_websocket.h"
 #include "minic.h"
 #include <limits.h>
 #include <math.h>
@@ -293,6 +294,11 @@ static float minic_arg_float(minic_val_t *a, int c, int i) {
 	X(V4, raycast_aabb_mouse, "s:vec4_t(p:object_t object)", raycast_aabb_mouse((object_t *)AP(0)))                                   \
 	X(I, point_in_aabb, "b(p:object_t object,s:vec4_t point)", point_in_aabb((object_t *)AP(0), V4(1)))                               \
 	X(VOID, script_tween_to, "v(p:object_t o,s:vec4_t to,f speed)", script_tween_to((object_t *)AP(0), V4(1), AF(2)))                 \
+	X(V4, script_physics_get_pos, "s:vec4_t(p:object_t o)", script_physics_get_pos((object_t *)AP(0)))                                \
+	X(V4, script_physics_get_velocity, "s:vec4_t(p:object_t o)", script_physics_get_velocity((object_t *)AP(0)))                      \
+	X(VOID, script_physics_set_rotation, "v(p:object_t o,s:quat_t rot)", script_physics_set_rotation((object_t *)AP(0), QT(1)))       \
+	X(V4, script_pick_terrain, "s:vec4_t()", script_pick_terrain())                                                                   \
+	X(V4, camera_object_look_world, "s:vec4_t(p:camera_object_t raw)", camera_object_look_world(AP(0)))                               \
 	X(VOID, line_draw_render, "v(s:mat4_t matrix)", line_draw_render(M4(0)))                                                          \
 	X(VOID, line_draw_bounds, "v(s:mat4_t mat,s:vec4_t dim)", line_draw_bounds(M4(0), V4(1)))                                         \
 	X(VOID, shape_draw_sphere, "v(s:mat4_t mat)", shape_draw_sphere(M4(0)))                                                           \
@@ -580,8 +586,14 @@ void minic_register_builtins() {
 	MINIC_ENUM("gpu_texture_format_t", "GPU_TEXTURE_FORMAT_RGBA32", "GPU_TEXTURE_FORMAT_RGBA64", "GPU_TEXTURE_FORMAT_RGBA128", "GPU_TEXTURE_FORMAT_R8",
 	           "GPU_TEXTURE_FORMAT_R16", "GPU_TEXTURE_FORMAT_R32", "GPU_TEXTURE_FORMAT_D32", "GPU_TEXTURE_FORMAT_RGBA32_BC7");
 	MINIC_ENUM("physics_shape_t", "PHYSICS_SHAPE_BOX", "PHYSICS_SHAPE_SPHERE", "PHYSICS_SHAPE_TERRAIN", "PHYSICS_SHAPE_MESH");
+	MINIC_ENUM("tools_t", "TOOLS_PAINT", "TOOLS_SCULPT", "TOOLS_OBJECT");
+	MINIC_ENUM("sculpt_type_t", "SCULPT_TYPE_DRAW", "SCULPT_TYPE_GRAB", "SCULPT_TYPE_INFLATE", "SCULPT_TYPE_FLATTEN", "SCULPT_TYPE_CLAY",
+	           "SCULPT_TYPE_PINCH", "SCULPT_TYPE_CREASE", "SCULPT_TYPE_CLOTH", "SCULPT_TYPE_TWIST", "SCULPT_TYPE_STRETCH", "SCULPT_TYPE_TRIM",
+	           "SCULPT_TYPE_PLATEAU");
 	MINIC_ENUM("tool_type_t", "TOOL_TYPE_BRUSH", "TOOL_TYPE_ERASER", "TOOL_TYPE_FILL", "TOOL_TYPE_DECAL", "TOOL_TYPE_TEXT", "TOOL_TYPE_CLONE", "TOOL_TYPE_BLUR",
-	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_BAKE");
+	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_EMPTY",
+	           "TOOL_TYPE_PLANE", "TOOL_TYPE_CUBE", "TOOL_TYPE_SPHERE", "TOOL_TYPE_CONE", "TOOL_TYPE_CYLINDER", "TOOL_TYPE_CAPSULE", "TOOL_TYPE_TORUS",
+	           "TOOL_TYPE_TEXT_MESH", "TOOL_TYPE_PATH", "TOOL_TYPE_CURVE", "TOOL_TYPE_BAKE");
 
 	MINIC_STRUCT(ui_window_t);
 	MINIC_I(layout);
@@ -666,24 +678,31 @@ void minic_register_builtins() {
 	MINIC_I(object_mask);
 	MINIC_F(scale);
 	MINIC_F(angle);
+	MINIC_I(blending);
+	MINIC_O(path_points, f32_array_t);
+	MINIC_B(path_curved);
+	MINIC_B(path_text);
+	MINIC_O(path_material, slot_material_t);
+	MINIC_O(texpaint_sculpt, gpu_texture_t);
 	MINIC_END();
 
 	MINIC_STRUCT(slot_material_t);
 	MINIC_O(canvas, ui_node_canvas_t);
 	MINIC_I(id);
-	MINIC_I(paint_base);
-	MINIC_I(paint_opac);
-	MINIC_I(paint_occ);
-	MINIC_I(paint_rough);
-	MINIC_I(paint_met);
-	MINIC_I(paint_nor);
-	MINIC_I(paint_height);
-	MINIC_I(paint_emis);
-	MINIC_I(paint_subs);
+	MINIC_B(paint_base);
+	MINIC_B(paint_opac);
+	MINIC_I(paint_opac_mode);
+	MINIC_B(paint_occ);
+	MINIC_B(paint_rough);
+	MINIC_B(paint_met);
+	MINIC_B(paint_nor);
+	MINIC_B(paint_height);
+	MINIC_B(paint_emis);
+	MINIC_B(paint_subs);
 	MINIC_END();
 
 	// engine.h
-	MINIC_STRUCT(obj_t);
+	MINIC_STRUCT(object_desc_t);
 	MINIC_S(name);
 	MINIC_S(type);
 	MINIC_S(data_ref);
@@ -693,8 +712,7 @@ void minic_register_builtins() {
 	MINIC_I(spawn);
 	MINIC_P(anim);
 	MINIC_S(material_ref);
-	MINIC_O(children, obj_t_array_t);
-	MINIC_P(_);
+	MINIC_O(children, object_desc_t_array_t);
 	MINIC_END();
 
 	MINIC_STRUCT(vertex_array_t);
@@ -712,13 +730,29 @@ void minic_register_builtins() {
 	MINIC_P(_);
 	MINIC_END();
 
+	MINIC_STRUCT(mesh_geo_t);
+	MINIC_FIELD(pos, MINIC_T_PTR, MINIC_T_FLOAT, NULL);
+	MINIC_FIELD(nor, MINIC_T_PTR, MINIC_T_FLOAT, NULL);
+	MINIC_FIELD(tex, MINIC_T_PTR, MINIC_T_FLOAT, NULL);
+	MINIC_FIELD(ind, MINIC_T_PTR, MINIC_T_INT, NULL);
+	MINIC_I(vertex_count);
+	MINIC_I(index_count);
+	MINIC_END();
+
+	MINIC_STRUCT(mesh_geo_image_t);
+	MINIC_I(width);
+	MINIC_I(height);
+	MINIC_FIELD(pixels, MINIC_T_PTR, MINIC_T_FLOAT, NULL);
+	MINIC_END();
+	MINIC_ENUM("mesh_boolean_t", "MESH_BOOLEAN_UNION", "MESH_BOOLEAN_DIFFERENCE", "MESH_BOOLEAN_INTERSECT");
+
 	MINIC_STRUCT(camera_data_t);
 	MINIC_S(name);
 	MINIC_F(near_plane);
 	MINIC_F(far_plane);
 	MINIC_F(fov);
 	MINIC_F(aspect);
-	MINIC_I(frustum_culling);
+	MINIC_B(frustum_culling);
 	MINIC_O(ortho, f32_array_t);
 	MINIC_END();
 
@@ -798,13 +832,11 @@ void minic_register_builtins() {
 	MINIC_STRUCT(object_t);
 	MINIC_I(uid);
 	MINIC_F(urandom);
-	MINIC_O(raw, obj_t);
 	MINIC_S(name);
 	MINIC_O(transform, transform_t);
 	MINIC_P(parent);
 	MINIC_O(children, any_array_t);
 	MINIC_B(visible);
-	MINIC_B(culled);
 	MINIC_B(is_empty);
 	MINIC_P(ext);
 	MINIC_S(ext_type);
@@ -815,9 +847,8 @@ void minic_register_builtins() {
 	MINIC_O(data, mesh_data_t);
 	MINIC_O(material, shader_data_t);
 	MINIC_F(camera_dist);
-	MINIC_I(frustum_culling);
-	MINIC_S(skip_context);
-	MINIC_S(force_context);
+	MINIC_B(frustum_culling);
+	MINIC_B(culled);
 	MINIC_END();
 
 	MINIC_STRUCT(transform_t);
@@ -827,7 +858,21 @@ void minic_register_builtins() {
 	MINIC_F(scale_world);
 	MINIC_I(dirty);
 	MINIC_O(object, object_t);
+	MINIC_E(dim, vec4_t);
+	MINIC_E(extent, vec4_t);
+	MINIC_B(has_dim);
+	MINIC_B(measured);
 	MINIC_F(radius);
+	MINIC_END();
+
+	MINIC_STRUCT(physics_body_t);
+	MINIC_I(shape);
+	MINIC_F(mass);
+	MINIC_F(dimx);
+	MINIC_F(dimy);
+	MINIC_F(dimz);
+	MINIC_E(offset, vec4_t);
+	MINIC_O(obj, object_t);
 	MINIC_END();
 
 	MINIC_STRUCT(camera_object_t);
@@ -853,8 +898,7 @@ void minic_register_builtins() {
 	MINIC_I(brush_live);
 	MINIC_I(node_previews);
 	MINIC_I(material_live);
-	MINIC_I(workspace);
-	MINIC_I(workflow);
+	MINIC_I(tools);
 	MINIC_END();
 
 	MINIC_STRUCT(context_t);
@@ -875,6 +919,7 @@ void minic_register_builtins() {
 	MINIC_I(viewport_mode);
 	MINIC_I(xray);
 	MINIC_B(capturing_screenshot);
+	MINIC_F(envmap_angle);
 	MINIC_END();
 
 	MINIC_STRUCT(project_t);
@@ -882,9 +927,10 @@ void minic_register_builtins() {
 	MINIC_O(assets, string_array_t);
 	MINIC_I(is_bgra);
 	MINIC_S(envmap);
-	MINIC_F(envmap_strength);
-	MINIC_F(envmap_angle);
 	MINIC_F(camera_fov);
+	MINIC_F(camera_near);
+	MINIC_F(camera_far);
+	MINIC_B(camera_frustum_culling);
 	MINIC_O(camera_world, f32_array_t);
 	MINIC_O(camera_origin, f32_array_t);
 	MINIC_P(swatches);
@@ -907,6 +953,9 @@ void minic_register_builtins() {
 	// iron_input globals
 	minic_register_global("mouse_x", &mouse_x, MINIC_T_FLOAT);
 	minic_register_global("mouse_y", &mouse_y, MINIC_T_FLOAT);
+	minic_register_global("mouse_wheel_delta", &mouse_wheel_delta, MINIC_T_FLOAT);
+	minic_register_global("mouse_movement_x", &mouse_movement_x, MINIC_T_FLOAT);
+	minic_register_global("mouse_movement_y", &mouse_movement_y, MINIC_T_FLOAT);
 
 	// minic_api_list.h
 	for (int i = 0; i < (int)(sizeof(minic_api_entries) / sizeof(minic_api_entries[0])); ++i) {
@@ -1104,3 +1153,121 @@ char *minic_api_header_generate(void) {
 	string_buffer_free(&sb);
 	return result;
 }
+
+#ifdef WITH_TCC
+
+#include "minic_tcc.h"
+
+#define TCC_TY_i        int
+#define TCC_TY_f        float
+#define TCC_TY_d        double
+#define TCC_TY_p        void *
+#define TCC_TY_b        bool
+#define TCC_TY_v        void
+#define TCC_RET_i(call) return (int)(call)
+#define TCC_RET_f(call) return call
+#define TCC_RET_d(call) return call
+#define TCC_RET_p(call) return (void *)(call)
+#define TCC_RET_b(call) return (call) ? true : false
+#define TCC_RET_v(call) call
+
+// The thunks take and return the sig types, the calls convert to the real C types (int64_t, double math, ...)
+#define X0(name, sig, r)                \
+	static TCC_TY_##r tw_##name(void) { \
+		TCC_RET_##r(name());            \
+	}
+#define X1(name, sig, r, t0)                      \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0) { \
+		TCC_RET_##r(name(a0));                    \
+	}
+#define X2(name, sig, r, t0, t1)                                  \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1) { \
+		TCC_RET_##r(name(a0, a1));                                \
+	}
+#define X3(name, sig, r, t0, t1, t2)                                              \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2) { \
+		TCC_RET_##r(name(a0, a1, a2));                                            \
+	}
+#define X4(name, sig, r, t0, t1, t2, t3)                                                          \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3) { \
+		TCC_RET_##r(name(a0, a1, a2, a3));                                                        \
+	}
+#define X5(name, sig, r, t0, t1, t2, t3, t4)                                                                      \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4) { \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4));                                                                    \
+	}
+#define X6(name, sig, r, t0, t1, t2, t3, t4, t5)                                                                                  \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4, TCC_TY_##t5 a5) { \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4, a5));                                                                                \
+	}
+#define X7(name, sig, r, t0, t1, t2, t3, t4, t5, t6)                                                                                              \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4, TCC_TY_##t5 a5, TCC_TY_##t6 a6) { \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4, a5, a6));                                                                                            \
+	}
+#define X8(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7)                                                                                        \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4, TCC_TY_##t5 a5, TCC_TY_##t6 a6, \
+	                            TCC_TY_##t7 a7) {                                                                                               \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4, a5, a6, a7));                                                                                      \
+	}
+#define X9(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8)                                                                                    \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4, TCC_TY_##t5 a5, TCC_TY_##t6 a6, \
+	                            TCC_TY_##t7 a7, TCC_TY_##t8 a8) {                                                                               \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4, a5, a6, a7, a8));                                                                                  \
+	}
+#define X10(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9)                                                                               \
+	static TCC_TY_##r tw_##name(TCC_TY_##t0 a0, TCC_TY_##t1 a1, TCC_TY_##t2 a2, TCC_TY_##t3 a3, TCC_TY_##t4 a4, TCC_TY_##t5 a5, TCC_TY_##t6 a6, \
+	                            TCC_TY_##t7 a7, TCC_TY_##t8 a8, TCC_TY_##t9 a9) {                                                               \
+		TCC_RET_##r(name(a0, a1, a2, a3, a4, a5, a6, a7, a8, a9));                                                                              \
+	}
+#include "minic_api_list.h"
+#undef X0
+#undef X1
+#undef X2
+#undef X3
+#undef X4
+#undef X5
+#undef X6
+#undef X7
+#undef X8
+#undef X9
+#undef X10
+
+// Same order as minic_api_entries
+static void *minic_tcc_thunks[] = {
+#define X0(name, sig, r)                                          (void *)tw_##name,
+#define X1(name, sig, r, t0)                                      (void *)tw_##name,
+#define X2(name, sig, r, t0, t1)                                  (void *)tw_##name,
+#define X3(name, sig, r, t0, t1, t2)                              (void *)tw_##name,
+#define X4(name, sig, r, t0, t1, t2, t3)                          (void *)tw_##name,
+#define X5(name, sig, r, t0, t1, t2, t3, t4)                      (void *)tw_##name,
+#define X6(name, sig, r, t0, t1, t2, t3, t4, t5)                  (void *)tw_##name,
+#define X7(name, sig, r, t0, t1, t2, t3, t4, t5, t6)              (void *)tw_##name,
+#define X8(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7)          (void *)tw_##name,
+#define X9(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8)      (void *)tw_##name,
+#define X10(name, sig, r, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9) (void *)tw_##name,
+#include "minic_api_list.h"
+};
+#undef X0
+#undef X1
+#undef X2
+#undef X3
+#undef X4
+#undef X5
+#undef X6
+#undef X7
+#undef X8
+#undef X9
+#undef X10
+
+void minic_tcc_register_builtins(void) {
+	minic_tcc_register("string", "p:char(p:char fmt,...)", (void *)string);
+	// Math functions take and return the structs by value, as in C
+#define X(kind, n, sig, e) minic_tcc_register(#n, sig, (void *)n);
+	MINIC_MATH_API
+#undef X
+	for (int i = 0; i < (int)(sizeof(minic_api_entries) / sizeof(minic_api_entries[0])); ++i) {
+		minic_tcc_register(minic_api_entries[i].name, minic_api_entries[i].sig, minic_tcc_thunks[i]);
+	}
+}
+
+#endif

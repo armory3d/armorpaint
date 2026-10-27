@@ -16,7 +16,7 @@ void import_text_default_importer(char *path) {
 }
 
 void import_text_run(char *path) {
-	char *ext                    = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	char *ext                    = path_ext(path);
 	void (*importer)(char *path) = any_map_get(import_text_importers, ext);
 
 	if (importer == NULL) {

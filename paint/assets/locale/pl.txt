@@ -1,0 +1,862 @@
+(skompresowane)
+(spakowane)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+Podgląd 2D
+3D
+Podgląd 3D
+A
+O programie
+O...
+Bezwględna
+Dodaj
+Dodaj animację
+Dodaj próbkę
+Dodaj nową próbkę
+Dodaj wybrany kolor do próbek
+Wszystkie
+Wszystkie przetwarzanie odbywa się lokalnie na urządzeniu
+Zezwól na odwróconą kamerę
+Alfa
+Odrzucenie alfy
+Ilość
+Kąt
+Odrzucenie kątu
+Animacja
+Anizotropia
+Dołącz
+Zatwierdź
+Zatwierdź Przemieszczenie
+Zatwierdź filtr
+Zatwierdź maskę
+Zastosuj węzły
+Zatwierdź rzeźbienie
+Zastosuj skinning
+Arcus cosinus
+Arcus sinus
+Arcus tangens 2
+Arcus tangens
+Szyk
+Zasób
+Atlas
+Atlasy
+Atrybut
+Automatyczny
+Średnia
+Oś
+B
+Tył
+Wypalanie
+Wypalanie materiału...
+Wypalanie tekstury
+Wypal do tekstur
+Pasma
+Podstawowy
+Kolor bazowy
+Wygięta normalna
+Ścięcie
+Odchylenie
+Bity
+Czarna maska
+Plik wykonywalny Blendera
+Ścieżka do pliku wykonywalnego Blendera nie ustawiona
+Mieszanie
+Bloom
+Rozmycie
+Rozmyj Envmapę
+Typ rozmycia
+Zakładka
+Boolowski
+Dół
+Odbicie
+Pudełko
+Tekstura ceglana
+Szerokość cegły
+Jasność
+Jasność/Kontrast
+Przeglądarka
+Pędzel
+Kąt pędzla
+Twardość pędzla
+Krycie pędzla
+Wyjście pędzla
+Promień pędzla
+Pędzel...
+Pędzle
+Bump
+Wypalenie
+Przelicz normalne
+Kamera
+Prędkość panoramowania kamery
+Prędkość obracania kamery
+Tekstura kamery
+Prędkość zoomu kamery
+Anuluj
+Przechwyć tło
+Przechwyć wyjście
+Przechwyć zrzut ekranu
+Przechwyć wideo
+Zaokrąglij w górę
+Rozmiar komórki w pikselach
+Środek
+Kanały
+Sprawdź dostępność aktualizacji...
+Tekstura szachownicy
+Ogranicz
+Ogranicz współczynnik
+Ogranicz wynik
+Glina
+Wyczyść
+Wyczyść warstwę
+Wyczyść próbki kolorów
+Koniec clipu
+Początek clipu
+Przycinanie
+Klonowanie
+Bliski
+Tkanina
+Chmura
+Projekty w chmurze...
+Serwer chmury
+Projekty w chmurze
+Kolor
+Kolor 1
+Kolor 2
+ID koloru
+Mapa ID koloru
+Maska koloru
+Rampa koloru
+Przestrzeń kolorów
+IDKoloru
+Łączenie
+Połącz kolor
+Połącz XYZ
+Kompas
+Potwierdź
+Konsola
+Model konsoli
+Stała
+Kontynuuj w przeglądarce.
+Kontrast
+Współtwórcy
+Konwertuj z
+Konwertuj na
+Kopiuj
+Kopiuj kod hex
+Cosinus
+Nie można pobrać
+Liczba
+Zagięcie
+Utwórz warstwę koloru
+Utwórz materiał
+Iloczyn wektorowy
+Ukrywanie backface'ów
+Kursor
+Krzywizna
+Tekstura krzywizny
+Krzywa
+Wygięte
+Własne
+Wytnij
+Przyciemnienie
+Debugowanie
+Dekal
+Redukuj
+Domyślne sterowanie kamerą
+Domyślne pole widzenia kamery
+Domyślny punkt obrotu kamery
+Domyślna rozdzielczość warstwy
+Domyślny tryb
+Usuń
+Usuń pędzel
+Usuń warstwę
+Usuń materiał
+Usuń grupę węzłów
+Usuń próbkę koloru
+Usuń nieużywane
+Delta
+Głębia
+Odrzucenie głębi
+Pochodna
+Pulpit
+Cel
+Szczegóły
+Szorstkość szczegółów
+Skala szczegółów
+Ukośny
+Różnica
+Promień rozszerzenia
+Rozszerz malowane tekstury, aby zapobiec szwom
+Wymiary
+Mapa normalnych DirectX
+Kierunek
+Kierunek zoomu
+Kierunkowy
+Dysk
+Przemieszczenie
+Wyświetlanie
+Dystans
+Zniekształcenie
+Tryb bez rozpraszaczy
+Dzielenie
+Rozjaśnianie
+Kropka
+Iloczyn skalarny
+Dół
+Pobierz
+Pobrano plik z
+Pobieranie
+Przeciągnij i upuść pliki tutaj
+Przeciągnij i upuść wybrany kolor do próbek, materiałów, warstw lub edytora węzłów
+Rysuj
+Rysuj podgląd pędzla na żywo w rzutni
+Duplikuj
+Duplikuj pędzel
+Duplikuj warstwę
+Duplikuj materiał
+Duplikuj próbkę koloru
+Edytuj
+Edytuj obraz
+Edytuj węzły
+Edytuj skrypt
+Edytuj etap
+Edytuj próbkę koloru
+Edytuj oś czasu
+Edytuj mapę UV
+Edytuj w zakładce skryptów
+Edytuj w edytorze tekstu
+Emisja
+Pusty
+Klatka końcowa
+Środowisko
+Kąt środowiska
+Envmapa
+Kule mapy otoczenia
+Envmapa...
+Gumka
+Błąd: oczekiwano pliku .arm
+Błąd: oczekiwano pliku .hdr
+Błąd: Sprawdź połączenie internetowe, aby uzyskać dostęp do chmury
+Błąd: Nie można zlokalizować tekstury
+Błąd: Nie udało się odczytać danych czcionki
+Błąd: Nie udało się odczytać danych modelu
+Błąd: Nieznany format zasobu
+Wykluczenie
+Wyjście
+Funkcje eksperymentalne
+Wykładnik
+Eksportuj
+Eksportuj pędzel
+Eksportuj ikonę
+Eksportuj materiał
+Eksportuj model
+Eksportuj odtwarzacz
+Eksportuj tekstury
+Eksportuj próbki
+Eksportuj pliki tekstur
+Eksportowanie modelu
+Eksportowanie tekstur
+F1
+F2
+Wsp.
+Ściana
+Współczynnik
+Nie udało się zaimportować materiału
+Nie udało się odczytać dźwięku:
+Szybki
+Wyjście cechy
+Plik
+Wypełnienie
+Warstwa wypełnienia
+Maska wypełnienia
+Tryb wypełniania
+Filtr
+Filtruj tekstury
+Płaski
+Spłaszcz
+Krzywa liczby
+Zaokrąglij w dół
+Modulo z podłogą
+Latanie
+Tryb latania:\nPrzytrzymaj prawy przycisk myszy i jedno z poniższych poleceń:\nrusz myszą, aby obracać.\nw, góra lub przewijanie w górę, aby jechać do przodu.\ns, dół lub przewijanie w dół, aby jechać do tyłu.\na lub lewo, aby przesunąć się w lewo.\nd lub prawo, aby przesunąć się w prawo.\ne, aby przesunąć się w górę.\nq, aby przesunąć się w dół.\nPrzytrzymaj shift, aby poruszać się szybciej, lub alt, aby wolniej.
+Pole widzenia
+Folder nie zawiera tekstur
+Czcionka
+Czcionka...
+Czcionki
+Format
+Ułamek
+Klatka
+Liczba klatek
+Liczba klatek na sekundę
+Liczba klatek na sekundę
+Klatki
+Częstotliwość
+Tarcie
+Od maksimum
+Od minimum
+Przód
+Pełny
+Rozmycie
+G
+Tekstura Gabora
+Gamma
+Wygenerowane
+Geometria
+Geometria do początku układu
+Rozpocznij
+Chwytaj
+Tekstura gradientowa
+Grawitacja X
+Grawitacja Y
+Grawitacja Z
+Więcej niż
+Komórka siatki
+Przyciąganie do siatki
+Grupa
+Wejście grupy
+Wyjście grupy
+Twardość
+Wysokość
+Mieszanie wysokości
+Pomoc
+Ukryj widok 3D
+Wysoki poly
+Historia
+Przytrzymaj {action_paint}, aby gumkować\nPrzytrzymaj {brush_ruler} i naciśnij {action_paint}, aby gumkować prostą linię (tryb linijki)
+Przytrzymaj {action_paint}, aby malować\nPrzytrzymaj {brush_ruler} i naciśnij {action_paint}, aby malować prostą linię (tryb linijki)
+Przytrzymaj {brush_opacity} i przesuń mysz w lewo, aby zmniejszyć krycie\nPrzytrzymaj {brush_opacity} i przesuń mysz w prawo, aby zwiększyć krycie
+Przytrzymaj {brush_radius} i przesuń mysz w lewo lub naciśnij {brush_radius_decrease}, aby zmniejszyć promień\nPrzytrzymaj {brush_radius} i przesuń mysz w prawo lub naciśnij {brush_radius_increase}, aby zwiększyć promień
+Przytrzymaj {decal_mask}, aby malować na masce dekalu
+Przytrzymaj {decal_mask}, aby użyć tekstu jako maski
+Przytrzymaj {set_clone_source}, aby ustawić źródło
+Poziomy
+Poziomy odwrócony
+Jak to zrobić
+Odcień
+Odcień/Nasycenie/Wartość
+Cosinus hiperboliczny
+Sinus hiperboliczny
+Tangens hiperboliczny
+Tekstura obrazu
+Obraz do PBR
+Importuj
+Importuj model
+Importuj próbki kolorów
+Importuj plik czcionki
+Importuj plik modelu
+Importuj próbki kolorów
+Importuj plik tekstury
+Importuj...
+Importowanie modelu
+Wejście
+Przychodzące
+Nadmuchaj
+Informacja: Zasób już zaimportowany
+Wejście
+Zbadaj jako skrypt
+Natychmiast aktualizuj podgląd materiału przy zmianie węzła
+Intensywność
+Interfejs
+Interpoluj
+Nieprawidłowy katalog eksportu
+Nieprawidłowa ścieżka skryptu
+Nieprawidłowy typ tekstury
+Odwrotny pierwiastek kwadratowy
+Odwróć
+Odwróć kolor
+Odwróć maskę
+Odwróć zaznaczenie
+Śledzenie problemów
+Iteracje
+Połącz
+Klatka kluczowa
+Mapa klawiszy
+Mapa klawiszy zaimportowana:
+Lakunarność
+Język
+Warstwa
+Kąt warstwy
+Mieszanie warstw
+Maska warstwy
+Obiekt warstwy
+Krycie warstwy
+Skala UV warstwy
+Typ UV warstwy
+Widoczność warstwy
+Warstwy
+Promień leniwy
+Krok leniwy
+Lewy
+Długość
+Mniej niż
+Poziomy
+Czas życia
+Rozjaśnienie
+Lightmapa
+Liniowy
+Liniowe światło
+Oświetlony
+Podgląd pędzla na żywo
+Podgląd materiału na żywo
+Pozycja
+Logarytm
+Tekstura magiczna
+Uczyń unikalnym
+Instrukcja
+Mapa zakresu
+Mapowanie
+Maska
+Kolor maski
+Masa
+Materiał
+ID materiału
+Indeks materiału
+Wyjście materiału
+Materiał...
+Materiały
+Matematyka
+Maks
+Maksimum
+Połącz w dół
+Scal geometrię
+Połącz grupy
+Połącz warstwy
+Model
+Wejście modelu
+Wyjście modelu
+Model...
+Modele
+Metaliczność
+Min
+Min Maks
+Minimum
+Lustro
+Mieszaj
+Mieszaj kolor
+Mieszaj mapę normalnych
+Mobilny
+Tryb
+Model
+Modele
+Katalog modeli...
+Modyfikator
+Zmodyfikuj
+Zmodyfikuj animację
+Modulo
+Zaprawa
+Rozmiar zaprawy
+Wygładzenie zaprawy
+Mnożenie
+Nazwa
+Neuronowy
+Nowy
+Nowa czarna maska
+Nowy pędzel
+Nowy kolor
+Nowa maska wypełnienia
+Nowa grupa
+Nowa mapa klawiszy
+Nowa warstwa
+Nowy materiał
+Nowy plugin
+Nowy preset
+Nowy projekt
+Nowy projekt...
+Nowa próbka koloru
+Nowy motyw
+Nowa biała maska
+Następny
+Nie
+Brak odpowiedzi
+Węzeł
+Podglądy węzłów
+Węzły
+Ziarnistość szumu
+Tekstura szumu
+Brak
+Normalna
+Mieszanie normalnych
+Mapa normalnych
+Mapa normalnych 1
+Mapa normalnych 2
+Normalizuj
+Niedostępne w kompilacji debugowania
+Nie zaimplementowano
+OK
+Obiekt
+ID obiektu
+Indeks obiektu
+Informacje o obiekcie
+Normalna obiektu
+Okluzja
+Przesunięcie
+Stary kolor
+Krycie
+Tryb krycia
+Otwórz przeglądarkę
+Otwórz katalog zawierający...
+Otwórz zewnętrznie
+Otwórz ostatnie...
+Otwórz w przeglądarce
+Otwórz...
+Otwieranie projektu
+Operacja
+Przeciwny
+Orbitowanie
+Tryb orbitowania i obrotu:\n{rotate_shortcut} lub ruch prawym przyciskiem myszy, aby obracać.\n{zoom_shortcut} lub przewijanie, aby przybliżać.\n{pan_shortcut} lub ruch środkowym przyciskiem myszy, aby przesuwać.
+Uporządkuj warstwy
+Orientacja 2D
+Orientacja 3D
+Środek do geometrii
+Ortograficzny
+Wyjście
+Nakładka
+PBR
+Spakuj zasoby
+Spakuj do projektu
+Wypełnienie
+Malowanie
+Warstwa malowania
+Maska malowania
+Parametryczny
+Rodzic
+Częściowa pochodna
+Cząsteczka
+Wklej
+Ścieżka
+Śledzenie ścieżek
+Śledzenie ścieżek
+Pauza
+Pióro
+Ołówek
+Na obiekt
+Na kafel UDIM
+Perspektywiczny
+Faza
+Przesunięcie fazy
+Fizyka
+Wybrany kolor
+Pipeta
+Przypnij do nagłówka
+Ściśnij
+Ping-Pong
+Punkt obrotu
+Rozmiar piksela
+Płaskowyż
+Odtwórz
+Odtwarzacz
+Odtwarzacz...
+Plugin zaimportowany:
+Pluginy
+Punkt
+Ostrość
+Pozycja
+Postprodukcja
+Potęga
+Preferencje
+Preferencje...
+Preset
+Preset zaimportowany:
+Presety
+Kontrola nacisku
+Poprzedni
+Poprzedni folder
+Przetwarzanie...
+Projekt
+Projekt zapisany
+Projekty
+Prompt
+Jakość
+Kwantyzuj
+R
+Krzywe RGB
+RGB do BW
+RGBA
+Promieniowy
+Promień
+Losowy
+Losowość
+Zakres
+Współczynnik
+Ostatnie
+Powtórz {step}
+Odbij
+Odśwież
+Zaimportuj ponownie
+Zaimportuj model ponownie
+Zaimportuj tekstury ponownie
+Przesunięcie względne
+Usuń
+Zmień nazwę warstwy
+Renderer
+Przeorientowany
+Powtórz
+Zastąp
+Zastąp kolor
+Zastąp istniejące
+Zamień próbki kolorów
+Zgłoś błąd
+Zaproponuj funkcję
+Resetuj
+Resetuj Envmapę
+Resetuj układ
+Rozdzielczość
+Przywróć
+Przywróć próbki kolorów
+Przywróć domyślne próbki
+Prawy
+Pierścienie
+Obracaj
+Obrót
+Szorstkość
+Zaokrąglij
+Wysokość rzędu
+Uruchom
+Uruchom w odtwarzaczu
+Uruchomiono...
+SSAO
+Próbki
+Nasycenie
+Zapisz
+Zapisz jako...
+Zapisz obraz
+Najpierw zapisz projekt
+Najpierw zapisz projekt w chmurze
+Zapisz w chmurze
+Zapisz w chmurze...
+Zapisz na dysku...
+Zapisywanie projektu
+Piła
+Skala
+Skala X
+Ekran
+Skrypt
+Węzły skryptów
+Skrypt otwarty
+Skrypty
+Rzeźbienie
+Warstwa rzeźbienia
+Szukaj
+Szukaj węzłów
+Segmenty
+Zaznacz
+Zaznacz wszystko
+Zaznacz ukryte
+Wybierz materiał
+Zaznacz widoczne
+Wybrane
+Czułość
+Oddziel kolor
+Oddziel wektor
+Rozdziel XYZ
+Ustaw źródło
+Ustaw jako mapę ID koloru
+Ustaw jako Envmapę
+Ustaw jako maskę
+Ustawianie źródła
+Ustawienia
+Shader
+Kształt
+Udostępnij link do odtwarzacza
+Współdzielone
+Pokaż podgląd 2D
+Pokaż nazwy zasobów
+Pokaż siatkę
+Pokaż edytor węzłów
+Domyślnie pokazuj podgląd węzła na każdym węźle
+Znak
+Zaloguj się...
+Wyloguj się
+Logowanie wygasło, spróbuj ponownie
+Zaloguj się, aby przechowywać projekty w chmurze.
+Zaloguj się kontem armorpaint.org.
+Zalogowano
+Zalogowano jako
+Logowanie...
+Sinus
+Rozmiar
+Slot
+Wygładzanie
+Rozmazanie
+Przyciągaj
+Fragmenty
+Gniazdo
+Miękkie światło
+Sortuj
+Dźwięk
+Dźwięk zaimportowany:
+Dźwięki
+Sfera
+Sferyczny
+Ekran powitalny
+Rozdziel
+Podziel według
+Podziel widok
+Podziel siatkę na obiekty
+Pierwiastek kwadratowy
+Spłaszczenie
+Etap
+Klatka początkowa
+Szablon
+Osiągnięto limit kroków
+Stop
+Zatrzymaj przechwytywanie
+Zatrzymaj udostępnianie
+Prosty
+Siła
+Rozciągnij
+Podziel
+Podpowierzchniowe
+Odejmowanie
+Superpróbkowanie
+Próbki kolorów
+Próbki...
+Symetria
+Tangens
+Cel
+Szablon
+Szablony
+Teren
+Współrzędne tekstury
+Teksele
+Tekst
+Tekstura tekstu
+Tekst do obrazu
+Tekstura
+Współrzędne tekstury
+Tekstura zaimportowana:
+Tekstura...
+Tekstury
+Tekstury wyeksportowane
+Tekstury...
+Motyw
+Motyw zaimportowany:
+Grubość
+Kafelek
+Kafelek X
+Kafelek Y
+Kafelkowany
+Kafelków X
+Kafelków Y
+Arkusz kafelków
+Animacja arkusza kafelków
+Czas
+Oś czasu
+Do stopni
+Do warstwy wypełnienia
+Do maski wypełnienia
+Do warstwy
+Do maski
+Do maksimum
+Do minimum
+Do warstwy malowania
+Do maski malowania
+Do radianów
+Przełącz pełny ekran
+Przełącz nagłówek
+Narzędzia
+Góra
+Interfejs dotykowy
+Transformacja
+Przekształć obiekt
+Przezierność
+Trójkąt
+Przytnij
+Triplanarny
+Obetnij
+Modulo obcięte
+Zaufać skryptom projektu?
+Interpolacja
+Skręć
+Typ
+Kafel UDIM
+Skala UI
+UV
+Wyspa UV
+Mapa UV
+Skala UV
+Rozwijanie UV
+Mapa UV
+Nie można sprawdzić aktualizacji.\nOdwiedź {url}.
+Kroki cofania
+Cofnij {step}
+Rozwiń
+Rozwiń model
+Rozwijanie modelu
+Góra
+Oś w górę
+Aktualizuj
+Dostępna aktualizacja!\nOdwiedź {url}.
+Powiększ obraz
+Użycie
+Narzędzia
+Wartość
+Wartość
+Wariancja
+Wektor
+Krzywe wektorowe
+Matematyka wektorowa
+Obróć wektor
+Przekształć wektor
+Kolor wierzchołka
+Pionowy
+Pionowy odwrócony
+Pionowy i poziomy
+Pionowy i poziomy odwrócony
+Widok
+Rzutnia
+Maska rzutni
+Tryb rzutni
+Winieta
+Widoczny
+Tekstura Voronoi
+Zniekształć
+Profil fali
+Tekstura fali
+Typ fali
+Co nowego
+Biała maska
+Bielenie
+Szerokość
+Okno
+Siatka
+Przestrzeń robocza
+Świat
+Zawijaj mysz
+Zawijaj mysz wokół granic widoku podczas sterowania kamerą
+X
+X-Ray
+XYZ
+Y
+Tak
+Masz aktualną wersję!
+Z
+Przybliż
+Oddal
+Dopasuj powiększenie
+Typ mieszania
+Przestrzeń kolorów
+ctrl+f aby szukać
+esc aby anulować
+fBM
+plik
+pamięć GPU
+Typ gradientu
+węzły
+Operacja
+spakowane
+player
+Plugin włączony
+Zapytanie
+sRGB
+źródło
+trójkąty
+typ
+bez tytułu
+x
+{shortcut} i poruszaj myszą

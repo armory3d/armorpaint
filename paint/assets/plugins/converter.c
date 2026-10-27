@@ -10,6 +10,7 @@ void on_arm_to_json(char *path) {
 	char     *p   = substring(path, 0, string_length(path) - 3);
 	p             = string("%sjson", p);
 	iron_file_save_bytes(p, out, 0);
+	data_delete_blob(path);
 }
 
 void on_json_to_arm(char *path) {
@@ -18,6 +19,7 @@ void on_json_to_arm(char *path) {
 	char     *p   = substring(path, 0, string_length(path) - 4);
 	p             = string("%sarm", p);
 	iron_file_save_bytes(p, out, 0);
+	data_delete_blob(path);
 }
 
 void on_ui() {

@@ -28,7 +28,7 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 		// Already imported
 		if (string_equals(a->file, path)) {
 			// Set as envmap
-			if (hdr_as_envmap && ends_with(to_lower_case(path), ".hdr")) {
+			if (hdr_as_envmap && path_has_ext(path, "hdr")) {
 				gpu_texture_t         *image = data_get_texture(path);
 				import_texture_data_t *itd   = ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
 				sys_notify_on_next_frame(&import_texture_run_on_next_frame, itd); // Make sure file browser process did finish
@@ -38,7 +38,7 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 		}
 	}
 
-	char *ext                              = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	char *ext                              = path_ext(path);
 	gpu_texture_t *(*importer)(char *path) = any_map_get(import_texture_importers, ext);
 
 	bool           cached = any_map_get(data_cached_textures, path) != NULL; // Already loaded or pink texture for missing file
@@ -63,11 +63,11 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 		g_context->texture = asset;
 	}
 	asset->image                                    = image;
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
 	console_info(string("%s %s", tr("Texture imported:"), name));
 
 	// Set as envmap
-	if (hdr_as_envmap && ends_with(to_lower_case(path), ".hdr")) {
+	if (hdr_as_envmap && path_has_ext(path, "hdr")) {
 		import_texture_data_t *itd = ALLOC_INIT(import_texture_data_t, {.path = path, .image = image});
 		sys_notify_on_next_frame(&import_texture_run_on_next_frame, itd); // Make sure file browser process did finish
 	}

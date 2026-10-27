@@ -19,21 +19,8 @@ static bool _is_selected(i32 idx) {
 }
 
 static void _get_tex_transform(f32 *out_tx, f32 *out_ty, f32 *out_tw, f32 *out_th) {
-	i32 headerh = g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 1 ? ui_header_h * 2 : ui_header_h;
-	i32 apph    = iron_window_height() - g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] + headerh;
-	if (!base_view3d_show) {
-		apph = base_h();
-	}
-	f32 wm = fmin(ui_view2d_ww, ui_view2d_wh);
-	f32 tw = wm * 0.9f * ui_view2d_pan_scale;
-	f32 th = tw;
-	if (util_uv_uvmap != NULL) {
-		th = tw * (util_uv_uvmap->height / (f32)util_uv_uvmap->width);
-	}
-	*out_tw = tw;
-	*out_th = th;
-	*out_tx = ui_view2d_ww / 2.0f - tw / 2.0f + ui_view2d_pan_x;
-	*out_ty = apph / 2.0f - th / 2.0f + ui_view2d_pan_y;
+	f32 aspect = util_uv_uvmap != NULL ? util_uv_uvmap->height / (f32)util_uv_uvmap->width : 1.0f;
+	ui_view2d_tex_rect(aspect, out_tx, out_ty, out_tw, out_th);
 }
 
 void edit_uvmap_update() {
@@ -123,6 +110,7 @@ void edit_uvmap_update() {
 			}
 			util_uv_uvmap_cached       = false;
 			util_uv_trianglemap_cached = false;
+			util_uv_seammap_cached     = false;
 			util_uv_dilatemap_cached   = false;
 			ui_view2d_hwnd->redraws    = 2;
 		}

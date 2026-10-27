@@ -89,11 +89,11 @@ void import_json_material_run(char *path) {
 	g_context->material = slot_material_create(m0, canvas);
 	any_array_push(g_project->_->materials, g_context->material);
 
-	base_update_workflow_nodes();
+	base_update_tools_nodes();
 	history_new_material();
 
 	slot_material_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
 	any_array_push(imported, g_context->material);
 	sys_notify_on_next_frame(&import_arm_run_material_from_project_on_next_frame, imported);
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 }

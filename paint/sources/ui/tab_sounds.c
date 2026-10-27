@@ -16,13 +16,13 @@ void tab_sounds_delete_sound_on_next_frame(slot_sound_t *sound) {
 
 void tab_sounds_delete_sound(slot_sound_t *sound) {
 	sys_notify_on_next_frame(&tab_sounds_delete_sound_on_next_frame, sound);
-	ui_base_hwnds->buffer[2]->redraws = 2;
+	ui_dock_redraw(2);
 }
 
 slot_sound_t *_tab_sounds_export_sound;
 
 char *tab_sounds_ext(slot_sound_t *sound) {
-	return ends_with(to_lower_case(sound->file), ".ogg") ? ".ogg" : ".wav";
+	return path_has_ext(sound->file, "ogg") ? ".ogg" : ".wav";
 }
 
 buffer_t *tab_sounds_get_bytes(slot_sound_t *sound) {
@@ -44,7 +44,7 @@ void tab_sounds_export(char *path) {
 	if (string_equals(f, "")) {
 		f = string_copy(tr("untitled"));
 	}
-	if (!ends_with(to_lower_case(f), ext)) {
+	if (!path_has_ext(f, ext + 1)) {
 		f = string("%s%s", f, ext);
 	}
 	buffer_t *bytes = tab_sounds_get_bytes(sound);

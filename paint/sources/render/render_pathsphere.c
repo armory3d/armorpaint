@@ -106,14 +106,39 @@ static void create_pathsphere_object() {
 	                                                   ._        = ALLOC_INIT(shader_data_runtime_t, {.uid = 0.0}),
 	                                               });
 
-	render_pathsphere_obj                  = mesh_object_create(md, mat);
-	render_pathsphere_obj->base->name      = "render_pathsphere";
-	render_pathsphere_obj->base->visible   = false;
-	render_pathsphere_obj->frustum_culling = false;
+	render_pathsphere_obj                = mesh_object_create(md, mat);
+	render_pathsphere_obj->base->name    = "render_pathsphere";
+	render_pathsphere_obj->base->visible = false;
+}
+
+// Points of the path and curve object tools
+void render_pathsphere_tool() {
+	if (base_player || g_context->capturing_screenshot || g_context->paint2d) {
+		return;
+	}
+	i32     count;
+	i32     active;
+	vec4_t *points = util_path_tool_get_points(&count, &active);
+	if (count == 0) {
+		return;
+	}
+	if (render_pathsphere_obj == NULL) {
+		create_pathsphere_object();
+	}
+	for (i32 i = 0; i < count; i++) {
+		f32 scale = util_path_tool_point_scale(points[i]) * (i == active ? 1.5f : 1.0f);
+
+		render_pathsphere_obj->base->transform->loc   = points[i];
+		render_pathsphere_obj->base->transform->scale = (vec4_t){scale, scale, scale, 1.0};
+		transform_build_matrix(render_pathsphere_obj->base->transform);
+		mesh_object_draw(render_pathsphere_obj, render_path_base_own_scon(render_pathsphere_obj), NULL);
+	}
 }
 
 void render_pathsphere() {
-	if (g_config->workspace == WORKSPACE_PLAYER || g_context->capturing_screenshot || g_context->paint2d) {
+	render_pathsphere_tool();
+
+	if (base_player || g_context->capturing_screenshot || g_context->paint2d) {
 		return;
 	}
 
@@ -138,8 +163,6 @@ void render_pathsphere() {
 	i32 num_points   = points_world->length / 3;
 	i32 active_index = path_layer_last_active;
 
-	render_pathsphere_obj->base->visible = true;
-
 	for (i32 i = 0; i < num_points; i++) {
 		f32 wx    = points_world->buffer[i * 3];
 		f32 wy    = points_world->buffer[i * 3 + 1];
@@ -151,8 +174,6 @@ void render_pathsphere() {
 		render_pathsphere_obj->base->transform->loc   = (vec4_t){wx, wy, wz, 1.0};
 		render_pathsphere_obj->base->transform->scale = (vec4_t){scale, scale, scale, 1.0};
 		transform_build_matrix(render_pathsphere_obj->base->transform);
-		mesh_object_render(render_pathsphere_obj, "overlay", NULL);
+		mesh_object_draw(render_pathsphere_obj, render_path_base_own_scon(render_pathsphere_obj), NULL);
 	}
-
-	render_pathsphere_obj->base->visible = false;
 }

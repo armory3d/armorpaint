@@ -1283,6 +1283,8 @@ async function init() {
 		}
 		call_wasm(instance.exports.wasm_keyup, key_to_iron_key(event.key));
 	});
+	canvas.addEventListener('focus', () => { call_wasm(instance.exports.wasm_foreground); });
+	canvas.addEventListener('blur', () => { call_wasm(instance.exports.wasm_background); });
 
 	canvas.addEventListener('dragover', (event) => {
 		event.preventDefault();

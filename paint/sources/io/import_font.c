@@ -40,5 +40,5 @@ void import_font_run(char *path) {
 
 	sys_notify_on_next_frame(&import_font_run_on_next_frame, font_slots);
 
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
 }

@@ -4,7 +4,7 @@
 		{ "color": 4294627760, "start": ["'"], "end": "'", "separated": false },
 		{ "color": 4284384616, "start": ["//"], "end": "\n", "separated": false },
 		{ "color": 4288038789, "start": ["#pragma", "#include", "#ifdef", "#ifndef", "#undef", "#else", "#elif", "#define", "#if", "defined", "#endif"], "end": "", "separated": true  },
-		{ "color": 4291204550, "start": ["void", "const", "extern", "char", "string", "bool", "float", "double", "unsigned", "f32", "i32", "u32", "i16", "u16", "u8", "for", "while", "if", "else", "NULL", "null", "var", "let", "type", "typedef", "struct", "static", "enum", "int", "function", "true", "false", "return"], "end": "", "separated": true },
+		{ "color": 4291204550, "start": ["void", "const", "extern", "char", "string", "bool", "float", "double", "unsigned", "f32", "f64", "i32", "u32", "i16", "u16", "u8", "for", "while", "if", "else", "NULL", "null", "typedef", "struct", "static", "enum", "int", "true", "false", "return"], "end": "", "separated": true },
 		{ "color": 4289117513, "start": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], "end": "", "separated": true },
 		{ "color": 4287269514, "start": ["=", "(", ")", "<", ">", "[", "]", "{", "}", ";", "-", "+", "/", "*", "@", "#", "$", "%", ":", ",", ".", "&", "!", "?"], "end": "", "separated": false }
 	],

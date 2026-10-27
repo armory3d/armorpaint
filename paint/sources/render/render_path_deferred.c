@@ -114,10 +114,13 @@ void render_path_deferred_draw_deferred() {
 	// render_path_bind_target("histogram", "histogram");
 	render_path_draw_shader("Scene/compositor_pass/compositor_pass");
 
+	render_path_set_target("gbuffer1", NULL, "main", GPU_CLEAR_NONE, 0, 0.0);
+	render_grid();
 	render_path_set_target("gbuffer1", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	render_compass();
 	render_envsphere();
-	render_path_draw_meshes("overlay");
+	render_pathsphere_tool();
+	render_gizmo_draw();
 	render_path_base_draw_taa("gbuffer1", "buf");
 }
 

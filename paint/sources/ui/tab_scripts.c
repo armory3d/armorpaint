@@ -43,6 +43,29 @@ char *tab_scripts_find(char *name) {
 	return i >= 0 ? g_project->script_datas->buffer[i] : NULL;
 }
 
+// Pastes in the project scripts of #include "name.c" lines, #line keeps error lines pointing at the files
+char *tab_scripts_expand(char *src, char *name) {
+	buffer_t sb;
+	string_buffer_init(&sb);
+	any_array_t *lines = string_split(src, "\n");
+	for (i32 i = 0; i < lines->length; ++i) {
+		char *line = lines->buffer[i];
+		char *data = NULL;
+		if (starts_with(line, "#include \"")) {
+			char *inc = substring(line, 10, string_last_index_of(line, "\""));
+			data      = tab_scripts_find(inc);
+			if (data != NULL) {
+				string_buffer_append(&sb, string("#line 1 \"%s\"\n%s\n#line %d \"%s\"\n", inc, data, i + 2, name));
+			}
+		}
+		if (data == NULL) {
+			string_buffer_append(&sb, line);
+			string_buffer_append(&sb, "\n");
+		}
+	}
+	return string_buffer_get(&sb);
+}
+
 void tab_scripts_set(char *s) {
 	tab_scripts_prepare();
 	g_project->script_datas->buffer[tab_scripts_selected] = string_copy(s);
@@ -226,8 +249,8 @@ void main() {\n\
 	g_ui->changed = false;
 	ui_check(&tab_scripts_search_show, tr("Search"), "");
 	if (g_ui->changed) {
-		ui_menu_keep_open                                 = true;
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		ui_menu_keep_open = true;
+		ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	}
 }
 
@@ -421,7 +444,7 @@ static void tab_scripts_draw_minimap(f32 mm_x, f32 mm_y, f32 mm_w, f32 mm_h) {
 	}
 	f32             line_h          = 2 * UI_SCALE();
 	string_array_t *lines           = string_split(tab_scripts_text, "\n");
-	f32             content_h       = lines->length * UI_ELEMENT_H();
+	f32             content_h       = lines->length * UI_TEXT_AREA_LINE_H();
 	f32             full_h          = lines->length * line_h;
 	f32             scroll_progress = content_h > 0 ? -g_ui->current_window->scroll_offset / content_h : 0;
 	f32             out_of_screen   = full_h - mm_h;
@@ -446,7 +469,7 @@ static void tab_scripts_draw_minimap(f32 mm_x, f32 mm_y, f32 mm_w, f32 mm_h) {
 
 	// View box
 	f32 visible_area = out_of_screen > 0 ? mm_h : full_h;
-	f32 box_h        = (mm_h / UI_ELEMENT_H()) * line_h;
+	f32 box_h        = (mm_h / UI_TEXT_AREA_LINE_H()) * line_h;
 	f32 box_y        = mm_y + scroll_progress * visible_area;
 	if (box_y < mm_y) {
 		box_y = mm_y;
@@ -461,9 +484,9 @@ static void tab_scripts_draw_minimap(f32 mm_x, f32 mm_y, f32 mm_w, f32 mm_h) {
 	if (tab_scripts_minimap_scrolling && content_h > mm_h) {
 		f32 my_local      = g_ui->input_y - (g_ui->_window_y + mm_y);
 		i32 picked        = offset + math_floor(my_local / line_h);
-		f32 visible_lines = mm_h / UI_ELEMENT_H();
-		f32 target        = (picked - visible_lines / 2) * UI_ELEMENT_H();
-		f32 max_scroll    = (lines->length - 1) * UI_ELEMENT_H(); // Last line at the top
+		f32 visible_lines = mm_h / UI_TEXT_AREA_LINE_H();
+		f32 target        = (picked - visible_lines / 2) * UI_TEXT_AREA_LINE_H();
+		f32 max_scroll    = (lines->length - 1) * UI_TEXT_AREA_LINE_H(); // Last line at the top
 		if (target < 0) {
 			target = 0;
 		}
@@ -489,16 +512,17 @@ void tab_scripts_draw(i32 *htab) {
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
-		        -70,
-		        -70,
-		        -140,
+		        -64,
+		        -64,
+		        -152,
 		    },
 		    3);
 
 		ui_row(row);
 
 		if (ui_icon_button(tr("Run"), ICON_PLAY, UI_ALIGN_CENTER)) {
-			minic_ctx_t *ctx = minic_eval(tab_scripts_text);
+			char        *name = g_project->script_names->buffer[tab_scripts_selected];
+			minic_ctx_t *ctx  = minic_eval_named(tab_scripts_expand(tab_scripts_text, name), name);
 			// minic_ctx_free(ctx);
 		}
 
@@ -676,7 +700,7 @@ void tab_scripts_draw(i32 *htab) {
 						max_w = w > max_w ? w : max_w;
 					}
 					f32 px = g_ui->cursor_screen_x;
-					f32 py = g_ui->cursor_screen_y + UI_ELEMENT_H();
+					f32 py = g_ui->cursor_screen_y + UI_TEXT_AREA_LINE_H();
 					f32 pw = max_w + pad * 2;
 					f32 ph = row_h * n;
 

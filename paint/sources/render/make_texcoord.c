@@ -49,8 +49,11 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			node_shader_add_constant(kong, "float3 camera_up", "_camera_up");
 			node_shader_add_constant(kong, "float camera_align", "_brush_camera_align");
 
+			// Off the mesh, anchor the decal at the depth of the world origin
+			node_shader_write_attrib_frag(kong, "float4 origin_clip = constants.VP * float4(0.0, 0.0, 0.0, 1.0);");
 			node_shader_write_attrib_frag(kong, "if (constants.camera_align > 0.0) {");
 			node_shader_write_attrib_frag(kong, "float ca_depth = sample_lod(gbufferD, sampler_linear, constants.decal_mask.xy, 0.0).r;");
+			node_shader_write_attrib_frag(kong, "if (ca_depth >= 1.0 && origin_clip.w > 0.0) { ca_depth = origin_clip.z / origin_clip.w; }");
 			node_shader_write_attrib_frag(kong, "float2 ca_coord = float2(constants.decal_mask.x * 2.0 - 1.0, 1.0 - constants.decal_mask.y * 2.0);");
 			node_shader_write_attrib_frag(kong, "float4 ca_homog = constants.invVP * float4(ca_coord.x, ca_coord.y, ca_depth, 1.0);");
 			node_shader_write_attrib_frag(kong, "float ca_clip_w = 1.0 / ca_homog.w;");
@@ -68,6 +71,9 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 
 			// Unproject the decal anchor point from the depth buffer
 			node_shader_write_attrib_frag(kong, "float decal_depth = sample_lod(gbufferD, sampler_linear, decal_xy, 0.0).r;");
+			node_shader_write_attrib_frag(kong, "float decal_off_mesh = 0.0;");
+			node_shader_write_attrib_frag(
+			    kong, "if (decal_depth >= 1.0 && origin_clip.w > 0.0) { decal_depth = origin_clip.z / origin_clip.w; decal_off_mesh = 1.0; }");
 			node_shader_write_attrib_frag(kong, "float4 decal_wpos4 = float4(float2(decal_xy.x, 1.0 - decal_xy.y) * 2.0 - 1.0, decal_depth, 1.0);");
 			node_shader_write_attrib_frag(kong, "decal_wpos4 = constants.invVP * decal_wpos4;");
 			node_shader_write_attrib_frag(kong, "float3 decal_wpos = decal_wpos4.xyz / decal_wpos4.w;");
@@ -89,9 +95,16 @@ void make_texcoord_run(node_shader_t *kong, bool is_atlas) {
 			node_shader_write_attrib_frag(kong, "float3 d_offset = input.wposition - decal_wpos;");
 			node_shader_write_attrib_frag(kong, "float decal_radius = constants.brush_radius;");
 			node_shader_write_attrib_frag(kong, "if (constants.decal_mask.z > 0.0) { decal_radius = constants.decal_mask.w; }");
-			node_shader_write_attrib_frag(kong, "if (abs(dot(d_offset, dn)) > decal_radius) { discard; }");
+			node_shader_write_attrib_frag(kong, "if (decal_off_mesh == 0.0 && abs(dot(d_offset, dn)) > decal_radius) { discard; }");
 			node_shader_write_attrib_frag(kong, "uvsp = float2(dot(d_offset, d_tan), dot(d_offset, d_bin));");
 			node_shader_write_attrib_frag(kong, "uvsp = uvsp / decal_radius * 0.5;");
+			// Off the mesh there is no surface to project from, map in screen space like camera align
+			node_shader_write_attrib_frag(kong, "if (decal_off_mesh > 0.0) {");
+			node_shader_write_attrib_frag(kong, "float off_up_y = (constants.VP * float4(constants.camera_up, 0.0)).y;");
+			node_shader_write_attrib_frag(kong, "uvsp = sp.xy - decal_xy;");
+			node_shader_write_attrib_frag(kong, "uvsp.x *= constants.aspect_ratio;");
+			node_shader_write_attrib_frag(kong, "uvsp = uvsp * ((1.0 / decal_wpos4.w) / (off_up_y * decal_radius));");
+			node_shader_write_attrib_frag(kong, "}");
 
 			node_shader_write_attrib_frag(kong, "}");
 

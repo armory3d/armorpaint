@@ -10,4 +10,4 @@ buffer_t *iron_encode_png(buffer_t *bytes, i32 w, i32 h, i32 format);
 
 void iron_mp4_begin(char *path, i32 w, i32 h);
 void iron_mp4_end();
-void iron_mp4_encode(buffer_t *pixels);
+void iron_mp4_encode(buffer_t *pixels, f64 time);

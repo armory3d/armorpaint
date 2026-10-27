@@ -43,7 +43,9 @@ void context_init() {
 	g_context->clone_delta_x                = 0.0;
 	g_context->clone_delta_y                = 0.0;
 	g_context->clone_set_source             = false;
+	g_context->clone_layers                 = CLONE_LAYERS_SELECTED;
 	g_context->show_compass                 = true;
+	g_context->show_grid                    = false;
 	g_context->last_paint_vec_x             = -1.0;
 	g_context->last_paint_vec_y             = -1.0;
 	g_context->prev_paint_vec_x             = -1.0;
@@ -167,7 +169,6 @@ void context_init() {
 	g_context->fill_type                    = FILL_TYPE_OBJECT;
 	g_context->blur_type                    = BLUR_TYPE_BLUR;
 	g_context->paint2d                      = false;
-	g_context->maximized_sidebar_width      = 0;
 	g_context->drag_dest                    = 0;
 	g_context->tool                         = TOOL_TYPE_BRUSH;
 	g_context->color_picker_previous_tool   = TOOL_TYPE_BRUSH;
@@ -198,10 +199,10 @@ void context_set_material(slot_material_t *m) {
 	}
 	g_context->material = m;
 	make_material_parse_paint_material(true);
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
-	ui_header_handle->redraws                         = 2;
-	ui_nodes_hwnd->redraws                            = 2;
-	ui_nodes_group_stack                              = any_array_create_from_raw((void *[]){}, 0);
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+	ui_header_handle->redraws = 2;
+	ui_nodes_hwnd->redraws    = 2;
+	ui_nodes_group_stack      = any_array_create_from_raw((void *[]){}, 0);
 
 	bool decal = context_is_decal();
 	if (decal) {
@@ -224,8 +225,8 @@ void context_set_brush(slot_brush_t *b) {
 	make_material_parse_brush();
 	brush_output_node_parse_inputs();
 	make_material_parse_paint_material(false);
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
-	ui_nodes_hwnd->redraws                            = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+	ui_nodes_hwnd->redraws = 2;
 }
 
 void context_set_font(slot_font_t *f) {
@@ -235,8 +236,8 @@ void context_set_font(slot_font_t *f) {
 	g_context->font = f;
 	util_render_make_text_preview();
 	util_render_make_decal_preview();
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
-	ui_view2d_hwnd->redraws                         = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
+	ui_view2d_hwnd->redraws = 2;
 }
 
 void context_select_font(i32 i) {
@@ -250,9 +251,9 @@ void context_set_sound(slot_sound_t *s) {
 	if (array_index_of(g_project->_->sounds, s) == -1) {
 		return;
 	}
-	g_context->sound                                = s;
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
-	ui_view2d_hwnd->redraws                         = 2;
+	g_context->sound = s;
+	ui_dock_redraw(TAB_AREA_STATUS);
+	ui_view2d_hwnd->redraws = 2;
 }
 
 void context_select_sound(i32 i) {
@@ -288,8 +289,8 @@ void context_set_layer(slot_layer_t *l) {
 	if (in_use)
 		draw_begin(current, false, 0);
 
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-	ui_view2d_hwnd->redraws                           = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
+	ui_view2d_hwnd->redraws = 2;
 }
 
 void context_select_tool(i32 i) {
@@ -315,30 +316,20 @@ void context_init_tool() {
 	}
 	else if (g_context->tool == TOOL_TYPE_MATERIAL) {
 		layers_update_fill_layers();
-		context_main_object()->skip_context = NULL;
 	}
 }
 
 void context_select_paint_object(mesh_object_t *o) {
-	ui_header_handle->redraws = 2;
-	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
-		p->skip_context  = "paint";
-	}
-
-	g_context->paint_object = o;
-
-	i32 mask = slot_layer_get_object_mask(g_context->layer);
-	if (context_layer_filter_used()) {
-		mask = g_context->layer_filter;
-	}
-
-	if (g_context->merged_object == NULL || mask > 0) {
-		g_context->paint_object->skip_context = "";
-	}
+	ui_header_handle->redraws  = 2;
+	g_context->paint_object    = o;
 	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap_cached = false;
 	util_uv_dilatemap_cached   = false;
+}
+
+// Cursor tool clicked on empty space, the paint object stays selected in the meshes tab
+bool context_object_deselected() {
+	return g_context->paint_object != NULL && context_deselected_uid == g_context->paint_object->base->uid;
 }
 
 mesh_object_t *context_main_object() {
@@ -360,7 +351,7 @@ bool context_object_mask_used() {
 }
 
 bool context_in_3d_view() {
-	return g_context->paint_vec.x < 1 && g_context->paint_vec.x > 0 && g_context->paint_vec.y < 1 && g_context->paint_vec.y > 0;
+	return !base_paint_in_2d() && g_context->paint_vec.x < 1 && g_context->paint_vec.x > 0 && g_context->paint_vec.y < 1 && g_context->paint_vec.y > 0;
 }
 
 bool context_in_paint_area() {
@@ -445,7 +436,7 @@ bool context_is_decal_mask_paint_pass() {
 
 bool context_is_floating_toolbar() {
 	// Header is off -> floating toolbar
-	return g_config->layout->buffer[LAYOUT_SIZE_HEADER] == 0 || (!base_view3d_show && ui_view2d_show);
+	return !g_config->header_pinned || (!base_view3d_show && ui_view2d_show);
 }
 
 void context_set_viewport_mode(viewport_mode_t mode) {
@@ -465,7 +456,7 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 	make_material_parse_mesh_material();
 
 	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
-		util_mesh_merge(NULL);
+		util_mesh_visibility_changed();
 	}
 
 	// Rotate mode is not supported for path tracing yet
@@ -502,12 +493,13 @@ void context_set_camera_controls(int i) {
 }
 
 void context_load_envmap() {
-	if (!g_context->envmap_loaded) {
-		// TODO: Unable to share texture for both radiance and envmap - reload image
-		g_context->envmap_loaded = true;
-		map_delete(data_cached_textures, "World_radiance.k");
+	g_context->envmap_loaded = true;
+	if (util_render_is_default_envmap(scene_world->envmap)) {
+		scene_world->_->envmap = util_render_default_envmap();
 	}
-	world_data_load_envmap(scene_world);
+	else {
+		world_data_load_envmap(scene_world);
+	}
 	if (g_context->saved_envmap == NULL) {
 		g_context->saved_envmap = scene_world->_->envmap;
 	}
@@ -522,9 +514,34 @@ void context_update_envmap() {
 	}
 }
 
+// A viewport shader shows in the plugin viewport mode, removing it returns to lit
 void context_set_viewport_shader(void *viewport_shader) {
 	g_context->viewport_shader = viewport_shader;
-	context_set_render_path();
+	viewport_mode_t mode       = g_context->viewport_mode;
+	if (viewport_shader != NULL) {
+		mode = VIEWPORT_MODE_PLUGIN;
+	}
+	else if (mode == VIEWPORT_MODE_PLUGIN) {
+		mode = VIEWPORT_MODE_LIT;
+	}
+	if (g_context->paint_object == NULL) { // Plugins start before the scene exists
+		g_context->viewport_mode = mode;
+		context_set_render_path();
+	}
+	else if (mode != g_context->viewport_mode) {
+		context_set_viewport_mode(mode);
+	}
+	else {
+		make_material_parse_mesh_material();
+	}
+}
+
+void context_set_viewport_texture(gpu_texture_t *image) {
+	bool bound                  = g_context->viewport_texture != NULL;
+	g_context->viewport_texture = image;
+	if (bound != (image != NULL) && g_context->viewport_mode == VIEWPORT_MODE_PLUGIN) {
+		make_material_parse_mesh_material(); // Adds or removes the texviewport binding
+	}
 }
 
 void context_set_render_path_on_next_frame(void *_) {
@@ -532,11 +549,11 @@ void context_set_render_path_on_next_frame(void *_) {
 }
 
 void context_set_render_path() {
-	if (g_config->render_mode == RENDER_MODE_FORWARD || g_context->viewport_shader != NULL) {
-		render_path_commands = render_path_forward_commands;
+	if (context_use_deferred()) {
+		render_path_commands = render_path_deferred_commands;
 	}
 	else {
-		render_path_commands = render_path_deferred_commands;
+		render_path_commands = render_path_forward_commands;
 	}
 	sys_notify_on_next_frame(&context_set_render_path_on_next_frame, NULL);
 }
@@ -546,7 +563,7 @@ bool context_enable_import_plugin(char *file) {
 	if (box_preferences_files_plugin == NULL) {
 		box_preferences_fetch_plugins();
 	}
-	char *ext = substring(file, string_last_index_of(file, ".") + 1, string_length(file));
+	char *ext = path_ext(file);
 	for (i32 i = 0; i < box_preferences_files_plugin->length; ++i) {
 		char *f = box_preferences_files_plugin->buffer[i];
 		if (starts_with(f, "import_") && string_index_of(f, ext) >= 0) {

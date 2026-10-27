@@ -194,10 +194,10 @@ static void box_projects_cloud_save_to_slot(i32 slot) {
 		name = string_copy(string_replace_all(name, invalid[i], "_"));
 	}
 
-	char *path                            = string("/api/projects/%d/%s.arm", slot + 1, name);
-	box_projects_cloud->buffer[slot]      = path;
-	g_project->_->filepath                = path;
-	ui_files_filename                     = name;
+	char *path                       = string("/api/projects/%d/%s.arm", slot + 1, name);
+	box_projects_cloud->buffer[slot] = path;
+	g_project->_->filepath           = path;
+	ui_files_filename                = name;
 	ui_box_hide();
 	project_save(_box_projects_cloud_save_and_quit);
 }

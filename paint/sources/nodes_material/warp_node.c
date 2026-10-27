@@ -7,7 +7,7 @@ char *warp_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	char *angle    = parser_material_parse_value_input(node->inputs->buffer[1], true);
 	char *mask     = parser_material_parse_value_input(node->inputs->buffer[2], true);
-	char *tex_name = string_tmp("texwarp_%s", parser_material_node_name(node, NULL));
+	char *tex_name = string_tmp("texwarp_%s", make_material_node_preview_id(node, NULL));
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	char *store = parser_material_store_var_name(node);
 	f32   pi    = math_pi();

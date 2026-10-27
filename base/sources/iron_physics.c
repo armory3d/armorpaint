@@ -10,9 +10,9 @@
 
 #define GRAVITY         -9.81f
 #define MAX_BVH_DEPTH   20
-#define MAX_SPHERES     32
-#define MAX_BOXES       32
-#define MAX_BODIES      (MAX_SPHERES + MAX_BOXES)
+#define MIN_BODIES      16   // Body arrays start this big and double when full
+#define GRID_CELL       2.0f // Broadphase cell size on xy, a few times a typical moving body
+#define GRID_SPAN       8    // Bodies wider than this many cells go into one bucket that every query visits
 #define MAX_TERRAIN_RES 1024
 
 #define SPHERE_TAG  0x10000
@@ -26,29 +26,33 @@ typedef struct {
 } aabb_t;
 
 typedef struct {
-	vec4_t position;
-	vec4_t velocity;
-	float  radius;
-	float  mass;
-	vec4_t sleep_pos;
-	float  sleep_timer;
-	int    sleeping;
-	int    active;
+	vec4_t         position;
+	vec4_t         velocity;
+	float          radius;
+	float          mass;
+	vec4_t         sleep_pos;
+	float          sleep_timer;
+	int            sleeping;
+	int            active;
+	physics_pair_t contact; // Deepest contact this frame
+	float          contact_depth;
 } sphere_t;
 
 typedef struct {
-	vec4_t position;
-	vec4_t velocity;
-	quat_t rotation;
-	vec4_t angular;
-	vec4_t half;
-	float  mass;
-	float  inv_inertia;
-	vec4_t sleep_pos;
-	quat_t sleep_rot;
-	float  sleep_timer;
-	int    sleeping;
-	int    active;
+	vec4_t         position;
+	vec4_t         velocity;
+	quat_t         rotation;
+	vec4_t         angular;
+	vec4_t         half;
+	float          mass;
+	float          inv_inertia;
+	vec4_t         sleep_pos;
+	quat_t         sleep_rot;
+	float          sleep_timer;
+	int            sleeping;
+	int            active;
+	physics_pair_t contact; // Deepest contact this frame
+	float          contact_depth;
 } box_t;
 
 typedef struct {
@@ -84,10 +88,12 @@ typedef struct {
 	int    active;
 } terrain_t;
 
-static sphere_t       spheres[MAX_SPHERES];
-static box_t          boxes[MAX_BOXES];
-static physics_pair_t pairs[MAX_BODIES];
-static float          pair_best[MAX_BODIES];
+static sphere_t      *spheres;
+static box_t         *boxes;
+static int            sphere_count;
+static int            box_count;
+static int            sphere_cap;
+static int            box_cap;
 static physics_pair_t null_pair;
 static mesh_t         mesh;
 static terrain_t      terrain;
@@ -95,10 +101,6 @@ static aabb_t         root_bounds        = {{-10, -10, -10}, {10, 10, 10}};
 static float          physics_bounciness = 0.0f;
 static float          physics_friction   = 0.01f;
 static vec4_t         physics_gravity    = {0.0f, 0.0f, GRAVITY};
-
-static inline int box_pair(int slot) {
-	return MAX_SPHERES + slot;
-}
 
 static inline aabb_t merge_aabbs(aabb_t a, aabb_t b) {
 	return (aabb_t){.min = {fminf(a.min.x, b.min.x), fminf(a.min.y, b.min.y), fminf(a.min.z, b.min.z)},
@@ -159,12 +161,12 @@ static bvh_node_t *create_bvh_node(triangle_t *tris, int num_tris, int depth) {
 	return node;
 }
 
-static void report_contact(int index, float depth, vec4_t point, vec4_t normal) {
-	if (depth <= pair_best[index]) {
+static void report_contact(physics_pair_t *contact, float *best, float depth, vec4_t point, vec4_t normal) {
+	if (depth <= *best) {
 		return;
 	}
-	pair_best[index] = depth;
-	pairs[index]     = (physics_pair_t){point.x, point.y, point.z, normal.x, normal.y, normal.z};
+	*best    = depth;
+	*contact = (physics_pair_t){point.x, point.y, point.z, normal.x, normal.y, normal.z};
 }
 
 static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
@@ -198,7 +200,7 @@ static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
 		}
 
 		vec4_t contact_point = vec4_sub(s->position, vec4_mult(t->normal, s->radius));
-		report_contact(si, s->radius - orig_dist, contact_point, t->normal);
+		report_contact(&s->contact, &s->contact_depth, s->radius - orig_dist, contact_point, t->normal);
 	}
 }
 
@@ -563,8 +565,8 @@ static void collide_box_corners(int ai, int bi) {
 		sum_a.count++;
 		sum_b.count++;
 
-		report_contact(box_pair(ai), depth, corner, n);
-		report_contact(box_pair(bi), depth, corner, vec4_mult(n, -1.0f));
+		report_contact(&boxes[ai].contact, &boxes[ai].contact_depth, depth, corner, n);
+		report_contact(&boxes[bi].contact, &boxes[bi].contact_depth, depth, corner, vec4_mult(n, -1.0f));
 	}
 
 	if (sum_a.count == 0) {
@@ -614,7 +616,7 @@ static void collide_box_sphere(int bi, int si) {
 
 	vec4_t point = vec4_sub(s->position, vec4_mult(n, s->radius));
 	resolve_contact_pair(rigid_sphere(s), rigid_box(b), point, n, depth);
-	report_contact(box_pair(bi), depth, point, vec4_mult(n, -1.0f));
+	report_contact(&b->contact, &b->contact_depth, depth, point, vec4_mult(n, -1.0f));
 }
 
 static void collide_sphere_sphere(int i, int j) {
@@ -830,7 +832,7 @@ static void collide_box_terrain(int bi) {
 		contact_sum_add(&sum, &solved, &start);
 		sum.count++;
 
-		report_contact(box_pair(bi), depth, corner, normal);
+		report_contact(&b->contact, &b->contact_depth, depth, corner, normal);
 	}
 
 	if (sum.count > 0) {
@@ -858,7 +860,7 @@ static void collide_sphere_terrain(int si) {
 	float  depth = depth_along_normal(drop, normal);
 	vec4_t point = {s->position.x, s->position.y, ground};
 	resolve_contact_pair(rigid_sphere(s), rigid_static(), point, normal, depth);
-	report_contact(si, depth, point, normal);
+	report_contact(&s->contact, &s->contact_depth, depth, point, normal);
 }
 
 static void terrain_clear() {
@@ -871,11 +873,154 @@ static void mesh_clear() {
 	mesh.root = NULL;
 }
 
+static void pairs_clear() {
+	for (int i = 0; i < sphere_count; i++) {
+		spheres[i].contact       = (physics_pair_t){0};
+		spheres[i].contact_depth = 0.0f;
+	}
+	for (int i = 0; i < box_count; i++) {
+		boxes[i].contact       = (physics_pair_t){0};
+		boxes[i].contact_depth = 0.0f;
+	}
+}
+
+// Broadphase: a hashed grid on xy, rebuilt every substep. Each body goes into the cells its bounding circle covers
+typedef struct {
+	int  is_box;
+	int  cells;
+	int *start; // Bucket h holds items[start[h] .. start[h + 1]), bucket cells holds the large bodies
+	int *items;
+	int *seen; // Last query that returned the body, so a body in several cells is returned once
+	int  start_cap;
+	int  items_cap;
+	int  seen_cap;
+} grid_t;
+
+static grid_t sphere_grid = {.is_box = 0};
+static grid_t box_grid    = {.is_box = 1};
+static int   *candidates;
+static int    candidates_cap;
+static int    grid_query;
+
+static int grid_body(grid_t *g, int i, vec4_t *pos, float *radius) {
+	if (g->is_box) {
+		*pos    = boxes[i].position;
+		*radius = vec4_len(boxes[i].half);
+		return boxes[i].active;
+	}
+	*pos    = spheres[i].position;
+	*radius = spheres[i].radius;
+	return spheres[i].active;
+}
+
+// Returns 0 when the circle spans too many cells to insert one by one
+static int grid_range(vec4_t pos, float radius, int *x0, int *y0, int *x1, int *y1) {
+	*x0 = (int)floorf((pos.x - radius) / GRID_CELL);
+	*y0 = (int)floorf((pos.y - radius) / GRID_CELL);
+	*x1 = (int)floorf((pos.x + radius) / GRID_CELL);
+	*y1 = (int)floorf((pos.y + radius) / GRID_CELL);
+	return *x1 - *x0 < GRID_SPAN && *y1 - *y0 < GRID_SPAN;
+}
+
+static inline int grid_hash(grid_t *g, int x, int y) {
+	return (int)(((unsigned)x * 73856093u ^ (unsigned)y * 19349663u) & (unsigned)(g->cells - 1));
+}
+
+static int *grid_reserve(int *array, int *cap, int count) {
+	if (count > *cap) {
+		*cap  = count * 2;
+		array = realloc(array, sizeof(int) * *cap);
+	}
+	return array;
+}
+
+static void grid_insert(grid_t *g, int i, int fill) {
+	vec4_t pos;
+	float  radius;
+	if (!grid_body(g, i, &pos, &radius)) {
+		return;
+	}
+	int x0, y0, x1, y1;
+	int large = !grid_range(pos, radius, &x0, &y0, &x1, &y1);
+	if (large) {
+		x0 = x1 = y0 = y1 = 0;
+	}
+	for (int y = y0; y <= y1; y++) {
+		for (int x = x0; x <= x1; x++) {
+			int h = large ? g->cells : grid_hash(g, x, y);
+			if (fill) {
+				g->items[--g->start[h]] = i;
+			}
+			else {
+				g->start[h]++;
+			}
+		}
+	}
+}
+
+static void grid_build(grid_t *g, int count) {
+	g->cells = 64;
+	while (g->cells < count * 2) {
+		g->cells *= 2;
+	}
+	g->start = grid_reserve(g->start, &g->start_cap, g->cells + 2);
+	g->seen  = grid_reserve(g->seen, &g->seen_cap, count);
+	memset(g->start, 0, sizeof(int) * (g->cells + 2));
+	memset(g->seen, 0, sizeof(int) * count);
+
+	// Count, turn the counts into bucket ends, then fill each bucket backwards so start[h] ends up at its beginning
+	for (int i = 0; i < count; i++) {
+		grid_insert(g, i, 0);
+	}
+	int total = 0;
+	for (int h = 0; h <= g->cells; h++) {
+		total += g->start[h];
+		g->start[h] = total;
+	}
+	g->start[g->cells + 1] = total;
+	g->items               = grid_reserve(g->items, &g->items_cap, total);
+	for (int i = 0; i < count; i++) {
+		grid_insert(g, i, 1);
+	}
+}
+
+static void grid_take(grid_t *g, int h, int *n) {
+	for (int k = g->start[h]; k < g->start[h + 1]; k++) {
+		int j = g->items[k];
+		if (g->seen[j] != grid_query) {
+			g->seen[j]         = grid_query;
+			candidates[(*n)++] = j;
+		}
+	}
+}
+
+// Fills candidates with the bodies of g that may touch the circle, returns how many
+static int grid_find(grid_t *g, int count, vec4_t pos, float radius) {
+	candidates = grid_reserve(candidates, &candidates_cap, count);
+	int n      = 0;
+	int x0, y0, x1, y1;
+	if (!grid_range(pos, radius, &x0, &y0, &x1, &y1)) { // A large body checks everything
+		for (int j = 0; j < count; j++) {
+			candidates[n++] = j;
+		}
+		return n;
+	}
+	grid_query++;
+	for (int y = y0; y <= y1; y++) {
+		for (int x = x0; x <= x1; x++) {
+			grid_take(g, grid_hash(g, x, y), &n);
+		}
+	}
+	grid_take(g, g->cells, &n);
+	return n;
+}
+
 void physics_world_create() {
 	physics_world_destroy();
-	memset(spheres, 0, sizeof(spheres));
-	memset(boxes, 0, sizeof(boxes));
-	memset(pairs, 0, sizeof(pairs));
+	memset(spheres, 0, sizeof(sphere_t) * sphere_count);
+	memset(boxes, 0, sizeof(box_t) * box_count);
+	sphere_count = 0;
+	box_count    = 0;
 }
 
 void physics_world_destroy() {
@@ -887,12 +1032,11 @@ void physics_world_update() {
 	const int sub_steps = 8;
 	float     dt        = sys_delta() / sub_steps;
 
-	memset(pairs, 0, sizeof(pairs));
-	memset(pair_best, 0, sizeof(pair_best));
+	pairs_clear();
 
 	for (int step = 0; step < sub_steps; step++) {
 		// Sphere-mesh collision
-		for (int i = 0; i < MAX_SPHERES; i++) {
+		for (int i = 0; i < sphere_count; i++) {
 			sphere_t *s = &spheres[i];
 			if (!s->active || s->mass == 0.0f) {
 				continue;
@@ -906,18 +1050,22 @@ void physics_world_update() {
 		}
 
 		// Sphere-sphere collision
-		for (int i = 0; i < MAX_SPHERES; i++) {
-			if (!spheres[i].active) {
+		grid_build(&sphere_grid, sphere_count);
+		for (int i = 0; i < sphere_count; i++) {
+			sphere_t *s = &spheres[i];
+			if (!s->active) {
 				continue;
 			}
-			for (int j = i + 1; j < MAX_SPHERES; j++) {
-				if (spheres[j].active) {
+			int n = grid_find(&sphere_grid, sphere_count, s->position, s->radius);
+			for (int k = 0; k < n; k++) {
+				int j = candidates[k];
+				if (j > i && spheres[j].active) {
 					collide_sphere_sphere(i, j);
 				}
 			}
 		}
 
-		for (int i = 0; i < MAX_BOXES; i++) {
+		for (int i = 0; i < box_count; i++) {
 			box_t *b = &boxes[i];
 			if (!b->active || b->mass == 0.0f) {
 				continue;
@@ -948,24 +1096,32 @@ void physics_world_update() {
 			collide_box_terrain(i);
 		}
 
-		// Box-box collision
-		for (int i = 0; i < MAX_BOXES; i++) {
-			if (!boxes[i].active) {
+		// Box-box collision, static boxes only collide with moving ones
+		grid_build(&box_grid, box_count);
+		for (int i = 0; i < box_count; i++) {
+			box_t *b = &boxes[i];
+			if (!b->active || b->mass == 0.0f) {
 				continue;
 			}
-			for (int j = i + 1; j < MAX_BOXES; j++) {
-				if (boxes[j].active) {
-					collide_box_box(i, j);
+			int n = grid_find(&box_grid, box_count, b->position, vec4_len(b->half));
+			for (int k = 0; k < n; k++) {
+				int j = candidates[k];
+				if (j == i || !boxes[j].active || (boxes[j].mass != 0.0f && j < i)) {
+					continue;
 				}
+				collide_box_box(i, j);
 			}
 		}
 
 		// Box-sphere collision
-		for (int i = 0; i < MAX_BOXES; i++) {
-			if (!boxes[i].active) {
+		for (int i = 0; i < box_count; i++) {
+			box_t *b = &boxes[i];
+			if (!b->active) {
 				continue;
 			}
-			for (int j = 0; j < MAX_SPHERES; j++) {
+			int n = grid_find(&sphere_grid, sphere_count, b->position, vec4_len(b->half));
+			for (int k = 0; k < n; k++) {
+				int j = candidates[k];
 				if (spheres[j].active) {
 					collide_box_sphere(i, j);
 				}
@@ -975,18 +1131,18 @@ void physics_world_update() {
 
 	// Put bodies that have settled on something to sleep, so they stop entirely
 	float frame_dt = sys_delta();
-	for (int i = 0; i < MAX_SPHERES; i++) {
+	for (int i = 0; i < sphere_count; i++) {
 		sphere_t *s = &spheres[i];
 		if (s->active && s->mass != 0.0f && !s->sleeping) {
 			settling_t settling = {&s->position, NULL, &s->velocity, &rigid_zero, &s->sleep_pos, NULL, &s->sleep_timer, &s->sleeping};
-			sleep_update(settling, pair_best[i] > 0.0f, frame_dt);
+			sleep_update(settling, s->contact_depth > 0.0f, frame_dt);
 		}
 	}
-	for (int i = 0; i < MAX_BOXES; i++) {
+	for (int i = 0; i < box_count; i++) {
 		box_t *b = &boxes[i];
 		if (b->active && b->mass != 0.0f && !b->sleeping) {
 			settling_t settling = {&b->position, &b->rotation, &b->velocity, &b->angular, &b->sleep_pos, &b->sleep_rot, &b->sleep_timer, &b->sleeping};
-			sleep_update(settling, pair_best[box_pair(i)] > 0.0f, frame_dt);
+			sleep_update(settling, b->contact_depth > 0.0f, frame_dt);
 		}
 	}
 
@@ -1002,11 +1158,11 @@ void physics_world_update() {
 
 physics_pair_t *physics_world_get_contact(void *body) {
 	int slot = body_slot(body);
-	if (body_is_box(body)) {
-		return &pairs[box_pair(slot)];
+	if (body_is_box(body) && slot < box_count) {
+		return &boxes[slot].contact;
 	}
-	if (body_is_sphere(body)) {
-		return &pairs[slot];
+	if (body_is_sphere(body) && slot < sphere_count) {
+		return &spheres[slot].contact;
 	}
 	return &null_pair;
 }
@@ -1147,6 +1303,15 @@ static physics_heightfield_t heightfield_from_mesh(i16_array_t *pa, u32_array_t 
 	return (physics_heightfield_t){.heights = heights, .res_x = res, .res_y = res, .min_x = min_x, .min_y = min_y, .size_x = size_x, .size_y = size_y};
 }
 
+// Grows by doubling. Handles are slot indices, so bodies stay valid when the array moves
+static void *body_array_grow(void *array, int *cap, size_t size) {
+	int old = *cap;
+	*cap    = old == 0 ? MIN_BODIES : old * 2;
+	array   = realloc(array, size * *cap);
+	memset((char *)array + size * old, 0, size * (*cap - old));
+	return array;
+}
+
 static void *body_create(int shape, float mass, float dimx, float dimy, float dimz, float x, float y, float z, void *posa, void *inda, float scale_pos) {
 
 	if (shape == PHYSICS_SHAPE_TERRAIN) {
@@ -1186,11 +1351,17 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 
 	if (shape == PHYSICS_SHAPE_BOX && posa == NULL) {
 		int slot = 0;
-		while (slot < MAX_BOXES && boxes[slot].active) {
+		while (slot < box_count && boxes[slot].active) {
 			slot++;
 		}
-		if (slot == MAX_BOXES) {
+		if (slot > SLOT_MASK) {
 			return NULL;
+		}
+		if (slot == box_cap) {
+			boxes = body_array_grow(boxes, &box_cap, sizeof(box_t));
+		}
+		if (slot >= box_count) {
+			box_count = slot + 1;
 		}
 
 		vec4_t half = {dimx / 2.0f, dimy / 2.0f, dimz / 2.0f};
@@ -1203,11 +1374,17 @@ static void *body_create(int shape, float mass, float dimx, float dimy, float di
 
 	if (shape == PHYSICS_SHAPE_SPHERE) {
 		int slot = 0;
-		while (slot < MAX_SPHERES && spheres[slot].active) {
+		while (slot < sphere_count && spheres[slot].active) {
 			slot++;
 		}
-		if (slot == MAX_SPHERES) {
+		if (slot > SLOT_MASK) {
 			return NULL;
+		}
+		if (slot == sphere_cap) {
+			spheres = body_array_grow(spheres, &sphere_cap, sizeof(sphere_t));
+		}
+		if (slot >= sphere_count) {
+			sphere_count = slot + 1;
 		}
 
 		spheres[slot] = (sphere_t){.position = {x, y, z}, .radius = dimx / 2.0f, .mass = mass, .active = 1};
@@ -1256,11 +1433,11 @@ typedef struct {
 
 static body_ref_t body_ref(void *body) {
 	int slot = body_slot(body);
-	if (body_is_box(body) && slot < MAX_BOXES) {
+	if (body_is_box(body) && slot < box_count) {
 		box_t *b = &boxes[slot];
 		return (body_ref_t){&b->position, &b->velocity, &b->mass, &b->active, &b->sleep_timer, &b->sleeping};
 	}
-	if (body_is_sphere(body) && slot < MAX_SPHERES) {
+	if (body_is_sphere(body) && slot < sphere_count) {
 		sphere_t *s = &spheres[slot];
 		return (body_ref_t){&s->position, &s->velocity, &s->mass, &s->active, &s->sleep_timer, &s->sleeping};
 	}
@@ -1274,10 +1451,10 @@ static void body_wake(void *body) {
 }
 
 static void wake_all() {
-	for (int i = 0; i < MAX_SPHERES; i++) {
+	for (int i = 0; i < sphere_count; i++) {
 		sphere_wake(&spheres[i]);
 	}
-	for (int i = 0; i < MAX_BOXES; i++) {
+	for (int i = 0; i < box_count; i++) {
 		boxes[i].sleeping    = 0;
 		boxes[i].sleep_timer = 0.0f;
 	}
@@ -1332,18 +1509,24 @@ physics_body_t *physics_body_create(object_t *obj, physics_shape_t shape, float 
 	body->obj            = obj;
 	obj->_->body         = body;
 
+	// A dim that was set (by a script or the scene file) sizes the shape. A measured one includes the origin,
+	// so the exact mesh bounds are used instead
 	transform_compute_dim(obj->transform);
-	body->dimx = obj->transform->dim.x;
-	body->dimy = obj->transform->dim.y;
-	body->dimz = obj->transform->dim.z;
+	vec4_t dim   = obj->transform->dim;
+	vec4_t scale = object_world_scale(obj);
+	body->dimx   = dim.x * scale.x;
+	body->dimy   = dim.y * scale.y;
+	body->dimz   = dim.z * scale.z;
 
 	if (shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE) {
 		vec4_t center, extent;
 		if (mesh_bounds(obj, &center, &extent)) {
-			body->dimx   = extent.x;
-			body->dimy   = extent.y;
-			body->dimz   = extent.z;
 			body->offset = center;
+			if (obj->transform->measured) {
+				body->dimx = extent.x;
+				body->dimy = extent.y;
+				body->dimz = extent.z;
+			}
 		}
 	}
 
@@ -1505,6 +1688,12 @@ void physics_body_remove(physics_body_t *body) {
 		return;
 	}
 	*body_ref(body->_body).active = 0;
+	while (sphere_count > 0 && !spheres[sphere_count - 1].active) {
+		sphere_count--;
+	}
+	while (box_count > 0 && !boxes[box_count - 1].active) {
+		box_count--;
+	}
 }
 
 float physics_body_get_speed(physics_body_t *body) {

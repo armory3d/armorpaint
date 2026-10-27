@@ -18,16 +18,16 @@ void render() {
 
 void _kickstart() {
 	iron_window_options_t *ops =
-	    ALLOC_INIT(iron_window_options_t, {.title     = "Iron",
-	                                          .width     = 640,
-	                                          .height    = 480,
-	                                          .x         = -1,
-	                                          .y         = -1,
-	                                          .mode      = IRON_WINDOW_MODE_WINDOW,
-	                                          .features  = IRON_WINDOW_FEATURES_RESIZABLE | IRON_WINDOW_FEATURES_MINIMIZABLE | IRON_WINDOW_FEATURES_MAXIMIZABLE,
-	                                          .vsync     = true,
-	                                          .frequency = 60,
-	                                          .depth_bits = 32});
+	    ALLOC_INIT(iron_window_options_t, {.title      = "Iron",
+	                                       .width      = 640,
+	                                       .height     = 480,
+	                                       .x          = -1,
+	                                       .y          = -1,
+	                                       .mode       = IRON_WINDOW_MODE_WINDOW,
+	                                       .features   = IRON_WINDOW_FEATURES_RESIZABLE | IRON_WINDOW_FEATURES_MINIMIZABLE | IRON_WINDOW_FEATURES_MAXIMIZABLE,
+	                                       .vsync      = true,
+	                                       .frequency  = 60,
+	                                       .depth_bits = 32});
 	_iron_init(ops);
 
 	pipeline = gpu_create_pipeline();

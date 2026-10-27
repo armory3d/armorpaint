@@ -396,7 +396,7 @@ void mouse_move_listener(i32 x, i32 y, i32 movement_x, i32 movement_y) {
 		mouse_last_x = (f32)x;
 		mouse_last_y = (f32)y;
 	}
-	if (iron_mouse_is_locked()) {
+	if (iron_mouse_is_locked() || iron_mouse_movement_only) {
 		// Can be called multiple times per frame
 		mouse_movement_x += (f32)movement_x;
 		mouse_movement_y += (f32)movement_y;
@@ -605,11 +605,11 @@ void keyboard_reset(void) {
 }
 
 bool keyboard_down(char *key) {
-	return i32_map_get(keyboard_keys_down, key);
+	return i32_map_get(keyboard_keys_down, key) == 1;
 }
 
 bool keyboard_started(char *key) {
-	return i32_map_get(keyboard_keys_started, key);
+	return i32_map_get(keyboard_keys_started, key) == 1;
 }
 
 bool keyboard_started_any(void) {
@@ -617,11 +617,11 @@ bool keyboard_started_any(void) {
 }
 
 bool keyboard_released(char *key) {
-	return i32_map_get(keyboard_keys_released, key);
+	return i32_map_get(keyboard_keys_released, key) == 1;
 }
 
 bool keyboard_repeat(char *key) {
-	return i32_map_get(keyboard_keys_started, key) || (keyboard_repeat_key && i32_map_get(keyboard_keys_down, key));
+	return i32_map_get(keyboard_keys_started, key) == 1 || (keyboard_repeat_key && i32_map_get(keyboard_keys_down, key) == 1);
 }
 
 char *keyboard_key_code(i32 key) {

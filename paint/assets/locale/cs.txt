@@ -1,0 +1,862 @@
+(komprimované)
+(zabalené)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+2D pohled
+3D
+3D pohled
+A
+O programu
+O programu...
+Absolutní
+Přidat
+Přidat animaci
+Přidat vzorek
+Přidat nový vzorek
+Přidat vybranou barvu do vzorků
+Vše
+Veškeré zpracování probíhá lokálně na zařízení
+Povolit převrácenou kameru
+Alfa
+Zahodit alfa
+Množství
+Úhel
+Odmítnout úhel
+Animace
+Anizotropie
+Připojit
+Použít
+Použít posunutí
+Použít filtr
+Použít masku
+Použít uzly
+Použít sochání
+Použít skinning
+Arkuskosinus
+Arkussinus
+Arktangens 2
+Arktangens
+Pole
+Asset
+Atlas
+Atlasy
+Atribut
+Automaticky
+Průměr
+Osa
+B
+Zadní
+Zapékat
+Zapékat materiál...
+Zapékání textury
+Zapékat do textur
+Pásy
+Základní
+Základní barva
+Ohnutá normála
+Zkosení
+Odchylka
+Bity
+Černá maska
+Spustitelný soubor Blenderu
+Cesta ke spustitelnému souboru Blenderu není nastavena
+Míchání
+Bloom
+Rozostření
+Rozostřit mapu okolí
+Typ rozostření
+Záložka
+Booleovský
+Spodní
+Odraz
+Krabice
+Cihlová textura
+Šířka cihly
+Jas
+Jas/Kontrast
+Prohlížeč
+Štětec
+Úhel štětce
+Tvrdost štětce
+Krytí štětce
+Výstup štětce
+Poloměr štětce
+Štětec...
+Štětce
+Výstupky
+Spálit
+Vypočítat normály
+Kamera
+Rychlost posunu kamery
+Rychlost otáčení kamery
+Textura kamery
+Rychlost přibližování kamery
+Zrušit
+Zachytit pozadí
+Zachytit výstup
+Zachytit snímek obrazovky
+Zachytit video
+Zaokrouhlit nahoru
+Velikost buňky v pixelech
+Střed
+Kanály
+Zkontrolovat aktualizace...
+Šachovnicová textura
+Omezit
+Omezit faktor
+Omezit výsledek
+Hlína
+Vyčistit
+Vyčistit vrstvu
+Vyčistit vzorky
+Konec ořezu
+Začátek ořezu
+Ořezání
+Klonovat
+Zavřít
+Látka
+Cloud
+Cloudové projekty...
+Cloudový server
+Cloudové projekty
+Barva
+Barva 1
+Barva 2
+ID barvy
+Mapa ID barev
+Maska barvy
+Barevný přechod
+Barevný prostor
+ID barvy
+Kombinovat
+Kombinovat barvu
+Kombinovat XYZ
+Kompas
+Potvrdit
+Konzole
+Model konzole
+Konstanta
+Pokračujte v prohlížeči.
+Kontrast
+Přispěvatelé
+Převést z
+Převést na
+Kopírovat
+Kopírovat hex kód
+Kosinus
+Nelze stáhnout
+Počet
+Záhyb
+Vytvořit barevnou vrstvu
+Vytvořit materiál
+Vektorový součin
+Vyřadit zadní plochy
+Kurzor
+Zakřivení
+Textura zakřivení
+Křivka
+Zakřivený
+Vlastní
+Vyjmout
+Ztmavit
+Ladění
+Dekál
+Zjednodušit
+Výchozí ovládání kamery
+Výchozí zorné pole kamery
+Výchozí střed otáčení kamery
+Výchozí rozlišení vrstvy
+Výchozí režim
+Smazat
+Smazat štětec
+Smazat vrstvu
+Smazat materiál
+Smazat skupinu uzlů
+Smazat vzorek
+Smazat nepoužité
+Delta
+Hloubka
+Odmítnout hloubku
+Derivace
+Plocha
+Cíl
+Detail
+Drsnost detailu
+Měřítko detailu
+Diagonála
+Rozdíl
+Rozšířit poloměr
+Rozšířit malované textury pro prevenci švů
+Rozměry
+DirectX normálová mapa
+Směr
+Směr přiblížení
+Směrový
+Disk
+Posunutí
+Zobrazení
+Vzdálenost
+Zkreslení
+Bez rušení
+Dělit
+Zesvětlit
+Tečka
+Skalární součin
+Dolů
+Stáhnout
+Stažený soubor z
+Stahování
+Přetáhněte soubory sem
+Přetáhněte vybranou barvu do vzorků, materiálů, vrstev nebo do editoru uzlů
+Kreslit
+Kreslit živý náhled štětce ve viewportu
+Duplikovat
+Duplikovat štětec
+Duplikovat vrstvu
+Duplikovat materiál
+Duplikovat vzorek
+Upravit
+Upravit obrázek
+Upravit uzly
+Upravit skript
+Upravit etapu
+Upravit vzorek
+Upravit časovou osu
+Upravit UV mapu
+Upravit v záložce skriptu
+Upravit v textovém editoru
+Emise
+Prázdný
+Koncový snímek
+Okolí
+Úhel okolí
+Mapa okolí
+Kule mapy okolí
+Mapa okolí...
+Guma
+Chyba: Očekáván soubor .arm
+Chyba: Očekáván soubor .hdr
+Chyba: Zkontrolujte připojení k internetu pro přístup k cloudu
+Chyba: Nelze najít texturu
+Chyba: Selhání čtení dat písma
+Chyba: Selhání čtení dat sítě
+Chyba: Neznámý formát assetu
+Vyloučení
+Ukončit
+Experimentální funkce
+Exponent
+Exportovat
+Exportovat štětec
+Exportovat ikonu
+Exportovat materiál
+Exportovat síť
+Exportovat přehrávač
+Exportovat textury
+Exportovat vzorky
+Exportovat soubory textur
+Exportování sítě
+Exportování textur
+F1
+F2
+Fak
+Plocha
+Faktor
+Selhal import materiálu
+Nepodařilo se načíst zvuk:
+Rychlý
+Výstup funkce
+Soubor
+Vyplnit
+Vyplňovací vrstva
+Vyplňovací maska
+Režim vyplnění
+Filtr
+Filtrovat textury
+Plochý
+Zploštit
+Křivka čísla
+Zaokrouhlit dolů
+Modulo dolní
+Letět
+Režim letu:\nDržte pravé tlačítko myši a jeden z následujících příkazů:\npohyb myší pro otáčení.\nw, nahoru nebo rolování nahoru pro pohyb vpřed.\ns, dolů nebo rolování dolů pro pohyb vzad.\na nebo vlevo pro pohyb vlevo.\nd nebo vpravo pro pohyb vpravo.\ne pro pohyb vzhůru.\nq pro pohyb dolů.\nDržte shift pro rychlejší nebo alt pro pomalejší pohyb.
+Zorné pole
+Složka neobsahuje textury
+Písmo
+Písmo...
+Písma
+Formát
+Zlomek
+Snímek
+Počet snímků
+Snímková frekvence
+Snímková frekvence
+Snímky
+Frekvence
+Tření
+Z maxima
+Z minima
+Přední
+Plný
+Neostrost
+G
+Gaborova textura
+Gama
+Generováno
+Geometrie
+Geometrie do počátku
+Začít
+Uchopit
+Přechodová textura
+Gravitace X
+Gravitace Y
+Gravitace Z
+Větší než
+Buňka mřížky
+Přichytávání k mřížce
+Skupina
+Vstup skupiny
+Výstup skupiny
+Tvrdost
+Výška
+Míchání výšky
+Nápověda
+Skrýt 3D pohled
+Vysoký počet polygonů
+Historie
+Držte {action_paint} pro mazání\nDržte {brush_ruler} a stiskněte {action_paint} pro mazání přímky (režim pravítka)
+Držte {action_paint} pro malování\nDržte {brush_ruler} a stiskněte {action_paint} pro malování přímky (režim pravítka)
+Držte {brush_opacity} a pohybujte myší vlevo pro snížení krytí\nDržte {brush_opacity} a pohybujte myší vpravo pro zvýšení krytí
+Držte {brush_radius} a pohybujte myší vlevo nebo stiskněte {brush_radius_decrease} pro zmenšení rádiusu\nDržte {brush_radius} a pohybujte myší vpravo nebo stiskněte {brush_radius_increase} pro zvětšení rádiusu
+Držte {decal_mask} pro malování na masku dekálu
+Držte {decal_mask} pro použití textu jako masky
+Držte {set_clone_source} pro nastavení zdroje
+Horizontální
+Horizontálně obrácené
+Jak na to
+Odstín
+Odstín/Sytost/Hodnota
+Hyperbolický kosinus
+Hyperbolický sinus
+Hyperbolický tangens
+Textura obrázku
+Obrázek na PBR
+Importovat
+Importovat síť
+Importovat vzorky
+Importovat soubor písma
+Importovat soubor sítě
+Importovat vzorky
+Importovat soubor textury
+Importovat...
+Importování sítě
+Vstup
+Příchozí
+Nafouknout
+Info: Asset již importován
+Vstup
+Prozkoumat jako skript
+Okamžitě aktualizovat náhled materiálu při změně uzlu
+Intenzita
+Rozhraní
+Interpolovat
+Neplatný exportní adresář
+Neplatná cesta ke skriptu
+Neplatný typ textury
+Obrácená druhá odmocnina
+Invertovat
+Invertovat barvu
+Invertovat masku
+Invertovat výběr
+Sledování chyb
+Iterace
+Spojit
+Klíčový snímek
+Klávesová mapa
+Klávesová mapa importována:
+Lakunarita
+Jazyk
+Vrstva
+Úhel vrstvy
+Míchání vrstev
+Maska vrstvy
+Objekt vrstvy
+Krytí vrstvy
+Měřítko UV vrstvy
+Typ UV vrstvy
+Viditelnost vrstvy
+Vrstvy
+Líný poloměr
+Líný krok
+Vlevo
+Délka
+Menší než
+Úrovně
+Životnost
+Zesvětlit
+Mapa osvětlení
+Lineární
+Lineární světlo
+Osvětlený
+Živý náhled štětce
+Živý náhled materiálu
+Umístění
+Logaritmus
+Magická textura
+Učinit jedinečným
+Manuál
+Mapovat rozsah
+Mapování
+Maska
+Barva masky
+Hmotnost
+Materiál
+ID materiálu
+Index materiálu
+Výstup materiálu
+Materiál...
+Materiály
+Matematika
+Max
+Maximum
+Sloučit dolů
+Sloučit geometrii
+Sloučit skupinu
+Sloučit vrstvy
+Síť
+Vstup sítě
+Výstup sítě
+Síť...
+Sítě
+Kovovost
+Min
+Min Max
+Minimum
+Zrcadlit
+Smíchat
+Smíchat barvu
+Smíchat normálovou mapu
+Mobilní
+Režim
+Model
+Modely
+Adresář modelů...
+Modifikátor
+Upravit
+Upravit animaci
+Modulo
+Malta
+Velikost malty
+Vyhlazení malty
+Násobit
+Název
+Neuronový
+Nový
+Nová černá maska
+Nový štětec
+Nová barva
+Nová vyplňovací maska
+Nová skupina
+Nová klávesová mapa
+Nová vrstva
+Nový materiál
+Nový plugin
+Nová předvolba
+Nový projekt
+Nový projekt...
+Nový vzorek
+Nové téma
+Nová bílá maska
+Další
+Ne
+Žádná odpověď
+Uzel
+Náhledy uzlů
+Uzly
+Šum zrna
+Šumová textura
+Žádný
+Normála
+Míchání normál
+Normálová mapa
+Normálová mapa 1
+Normálová mapa 2
+Normalizovat
+Není dostupné v ladicím buildu
+Neimplementováno
+OK
+Objekt
+ID objektu
+Index objektu
+Informace o objektu
+Normála objektu
+Okluze
+Posun
+Stará barva
+Krytí
+Režim krytí
+Otevřít prohlížeč
+Otevřít obsahující adresář...
+Otevřít externě
+Otevřít nedávné...
+Otevřít v prohlížeči
+Otevřít...
+Otevírání projektu
+Operace
+Opačný
+Obíhat
+Režim obíhání a otáčení:\n{rotate_shortcut} nebo pohyb pravým tlačítkem myši pro otáčení.\n{zoom_shortcut} nebo rolování pro přiblížení.\n{pan_shortcut} nebo pohyb prostředním tlačítkem myši pro posun.
+Seřadit vrstvy
+Orientace 2D
+Orientace 3D
+Počátek na geometrii
+Ortografie
+Výstup
+Překrytí
+PBR
+Zabalit assety
+Zabalit do projektu
+Odsazení
+Malování
+Malovací vrstva
+Malovací maska
+Parametrický
+Rodič
+Částečná derivace
+Částice
+Vložit
+Cesta
+Trasovaná cesta
+Trasovač cest
+Pozastavit
+Pero
+Tužka
+Na objekt
+Na UDIM dlaždici
+Perspektiva
+Fáze
+Posun fáze
+Fyzika
+Vybraná barva
+Kapátko
+Připnout do záhlaví
+Sevřít
+Ping-pong
+Střed otáčení
+Velikost pixelu
+Plošina
+Přehrát
+Přehrávač
+Přehrávač...
+Plugin importován:
+Pluginy
+Bod
+Špičatost
+Pozice
+Postprodukce
+Mocnina
+Předvolby
+Předvolby...
+Předvolba
+Předvolba importována:
+Předvolby
+Ovládání tlakem
+Předchozí
+Předchozí složka
+Zpracovávání...
+Projekt
+Projekt uložen
+Projekty
+Prompt
+Kvalita
+Kvantizovat
+R
+Křivky RGB
+RGB na černobílý
+RGBA
+Radiální
+Poloměr
+Náhodný
+Náhodnost
+Rozsah
+Poměr
+Nedávné
+Znovu {step}
+Odrážet
+Obnovit
+Znovu importovat
+Znovu importovat síť
+Znovu importovat textury
+Relativní posun
+Odstranit
+Přejmenovat vrstvu
+Renderovací engine
+Přeorientováno
+Opakovat
+Nahradit
+Nahradit barvu
+Nahradit existující
+Nahradit vzorky
+Nahlásit chybu
+Požádat o funkci
+Resetovat
+Resetovat mapu okolí
+Resetovat rozložení
+Rozlišení
+Obnovit
+Obnovit vzorky
+Obnovit výchozí vzorky
+Vpravo
+Kruhy
+Otáčet
+Otáčení
+Drsnost
+Zaokrouhlit
+Výška řádku
+Spustit
+Spustit v přehrávači
+Probíhá...
+SSAO
+Vzorky
+Sytost
+Uložit
+Uložit jako...
+Uložit obrázek
+Nejprve uložte projekt
+Nejprve uložte projekt do cloudu
+Uložit do cloudu
+Uložit do cloudu...
+Uložit na disk...
+Ukládání projektu
+Pila
+Měřítko
+Měřítko X
+Obrazovka
+Skript
+Skriptové uzly
+Skript otevřen
+Skripty
+Sochání
+Sochařská vrstva
+Hledat
+Hledat uzly
+Segmenty
+Vybrat
+Vybrat vše
+Vybrat skryté
+Vybrat materiál
+Vybrat viditelné
+Vybrané
+Citlivost
+Oddělit barvu
+Oddělit vektor
+Oddělit XYZ
+Nastavit zdroj
+Nastavit jako mapu ID barev
+Nastavit jako mapu okolí
+Nastavit jako masku
+Nastavování zdroje
+Nastavení
+Shader
+Tvar
+Sdílet odkaz na přehrávač
+Sdílené
+Zobrazit 2D pohled
+Zobrazit názvy assetů
+Zobrazit mřížku
+Zobrazit editor uzlů
+Ve výchozím stavu zobrazovat náhled na každém uzlu
+Znaménko
+Přihlásit se...
+Odhlásit se
+Přihlášení vypršelo, zkuste to znovu
+Přihlaste se pro ukládání projektů do cloudu.
+Přihlaste se účtem armorpaint.org.
+Přihlášeno
+Přihlášen jako
+Přihlašování...
+Sinus
+Velikost
+Slot
+Vyhladit
+Rozmazat
+Přichytit
+Úryvky
+Zásuvka
+Měkké světlo
+Seřadit
+Zvuk
+Zvuk importován:
+Zvuky
+Koule
+Sférický
+Úvodní obrazovka
+Oddělit
+Rozdělit podle
+Rozdělený pohled
+Rozdělit síť na objekty
+Druhá odmocnina
+Zploštění
+Etapa
+Počáteční snímek
+Šablona
+Dosažen limit kroků
+Zastavit
+Zastavit zachytávání
+Ukončit sdílení
+Přímý
+Síla
+Natáhnout
+Rozdělit
+Podpovrch
+Odečíst
+Supersampling
+Vzorky
+Vzorky...
+Symetrie
+Tangenta
+Cíl
+Šablona
+Šablony
+Terén
+Souřadnice textury
+Texely
+Text
+Textová textura
+Text na obrázek
+Textura
+Souřadnice textury
+Textura importována:
+Textura...
+Textury
+Textury exportovány
+Textury...
+Téma
+Téma importováno:
+Tloušťka
+Dlaždice
+Dlaždice X
+Dlaždice Y
+Dlaždicový
+Dlaždic X
+Dlaždic Y
+Dlaždicová mapa
+Animace dlaždicové mapy
+Čas
+Časová osa
+Na stupně
+Na vyplňovací vrstvu
+Na vyplňovací masku
+Na vrstvu
+Na masku
+Na maximum
+Na minimum
+Na malovací vrstvu
+Na malovací masku
+Na radiány
+Přepnout celou obrazovku
+Přepnout záhlaví
+Nástroje
+Horní
+Dotykové rozhraní
+Transformace
+Transformovat objekt
+Průsvitnost
+Trojúhelník
+Oříznout
+Triplanární
+Zkrátit
+Modulo zkrácené
+Důvěřovat skriptům projektu?
+Prolnutí
+Zkroutit
+Typ
+UDIM dlaždice
+Měřítko rozhraní
+UV
+UV ostrov
+UV mapa
+Měřítko UV
+Rozbalení UV
+UV mapa
+Nelze zkontrolovat aktualizace.\nNavštivte prosím {url}.
+Kroky zpět
+Zpět {step}
+Rozbalit
+Rozbalit síť
+Rozbalování sítě
+Nahoru
+Osa nahoru
+Aktualizovat
+Je dostupná aktualizace!\nNavštivte prosím {url}.
+Zvětšit obrázek
+Použití
+Nástroje
+Hod
+Hodnota
+Rozptyl
+Vektor
+Vektorové křivky
+Vektorová matematika
+Otočit vektor
+Transformovat vektor
+Barva vrcholu
+Vertikální
+Vertikálně obrácené
+Vertikálně a horizontálně
+Vertikálně a horizontálně obrácené
+Pohled
+Viewport
+Maska viewportu
+Režim viewportu
+Vinětace
+Viditelný
+Voronoi textura
+Deformovat
+Profil vlny
+Vlnová textura
+Typ vlny
+Co je nového
+Bílá maska
+Vy bílení
+Šířka
+Okno
+Drátěný model
+Pracovní prostor
+Svět
+Obtáčet myš
+Obtáčet myš kolem hranic pohledu při ovládání kamery
+X
+Rentgen
+XYZ
+Y
+Ano
+Jste aktuální!
+Z
+Přiblížit
+Oddálit
+Přizpůsobit zobrazení
+typ_míchání
+barevný_prostor
+ctrl+f pro hledání
+esc pro zrušení
+fBM
+soubor
+paměť gpu
+typ_přechodu
+uzly
+operace
+zabalené
+player
+plugin povolen
+dotaz
+sRGB
+zdroj
+trojúhelníky
+typ
+bez názvu
+x
+{shortcut} a pohyb myší

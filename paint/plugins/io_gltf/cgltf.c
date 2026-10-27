@@ -280,7 +280,7 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 }
 
 buffer_t *util_skin_blob_create(char *name, int vc, float *pos, float *nor, float *tex, int ic, uint32_t *ind, uint16_t *joints, float *weights, int jc, int fc,
-                                float *mats);
+                                float *mats, int *parents, float *heads, float *tails);
 
 // Converts a skinned gltf into a skin blob
 buffer_t *io_gltf_skin_blob(char *buf, size_t size, const char *path) {
@@ -415,7 +415,7 @@ buffer_t *io_gltf_skin_blob(char *buf, size_t size, const char *path) {
 		}
 	}
 
-	buffer_t *blob = util_skin_blob_create(mesh_node->name != NULL ? mesh_node->name : "", vc, pos, nor, tex, ic, ind, joints, weights, jc, fc, mats);
+	buffer_t *blob = util_skin_blob_create(mesh_node->name != NULL ? mesh_node->name : "", vc, pos, nor, tex, ic, ind, joints, weights, jc, fc, mats, NULL, NULL, NULL);
 	free(pos);
 	free(nor);
 	free(tex);

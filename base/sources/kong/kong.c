@@ -2536,10 +2536,13 @@ static statement statements_buffer[4096];
 int              statement_index = 0;
 
 static statement *statement_allocate(void) {
+	debug_context context = {0};
+	if (statement_index >= (int)(sizeof(statements_buffer) / sizeof(statements_buffer[0]))) {
+		error(context, "Too many statements");
+		statement_index--;
+	}
 	statement *s = &statements_buffer[statement_index];
 	statement_index++;
-	debug_context context = {0};
-	check(s != NULL, context, "Could not allocate statement");
 	return s;
 }
 
@@ -2548,6 +2551,11 @@ static void statements_init(statements *statements) {
 }
 
 static void statements_add(statements *statements, statement *statement) {
+	if (statements->size >= sizeof(statements->s) / sizeof(statements->s[0])) {
+		debug_context context = {0};
+		error(context, "Too many statements in a block");
+		return;
+	}
 	statements->s[statements->size] = statement;
 	statements->size += 1;
 }
@@ -2556,10 +2564,13 @@ static expression experessions_buffer[8192];
 int               expression_index = 0;
 
 static expression *expression_allocate(void) {
+	debug_context context = {0};
+	if (expression_index >= (int)(sizeof(experessions_buffer) / sizeof(experessions_buffer[0]))) {
+		error(context, "Too many expressions");
+		expression_index--;
+	}
 	expression *e = &experessions_buffer[expression_index];
 	expression_index++;
-	debug_context context = {0};
-	check(e != NULL, context, "Could not allocate expression");
 	init_type_ref(&e->type, NO_NAME);
 	return e;
 }

@@ -46,7 +46,7 @@ static void camera_orbit_action(bool modif, bool default_keymap, bool ruler) {
 		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
-			pivot_valid = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
+			pivot_valid = util_render_picked_on_mesh();
 			if (pivot_valid) {
 				pivot_x = g_context->posx_picked;
 				pivot_y = g_context->posy_picked;
@@ -109,7 +109,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 		    keymap_shortcut(any_map_get(g_keymap, "action_rotate"), SHORTCUT_TYPE_STARTED) || (mouse_started("right") && !modif && default_keymap);
 		if (rotate_started) {
 			util_render_pick_pos_nor_tex();
-			pivot_valid = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
+			pivot_valid = util_render_picked_on_mesh();
 			if (pivot_valid) {
 				pivot_x = g_context->posx_picked;
 				pivot_y = g_context->posy_picked;
@@ -276,7 +276,7 @@ void camera_pan_action(bool modif, bool default_keymap) {
 
 void camera_set_pivot_center_to_mouse() {
 	util_render_pick_pos_nor_tex();
-	bool is_mesh = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
+	bool is_mesh = util_render_picked_on_mesh();
 	if (!is_mesh) {
 		return;
 	}

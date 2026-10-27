@@ -70,9 +70,9 @@ bool embed_owns(uint8_t *buffer) {
 #endif
 
 void _kickstart();
-bool enable_window = true;
-bool in_background = false;
-int  paused_frames = 0;
+bool enable_window           = true;
+bool in_background           = false;
+int  paused_frames           = 0;
 bool (*iron_idle_wake)(void) = NULL;
 #ifdef IDLE_SLEEP
 bool input_down         = false;
@@ -506,26 +506,6 @@ f32 math_fmod(f32 x, f32 y) {
 	return fmod(x, y);
 }
 
-#ifdef _WIN32
-i32 parse_int(const char *s) {
-	return _strtoi64(s, NULL, 10);
-}
-i32 parse_int_hex(const char *s) {
-	return _strtoi64(s, NULL, 16);
-}
-#else
-i32 parse_int(const char *s) {
-	return strtol(s, NULL, 10);
-}
-i32 parse_int_hex(const char *s) {
-	return strtol(s, NULL, 16);
-}
-#endif
-
-f32 parse_float(const char *s) {
-	return strtof(s, NULL);
-}
-
 i32 color_from_floats(f32 r, f32 g, f32 b, f32 a) {
 	return ((int)(a * 255) << 24) | ((int)(r * 255) << 16) | ((int)(g * 255) << 8) | (int)(b * 255);
 }
@@ -543,7 +523,7 @@ u8 color_get_bb(i32 c) {
 }
 
 u8 color_get_ab(i32 c) {
-	return c & 0x000000ff;
+	return (c & 0xff000000) >> 24;
 }
 
 i32 color_set_rb(i32 c, u8 i) {
@@ -791,7 +771,7 @@ bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 	int                  width;
 	int                  height;
 
-	if (ends_with(format, "k")) {
+	if (path_has_ext(format, "k")) {
 		width  = iron_read_s32le(data->buffer);
 		height = iron_read_s32le(data->buffer + 4);
 		char fourcc[5];
@@ -814,7 +794,7 @@ bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 			texture_format = GPU_TEXTURE_FORMAT_RGBA64;
 		}
 	}
-	else if (ends_with(format, "hdr")) {
+	else if (path_has_ext(format, "hdr")) {
 		int comp;
 		texture_data = (unsigned char *)stbi_loadf_from_memory(data->buffer, data->length, &width, &height, &comp, 4);
 		if (texture_data == NULL) {

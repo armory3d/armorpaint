@@ -1,7 +1,29 @@
 
 #include "../global.h"
 
-static f32 export_texture_gamma = 1.0 / 2.2;
+static f32             export_texture_gamma       = 1.0 / 2.2;
+static string_array_t *export_texture_baked_files = NULL;
+
+static i32  _export_texture_channel(i32 c, i32 bits);
+static f32  _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bits);
+static void export_texture_bake_material_add_texture(char *file);
+
+// RGBA, RGB1, RRR1, GGG1, BBB1, AAA1 from native order pixels to rgba8
+static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bits, i32 format) {
+	buffer_t *rgba = buffer_create(count * 4);
+	i32       ch[4];
+	for (i32 c = 0; c < 4; ++c) {
+		ch[c] = format >= 3 ? _export_texture_channel(format - 3, bits) : _export_texture_channel(c, bits);
+	}
+	for (i32 i = 0; i < count; ++i) {
+		for (i32 c = 0; c < 4; ++c) {
+			f32 v = (format != 0 && c == 3) ? 1.0 : _export_texture_get_value(pixels, i, ch[c], bits);
+			v     = v < 0.0 ? 0.0 : v > 1.0 ? 1.0 : v;
+			buffer_set_u8(rgba, i * 4 + c, (u8)math_floor(v * 255.0 + 0.5));
+		}
+	}
+	return rgba;
+}
 
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
 	i32 res_x       = config_get_texture_res_x();
@@ -26,32 +48,44 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 	}
 
 	if (g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
-#ifdef IRON_BGRA
-		bool bgra_swap = format == 0 || format == 2; // RGBA, RGB1
-		if (bgra_swap) {
-			buffer_bgra_swap(pixels);
-		}
-#endif
-		gpu_texture_t *image = gpu_create_texture_from_bytes(pixels, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
-#ifdef IRON_BGRA
-		if (bgra_swap) {
-			buffer_bgra_swap(pixels);
-		}
-#endif
+		// Packed textures are rgba8, apply the channel layout the file writers do
+		buffer_t      *rgba  = export_texture_pack_pixels(pixels, res_x * res_y, bits, format);
+		gpu_texture_t *image = gpu_create_texture_from_bytes(rgba, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
+		array_free(rgba);
+		free(rgba);
 		any_map_set(data_cached_textures, file, image);
-		string_array_t *ar   = string_split(file, PATH_SEP);
-		char           *name = ar->buffer[ar->length - 1];
-		for (i32 i = 0; i < (i32)ar->length - 1; ++i) {
-			free(ar->buffer[i]);
+
+		// Baking again replaces the packed asset of the same file
+		asset_t *asset = NULL;
+		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+			if (string_equals(g_project->_->assets->buffer[i]->file, file)) {
+				asset = g_project->_->assets->buffer[i];
+				break;
+			}
 		}
-		array_free(ar);
-		free(ar);
-		asset_t *asset = ALLOC_INIT(asset_t, {.name = name, .file = file, .id = g_project->_->next_asset_id++});
-		any_array_push(g_project->_->assets, asset);
-		if (g_project->assets == NULL) {
-			g_project->assets = any_array_create_from_raw((void *[]){}, 0);
+		if (asset == NULL) {
+			string_array_t *ar   = string_split(file, PATH_SEP);
+			char           *name = ar->buffer[ar->length - 1];
+			for (i32 i = 0; i < (i32)ar->length - 1; ++i) {
+				free(ar->buffer[i]);
+			}
+			array_free(ar);
+			free(ar);
+			asset = ALLOC_INIT(asset_t, {.name = name, .file = file, .id = g_project->_->next_asset_id++});
+			any_array_push(g_project->_->assets, asset);
+			if (g_project->assets == NULL) {
+				g_project->assets = any_array_create_from_raw((void *[]){}, 0);
+			}
+			any_array_push(g_project->assets, asset->file);
 		}
-		any_array_push(g_project->assets, asset->file);
+		else if (g_project->packed_assets != NULL) {
+			for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+				if (string_equals(g_project->packed_assets->buffer[i]->name, file)) {
+					array_splice(g_project->packed_assets, i, 1);
+					break;
+				}
+			}
+		}
 		asset->image            = image;
 		asset_t_array_t *assets = any_array_create_from_raw(
 		    (void *[]){
@@ -59,6 +93,7 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		    },
 		    1);
 		export_arm_pack_assets(g_project, assets);
+		export_texture_bake_material_add_texture(file);
 		return;
 	}
 
@@ -74,6 +109,7 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		array_free(b);
 		free(b);
 	}
+	export_texture_bake_material_add_texture(file);
 }
 
 static i32 _export_texture_channel(i32 c, i32 bits) {
@@ -217,6 +253,10 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string_copy(substring(f, 0, string_length(f) - 4));
 	}
 
+	if (bits > 8 && g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
+		ext = ".png"; // Packed as rgba8 png
+	}
+
 	bool is_udim = g_context->layers_export == EXPORT_MODE_PER_UDIM_TILE;
 	if (is_udim) {
 		ext = string("%s%s", object_name, ext);
@@ -265,7 +305,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		if (!slot_layer_is_layer(l1)) {
 			continue;
 		}
-		if (slot_layer_get_filters(l1, false) != NULL) {
+		if (slot_layer_has_visible_filter(l1)) {
 			continue;
 		}
 
@@ -519,6 +559,108 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 	// texpaint_pack->pixels = NULL;
 }
 
+static void export_texture_bake_material_add_texture(char *file) {
+	if (export_texture_baked_files != NULL) {
+		any_array_push(export_texture_baked_files, string_copy(file));
+	}
+}
+
+static i32 export_texture_asset_index(char *file) {
+	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
+		if (string_equals(g_project->_->assets->buffer[i]->file, file)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void export_texture_link(ui_node_canvas_t *canvas, ui_node_t *from, i32 from_socket, ui_node_t *to, i32 to_socket) {
+	ui_node_link_t *l =
+	    ALLOC_INIT(ui_node_link_t,
+	               {.id = ui_next_link_id(canvas->links), .from_id = from->id, .from_socket = from_socket, .to_id = to->id, .to_socket = to_socket});
+	any_array_push(canvas->links, l);
+}
+
+static i32 export_texture_output_socket(char *name) {
+	if (string_equals(name, "base")) {
+		return 0;
+	}
+	if (string_equals(name, "occ")) {
+		return 2;
+	}
+	if (string_equals(name, "rough")) {
+		return 3;
+	}
+	if (string_equals(name, "metal")) {
+		return 4;
+	}
+	if (string_equals(name, "nor")) {
+		return 5;
+	}
+	return -1;
+}
+
+static void export_texture_create_baked_material(slot_material_t *source) {
+	export_preset_t *preset = box_export_preset;
+	string_array_t  *files  = export_texture_baked_files;
+
+	// Bring the written files in as texture assets
+	if (g_context->layers_destination != EXPORT_DESTINATION_PACK_INTO_PROJECT) {
+		for (i32 i = 0; i < files->length; ++i) {
+			i32 index = export_texture_asset_index(files->buffer[i]);
+			if (index >= 0) {
+				project_reimport_texture_load(files->buffer[i], g_project->_->assets->buffer[index]);
+			}
+			else {
+				import_texture_run(files->buffer[i], false);
+			}
+		}
+	}
+
+	slot_material_t *m = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
+	any_array_push(g_project->_->materials, m);
+	g_context->material      = m;
+	ui_node_canvas_t *canvas = m->canvas;
+	canvas->name             = string_copy(slot_material_unique_name(canvas, string("%s_baked", source->canvas->name)));
+	node_group_t group       = {.nodes = m->nodes, .canvas = canvas};
+
+	ui_node_t *nout = NULL;
+	for (i32 i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (string_equals(n->type, "OUTPUT_MATERIAL_PBR")) {
+			nout = n;
+			break;
+		}
+	}
+	for (i32 i = 0; i < canvas->nodes->length; ++i) {
+		ui_node_t *n = canvas->nodes->buffer[i];
+		if (string_equals(n->name, "Color")) {
+			ui_remove_node(n, canvas);
+			break;
+		}
+	}
+
+	i32 node_y = 100;
+	for (i32 i = 0; i < files->length && i < preset->textures->length; ++i) {
+		i32 socket      = export_texture_output_socket(preset->textures->buffer[i]->name);
+		i32 asset_index = export_texture_asset_index(files->buffer[i]);
+		if (socket < 0 || asset_index < 0) {
+			continue;
+		}
+		ui_node_t *img                         = nodes_material_create_node("TEX_IMAGE", &group);
+		img->buttons->buffer[0]->default_value = f32_array_create_x(asset_index);
+		img->x                                 = nout->x - 300;
+		img->y                                 = node_y;
+		node_y += 180;
+		export_texture_link(canvas, img, 0, nout, socket);
+	}
+
+	make_material_parse_paint_material(true);
+	util_render_make_material_preview();
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+	history_new_material();
+}
+
 static void export_texture_run_bake_material(char *path) {
 	if (render_path_paint_live_layer == NULL) {
 		render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
@@ -559,7 +701,15 @@ static void export_texture_run_bake_material(char *path) {
 	        render_path_paint_live_layer,
 	    },
 	    1);
+	slot_material_t *source = g_context->material;
+	if (g_context->bake_create_material) {
+		export_texture_baked_files = any_array_create_from_raw((void *[]){}, 0);
+	}
 	export_texture_run_layers(path, layers, "", true);
+	if (export_texture_baked_files != NULL) {
+		export_texture_create_baked_material(source);
+		export_texture_baked_files = NULL;
+	}
 }
 
 void export_texture_run(char *path, bool bake_material) {

@@ -45,7 +45,7 @@ void brush_output_node_parse_inputs() {
 		g_context->brush_nodes_opacity       = 1.0;
 		i32 index                            = -1;
 		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-			if (string_equals(g_project->_->assets->buffer[i]->name, opac->_str)) {
+			if (string_equals(g_project->_->assets->buffer[i]->file, opac->_str)) {
 				index = i;
 				break;
 			}
@@ -71,7 +71,7 @@ void brush_output_node_parse_inputs() {
 		stencil->_str                           = string_tmp("%.*s", string_last_index_of(stencil->_str, "."), stencil->_str);
 		i32 index                               = -1;
 		for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-			if (string_equals(g_project->_->assets->buffer[i]->name, stencil->_str)) {
+			if (string_equals(g_project->_->assets->buffer[i]->file, stencil->_str)) {
 				index = i;
 				break;
 			}
@@ -98,20 +98,15 @@ void brush_output_node_run() {
 	f32 top    = 0.0;
 	f32 bottom = 1.0;
 
-	if (g_context->paint2d) {
-		left  = 1.0;
-		right = (g_context->split_view ? 2.0 : 1.0) + ui_view2d_ww / (float)base_w();
-	}
-
-	// Do not paint over floating toolbar
-	if (context_is_floating_toolbar()) {
+	// Do not paint over floating toolbar, it floats in the 2D view when there is no 3D view
+	if (context_is_floating_toolbar() && base_paint_in_2d() == !base_view3d_show) {
 		i32 w = ui_toolbar_x() + ui_toolbar_w(false);
-		left += w / (float)sys_w();
-		top += w / (float)sys_h();
+		left += w / (float)base_paint_view_w();
+		top += w / (float)base_paint_view_h();
 
 #ifdef IRON_IOS
 		if (config_is_iphone()) {
-			top += w / (float)sys_h();
+			top += w / (float)base_paint_view_h();
 		}
 #endif
 	}
@@ -148,7 +143,7 @@ void brush_output_node_run() {
 		return;
 	}
 
-	if (g_ui->is_hovered || base_is_dragging || base_is_resizing || g_ui->is_scrolling || g_ui->combo_selected_id != 0) {
+	if (g_ui->is_hovered || base_is_dragging || base_is_resizing || ui_dock_is_dragging() || g_ui->is_scrolling || g_ui->combo_selected_id != 0) {
 		return;
 	}
 

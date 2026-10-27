@@ -1,0 +1,862 @@
+(terkompresi)
+(dikemas)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+Tampilan 2D
+3D
+Tampilan 3D
+A
+Tentang
+Tentang...
+Mutlak
+Tambah
+Tambah Animasi
+Tambah Contoh Warna
+Tambah contoh warna baru
+Tambah warna yang dipilih ke contoh warna
+Semua
+Semua pemrosesan dilakukan secara lokal di perangkat
+Izinkan Kamera Terbalik
+Alfa
+Buang Alfa
+Jumlah
+Sudut
+Tolak Sudut
+Animasi
+Anisotropi
+Tambahkan
+Terapkan
+Terapkan Perpindahan
+Terapkan Filter
+Terapkan Masker
+Terapkan Node
+Terapkan Sculpt
+Terapkan Skinning
+Arkuskosinus
+Arkusinus
+Arktangen2
+Arkutangen
+Array
+Aset
+Atlas
+Atlas
+Atribut
+Otomatis
+Rata-rata
+Sumbu
+B
+Belakang
+Bake
+Bake Material...
+Bake Tekstur
+Bake ke Tekstur
+Pita
+Dasar
+Warna Dasar
+Normal Bengkok
+Bevel
+Bias
+Bit
+Masker Hitam
+Eksekusi Blender
+Path eksekusi Blender belum diatur
+Pencampuran
+Bloom
+Buram
+Buramkan Peta Lingkungan
+Jenis Buram
+Penanda
+Boolean
+Bawah
+Pantulan
+Kotak
+Tekstur Bata
+Lebar Bata
+Kecerahan
+Kecerahan/Kontras
+Peramban
+Kuas
+Sudut Kuas
+Kekerasan Kuas
+Opasitas Kuas
+Keluaran Kuas
+Radius Kuas
+Kuas...
+Kuas
+Tonjolan
+Bakar
+Hitung Normal
+Kamera
+Kecepatan Pan Kamera
+Kecepatan Rotasi Kamera
+Tekstur Kamera
+Kecepatan Zoom Kamera
+Batal
+Tangkap Latar
+Tangkap Keluaran
+Tangkap Cuplikan Layar
+Tangkap Video
+Langit-langit
+Ukuran sel dalam piksel
+Tengah
+Kanal
+Periksa Pembaruan...
+Tekstur Kotak-kotak
+Batasi
+Batasi Faktor
+Batasi Hasil
+Tanah Liat
+Bersihkan
+Bersihkan Lapisan
+Bersihkan Contoh Warna
+Akhir Klip
+Awal Klip
+Kliping
+Klon
+Tutup
+Kain
+Awan
+Proyek Awan...
+Server Awan
+Proyek awan
+Warna
+Warna 1
+Warna 2
+ID Warna
+Peta ID Warna
+Masker Warna
+Rampe Warna
+Ruang Warna
+IDWarna
+Gabungkan
+Gabung Warna
+Gabung XYZ
+Kompas
+Konfirmasi
+Konsol
+Model Konsol
+Konstan
+Lanjutkan di peramban.
+Kontras
+Kontributor
+Konversi Dari
+Konversi Ke
+Salin
+Salin Kode Hex
+Kosinus
+Tidak dapat mengunduh
+Jumlah
+Lipatan
+Buat Lapisan Warna
+Buat Material
+Hasil Kali Silang
+Buang Muka Belakang
+Kursor
+Kelengkungan
+Tekstur Kelengkungan
+Kurva
+Melengkung
+Kustom
+Potong
+Gelapkan
+Debug
+Dekal
+Decimate
+Kontrol Kamera Bawaan
+Bidang Pandang Kamera Bawaan
+Poros Kamera Bawaan
+Resolusi Lapisan Bawaan
+Mode Bawaan
+Hapus
+Hapus Kuas
+Hapus Lapisan
+Hapus Material
+Hapus Grup Node
+Hapus Contoh Warna
+Hapus yang Tidak Terpakai
+Delta
+Kedalaman
+Tolak Kedalaman
+Turunan
+Desktop
+Tujuan
+Detail
+Kekasaran Detail
+Skala Detail
+Diagonal
+Perbedaan
+Perluas Radius
+Perluas tekstur yang dilukis untuk mencegah celah
+Dimensi
+Peta Normal DirectX
+Arah
+Arah Zoom
+Arah
+Disk
+Displacement
+Tampilan
+Jarak
+Distorsi
+Bebas Gangguan
+Bagi
+Cerahkan
+Titik
+Hasil Kali Titik
+Bawah
+Unduh
+Berkas diunduh dari
+Mengunduh
+Seret dan jatuhkan berkas di sini
+Seret warna yang dipilih ke contoh warna, material, lapisan atau editor node
+Gambar
+Gambar pratinjau kuas langsung di viewport
+Duplikat
+Duplikat Kuas
+Duplikat Lapisan
+Duplikat Material
+Duplikat Contoh Warna
+Sunting
+Sunting Gambar
+Sunting Node
+Sunting Skrip
+Sunting Tahap
+Sunting Contoh Warna
+Edit Garis Waktu
+Sunting Peta UV
+Sunting di Tab Skrip
+Sunting di Editor Teks
+Emisi
+Kosong
+Bingkai Akhir
+Lingkungan
+Sudut Lingkungan
+Peta Lingkungan
+Bola Envmap
+Peta Lingkungan...
+Penghapus
+Kesalahan: berkas .arm diharapkan
+Kesalahan: berkas .hdr diharapkan
+Kesalahan: Periksa koneksi internet untuk mengakses cloud
+Kesalahan: Tidak dapat menemukan tekstur
+Kesalahan: Gagal membaca data font
+Kesalahan: Gagal membaca data mesh
+Kesalahan: Format aset tidak dikenal
+Eksklusi
+Keluar
+Fitur Eksperimental
+Eksponen
+Ekspor
+Ekspor Kuas
+Ekspor Ikon
+Ekspor Material
+Ekspor Mesh
+Ekspor Pemutar
+Ekspor Tekstur
+Ekspor contoh warna
+Ekspor berkas tekstur
+Mengekspor mesh
+Mengekspor tekstur
+F1
+F2
+Fac
+Muka
+Faktor
+Gagal mengimpor material
+Gagal membaca suara:
+Cepat
+Keluaran Fitur
+Berkas
+Isi
+Lapisan Isi
+Masker Isi
+Mode Isi
+Filter
+Filter Tekstur
+Rata
+Ratakan
+Kurva Float
+Lantai
+Modulo Lantai
+Terbang
+Mode terbang:\nTahan tombol kanan mouse dan salah satu perintah berikut:\ngerakkan mouse untuk memutar.\nw, atas atau gulir ke atas untuk maju.\ns, bawah atau gulir ke bawah untuk mundur.\na atau kiri untuk bergerak ke kiri.\nd atau kanan untuk bergerak ke kanan.\ne untuk bergerak ke atas.\nq untuk bergerak ke bawah.\nTahan shift untuk bergerak lebih cepat atau alt untuk lebih lambat.
+Bidang Pandang
+Folder tidak berisi tekstur
+Fonta
+Fonta...
+Fonta
+Format
+Pecahan
+Bingkai
+Jumlah Bingkai
+Laju Bingkai
+Laju Bingkai
+Bingkai
+Frekuensi
+Gesekan
+Dari Maks
+Dari Min
+Depan
+Penuh
+Keburaman
+G
+Tekstur Gabor
+Gamma
+Dihasilkan
+Geometri
+Geometri ke Asal
+Mulai
+Tarik
+Tekstur Gradasi
+Gravitasi X
+Gravitasi Y
+Gravitasi Z
+Lebih Besar Dari
+Sel Grid
+Snap ke Grid
+Grup
+Masukan Grup
+Keluaran Grup
+Kekerasan
+Tinggi
+Campur Tinggi
+Bantuan
+Sembunyikan Tampilan 3D
+Poly Tinggi
+Riwayat
+Tahan {action_paint} untuk menghapus\nTahan {brush_ruler} dan tekan {action_paint} untuk menghapus garis lurus (mode penggaris)
+Tahan {action_paint} untuk melukis\nTahan {brush_ruler} dan tekan {action_paint} untuk melukis garis lurus (mode penggaris)
+Tahan {brush_opacity} dan gerakkan mouse ke kiri untuk mengurangi opasitas\nTahan {brush_opacity} dan gerakkan mouse ke kanan untuk menambah opasitas
+Tahan {brush_radius} dan gerakkan mouse ke kiri atau tekan {brush_radius_decrease} untuk mengurangi radius\nTahan {brush_radius} dan gerakkan mouse ke kanan atau tekan {brush_radius_increase} untuk menambah radius
+Tahan {decal_mask} untuk melukis pada masker dekal
+Tahan {decal_mask} untuk menggunakan teks sebagai masker
+Tahan {set_clone_source} untuk mengatur sumber
+Horizontal
+Horizontal Terbalik
+Cara
+Rona
+Rona/Saturasi/Nilai
+Kosinus Hiperbolik
+Sinus Hiperbolik
+Tangen Hiperbolik
+Tekstur Gambar
+Gambar ke PBR
+Impor
+Impor Mesh
+Impor Contoh Warna
+Impor berkas fonta
+Impor berkas mesh
+Impor contoh warna
+Impor berkas tekstur
+Impor...
+Mengimpor mesh
+Masuk
+Masuk
+Gembungkan
+Info: Aset sudah diimpor
+Masukan
+Periksa sebagai Skrip
+Perbarui pratinjau material secara instan saat node berubah
+Intensitas
+Antarmuka
+Interpolasi
+Direktori ekspor tidak valid
+Jalur skrip tidak valid
+Jenis tekstur tidak valid
+Akar Kuadrat Terbalik
+Balik
+Balik Warna
+Balik Masker
+Balik Pilihan
+Pelacak Isu
+Iterasi
+Gabung
+Bingkai Kunci
+Peta Tombol
+Peta tombol diimpor:
+Lakunaritas
+Bahasa
+Lapisan
+Sudut Lapisan
+Pencampuran Lapisan
+Masker Lapisan
+Objek Lapisan
+Opasitas Lapisan
+Skala UV Lapisan
+Jenis UV Lapisan
+Visibilitas Lapisan
+Lapisan
+Radius Malas
+Langkah Malas
+Kiri
+Panjang
+Kurang Dari
+Tingkat
+Masa Hidup
+Cerahkan
+Peta Cahaya
+Linear
+Cahaya Linear
+Tercahayai
+Pratinjau Kuas Langsung
+Pratinjau Material Langsung
+Lokasi
+Logaritma
+Tekstur Ajaib
+Jadikan Unik
+Manual
+Petakan Rentang
+Pemetaan
+Masker
+Warna Masker
+Massa
+Material
+ID Material
+Indeks Material
+Keluaran Material
+Material...
+Material
+Matematika
+Maks
+Maksimum
+Gabung ke Bawah
+Gabung Geometri
+Gabung Grup
+Gabung Lapisan
+Mesh
+Masukan Mesh
+Keluaran Mesh
+Mesh...
+Mesh
+Logam
+Min
+Min Maks
+Minimum
+Cermin
+Campur
+Campur Warna
+Campur Peta Normal
+Seluler
+Mode
+Model
+Model
+Direktori Model...
+Pengubah
+Ubah
+Ubah Animasi
+Modulo
+Mortir
+Ukuran Mortir
+Kehalusan Mortir
+Kalikan
+Nama
+Neural
+Baru
+Masker Hitam Baru
+Kuas Baru
+Warna Baru
+Masker Isi Baru
+Grup Baru
+Peta Tombol Baru
+Lapisan Baru
+Material Baru
+Plugin Baru
+Preset Baru
+Proyek Baru
+Proyek Baru...
+Contoh Warna Baru
+Tema Baru
+Masker Putih Baru
+Berikutnya
+Tidak
+Tidak ada respons
+Node
+Pratinjau Node
+Node
+Butiran Noise
+Tekstur Noise
+Tidak Ada
+Normal
+Campur Normal
+Peta Normal
+Peta Normal 1
+Peta Normal 2
+Normalisasi
+Tidak tersedia di build debug
+Belum diimplementasikan
+OK
+Objek
+ID Objek
+Indeks Objek
+Info Objek
+Normal Objek
+Okklusi
+Ofset
+Warna Lama
+Opasitas
+Mode Opasitas
+Buka Peramban
+Buka Direktori Berisi...
+Buka Secara Eksternal
+Buka Terbaru...
+Buka di Peramban
+Buka...
+Membuka proyek
+Operasi
+Berlawanan
+Orbit
+Mode orbit dan rotasi:\n{rotate_shortcut} atau gerakkan tombol kanan mouse untuk memutar.\n{zoom_shortcut} atau gulir untuk zoom.\n{pan_shortcut} atau gerakkan tombol tengah mouse untuk menggeser.
+Urutkan Lapisan
+Orientasi 2D
+Orientasi 3D
+Origin ke Geometri
+Ortografis
+Keluar
+Hampar
+PBR
+Kemas Aset
+Kemas ke Proyek
+Padding
+Lukis
+Lapisan Lukis
+Masker Lukis
+Parametrik
+Induk
+Turunan Parsial
+Partikel
+Tempel
+Jalur
+Jejak Jalur
+Pelacak Jalur
+Jeda
+Pena
+Pensil
+Per Objek
+Per Tile UDIM
+Perspektif
+Fase
+Ofset Fase
+Fisika
+Warna yang Dipilih
+Pemilih
+Sematkan ke Header
+Cubit
+Ping-Pong
+Poros
+Ukuran Piksel
+Dataran
+Mainkan
+Pemutar
+Pemutar...
+Plugin diimpor:
+Plugin
+Titik
+Ketajaman
+Posisi
+Pasca Proses
+Pangkat
+Preferensi
+Preferensi...
+Preset
+Preset diimpor:
+Preset
+Kontrol Tekanan
+Sebelumnya
+Folder sebelumnya
+Memproses...
+Proyek
+Proyek disimpan
+Proyek
+Prompt
+Kualitas
+Kuantisasi
+R
+Kurva RGB
+RGB ke Hitam Putih
+RGBA
+Radial
+Radius
+Acak
+Keacakan
+Rentang
+Rasio
+Terbaru
+Ulangi {step}
+Refleksikan
+Segarkan
+Impor Ulang
+Impor Ulang Mesh
+Impor Ulang Tekstur
+Offset Relatif
+Hapus
+Ganti Nama Lapisan
+Renderer
+Diorientasi Ulang
+Ulangi
+Ganti
+Ganti Warna
+Ganti Yang Ada
+Ganti Contoh Warna
+Laporkan Bug
+Minta Fitur
+Atur Ulang
+Atur Ulang Peta Lingkungan
+Atur Ulang Tata Letak
+Resolusi
+Kembalikan
+Kembalikan Contoh Warna
+Kembalikan contoh warna bawaan
+Kanan
+Cincin
+Rotasi
+Rotasi
+Kekasaran
+Bulatkan
+Tinggi Baris
+Jalankan
+Jalankan di Pemutar
+Berjalan...
+SSAO
+Sampel
+Saturasi
+Simpan
+Simpan Sebagai...
+Simpan Gambar
+Simpan proyek terlebih dahulu
+Simpan proyek ke awan terlebih dahulu
+Simpan ke Awan
+Simpan ke Awan...
+Simpan ke Disk...
+Menyimpan proyek
+Gigi Gergaji
+Skala
+Skala X
+Layar
+Skrip
+Node Skrip
+Skrip dibuka
+Skrip
+Sculpt
+Lapisan Sculpt
+Cari
+Cari node
+Segmen
+Pilih
+Pilih Semua
+Pilih yang Tersembunyi
+Pilih Material
+Pilih yang Terlihat
+Dipilih
+Sensitivitas
+Pisah Warna
+Pisah Vektor
+Pisah XYZ
+Atur Sumber
+Atur sebagai Peta ID Warna
+Atur sebagai Peta Lingkungan
+Atur sebagai Masker
+Mengatur Sumber
+Pengaturan
+Shader
+Bentuk
+Bagikan Tautan Pemutar
+Berbagi
+Tampilkan Tampilan 2D
+Tampilkan Nama Aset
+Tampilkan Grid
+Tampilkan Editor Node
+Tampilkan pratinjau node pada setiap node secara bawaan
+Tanda
+Masuk...
+Keluar
+Proses masuk kedaluwarsa, coba lagi
+Masuk untuk menyimpan proyek di awan.
+Masuk dengan akun armorpaint.org.
+Sudah masuk
+Masuk sebagai
+Sedang masuk...
+Sinus
+Ukuran
+Slot
+Haluskan
+Oleskan
+Snap
+Snippet
+Soket
+Cahaya Lembut
+Urutkan
+Suara
+Suara diimpor:
+Suara
+Bola
+Bulatan
+Layar Pembuka
+Pisahkan
+Pisah Berdasarkan
+Tampilan Terpisah
+Pisah mesh menjadi objek
+Akar Kuadrat
+Pipihkan
+Tahap
+Bingkai Awal
+Stencil
+Batas langkah tercapai
+Berhenti
+Hentikan Perekaman
+Berhenti Berbagi
+Lurus
+Kekuatan
+Regangkan
+Subdivide
+Subsurface
+Kurangi
+Super Sampel
+Contoh Warna
+Contoh Warna...
+Simetri
+Tangen
+Target
+Templat
+Templat
+Medan
+Koord Tekstur
+Texel
+Teks
+Tekstur Teks
+Teks ke Gambar
+Tekstur
+Koordinat Tekstur
+Tekstur diimpor:
+Tekstur...
+Tekstur
+Tekstur diekspor
+Tekstur...
+Tema
+Tema diimpor:
+Ketebalan
+Petak
+Petak X
+Petak Y
+Diubin
+Jumlah Petak X
+Jumlah Petak Y
+Tilesheet
+Animasi Tilesheet
+Waktu
+Garis Waktu
+Ke Derajat
+Ke Lapisan Isi
+Ke Masker Isi
+Ke Lapisan
+Ke Masker
+Ke Maks
+Ke Min
+Ke Lapisan Lukis
+Ke Masker Lukis
+Ke Radian
+Alihkan Layar Penuh
+Alihkan header
+Alat
+Atas
+UI Sentuh
+Transformasi
+Transformasi Objek
+Translusensi
+Segitiga
+Pangkas
+Triplanar
+Potong
+Modulo Terpotong
+Percayai skrip proyek?
+Tween
+Puntir
+Jenis
+Tile UDIM
+Skala UI
+UV
+Pulau UV
+Peta UV
+Skala UV
+Buka Lipatan UV
+Peta UV
+Tidak dapat memeriksa pembaruan.\nSilakan kunjungi {url}.
+Langkah Batal
+Batal {step}
+Buka Lipatan
+Buka Lipatan Mesh
+Membuka lipatan mesh
+Atas
+Sumbu Atas
+Perbarui
+Pembaruan tersedia!\nSilakan kunjungi {url}.
+Upscale Gambar
+Penggunaan
+Utilitas
+Nil
+Nilai
+Varians
+Vektor
+Kurva Vektor
+Matematika Vektor
+Rotasi Vektor
+Transformasi Vektor
+Warna Vertex
+Vertikal
+Vertikal Terbalik
+Vertikal dan Horizontal
+Vertikal dan Horizontal Terbalik
+Tampilan
+Viewport
+Masker Viewport
+Mode Viewport
+Vignet
+Terlihat
+Tekstur Voronoi
+Warp
+Profil Gelombang
+Tekstur Gelombang
+Jenis Gelombang
+Apa yang Baru
+Masker Putih
+Putih Total
+Lebar
+Jendela
+Wireframe
+Ruang Kerja
+Dunia
+Bungkus Mouse
+Bungkus mouse di sekitar batas tampilan saat mengontrol kamera
+X
+Sinar-X
+XYZ
+Y
+Ya
+Anda sudah yang terbaru!
+Z
+Perbesar
+Perkecil
+Zoom Sesuai Muat
+jenis_campur
+ruang_warna
+Ctrl+F untuk mencari
+Esc untuk batal
+fBM
+berkas
+memori gpu
+jenis_gradasi
+node
+operasi
+terkemas
+player
+plugin diaktifkan
+prompt
+sRGB
+sumber
+segitiga
+jenis
+tanpa judul
+x
+{shortcut} dan gerakkan mouse

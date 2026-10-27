@@ -9,8 +9,7 @@ char *_tab_browser_draw_b;
 void tab_browser_show_directory(char *directory) {
 	tab_browser_path                               = string_copy(directory);
 	tab_browser_search                             = "";
-	ui_base_tabs->buffer[TAB_AREA_STATUS]          = 0;
-	g_config->layout_tabs->buffer[TAB_AREA_STATUS] = 0;
+	ui_base_show_tab(TAB_BROWSER);
 }
 
 void tab_browser_draw_bookmark_menu() {
@@ -319,9 +318,10 @@ void tab_browser_draw(i32 *htab) {
 		}
 
 		if (show_full) {
+			// Bookmarks stay in place while the file view scrolls
 			i32 bottom_y = g_ui->_y;
 			g_ui->_x     = 0;
-			g_ui->_y     = _y;
+			g_ui->_y     = _y - g_ui->current_window->scroll_offset;
 			g_ui->_w     = bookmarks_w;
 
 			if (ui_icon_button(tr("Cloud"), ICON_CLOUD, UI_ALIGN_LEFT)) {
@@ -348,9 +348,7 @@ void tab_browser_draw(i32 *htab) {
 					ui_menu_draw(&tab_browser_draw_bookmark_menu, -1, -1);
 				}
 			}
-			if (g_ui->_y < bottom_y) {
-				g_ui->_y = bottom_y;
-			}
+			g_ui->_y = bottom_y; // Scroll range follows the file view only
 		}
 
 		if (in_focus && !g_ui->is_typing) {
@@ -368,6 +366,8 @@ void tab_browser_draw(i32 *htab) {
 				ui_files_go_up(&tab_browser_path);
 			if (g_ui->is_escape_down)
 				ui_files_selected = -1;
+			if (g_ui->is_key_pressed && g_ui->key_code >= KEY_CODE_A && g_ui->key_code <= KEY_CODE_Z && !g_ui->is_ctrl_down && !g_ui->is_alt_down)
+				ui_files_select_letter('a' + (g_ui->key_code - KEY_CODE_A));
 		}
 	}
 }

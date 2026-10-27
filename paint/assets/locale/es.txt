@@ -1,0 +1,862 @@
+(comprimido)
+(empaquetado)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+Vista 2D
+3D
+Vista 3D
+A
+Acerca de
+Acerca de...
+Absoluto
+Añadir
+Añadir animación
+Añadir muestra
+Añadir nueva muestra
+Añadir color seleccionado a muestras
+Todo
+Todo el procesamiento se realiza localmente en el dispositivo
+Permitir cámara invertida
+Alfa
+Descartar alfa
+Cantidad
+Ángulo
+Rechazar por ángulo
+Animación
+Anisotropía
+Adjuntar
+Aplicar
+Aplicar desplazamiento
+Aplicar Filtro
+Aplicar Máscara
+Aplicar nodos
+Aplicar escultura
+Aplicar skinning
+Arc coseno
+Arc seno
+Arc tangente 2
+Arc tangente
+Matriz
+Recurso
+Atlas
+Atlas
+Atributo
+Automático
+Promedio
+Ejes
+A
+Trasera
+Hornear
+Hornear material...
+Hornear textura
+Hornear a texturas
+Bandas
+Base
+Color base
+Bent Normal
+Bisel
+Sesgo
+Bits
+Mascara negra
+Ejecutable de Blender
+Ruta al ejecutable de Blender no establecida
+Fusión
+Resplandor
+Desenfocar
+Desenfoque de mapa de entorno
+Tipo de desenfoque
+Marcador
+Booleano
+Inferior
+Rebote
+Caja
+Ladrillo
+Ancho del ladrillo
+Brillo
+Brillo/Contraste
+Navegador
+Pincel
+Ángulo de pincel
+Dureza del pincel
+Opacidad del pincel
+Salida de Pincel
+Radio del pincel
+Pincel...
+Pinceles
+Relieve
+Quemar
+Calcular normales
+Cámara
+Velocidad de paneo de cámara
+Velocidad de rotación de cámara
+Textura de cámara
+Velocidad de zoom de cámara
+Cancelar
+Capturar fondo
+Capturar salida
+Capturar captura de pantalla
+Capturar vídeo
+Techo
+Tamaño de celda en píxeles
+Centro
+Canales
+Comprobar actualizaciones...
+Verificador
+Limitar
+Limitar factor
+Limitar resultado
+Arcilla
+Limpiar
+Limpiar capa
+Limpiar muestras
+Finalizar recorte
+Comenzar a recortar
+Recorte
+Clonar
+Cerrar
+Tela
+Nube
+Proyectos en la nube...
+Servidor en la nube
+Proyectos en la nube
+Color
+Color 1
+Color 2
+ID de color
+Mapa de ID de colores
+Máscara de color
+Rampa de color
+Espacio de color
+Color ID
+Combinar
+Combinar color
+Combinar XYZ
+Gizmo orientación
+Confirmar
+Consola
+Modelo de consola
+Constante
+Continúa en el navegador.
+Contraste
+Colaboradores
+Convertir desde
+Convertir a
+Copiar
+Copiar código hex
+Coseno
+No se pudo descargar
+Cantidad
+Pliegue
+Crear capa de color
+Crear material
+Producto vectorial
+Eliminar caras opuestas
+Cursor
+Curvatura
+Textura de curvatura
+Curva
+Curva
+Personalizado
+Cortar
+Oscurecer
+Depuración
+Pegatina
+Diezmar
+Controles de cámara predeterminados
+Campo de visión predeterminado de la cámara
+Pivote predeterminado de la cámara
+Resolución de capa predeterminado
+Modo predeterminado
+Eliminar
+Eliminar pincel
+Eliminar capa
+Eliminar material
+Eliminar grupo de nodos
+Eliminar muestra
+Eliminar no usadas
+Delta
+Profundidad
+Rechazar por profundidad
+Derivado
+Escritorio
+Destino
+Detalle
+Rugosidad del detalle
+Escala del detalle
+Diagonal
+Diferencia
+Expandir radio
+Expandir texturas pintadas para evitar costuras
+Dimensiones
+DirectX Mapa de normales
+Dirección
+Dirección de zoom
+Direccional
+Disco
+Desplazamiento
+Pantalla
+Distancia
+Distorsión
+Sin distracción
+Dividir
+Evadir
+Punto
+Producto escalar
+Abajo
+Descargar
+Archivo descargado de
+Descargando
+Arrastrar y soltar archivos aquí
+Arrastrar color seleccionado a muestras, materiales, capas o al editor de nodos
+Dibujar
+Dibujar previsualización del pincel en el visor
+Duplicar
+Duplicar pincel
+Duplicar capa
+Duplicar material
+Duplicar muestra
+Editar
+Editar imagen
+Editar nodos
+Editar script
+Editar etapa
+Editar muestra
+Editar línea de tiempo
+Editar mapa UV
+Editar en la pestaña de Script
+Editar en el editor de textos
+Emisión
+Vacío
+Fotograma final
+Entorno
+Ángulo de entorno
+Mapa de entorno
+Esferas del mapa de entorno
+Mapa de entorno...
+Borrador
+Error: archivo .arm esperado
+Error: se esperaba archivo .hdr
+Error: Verificar conexión a internet para acceder a la nube
+Error: No se pudo localizar la textura
+Error: Fallo al leer datos de fuente
+Error: No se pudieron leer los datos de la malla
+Error: formato de recurso desconocido
+Exclusión
+Salir
+Funciones experimentales
+Exponente
+Exportar
+Exportar pincel
+Exportar icono
+Exportar material
+Exportar malla
+Exportar reproductor
+Exportar texturas
+Exportar muestras
+Exportar archivos de texturas
+Exportando malla
+Exportando texturas
+F1
+F2
+Fac
+Cara
+Factor
+Error al importar el material
+Error al leer el sonido:
+Rápido
+Salida de característica
+Archivo
+Rellenar
+Capa de relleno
+Máscara de relleno
+Modo de relleno
+Filtrar
+Filtrar texturas
+Plano
+Aplanar
+Curva de valor
+Piso
+Módulo hacia abajo
+Volar
+Modo vuelo:\nMantén pulsado el botón derecho del ratón y uno de los siguientes comandos:\nmueve el ratón para rotar.\nw, arriba o rueda hacia arriba para avanzar.\ns, abajo o rueda hacia abajo para retroceder.\na o izquierda para moverse a la izquierda.\nd o derecha para moverse a la derecha.\ne para subir.\nq para bajar.\nMantén shift para moverte más rápido o alt para más despacio.
+Campo de visión
+La carpeta no contiene texturas
+Fuente
+Fuente...
+Fuente
+Formato
+Fracción
+Fotograma
+Número de fotogramas
+Tasa de fotogramas
+Tasa de fotogramas
+Fotogramas
+Frecuencia
+Fricción
+Desde Máx
+Desde Mín
+Frontal
+Completo
+Difuminado
+V
+Textura Gabor
+Gama
+Generado
+Geometría
+Geometria al origen
+Comenzar
+Agarrar
+Gradiente
+Gravedad X
+Gravedad Y
+Gravedad Z
+Mayor que
+Celda de la rejilla
+Ajuste a rejilla
+Grupo
+Entrada de grupo
+Salida de grupo
+Dureza
+Altura
+Mezcla de altura
+Ayuda
+Ocultar vista 3D
+High Poly
+Historial
+Mantener {action_paint} para borrar\nMantener {brush_ruler} y presionar {action_paint} para borrar línea recta (modo regla)
+Mantener {action_paint} para pintar\nMantener {brush_ruler} y presionar {action_paint} para pintar línea recta (modo regla)
+Mantén {brush_opacity} y mueve el ratón a la izquierda para reducir la opacidad\nMantén {brush_opacity} y mueve el ratón a la derecha para aumentar la opacidad
+Mantén {brush_radius} y mueve el ratón a la izquierda o pulsa {brush_radius_decrease} para reducir el radio\nMantén {brush_radius} y mueve el ratón a la derecha o pulsa {brush_radius_increase} para aumentar el radio
+Mantener {decal_mask} para pintar en máscara de calcomanía
+Mantener {decal_mask} para usar texto como máscara
+Mantener {set_clone_source} para establecer fuente
+Horizontal
+Horizontal invertido
+Cómo
+Tono
+Tono/Saturación/Valor
+Coseno hiperbólico
+Seno hiperbólico
+Tangente hiperbólica
+Imagen
+Imagen a PBR
+Importar
+Importar malla
+Importar muestras
+Importar Fuente
+Importar malla
+Importar muestras
+Importar textura
+Importar...
+Importando malla
+Entrada
+Entrante
+Inflar
+Info: Recurso ya importado
+Entrada
+Inspeccionar como script
+Actualizar instantáneamente la vista previa del material en el cambio de nodo
+Intensidad
+Interfaz
+Interpolar
+Directorio de exportación inválido
+Ruta de script no válida
+Tipo de textura inválido
+Inversa de raíz cuadrada
+Invertir
+Invertir color
+Invertir máscara
+Invertir selección
+Seguimiento de problemas
+Iteraciones
+Unir
+Fotograma clave
+Mapeado de teclas
+Mapa de teclas importado:
+Lacunaridad
+Idioma
+Capa
+Ángulo de capa
+Modo mezcla capa
+Máscara de capa
+Objeto de capa
+Opacidad de la capa
+Escala UV de capa
+Tipo UV de capa
+Visibilidad de capa
+Capas
+Radio perezoso
+Paso perezoso
+Izquierda
+Longitud
+Menor que
+Niveles
+Tiempo de vida
+Aclarar
+Mapa de luz
+Lineal
+Luz lineal
+Iluminado
+Previsualización de pincel
+Vista previa de material
+Posición
+Logaritmo
+Mágica
+Hacer único
+Manual
+Mapear Rango
+Mapeado
+Máscara
+Color de máscara
+Masa
+Material
+ID de material
+Índice de materiales
+Salida de material
+Material...
+Materiales
+Matemática
+Máx
+Máximo
+Fusionar hacia abajo
+Combinar geometría
+Fusionar grupo
+Fusionar capas
+Malla
+Entrada de malla
+Salida de malla
+Malla...
+Mallas
+Metálico
+Mín
+Mín Máx
+Mínimo
+Espejo
+Mezcla
+Mezclar color
+Mezclar mapas de normales
+Móvil
+Modo
+Modelo
+Modelos
+Directorio de modelos...
+Modificador
+Modificar
+Modificar animación
+Resto
+Mortero
+Tamaño del mortero
+Suavizado del mortero
+Multiplicar
+Nombre
+Neuronal
+Nuevo
+Nueva máscara negra
+Nuevo pincel
+Nuevo color
+Nueva máscara de relleno
+Nuevo Grupo
+Nuevo mapa de teclas
+Nueva capa
+Nuevo material
+Nuevo complemento
+Nuevo Preajuste
+Nuevo proyecto
+Nuevo proyecto...
+Nueva muestra
+Nuevo Tema
+Nueva máscara blanca
+Siguiente
+No
+Sin respuesta
+Nodo
+Vistas previas de nodos
+Nodos
+Grano de ruido
+Ruido
+Ninguno
+Normal
+Mezcla de normales
+Mapa de normales
+Mapa de normales 1
+Mapa de normales 2
+Normalizar
+No disponible en la compilación de depuración
+No implementado
+OK
+Objeto
+ID de objeto
+Índice de Objetos
+Información del objeto
+Normales del objeto
+Oclusión
+Compensación
+Color antiguo
+Opacidad
+Modo de opacidad
+Abrir navegador
+Abrir directorio contenedor...
+Abrir externamente
+Abrir reciente...
+Abrir en navegador
+Abrir...
+Abriendo proyecto
+Operación
+Opuesto
+Orbitar
+Modo orbitar y rotar:\n{rotate_shortcut} o mueve el botón derecho del ratón para rotar.\n{zoom_shortcut} o usa la rueda para hacer zoom.\n{pan_shortcut} o mueve el botón central del ratón para desplazar.
+Ordenar capas
+Orientación 2D
+Orientación 3D
+Origen a la geometría
+Ortográfica
+Salida
+Superponer
+PBR
+Empaquetar recursos
+Empaquetar en proyecto
+Relleno
+Pintar
+Capa de pintura
+Máscara de pintura
+Paramétrico
+Padre
+Derivada parcial
+Particulas
+Pegar
+Ruta
+Trazado de ruta
+Trazador de rutas
+Pausar
+Stylus
+Lápiz
+Por objeto
+Por tile UDIM
+Perspectiva
+Fase
+Desplazamiento de fase
+Física
+Color seleccionado
+Selector de color
+Fijar a cabecera
+Pellizcar
+Ping - Pong
+Pivote
+Tamaño de píxel
+Meseta
+Reproducir
+Reproductor
+Reproductor...
+Plugin importado:
+Complementos
+Punto
+Puntiagudez
+Posición
+Posprocesado
+Potencia
+Preferencias
+Preferencias...
+Preajuste
+Predefinición importada:
+Preajustes
+Controles de presión
+Anterior
+Carpeta anterior
+Procesando...
+Proyectar
+Proyecto guardado
+Proyectos
+Prompt
+Calidad
+Cuantificar
+R
+Curvas RGB
+RVA a grises
+RVAA
+Radial
+Radio
+Aleatorio
+Aleatoriedad
+Rango
+Proporción
+Reciente
+Rehacer {step}
+Reflejar
+Actualizar
+Reimportar
+Reimportar malla
+Reimportar texturas
+Desplazamiento relativo
+Eliminar
+Renombrar capa
+Renderizar
+Reorientado
+Repetir
+Reemplazar
+Reemplazar color
+Reemplazar existente
+Reemplazar muestras
+Reportar un error
+Solicitar una función
+Reiniciar
+Restablecer mapa de entorno
+Restablecer Diseño
+Resolución
+Restaurar
+Restaurar muestras
+Restaurar muestras predeterminadas
+Derecha
+Anillos
+Rotar
+Rotación
+Rugosidad
+Redondear
+Altura de la fila
+Ejecutar
+Ejecutar en el reproductor
+Ejecutando...
+SSAO
+Muestras
+Saturación
+Guardar
+Guardar como...
+Guardar imagen
+Guardar proyecto primero
+Primero guarda el proyecto en la nube
+Guardar en la nube
+Guardar en la nube...
+Guardar en disco...
+Guardando proyecto
+Sierra
+Escala
+Escalar en X
+Trama
+Script
+Nodos de script
+Script abierto
+Scripts
+Escultura
+Capa de escultura
+Buscar
+Buscar nodos
+Segmentos
+Seleccionar
+Seleccionar todo
+Seleccionar ocultos
+Seleccionar material
+Seleccionar visibles
+Seleccionado
+Sensibilidad
+Separar color
+Vector separado
+Separar XYZ
+Establecer origen
+Establecer como mapa de ID de color
+Establecer como mapa de entorno
+Establecer como máscara
+Estableciendo origen
+Configuración
+Sombreador
+Forma
+Compartir enlace del reproductor
+Compartido
+Mostrar vista 2D
+Mostrar nombres de recursos
+Mostrar rejilla
+Mostrar editor de nodos
+Mostrar vista previa en cada nodo por defecto
+Signo
+Iniciar sesión...
+Cerrar sesión
+El inicio de sesión ha caducado, inténtalo de nuevo
+Inicia sesión para guardar proyectos en la nube.
+Inicia sesión con una cuenta de armorpaint.org.
+Sesión iniciada
+Sesión iniciada como
+Iniciando sesión...
+Seno
+Tamaño
+Ranura
+Suavizar
+Difuminar
+Adherir
+Fragmentos
+Módulo
+Luz suave
+Ordenar
+Sonido
+Sonido importado:
+Sonidos
+Esfera
+Esférico
+Pantalla de inicio
+Dividir
+Separar por
+Dividir vista
+Dividir la malla en objetos
+Raíz Cuadrada
+Achatamiento
+Etapa
+Fotograma inicial
+Plantilla
+Límite de pasos alcanzado
+Detener
+Detener captura
+Dejar de compartir
+Recto
+Fuerza
+Estirar
+Subdividir
+Subsuperficie
+Sustraer
+Supermuestreado
+Muestras
+Muestras...
+Simetría
+Tangente
+Destino
+Plantilla
+Plantillas
+Terreno
+Coordenada de textura
+Texeles
+Texto
+Textura de texto
+Texto a imagen
+Textura
+Coordenada de textura
+Textura importada:
+Textura...
+Texturas
+Texturas exportadas
+Texturas...
+Tema
+Tema importado:
+Grosor
+Mosaico
+Mosaico X
+Mosaico Y
+Tileado
+Mosaicos X
+Mosaicos Y
+Hoja de mosaicos
+Animación de hoja de mosaicos
+Tiempo
+Línea de tiempo
+A grados
+Rellenar Capa
+a máscara de relleno
+A capa
+Enmascarar
+Hasta Max
+Hasta Mín
+Pintar Capa
+Pintar máscara
+A radianes
+Ventana a pantalla completa
+Alternar cabecera
+Herramientas
+Superior
+Interfaz táctil
+Transformar
+Transformar objeto
+Translucidez
+Triángulo
+Recortar
+Triplano
+Truncar
+Módulo truncado
+¿Confiar en los scripts del proyecto?
+Interpolar
+Torcer
+Tipo
+Cuadro UDIM
+Escala de Interfaz
+UV
+Isla UV
+Mapa UV
+Escala UV
+Desenvolver UV
+Mapa UV
+No se pudo buscar actualizaciones.\nVisita {url}.
+Deshacer pasos
+Deshacer {step}
+Desenvolver
+Desenvolver malla
+Desenvolviendo malla
+Arriba
+Eje hacia arriba
+Actualizar
+¡Actualización disponible!\nVisita {url}.
+Ampliar imagen
+Uso
+Utilidades
+Val
+Valor
+Varianza
+Vector
+Curvas vectoriales
+Matemática de vectores
+Rotar vector
+Transformar vector
+Color de vértices
+Vertical
+Vertical invertido
+Vertical y Horizontal
+Vertical y Horizontal invertidos
+Vista
+Vista 3D
+Máscara de vista 3D
+Modo de ventana gráfica
+Viñeta
+Visible
+Voronoi
+Deformación
+Perfil de onda
+Onda
+Tipo de onda
+Que hay de nuevo
+Mascara blanca
+Blanqueado
+Anchura
+Ventana
+Alambre
+Espacio de trabajo
+Mundo
+Envolver ratón
+Envolver ratón alrededor de límites de vista durante control de cámara
+X
+Rayos X
+XYZ
+Y
+Sí
+Tienes la última versión.
+Z
+Acercar
+Alejar
+Ajustar a la ventana
+Tipo de mezcla
+Espacio de color
+Ctrl+F para buscar
+Esc para cancelar
+fBM
+Archivo
+memoria gpu
+Tipo de gradiente
+nodos
+Operación
+empaquetado
+player
+plugin habilitado
+prompt
+eRVA
+fuente
+Triángulos
+tipo
+Sin título
+x
+{shortcut} y mover ratón

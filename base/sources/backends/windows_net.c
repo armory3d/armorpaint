@@ -137,8 +137,8 @@ static void CALLBACK iron_winhttp_callback(HINTERNET hInternet, DWORD_PTR dwCont
 	}
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
-                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, iron_https_callback_t callback,
+                      void *callbackdata, const char *dst_path) {
 	if (!initialized) {
 		InitializeCriticalSection(&cs);
 		initialized = TRUE;

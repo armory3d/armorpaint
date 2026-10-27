@@ -4,15 +4,46 @@
 
 #include "enums.h"
 #include "minic.h"
+#include "minic_tcc.h"
 
 typedef struct slot_brush {
 	struct ui_nodes       *nodes;
 	struct ui_node_canvas *canvas;
 	struct gpu_texture    *image;      // 200px
 	struct gpu_texture    *image_icon; // 50px
+	struct gpu_texture    *image_wave; // Stroke preview, generated at runtime
 	bool                   preview_ready;
 	i32                    id;
 } slot_brush_t;
+
+typedef struct mesh_nodes {
+	i32                    uid; // Object
+	struct ui_nodes       *nodes;
+	struct ui_node_canvas *canvas;
+	struct mesh_data      *input;  // Original mesh
+	struct mesh_data      *output; // Mesh assigned to the object, equals input unless the nodes change it
+	u32                    hash;
+	bool                   dirty;       // Input replaced, rebuilt once the mouse is up
+	bool                   reads_frame; // A script read the timeline frame, rebuilt when it changes
+	i32                    frame;       // Timeline frame of the last build
+} mesh_nodes_t;
+
+typedef struct mesh_geo {
+	f32 *pos;
+	f32 *nor;
+	f32 *tex;
+	u32 *ind;
+	i32  vertex_count;
+	i32  index_count;
+	i32  vertex_capacity; // Allocated sizes, counts can be lowered
+	i32  index_capacity;
+} mesh_geo_t;
+
+typedef struct mesh_geo_image {
+	i32  width;
+	i32  height;
+	f32 *pixels; // Float rgba, rows from v 0
+} mesh_geo_image_t;
 
 typedef struct slot_layer {
 	i32                   id;
@@ -117,10 +148,13 @@ typedef struct config {
 	i32                  zoom_direction;
 	bool                 wrap_mouse;
 	bool                 show_asset_names;
+	bool                 material_params;
+	bool                 brush_params;
+	bool                 mesh_params;
 	bool                 touch_ui;
 	bool                 splash_screen;
-	struct i32_array    *layout;          // Sizes
-	struct i32_array    *layout_tabs;     // Active tabs
+	bool                 header_pinned;   // Tool properties in the header, floating toolbar otherwise
+	struct i32_array    *layout_tabs;     // Docked tabs
 	i32                  camera_pivot;    // Cursor, camera center
 	i32                  camera_controls; // Orbit, rotate, fly
 	char                *server;
@@ -142,12 +176,12 @@ typedef struct config {
 	i32                  dilate_radius;
 	char                *blender;
 	bool                 grid_snap;
+	bool                 auto_run_scripts;
 	bool                 experimental;
 	i32                  neural_res;
 	i32                  console_model;
 	render_mode_t        render_mode;
-	workspace_t          workspace;
-	workflow_t           workflow;
+	tools_t              tools;
 	bool                 view2d_grid_show;
 	i32                  view2d_grid_cell;
 	bool                 view2d_grid_snap;
@@ -175,9 +209,36 @@ typedef struct slot_material {
 
 typedef struct tab_draw {
 	void (*f)(i32 *);
+	i32   id;   // tab_id_t
+	char *name; // Untranslated
+	i32   area; // tab_area_t redrawn with, -1 for views
+	bool  closed;
+	bool  closed_default;
 } tab_draw_t;
 
-typedef struct tab_draw_t_array *tab_draw_array_t;
+typedef struct dock_node {
+	struct dock_node *parent;
+	// Split
+	struct dock_node *a;         // Left or top
+	struct dock_node *b;         // Right or bottom
+	bool              vertical;  // Children are stacked
+	i32               fixed;     // 0 - ratio, 1 - a keeps the size, 2 - b keeps the size
+	f32               size;      // Ratio of a, size in pixels of the fixed child otherwise
+	bool              collapsed; // Fixed child is hidden
+	i32               role;      // dock_role_t
+	// Leaf
+	i32          tabs[32]; // tab_id_t, closed tabs included
+	i32          tab_count;
+	i32          active; // Position in between the open tabs
+	i32          last_active;
+	ui_window_t *hwnd;
+	// Layout
+	bool visible;
+	i32  x;
+	i32  y;
+	i32  w;
+	i32  h;
+} dock_node_t;
 
 typedef struct context {
 	struct asset        *texture;
@@ -213,10 +274,12 @@ typedef struct context {
 	f32                         format_quality;
 	export_destination_t        layers_destination;
 	bool                        export_padding;
+	bool                        bake_create_material;
 	split_type_t                split_by;
 	f64                         select_time;
 	viewport_mode_t             viewport_mode;
 	void                       *viewport_shader;
+	gpu_texture_t              *viewport_texture;
 	bool                        hscale_was_changed;
 	mesh_format_t               export_mesh_format;
 	i32                         export_mesh_index;
@@ -233,9 +296,11 @@ typedef struct context {
 	f32                         clone_delta_x;
 	f32                         clone_delta_y;
 	bool                        clone_set_source;
+	i32                         clone_layers;
 	f32                         grab_start_x;
 	f32                         grab_start_y;
 	bool                        show_compass;
+	bool                        show_grid;
 	i32                         project_type;
 	f32                         last_paint_vec_x;
 	f32                         last_paint_vec_y;
@@ -296,6 +361,7 @@ typedef struct context {
 	bool                        brush_camera_align;
 	bool                        select_active; // Select tool
 	bool                        select_dragging;
+	bool                        select_2d;
 	f32                         select_start_x;
 	f32                         select_start_y;
 	f32                         select_x1;
@@ -404,7 +470,6 @@ typedef struct context {
 	i32                         fill_type;
 	i32                         blur_type;
 	bool                        paint2d;
-	i32                         maximized_sidebar_width;
 	i32                         drag_dest;
 	vec4_t                      coords;
 	f32                         start_x;
@@ -590,6 +655,9 @@ typedef struct project {
 	struct f32_array                            *camera_world;
 	struct f32_array                            *camera_origin;
 	f32                                          camera_fov;
+	f32                                          camera_near;
+	f32                                          camera_far;
+	bool                                         camera_frustum_culling;
 	struct swatch_color_t_array                 *swatches;
 	struct ui_node_canvas_t_array               *brush_nodes;
 	struct buffer_t_array                       *brush_icons;
@@ -618,6 +686,9 @@ typedef struct project {
 	struct timeline_layer_keyframe_data_t_array *timeline_layers;
 	struct timeline_mesh_keyframe_data_t_array  *timeline_meshes;
 	struct stage_t_array                        *stages;
+	struct ui_node_canvas_t_array               *mesh_nodes;
+	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
+	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
 	project_runtime_t                           *_;
 } project_t;
 
@@ -727,6 +798,18 @@ typedef struct plugin {
 	char        *name;
 	minic_ctx_t *ctx;
 } plugin_t;
+
+typedef struct plugin_tool {
+	plugin_t      *plugin;
+	char          *name;
+	char          *tooltip;
+	i32            icon;
+	void          *on_header;
+	void          *on_stroke;
+	void          *on_stroke_end;
+	gpu_texture_t *overlay; // Tinted over the mesh in the viewport while the tool is active
+	i32            overlay_color;
+} plugin_tool_t;
 
 typedef struct rect {
 	i32 x;
@@ -883,18 +966,6 @@ typedef struct history_step_t_array {
 	int              length;
 	int              capacity;
 } history_step_t_array_t;
-
-typedef struct tab_draw_array_t_array {
-	tab_draw_array_t **buffer;
-	int                length;
-	int                capacity;
-} tab_draw_array_t_array_t;
-
-typedef struct tab_draw_t_array {
-	tab_draw_t **buffer;
-	int          length;
-	int          capacity;
-} tab_draw_t_array_t;
 
 typedef struct object_t_array {
 	object_t **buffer;

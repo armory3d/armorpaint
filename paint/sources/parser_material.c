@@ -531,16 +531,6 @@ char *parser_material_node_name(ui_node_t *node, ui_node_t_array_t *_parents) {
 	return s;
 }
 
-char *parser_material_enum_data(char *s) {
-	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-		asset_t *a = g_project->_->assets->buffer[i];
-		if (string_equals(a->name, s)) {
-			return a->file;
-		}
-	}
-	return "";
-}
-
 bind_tex_t *parser_material_make_bind_tex(char *tex_name, char *file) {
 	bind_tex_t *tex = ALLOC_INIT(bind_tex_t, {.name = string_copy(tex_name), .file = string_copy(file)});
 	return tex;

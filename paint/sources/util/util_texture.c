@@ -24,7 +24,7 @@ void util_texture_capture_output(gpu_texture_t *img, char *basename, bool bgra) 
 	buffer_t *buf = gpu_get_texture_pixels(img);
 
 #ifdef IRON_BGRA
-	if (bgra) {
+	if (bgra && img->format == GPU_TEXTURE_FORMAT_RGBA32) {
 		buf = buffer_bgra_swap(buf); // Vulkan non-rt textures need a flip
 	}
 #endif

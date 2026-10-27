@@ -63,11 +63,9 @@ typedef struct ui_theme {
 } ui_theme_t;
 
 typedef struct ui_options {
-	draw_font_t   *font;
-	ui_theme_t    *theme;
-	float          scale_factor;
-	gpu_texture_t *color_wheel;
-	gpu_texture_t *black_white_gradient;
+	draw_font_t *font;
+	ui_theme_t  *theme;
+	float        scale_factor;
 } ui_options_t;
 
 typedef struct ui_tab_state {
@@ -292,6 +290,7 @@ typedef struct ui {
 	float           tab_scroll;
 	bool            tab_vertical;
 	bool            tab_align_right;
+	float           tab_offset_x; // Space to keep before the first tab
 	bool            sticky;
 	bool            scissor;
 
@@ -301,6 +300,7 @@ typedef struct ui {
 	gpu_texture_t radio_select_image;
 	gpu_texture_t round_corner_image;
 	gpu_texture_t filled_round_corner_image;
+	gpu_texture_t shadow_image;
 } ui_t;
 
 void  ui_init(ui_t *ui, ui_options_t *ops);
@@ -312,6 +312,7 @@ void  ui_end_region();
 bool  ui_window(ui_window_t *handle, int x, int y, int w, int h, bool drag); // Returns true if redraw is needed
 bool  ui_button(char *text, int align, char *label);
 int   ui_text(char *text, int align, int bg);
+int   ui_swatch(uint32_t color);
 bool  ui_tab(int *value, char *text, bool vertical, uint32_t color, bool align_right);
 bool  ui_tab_changed(ui_window_t *window, int *value);
 bool  ui_panel(bool *value, char *text, bool is_tree, bool filled, bool align_right);
@@ -321,6 +322,7 @@ char *ui_text_input(char **value, char *label, int align, bool editable, bool li
 bool  ui_check(bool *value, char *text, char *label);
 bool  ui_radio(int *value, int position, char *text, char *label);
 int   ui_combo(int *value, string_array_t *texts, char *label, bool show_label, int align, bool search_bar);
+void  ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar);
 float ui_parse_float(char *text);
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
 void  ui_row(f32_array_t *ratios);
@@ -400,6 +402,7 @@ float UI_SCALE();
 float UI_ELEMENT_W();
 float UI_ELEMENT_H();
 float UI_ELEMENT_OFFSET();
+float UI_TEXT_AREA_LINE_H();
 float UI_ARROW_SIZE();
 float UI_BUTTON_H();
 float UI_CHECK_SIZE();
@@ -420,6 +423,8 @@ extern char  ui_text_to_paste[UI_TEXT_MAX];
 extern char  ui_text_to_copy[UI_TEXT_MAX];
 extern void (*ui_on_border_hover)(ui_window_t *, int);
 extern void (*ui_on_tab_drop)(int *, int, int *, int);
+extern void (*ui_on_tab_context_menu)(int *, int);
+extern bool (*ui_on_tab_dock)(int *);
 extern bool (*ui_picker_button)(void);
 extern const char *ui_theme_keys[];
 extern int         ui_theme_keys_count;
@@ -430,6 +435,7 @@ int   ui_inline_radio(int *value, string_array_t *texts, int align);
 int   ui_color_wheel(uint32_t *value, ui_color_state_t *state, bool alpha, float w, float h, bool color_preview, void (*picker)(void *), void *data);
 char *ui_text_area(char **value, int *line_index, int align, bool editable, char *label, bool word_wrap);
 void  ui_text_area_clear_selection();
+int   ui_text_area_selection_line();
 void  ui_begin_menu();
 void  ui_end_menu();
 bool  ui_menubar_button(char *text);
@@ -446,6 +452,7 @@ extern bool                ui_text_area_line_numbers;
 extern bool                ui_text_area_scroll_past_end;
 extern ui_text_coloring_t *ui_text_area_coloring;
 extern char               *ui_text_area_search;
+extern void (*ui_text_coloring_draw)(char *text, char *rest, float x, float y);
 
 typedef struct ui_canvas_control {
 	float pan_x;
@@ -495,6 +502,7 @@ typedef enum ui_node_flag {
 	UI_NODE_FLAG_NONE      = 0,
 	UI_NODE_FLAG_COLLAPSED = 1,
 	UI_NODE_FLAG_PREVIEW   = 2,
+	UI_NODE_FLAG_CODE_HIDE = 4,
 } ui_node_flag_t;
 
 typedef struct ui_node {

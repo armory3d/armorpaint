@@ -5,7 +5,7 @@
 
 __attribute__((import_module("imports"), import_name("js_audio_init"))) int js_audio_init(float *left, float *right, uint32_t *read, uint32_t *write, int size);
 
-#define BUFFER_SIZE 16384
+#define BUFFER_SIZE  16384
 #define BUFFER_AHEAD 4096
 
 static iron_a2_buffer_t a2_buffer;

@@ -129,6 +129,6 @@ void import_folder_run(char *path) {
 
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
-	ui_base_hwnds->buffer[1]->redraws = 2;
+	ui_dock_redraw(1);
 	history_new_material();
 }

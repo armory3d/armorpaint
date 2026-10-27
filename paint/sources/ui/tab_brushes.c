@@ -14,6 +14,27 @@ void tab_brushes_draw_make_brush_preview(void *_) {
 	g_context->brush = _brush;
 }
 
+static bool tab_brushes_preview_pending = false;
+
+void tab_brushes_draw_make_selected_preview(void *_) {
+	// Wait for the startup init on frame 2
+	if (g_context->frame < 3) {
+		sys_notify_on_next_frame(&tab_brushes_draw_make_selected_preview, NULL);
+		return;
+	}
+	tab_brushes_preview_pending = false;
+	if (g_context->brush->preview_ready) {
+		return;
+	}
+	make_material_parse_brush();
+	brush_output_node_parse_inputs();
+	util_render_make_brush_preview();
+	// Skipped while sculpting, redrawing would request it again
+	if (g_context->brush->preview_ready) {
+		ui_dock_redraw(-1);
+	}
+}
+
 void tab_brushes_draw_duplicate(void *_) {
 	i32 i            = _tab_brushes_draw_i;
 	g_context->brush = slot_brush_create(NULL);
@@ -32,7 +53,7 @@ void tab_brushes_delete_brush(slot_brush_t *b) {
 	history_delete_brush();
 	context_select_brush(i == g_project->_->brushes->length - 1 ? i - 1 : i + 1);
 	array_splice(g_project->_->brushes, i, 1);
-	ui_base_hwnds->buffer[1]->redraws = 2;
+	ui_dock_redraw(1);
 }
 
 void tab_brushes_draw_context_menu() {
@@ -53,14 +74,26 @@ void tab_brushes_draw_context_menu() {
 	}
 }
 
+void tab_brushes_draw_edit() {
+	if (ui_menu_button(tr("Import"), "", ICON_IMPORT)) {
+		project_import_brush();
+	}
+}
+
 void tab_brushes_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Brushes"), false, -1, false)) {
+		// The parameters panel shows the stroke preview of the selected brush
+		if (!g_context->brush->preview_ready && !tab_brushes_preview_pending) {
+			tab_brushes_preview_pending = true;
+			sys_notify_on_next_frame(&tab_brushes_draw_make_selected_preview, NULL);
+		}
+
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
-		        -70,
-		        -70,
-		        -70,
+		        -64,
+		        -64,
+		        -64,
 		    },
 		    3);
 		ui_row(row);
@@ -71,11 +104,11 @@ void tab_brushes_draw(i32 *htab) {
 			history_new_brush();
 			ui_nodes_hwnd->redraws = 2;
 		}
-		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
-			project_import_brush();
-		}
 		if (ui_button(tr("Nodes"), UI_ALIGN_CENTER, "")) {
 			ui_base_show_brush_nodes();
+		}
+		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
+			ui_menu_draw(&tab_brushes_draw_edit, -1, -1);
 		}
 		ui_end_sticky();
 		ui_separator(3, false);
@@ -227,6 +260,8 @@ void tab_brushes_draw(i32 *htab) {
 				}
 			}
 		}
+
+		ui_node_params_draw(CANVAS_TYPE_BRUSH, &g_config->brush_params);
 	}
 }
 

@@ -16,7 +16,6 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		bool decal                   = context_is_decal();
 		bool decal_mask              = context_is_decal_mask_paint_pass();
 		f32  brush_decal_mask_radius = g_context->brush_decal_mask_radius;
-		bool paint2d                 = g_context->paint2d || g_context->paint2d_view;
 		brush_decal_mask_radius *= 2.0;
 		f32 radius = decal_mask ? brush_decal_mask_radius : g_context->brush_radius;
 		f32 val    = (radius * g_context->brush_nodes_radius) / 15.0;
@@ -25,13 +24,13 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		}
 		f32 scale2d = (900 / (float)base_h()) * g_config->window_scale;
 		if (!decal) {
-			val *= paint2d ? 0.5 * 0.5 * scale2d * ui_view2d_pan_scale : 2;
+			val *= 2;
 		}
 		else if (decal_mask) {
-			val *= paint2d ? 0.5 * 0.5 * scale2d * ui_view2d_pan_scale : scale2d;
+			val *= scale2d;
 		}
 		else {
-			val *= paint2d ? 0.5 * 0.5 * scale2d * ui_view2d_pan_scale : scale2d * 2.0;
+			val *= scale2d * 2.0;
 		}
 		return val;
 	}
@@ -81,7 +80,7 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 			val *= pen_pressure * g_config->pressure_sensitivity;
 		}
 		val *= val;
-		if (g_config->workflow == WORKFLOW_SCULPT) {
+		if (g_config->tools == TOOLS_SCULPT) {
 			val *= 0.8;
 		}
 		return val;
@@ -155,6 +154,9 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_ssao_frame")) {
 		return scene_camera->frame % 2 == 0 ? 0.0 : 0.5;
 	}
+	else if (string_equals(link, "_timeline_frame")) {
+		return (f32)tab_timeline_selected_frame;
+	}
 	if (parser_material_script_links != NULL && link[0] == '_') {
 		char *script = any_map_get(parser_material_script_links, link + 1);
 		if (script != NULL) {
@@ -208,14 +210,6 @@ vec2_t uniforms_ext_vec2_link(object_t *object, shader_data_t *mat, char *link) 
 	return vec2_nan();
 }
 
-f32 uniforms_ext_vec2d(f32 x) {
-	// Transform from 3d viewport coord to 2d view coord
-	g_context->paint2d_view = false;
-	f32 res                 = (x * base_w() - base_w()) / (float)ui_view2d_ww;
-	g_context->paint2d_view = true;
-	return res;
-}
-
 vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) {
 	vec4_t v = vec4_nan();
 	if (string_equals(link, "_brush_direction")) {
@@ -226,10 +220,6 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 		f32 y     = g_context->paint_vec.y;
 		f32 lastx = g_context->prev_paint_vec_x;
 		f32 lasty = g_context->prev_paint_vec_y;
-		if (g_context->paint2d) {
-			x     = uniforms_ext_vec2d(x);
-			lastx = uniforms_ext_vec2d(lastx);
-		}
 		f32 angle                   = math_atan2(-y + lasty, x - lastx) - math_pi() / 2.0;
 		v                           = (vec4_t){math_cos(angle), math_sin(angle), allow_paint ? 1 : 0, 1.0};
 		g_context->prev_paint_vec_x = g_context->last_paint_vec_x;
@@ -300,20 +290,12 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_input_brush")) {
 		bool   down = mouse_down("left") || pen_down("tip");
-		vec4_t v    = (vec4_t){g_context->paint_vec.x, g_context->paint_vec.y, down ? 1.0 : 0.0, g_context->paint2d ? 1.0 : 0.0};
-		if (g_context->paint2d) {
-			v.x = uniforms_ext_vec2d(v.x);
-		}
-
+		vec4_t v    = (vec4_t){g_context->paint_vec.x, g_context->paint_vec.y, down ? 1.0 : 0.0, 0.0};
 		return v;
 	}
 	else if (string_equals(link, "_input_brush_last")) {
 		bool   down = mouse_down("left") || pen_down("tip");
-		vec4_t v    = (vec4_t){g_context->last_paint_vec_x, g_context->last_paint_vec_y, down ? 1.0 : 0.0, g_context->paint2d ? 1.0 : 0.0};
-		if (g_context->paint2d) {
-			v.x = uniforms_ext_vec2d(v.x);
-		}
-
+		vec4_t v    = (vec4_t){g_context->last_paint_vec_x, g_context->last_paint_vec_y, down ? 1.0 : 0.0, 0.0};
 		return v;
 	}
 	else if (string_equals(link, "_envmap_data")) {
@@ -325,21 +307,14 @@ vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) 
 	}
 	else if (string_equals(link, "_stencil_transform")) {
 		vec4_t v = (vec4_t){g_context->brush_stencil_x, g_context->brush_stencil_y, g_context->brush_stencil_scale, g_context->brush_stencil_angle};
-		if (g_context->paint2d) {
-			v.x = uniforms_ext_vec2d(v.x);
-		}
-
 		return v;
 	}
 	else if (string_equals(link, "_decal_mask")) {
 		bool decal_mask = context_is_decal_mask_paint_pass();
 		f32  val        = (g_context->brush_radius * g_context->brush_nodes_radius) / 15.0;
 		f32  scale2d    = (900 / (float)base_h()) * g_config->window_scale;
-		val *= g_context->paint2d ? 0.5 * 0.5 * scale2d * ui_view2d_pan_scale : scale2d * 2.0;
+		val *= scale2d * 2.0;
 		vec4_t v = (vec4_t){g_context->decal_x, g_context->decal_y, decal_mask ? 1 : 0, val};
-		if (g_context->paint2d) {
-			v.x = uniforms_ext_vec2d(v.x);
-		}
 		return v;
 	}
 	else if (string_equals(link, "_select_mask")) {
@@ -408,6 +383,17 @@ static gpu_texture_t *_uniforms_ext_get_target(char *name) {
 	return rt->_image;
 }
 
+// A layer texture bound as a render target of the current pass reads as black
+static gpu_texture_t *uniforms_layer_tex(gpu_texture_t *t) {
+	for (i32 i = 0; gpu_in_use && i < current_render_targets_count; ++i) {
+		if (t == current_render_targets[i]) {
+			render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
+			return rt->_image;
+		}
+	}
+	return t;
+}
+
 gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char *link) {
 	if (string_equals(link, "_texpaint_undo")) {
 		i32 i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -445,6 +431,14 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	}
 	else if (string_equals(link, "_sculpt_adj1")) {
 		return sculpt_get_adj_texture(1);
+	}
+	else if (string_equals(link, "_texviewport")) {
+		gpu_texture_t *image = g_context->viewport_texture;
+		return image != NULL ? image : ((render_target_t *)any_map_get(render_path_render_targets, "empty_black"))->_image;
+	}
+	else if (string_equals(link, "_texplugin_overlay")) {
+		plugin_tool_t *t = plugin_tool_overlay();
+		return t != NULL ? t->overlay : ((render_target_t *)any_map_get(render_path_render_targets, "empty_black"))->_image;
 	}
 	else if (string_equals(link, "_texcolorid")) {
 		if (g_project->_->assets->length == 0) {
@@ -502,25 +496,26 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 		}
 		return NULL;
 	}
+	// Layer and Layer Mask nodes, the index follows the prefix
 	if (starts_with(link, "_texpaint_nor")) {
-		i32 tid = parse_int(link + string_length(link) - 1);
-		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_nor : NULL;
+		i32 tid = parse_int(link + string_length("_texpaint_nor"));
+		return tid < g_project->_->layers->length ? uniforms_layer_tex(g_project->_->layers->buffer[tid]->texpaint_nor) : NULL;
 	}
 	if (starts_with(link, "_texpaint_pack")) {
-		i32 tid = parse_int(link + string_length(link) - 1);
-		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_pack : NULL;
+		i32 tid = parse_int(link + string_length("_texpaint_pack"));
+		return tid < g_project->_->layers->length ? uniforms_layer_tex(g_project->_->layers->buffer[tid]->texpaint_pack) : NULL;
 	}
 	if (string_equals(link, "_texpaint_sculpt_base")) {
 		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_sculpt_base");
 		return rt != NULL ? rt->_image : NULL;
 	}
 	if (starts_with(link, "_texpaint_sculpt")) {
-		i32 tid = parse_int(link + string_length(link) - 1);
+		i32 tid = parse_int(link + string_length("_texpaint_sculpt"));
 		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint_sculpt : NULL;
 	}
 	if (starts_with(link, "_texpaint")) {
-		i32 tid = parse_int(link + string_length(link) - 1);
-		return tid < g_project->_->layers->length ? g_project->_->layers->buffer[tid]->texpaint : NULL;
+		i32 tid = parse_int(link + string_length("_texpaint"));
+		return tid < g_project->_->layers->length ? uniforms_layer_tex(g_project->_->layers->buffer[tid]->texpaint) : NULL;
 	}
 	if (starts_with(link, "_texblur_")) {
 		char *id = link + 9;

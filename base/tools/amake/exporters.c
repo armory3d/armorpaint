@@ -467,7 +467,7 @@ static void vs_item_definition(char *config, char *system, char *includes, char 
 	p(indent + 2,
 	  "<AdditionalOptions>-Wno-deprecated-declarations -Wno-c23-extensions -Wno-incompatible-pointer-types -Wno-incompatible-function-pointer-types "
 	  "-Wno-microsoft-enum-forward-reference /bigobj%s %%(AdditionalOptions)</AdditionalOptions>",
-	  release ? " /Gw" : "");
+	  release ? " /Gw /clang:-fno-unroll-loops" : "");
 	p(indent + 2, "<WarningLevel>Level3</WarningLevel>");
 	p(indent + 2, "<Optimization>%s</Optimization>", vs_optimization(config));
 	if (release) {
@@ -890,6 +890,7 @@ static void xc_target_settings(project_t *project, char *from, char *plistname, 
 	p(4, ");");
 	if (project->cflags->length > 0) {
 		p(4, "OTHER_CFLAGS = (");
+		p(5, "\"$(inherited)\",");
 		for (int i = 0; i < project->cflags->length; ++i) {
 			p(5, "\"%s\",", project->cflags->buffer[i]);
 		}
@@ -1324,6 +1325,7 @@ static void xc_export(project_t *project) {
 	p(4, ios ? "IPHONEOS_DEPLOYMENT_TARGET = 18.0;" : "MACOSX_DEPLOYMENT_TARGET = 14.0;");
 	p(4, "MTL_ENABLE_DEBUG_INFO = NO;");
 	p(4, "ONLY_ACTIVE_ARCH = YES;");
+	p(4, "OTHER_CFLAGS = \"-fno-unroll-loops\";");
 	if (ios) {
 		p(4, "SDKROOT = iphoneos;");
 		p(4, "TARGETED_DEVICE_FAMILY = \"1,2\";");
@@ -1552,7 +1554,7 @@ void export_solution(project_t *project) {
 		if (!goptions.debug) {
 			linker = string("%s -Wl,--strip-all", linker);
 		}
-		make_export(project, compiler, "", linker, ".wasm");
+		make_export(project, compiler, goptions.debug ? "" : "-fno-unroll-loops", linker, ".wasm");
 		compile_commands_export(project);
 	}
 	else if (strcmp(goptions.target, "linux") == 0) {
@@ -1563,7 +1565,7 @@ void export_solution(project_t *project) {
 			linker_flags   = string("%s -flto", linker_flags);
 		}
 		if (!goptions.debug) {
-			compiler_flags = string("%s -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables", compiler_flags);
+			compiler_flags = string("%s -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-unroll-loops", compiler_flags);
 			linker_flags   = string("%s -Wl,--gc-sections -Wl,-s", linker_flags);
 		}
 		make_export(project, goptions.ccompiler, compiler_flags, linker_flags, "");

@@ -10,6 +10,21 @@ bool       _translator_init_font_cjk;
 char      *_translator_init_font_font_path;
 f32        _translator_init_font_font_scale;
 
+// Locale files keep each string on a single line, with newlines stored as "\n" and backslashes as "\\"
+static void translator_unescape_line(char *s) {
+	i32 length = 0;
+	for (i32 i = 0; s[i] != '\0'; ++i) {
+		if (s[i] == '\\' && s[i + 1] != '\0') {
+			++i;
+			s[length++] = s[i] == 'n' ? '\n' : s[i];
+		}
+		else if (s[i] != '\r') {
+			s[length++] = s[i];
+		}
+	}
+	s[length] = '\0';
+}
+
 // Mark strings as localizable in order to be parsed by the extract_locale script
 // The string will not be translated to the currently selected locale though
 char *_tr(char *s) {
@@ -138,9 +153,25 @@ void translator_load_translations(char *new_locale) {
 	translator_last_locale = string_copy(g_config->locale);
 
 	if (!string_equals(g_config->locale, "en")) {
-		// Load the translation file
-		char *translation_json  = sys_buffer_to_string(iron_load_blob(string("data/locale/%s.json", g_config->locale)));
-		translator_translations = json_parse_to_map(translation_json);
+		// Load the translation file, each line translates the same line of the source strings in en.txt
+		any_array_t *ids          = string_split(sys_buffer_to_string(iron_load_blob("data/locale/en.txt")), "\n");
+		any_array_t *translations = string_split(sys_buffer_to_string(iron_load_blob(string("data/locale/%s.txt", g_config->locale))), "\n");
+		for (i32 i = 0; i < ids->length; ++i) {
+			char *id          = ids->buffer[i];
+			char *translation = i < translations->length ? translations->buffer[i] : "";
+			translator_unescape_line(id);
+			translator_unescape_line(translation);
+			// Not translated yet, tr() falls back to the source string
+			if (id[0] == '\0' || translation[0] == '\0') {
+				continue;
+			}
+			// The map keeps the strings
+			any_map_set(translator_translations, id, translation);
+		}
+		array_free(ids);
+		free(ids);
+		array_free(translations);
+		free(translations);
 	}
 
 	// Generate extended font atlas
@@ -203,8 +234,12 @@ string_array_t *translator_get_supported_locales() {
 	string_array_t *files = file_read_directory(string("%s%slocale", path_data(), PATH_SEP));
 	for (i32 i = 0; i < files->length; ++i) {
 		char *locale_filename = files->buffer[i];
-		// Trim the ".json" file extension from file names
-		any_array_push(locales, substring(locale_filename, 0, string_length(locale_filename) - 5));
+		// Skip the source strings
+		if (!ends_with(locale_filename, ".txt") || string_equals(locale_filename, "en.txt")) {
+			continue;
+		}
+		// Trim the ".txt" file extension from file names
+		any_array_push(locales, substring(locale_filename, 0, string_length(locale_filename) - 4));
 	}
 	return locales;
 }

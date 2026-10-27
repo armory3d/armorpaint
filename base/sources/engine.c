@@ -124,7 +124,6 @@ object_t *object_create(bool is_empty) {
 	raw->name      = "";
 	raw->children  = any_array_create(0);
 	raw->visible   = true;
-	raw->culled    = false;
 	raw->uid       = _object_uid_counter++;
 	raw->transform = transform_create(raw);
 	raw->is_empty  = is_empty;
@@ -136,6 +135,9 @@ object_t *object_create(bool is_empty) {
 }
 
 void object_set_parent(object_t *raw, object_t *parent_object) {
+	if (parent_object == NULL) {
+		parent_object = _scene_root;
+	}
 	if (parent_object == raw || parent_object == raw->parent) {
 		return;
 	}
@@ -146,9 +148,6 @@ void object_set_parent(object_t *raw, object_t *parent_object) {
 		transform_build_matrix(raw->transform);
 	}
 
-	if (parent_object == NULL) {
-		parent_object = _scene_root;
-	}
 	raw->parent = parent_object;
 	any_array_push(raw->parent->children, raw);
 }
@@ -172,10 +171,6 @@ void object_remove_super(object_t *raw) {
 }
 
 void object_free(object_t *raw) {
-	if (raw->owns_raw && raw->raw != NULL) {
-		array_delete(raw->raw->dimensions);
-		free(raw->raw);
-	}
 	free(raw->transform);
 	array_delete(raw->children);
 	free(raw->_);
@@ -220,6 +215,7 @@ transform_t *transform_create(object_t *object) {
 	transform_t *raw = calloc(1, sizeof(transform_t));
 	raw->scale_world = 1.0;
 	raw->object      = object;
+	raw->dim         = (vec4_t){2.0, 2.0, 2.0, 0.0};
 	transform_reset(raw);
 	return raw;
 }
@@ -231,7 +227,6 @@ void transform_reset(transform_t *raw) {
 	raw->loc          = (vec4_t){0.0, 0.0, 0.0, 0.0};
 	raw->rot          = (quat_t){0.0, 0.0, 0.0, 1.0};
 	raw->scale        = (vec4_t){1.0, 1.0, 1.0, 0.0};
-	raw->dim          = (vec4_t){2.0, 2.0, 2.0, 0.0};
 	raw->radius       = 1.0;
 	raw->dirty        = true;
 }
@@ -304,27 +299,29 @@ void transform_move(transform_t *raw, vec4_t axis, float f) {
 }
 
 void transform_compute_radius(transform_t *raw) {
-	raw->radius = sqrtf(raw->dim.x * raw->dim.x + raw->dim.y * raw->dim.y + raw->dim.z * raw->dim.z);
+	vec4_t d    = raw->measured ? (vec4_t){raw->extent.x * fabsf(raw->scale.x), raw->extent.y * fabsf(raw->scale.y), raw->extent.z * fabsf(raw->scale.z), 0.0}
+	                            : transform_dim(raw);
+	raw->radius = sqrtf(d.x * d.x + d.y * d.y + d.z * d.z);
 }
 
 void transform_compute_dim(transform_t *raw) {
-	if (raw->object->raw == NULL && string_equals(raw->object->ext_type, "mesh_object_t")) {
-		mesh_object_t *mo     = (mesh_object_t *)raw->object->ext;
-		vec4_t         aabb   = mesh_data_calculate_aabb(mo->data);
-		obj_t         *o_raw  = calloc(1, sizeof(obj_t));
-		o_raw->dimensions     = f32_array_create_xyz(aabb.x, aabb.y, aabb.z);
-		raw->object->raw      = o_raw;
-		raw->object->owns_raw = true;
+	if (!raw->has_dim && string_equals(raw->object->ext_type, "mesh_object_t")) {
+		mesh_object_t *mo = (mesh_object_t *)raw->object->ext;
+		vec4_t         aabb_min;
+		vec4_t         aabb_max;
+		mesh_data_calculate_aabb_min_max(mo->data, &aabb_min, &aabb_max);
+		raw->extent   = (vec4_t){fmaxf(-aabb_min.x, aabb_max.x), fmaxf(-aabb_min.y, aabb_max.y), fmaxf(-aabb_min.z, aabb_max.z), 0.0};
+		raw->dim      = (vec4_t){aabb_max.x - aabb_min.x, aabb_max.y - aabb_min.y, aabb_max.z - aabb_min.z, 0.0};
+		raw->has_dim  = true;
+		raw->measured = true;
 	}
 
-	if (raw->object->raw == NULL || raw->object->raw->dimensions == NULL) {
-		raw->dim = (vec4_t){2.0 * raw->scale.x, 2.0 * raw->scale.y, 2.0 * raw->scale.z, 0.0};
-	}
-	else {
-		f32_array_t *d = raw->object->raw->dimensions;
-		raw->dim       = (vec4_t){d->buffer[0] * raw->scale.x, d->buffer[1] * raw->scale.y, d->buffer[2] * raw->scale.z, 0.0};
-	}
 	transform_compute_radius(raw);
+}
+
+// Bounds size in world units, 2 units per axis without dimensions
+vec4_t transform_dim(transform_t *raw) {
+	return (vec4_t){raw->dim.x * raw->scale.x, raw->dim.y * raw->scale.y, raw->dim.z * raw->scale.z, 0.0};
 }
 
 vec4_t transform_look(transform_t *raw) {
@@ -1032,52 +1029,25 @@ void mesh_object_remove(mesh_object_t *raw) {
 	free(raw);
 }
 
-bool mesh_object_cull_material(mesh_object_t *raw, char *context) {
-	// Skip render if material does not contain current context
-	if (!mesh_object_valid_context(raw, raw->material, context)) {
-		raw->base->culled = true;
-		return true;
-	}
-	if (raw->skip_context != NULL && string_equals(raw->skip_context, context)) {
-		raw->base->culled = true;
-		return true;
-	}
-	if (raw->force_context != NULL && !string_equals(raw->force_context, context)) {
-		raw->base->culled = true;
-		return true;
-	}
-	raw->base->culled = false;
-	return false;
+// Outside the camera frustum when last drawn, never culled with frustum culling off
+bool mesh_object_cull(mesh_object_t *raw, camera_object_t *camera) {
+	raw->culled = camera->data->frustum_culling && raw->frustum_culling &&
+	              !camera_object_sphere_in_frustum(camera->frustum_planes, raw->base->transform, 1.0, 0.0, 0.0, 0.0);
+	return raw->culled;
 }
 
-bool mesh_object_cull_mesh(mesh_object_t *raw, char *context, camera_object_t *camera) {
-	if (camera->data->frustum_culling && raw->frustum_culling) {
-		f32 radius_scale = 1.0;
-		if (!camera_object_sphere_in_frustum(camera->frustum_planes, raw->base->transform, radius_scale, 0.0, 0.0, 0.0)) {
-			raw->base->culled = true;
-			return true;
-		}
+// Camera space draw, skips hidden and culled objects
+void mesh_object_render(mesh_object_t *raw, shader_context_t *scontext, string_array_t *bind_params) {
+	if (!raw->base->visible || mesh_object_cull(raw, scene_camera)) {
+		return;
 	}
-	raw->base->culled = false;
-	return false;
+	mesh_object_draw(raw, scontext, bind_params);
 }
 
-void mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_params) {
-	if (!raw->base->visible) {
-		return; // Skip render if object is hidden
-	}
-	if (mesh_object_cull_mesh(raw, context, scene_camera)) {
-		return;
-	}
-	if (mesh_object_cull_material(raw, context)) {
-		return;
-	}
-
+void mesh_object_draw(mesh_object_t *raw, shader_context_t *scontext, string_array_t *bind_params) {
 	uniforms_pos_unpack = raw->data->scale_pos;
 	uniforms_tex_unpack = raw->data->scale_tex;
 	transform_update(raw->base->transform);
-
-	shader_context_t *scontext = shader_data_get_context(raw->material, context);
 
 	if (scontext->_->pipe != _mesh_object_last_pipeline) {
 		gpu_set_pipeline(scontext->_->pipe);
@@ -1088,10 +1058,6 @@ void mesh_object_render(mesh_object_t *raw, char *context, string_array_t *bind_
 	gpu_set_vertex_buffer(raw->data->_->vertex_buffer);
 	gpu_set_index_buffer(raw->data->_->index_buffer);
 	gpu_draw();
-}
-
-bool mesh_object_valid_context(mesh_object_t *raw, shader_data_t *mat, char *context) {
-	return shader_data_get_context(mat, context) != NULL;
 }
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗      ██████╗ ██████╗      ██╗███████╗ ██████╗████████╗
@@ -1115,11 +1081,9 @@ camera_object_t *camera_object_create(camera_data_t *data) {
 	raw->v  = mat4_identity();
 	raw->vp = mat4_identity();
 
-	if (data->frustum_culling) {
-		raw->frustum_planes = any_array_create(0);
-		for (i32 i = 0; i < 6; ++i) {
-			any_array_push(raw->frustum_planes, frustum_plane_create());
-		}
+	raw->frustum_planes = any_array_create(0);
+	for (i32 i = 0; i < 6; ++i) {
+		any_array_push(raw->frustum_planes, frustum_plane_create());
 	}
 
 	any_array_push(scene_cameras, raw);
@@ -1742,14 +1706,14 @@ void uniforms_set_obj_const(object_t *obj, i32 loc, shader_const_t *c) {
 		vec4_t v = vec4_nan();
 
 		if (string_equals(c->link, "_dim")) { // Model space
-			vec4_t d = obj->transform->dim;
+			vec4_t d = transform_dim(obj->transform);
 			vec4_t s = obj->transform->scale;
 			d        = uniforms_vec4_zero_to_one(d);
 			s        = uniforms_vec4_zero_to_one(s);
 			v        = (vec4_t){(d.x / s.x), (d.y / s.y), (d.z / s.z), 0.0};
 		}
 		else if (string_equals(c->link, "_half_dim")) { // Model space
-			vec4_t d = obj->transform->dim;
+			vec4_t d = transform_dim(obj->transform);
 			vec4_t s = obj->transform->scale;
 			d        = uniforms_vec4_zero_to_one(d);
 			s        = uniforms_vec4_zero_to_one(s);
@@ -1974,6 +1938,9 @@ buffer_t *data_get_blob(char *file) {
 		return cached;
 	}
 	buffer_t *b = iron_load_blob(data_resolve_path(file));
+	if (b == NULL) {
+		return NULL;
+	}
 	any_map_set(data_cached_blobs, string_copy(file), b);
 	data_assets_loaded++;
 	return b;
@@ -2241,7 +2208,7 @@ void scene_traverse_objects(scene_t *format, object_t *parent, any_array_t *obje
 		return;
 	}
 	for (i32 i = 0; i < objects->length; ++i) {
-		obj_t *o = (obj_t *)objects->buffer[i];
+		object_desc_t *o = (object_desc_t *)objects->buffer[i];
 		if (!o->spawn) {
 			continue; // Do not auto-create Scene object
 		}
@@ -2266,7 +2233,7 @@ i32 scene_get_objects_count(any_array_t *objects) {
 	}
 	i32 result = objects->length;
 	for (i32 i = 0; i < objects->length; ++i) {
-		obj_t *o = (obj_t *)objects->buffer[i];
+		object_desc_t *o = (object_desc_t *)objects->buffer[i];
 		if (!o->spawn) {
 			continue; // Do not count children of non-spawned objects
 		}
@@ -2277,12 +2244,12 @@ i32 scene_get_objects_count(any_array_t *objects) {
 	return result;
 }
 
-object_t *_scene_spawn_object_tree(obj_t *obj, object_t *parent, bool spawn_children) {
-	object_t      *object       = scene_create_object(obj, _scene_raw, parent);
-	obj_t_array_t *obj_children = obj->children;
+object_t *_scene_spawn_object_tree(object_desc_t *obj, object_t *parent, bool spawn_children) {
+	object_t              *object       = scene_create_object(obj, _scene_raw, parent);
+	object_desc_t_array_t *obj_children = obj->children;
 	if (spawn_children && obj_children != NULL) {
 		for (i32 i = 0; i < obj_children->length; ++i) {
-			obj_t *child = (obj_t *)obj_children->buffer[i];
+			object_desc_t *child = (object_desc_t *)obj_children->buffer[i];
 			_scene_spawn_object_tree(child, object, spawn_children);
 		}
 	}
@@ -2290,22 +2257,22 @@ object_t *_scene_spawn_object_tree(obj_t *obj, object_t *parent, bool spawn_chil
 }
 
 object_t *scene_spawn_object(char *name, object_t *parent, bool spawn_children) {
-	obj_t *obj = scene_get_raw_object_by_name(_scene_raw, name);
+	object_desc_t *obj = scene_get_raw_object_by_name(_scene_raw, name);
 	return _scene_spawn_object_tree(obj, parent, spawn_children);
 }
 
-obj_t *scene_get_raw_object_by_name(scene_t *format, char *name) {
+object_desc_t *scene_get_raw_object_by_name(scene_t *format, char *name) {
 	return scene_traverse_objs(format->objects, name);
 }
 
-obj_t *scene_traverse_objs(any_array_t *children, char *name) {
+object_desc_t *scene_traverse_objs(any_array_t *children, char *name) {
 	for (i32 i = 0; i < children->length; ++i) {
-		obj_t *o = (obj_t *)children->buffer[i];
+		object_desc_t *o = (object_desc_t *)children->buffer[i];
 		if (string_equals(o->name, name)) {
 			return o;
 		}
 		if (o->children != NULL) {
-			obj_t *res = scene_traverse_objs((any_array_t *)(void *)o->children, name);
+			object_desc_t *res = scene_traverse_objs((any_array_t *)(void *)o->children, name);
 			if (res != NULL) {
 				return res;
 			}
@@ -2314,7 +2281,7 @@ obj_t *scene_traverse_objs(any_array_t *children, char *name) {
 	return NULL;
 }
 
-object_t *scene_create_object(obj_t *o, scene_t *format, object_t *parent) {
+object_t *scene_create_object(object_desc_t *o, scene_t *format, object_t *parent) {
 	char *scene_name = format->name;
 
 	if (string_equals(o->type, "camera_object")) {
@@ -2338,7 +2305,7 @@ object_t *scene_create_object(obj_t *o, scene_t *format, object_t *parent) {
 	return NULL;
 }
 
-object_t *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, shader_data_t *material) {
+object_t *scene_create_mesh_object(object_desc_t *o, scene_t *format, object_t *parent, shader_data_t *material) {
 	// Mesh reference
 	any_array_t *ref         = string_split(o->data_ref, "/");
 	char        *object_file = "";
@@ -2355,28 +2322,27 @@ object_t *scene_create_mesh_object(obj_t *o, scene_t *format, object_t *parent, 
 	return scene_return_mesh_object(object_file, data_ref, material, parent, o);
 }
 
-object_t *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, obj_t *o) {
+object_t *scene_return_mesh_object(char *object_file, char *data_ref, shader_data_t *material, object_t *parent, object_desc_t *o) {
 	mesh_data_t   *mesh   = data_get_mesh(object_file, data_ref);
 	mesh_object_t *object = scene_add_mesh_object(mesh, material, parent);
 	return scene_return_object(object->base, o);
 }
 
-object_t *scene_return_object(object_t *object, obj_t *o) {
+object_t *scene_return_object(object_t *object, object_desc_t *o) {
 	if (object != NULL) {
-		if (object->owns_raw && object->raw != NULL) {
-			array_delete(object->raw->dimensions);
-			free(object->raw);
-			object->owns_raw = false;
-		}
-		object->raw     = o;
+		transform_t *t  = object->transform;
+		f32_array_t *d  = o->dimensions;
+		t->dim          = d != NULL ? (vec4_t){d->buffer[0], d->buffer[1], d->buffer[2], 0.0} : (vec4_t){2.0, 2.0, 2.0, 0.0};
+		t->has_dim      = true; // Never measured, the scene file is authoritative
+		t->measured     = false;
 		object->name    = o->name;
 		object->visible = o->visible;
-		scene_gen_transform(o, object->transform);
+		scene_gen_transform(o, t);
 	}
 	return object;
 }
 
-void scene_gen_transform(obj_t *object, transform_t *transform) {
+void scene_gen_transform(object_desc_t *object, transform_t *transform) {
 	transform->world       = object->transform != NULL ? mat4_from_f32_array(object->transform, 0) : mat4_identity();
 	mat4_decomposed_t *dec = mat4_decompose(transform->world);
 	transform->loc         = dec->loc;
@@ -2480,16 +2446,6 @@ void render_path_end(void) {
 	_render_path_bind_params   = NULL;
 }
 
-void render_path_draw_meshes(char *context) {
-	_mesh_object_last_pipeline = NULL;
-	any_array_t *meshes        = scene_meshes;
-	for (i32 i = 0; i < meshes->length; ++i) {
-		mesh_object_t *mesh = (mesh_object_t *)meshes->buffer[i];
-		mesh_object_render(mesh, context, _render_path_bind_params);
-	}
-	render_path_end();
-}
-
 void render_path_draw_skydome(char *handle) {
 	if (const_data_skydome_vb == NULL) {
 		const_data_create_skydome_data();
@@ -2575,6 +2531,10 @@ render_target_t *render_path_create_render_target(render_target_t *t) {
 		render_path_render_targets = any_map_create();
 	}
 	t->_image = render_path_create_image(t);
+	if (t->width == 0 && _render_path_last_w == 0) {
+		_render_path_last_w = sys_w();
+		_render_path_last_h = sys_h();
+	}
 	any_map_set(render_path_render_targets, t->name, t);
 	return t;
 }

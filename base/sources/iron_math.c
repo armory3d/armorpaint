@@ -947,8 +947,8 @@ vec4_t mat4_get_loc(mat4_t m) {
 }
 
 vec4_t mat4_get_scale(mat4_t m) {
-	return (vec4_t){sqrtf(m.m[0] * m.m[0] + m.m[4] * m.m[4] + m.m[8] * m.m[8]), sqrtf(m.m[1] * m.m[1] + m.m[5] * m.m[5] + m.m[9] * m.m[9]),
-	                sqrtf(m.m[2] * m.m[2] + m.m[6] * m.m[6] + m.m[10] * m.m[10]), 1.0};
+	return (vec4_t){sqrtf(m.m[0] * m.m[0] + m.m[1] * m.m[1] + m.m[2] * m.m[2]), sqrtf(m.m[4] * m.m[4] + m.m[5] * m.m[5] + m.m[6] * m.m[6]),
+	                sqrtf(m.m[8] * m.m[8] + m.m[9] * m.m[9] + m.m[10] * m.m[10]), 1.0};
 }
 
 mat4_t mat4_mult(mat4_t m, float s) {

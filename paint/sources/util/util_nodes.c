@@ -77,20 +77,11 @@ gpu_texture_t *ui_nodes_get_node_preview_image(ui_node_t *n) {
 	else if (string_equals(n->type, "brush_output_node")) {
 		img = g_context->brush->image;
 	}
-	else if (string_equals(n->type, "TEX_IMAGE") && parser_material_get_input_link(n->inputs->buffer[0]) == NULL) {
+	else if (string_equals(n->type, "TEX_IMAGE") &&
+	         (n->inputs->length == 0 || ui_nodes_canvas_type == CANVAS_TYPE_MESH || parser_material_get_input_link(n->inputs->buffer[0]) == NULL)) {
 		i32 i = n->buttons->buffer[0]->default_value->buffer[0];
 		if (i >= 0 && i < g_project->_->assets->length) { // 9999 - Texture deleted
-			char *filepath    = parser_material_enum_data(base_combo_enum_texts(n->type)->buffer[i]);
-			i32   asset_index = -1;
-			for (i32 i = 0; i < g_project->_->assets->length; ++i) {
-				if (string_equals(g_project->_->assets->buffer[i]->file, filepath)) {
-					asset_index = i;
-					break;
-				}
-			}
-			if (asset_index > -1) {
-				img = project_get_image(g_project->_->assets->buffer[asset_index]);
-			}
+			img = project_get_image(g_project->_->assets->buffer[i]);
 		}
 	}
 	else if (string_equals(n->type, "TEX_BAKE")) {
@@ -159,22 +150,23 @@ i32 ui_nodes_get_node_y() {
 	return math_floor((mouse_y - ui_nodes_wy - UI_NODES_PAN_Y()) / (float)UI_NODES_SCALE());
 }
 
-bool ui_nodes_is_tab_selected() {
-	return ui_nodes_tab > 0 && ui_nodes_tab % 2 == 1 && // [tab0, tab1, x, tab2, x, +]
-	       ui_nodes_tabs->length >= ui_nodes_tab / 2.0;
+node_list_t_array_t *ui_nodes_get_node_list() {
+	return ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? nodes_material_list : ui_nodes_canvas_type == CANVAS_TYPE_MESH ? nodes_mesh_list : nodes_brush_list;
 }
 
-i32 ui_nodes_tab_index() {
-	return (int)(ui_nodes_tab / 2.0);
+string_array_t *ui_nodes_get_categories() {
+	return ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL ? nodes_material_categories
+	       : ui_nodes_canvas_type == CANVAS_TYPE_MESH   ? nodes_mesh_categories
+	                                                    : nodes_brush_categories;
 }
 
 ui_node_canvas_t *ui_nodes_get_canvas(bool groups) {
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		return nodes_mesh_get(g_context->paint_object, true)->canvas;
+	}
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
 		if (groups && ui_nodes_group_stack->length > 0) {
 			return ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->canvas;
-		}
-		else if (ui_nodes_is_tab_selected()) {
-			return ui_nodes_tabs->buffer[ui_nodes_tab_index()]->canvas;
 		}
 		else {
 			return g_context->material->canvas;
@@ -186,12 +178,12 @@ ui_node_canvas_t *ui_nodes_get_canvas(bool groups) {
 }
 
 ui_nodes_t *ui_nodes_get_nodes() {
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		return nodes_mesh_get(g_context->paint_object, true)->nodes;
+	}
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
 		if (ui_nodes_group_stack->length > 0) {
 			return ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->nodes;
-		}
-		else if (ui_nodes_is_tab_selected()) {
-			return ui_nodes_tabs->buffer[ui_nodes_tab_index()]->nodes;
 		}
 		else {
 			return g_context->material->nodes;
@@ -212,10 +204,10 @@ void ui_nodes_push_undo(ui_node_canvas_t *last_canvas) {
 		last_canvas = ui_nodes_get_canvas(true);
 	}
 	i32 canvas_group = -1;
-	if (ui_nodes_group_stack->length > 0) {
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && ui_nodes_group_stack->length > 0) {
 		canvas_group = array_index_of(g_project->_->material_groups, ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]);
 	}
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	history_edit_nodes(last_canvas, ui_nodes_canvas_type, canvas_group);
 }
 
@@ -231,17 +223,19 @@ void ui_viewnodes_on_node_changed(ui_node_t *n) {
 	ui_nodes_node_changed = n;
 }
 
+bool ui_nodes_node_preview_is_bgra(ui_node_t *n) {
+#ifdef IRON_BGRA
+	return n != NULL && (string_equals(n->type, "TEX_IMAGE") || starts_with(n->type, "NEURAL_"));
+#else
+	return false;
+#endif
+}
+
 void ui_nodes_capture_output() {
 	ui_nodes_t       *ui_nodes = ui_nodes_get_nodes();
 	ui_node_canvas_t *c        = ui_nodes_get_canvas(true);
 	ui_node_t        *sel      = ui_get_node(c->nodes, ui_nodes->nodes_selected_id->buffer[0]);
-
-	bool bgra = false;
-#ifdef IRON_BGRA
-	bgra = string_equals(sel->type, "TEX_IMAGE") || starts_with(sel->type, "NEURAL_");
-#endif
-
-	util_texture_capture_output(ui_nodes_get_node_preview_image(sel), "node_preview", bgra);
+	util_texture_capture_output(ui_nodes_get_node_preview_image(sel), "node_preview", ui_nodes_node_preview_is_bgra(sel));
 }
 
 void ui_viewnodes_on_canvas_capture_output(void *_) {
@@ -284,6 +278,18 @@ void ui_viewnodes_on_canvas_cut(void *_) {
 }
 
 void ui_nodes_recompile() {
+	nodes_mesh_refresh();
+
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		// Meshes are rebuilt once the change is done
+		if (ui_nodes_recompile_mat_final) {
+			nodes_mesh_update(g_context->paint_object, false);
+		}
+		ui_nodes_recompile_mat       = false;
+		ui_nodes_recompile_mat_final = false;
+		return;
+	}
+
 	if (ui_nodes_recompile_mat) {
 		if (ui_nodes_canvas_type == CANVAS_TYPE_BRUSH) {
 			make_material_parse_brush();
@@ -291,13 +297,9 @@ void ui_nodes_recompile() {
 			if (slot_layer_is_path(g_context->layer)) {
 				util_layer_repaint_path(g_context->layer);
 			}
-			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+			ui_dock_redraw(TAB_AREA_SIDEBAR1);
 		}
 		else {
-			slot_material_t *_material = g_context->material;
-			if (ui_nodes_is_tab_selected()) {
-				g_context->material = ui_nodes_tabs->buffer[ui_nodes_tab_index()];
-			}
 			if (layers_is_fill_material()) {
 				layers_update_fill_layers();
 			}
@@ -308,14 +310,12 @@ void ui_nodes_recompile() {
 				util_render_make_material_preview();
 			}
 
-			g_context->material = _material;
-
 			if (ui_view2d_show && ui_view2d_type == VIEW_2D_TYPE_NODE) {
 				ui_view2d_hwnd->redraws = 2;
 			}
 		}
 
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+		ui_dock_redraw(TAB_AREA_SIDEBAR1);
 		if (g_context->split_view) {
 			g_context->ddirty = 2;
 		}
@@ -334,7 +334,7 @@ void ui_nodes_recompile() {
 				layers_update_path_layers();
 				util_render_make_material_preview();
 			}
-			tab_meshes_refresh_overrides(ui_nodes_is_tab_selected() ? ui_nodes_tabs->buffer[ui_nodes_tab_index()] : g_context->material);
+			tab_meshes_refresh_overrides(g_context->material);
 		}
 
 		bool decal = context_is_decal();
@@ -342,8 +342,8 @@ void ui_nodes_recompile() {
 			util_render_make_decal_preview();
 		}
 
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-		ui_nodes_recompile_mat_final                      = false;
+		ui_dock_redraw(TAB_AREA_SIDEBAR0);
+		ui_nodes_recompile_mat_final = false;
 	}
 }
 
@@ -394,7 +394,7 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 		return;
 	}
 
-	if (ui_nodes_canvas_type == CANVAS_TYPE_BRUSH) {
+	if (ui_nodes_canvas_type != CANVAS_TYPE_MATERIAL) {
 		return;
 	}
 
@@ -448,7 +448,7 @@ ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t 
 	node->inputs    = any_array_create_from_raw((void *[]){}, 0);
 	node->outputs   = any_array_create_from_raw((void *[]){}, 0);
 	node->buttons   = any_array_create_from_raw((void *[]){}, 0);
-	node->width     = 0;
+	node->width     = n->width;
 	node->flags     = g_config->node_previews ? UI_NODE_FLAG_PREVIEW : UI_NODE_FLAG_NONE;
 	i32 count       = 0;
 	for (i32 i = 0; i < n->inputs->length; ++i) {

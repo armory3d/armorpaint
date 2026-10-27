@@ -2254,6 +2254,9 @@ static PFN_vkCmdBuildAccelerationStructuresKHR        _vkCmdBuildAccelerationStr
 static PFN_vkDestroyAccelerationStructureKHR          _vkDestroyAccelerationStructureKHR          = NULL;
 
 bool gpu_raytrace_supported() {
+#ifndef WITH_RAYTRACE
+	return false;
+#endif
 	static bool extensions_checked = false;
 	static bool raytrace_supported = true;
 	if (extensions_checked) {

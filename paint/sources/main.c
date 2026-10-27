@@ -103,6 +103,26 @@
 #include "nodes_material/wave_texture_node.c"
 #include "nodes_material/wireframe_node.c"
 
+#include "nodes_mesh/mesh_array_node.c"
+#include "nodes_mesh/mesh_bevel_node.c"
+#include "nodes_mesh/mesh_boolean_node.c"
+#include "nodes_mesh/mesh_decimate_node.c"
+#include "nodes_mesh/mesh_image_node.c"
+#include "nodes_mesh/mesh_input_node.c"
+#include "nodes_mesh/mesh_join_node.c"
+#include "nodes_mesh/mesh_layer_mask_node.c"
+#include "nodes_mesh/mesh_math_node.c"
+#include "nodes_mesh/mesh_mirror_node.c"
+#include "nodes_mesh/mesh_object_node.c"
+#include "nodes_mesh/mesh_output_node.c"
+#include "nodes_mesh/mesh_script_node.c"
+#include "nodes_mesh/mesh_shape_node.c"
+#include "nodes_mesh/mesh_smooth_node.c"
+#include "nodes_mesh/mesh_subdivide_node.c"
+#include "nodes_mesh/mesh_transform_node.c"
+#include "nodes_mesh/mesh_value_node.c"
+#include "nodes_mesh/mesh_vector_node.c"
+
 #include "nodes_neural/edit_image_node.c"
 #include "nodes_neural/image_to_pbr_node.c"
 #include "nodes_neural/neural_node.c"
@@ -130,6 +150,7 @@
 #include "render/render_compass.c"
 #include "render/render_envsphere.c"
 #include "render/render_gizmo.c"
+#include "render/render_grid.c"
 #include "render/render_path_base.c"
 #include "render/render_path_deferred.c"
 #include "render/render_path_forward.c"
@@ -144,9 +165,6 @@
 #include "slots/slot_layer.c"
 #include "slots/slot_material.c"
 #include "slots/slot_sound.c"
-
-#include "traits/trait_point_and_click_controller.c"
-#include "traits/trait_third_person_controller.c"
 
 #include "ui/box_append.c"
 #include "ui/box_export.c"
@@ -170,20 +188,21 @@
 #include "ui/tab_timeline.c"
 #include "ui/ui_base.c"
 #include "ui/ui_box.c"
+#include "ui/ui_dock.c"
 #include "ui/ui_files.c"
 #include "ui/ui_header.c"
 #include "ui/ui_menu.c"
 #include "ui/ui_menubar.c"
+#include "ui/ui_node_params.c"
 #include "ui/ui_nodes.c"
 #include "ui/ui_search.c"
-#include "ui/ui_sidebar.c"
-#include "ui/ui_statusbar.c"
 #include "ui/ui_toolbar.c"
 #include "ui/ui_view2d.c"
 
 #include "util/edit_uvmap.c"
 #include "util/util_brush.c"
 #include "util/util_clone.c"
+#include "util/util_csg.c"
 #include "util/util_cursor.c"
 #include "util/util_encode.c"
 #include "util/util_env.c"
@@ -193,15 +212,17 @@
 #include "util/util_nodes.c"
 #include "util/util_particle.c"
 #include "util/util_path.c"
+#include "util/util_path_tool.c"
 #include "util/util_physics.c"
 #include "util/util_raycast.c"
 #include "util/util_render.c"
-#include "util/util_resize.c"
 #include "util/util_select.c"
+#include "util/util_shape_tool.c"
 #include "util/util_shortcut.c"
 #include "util/util_skin.c"
 #include "util/util_stage.c"
 #include "util/util_stencil.c"
+#include "util/util_text_tool.c"
 #include "util/util_texture.c"
 #include "util/util_touch.c"
 #include "util/util_ui.c"
@@ -223,6 +244,7 @@
 #include "node_shader.c"
 #include "nodes_brush.c"
 #include "nodes_material.c"
+#include "nodes_mesh.c"
 #include "parser_logic.c"
 #include "parser_material.c"
 #include "pipes.c"
@@ -231,7 +253,6 @@
 #include "project.c"
 #include "resource.c"
 #include "strings.c"
-#include "trait.c"
 #include "translator.c"
 #include "uniforms.c"
 #include "viewport.c"
@@ -262,30 +283,18 @@ void _kickstart() {
 	import_text_importers    = any_map_create();
 	ui_files_path            = ui_files_default_path;
 	base_drop_paths          = any_array_create_from_raw((void *[]){}, 0);
-	ui_base_hwnds            = ui_base_init_hwnds();
-	ui_base_tabs             = ui_base_init_tabs();
-	ui_base_hwnd_tabs        = ui_base_init_hwnd_tabs();
-	ui_toolbar_handle        = ui_window_create();
+	ui_base_init_tabs();
+	ui_toolbar_handle       = ui_window_create();
+	ui_toolbar_split_handle = ui_window_create();
 
 	ui_toolbar_tool_names = any_array_create_from_raw(
 	    (void *[]){
-	        _tr("Brush"),
-	        _tr("Eraser"),
-	        _tr("Fill"),
-	        _tr("Decal"),
-	        _tr("Text"),
-	        _tr("Clone"),
-	        _tr("Blur"),
-	        _tr("Particle"),
-	        _tr("ColorID"),
-	        _tr("Picker"),
-	        _tr("Material"),
-	        _tr("Cursor"),
-	        _tr("Select"),
+	        _tr("Brush"),   _tr("Eraser"), _tr("Fill"),     _tr("Decal"),   _tr("Text"),   _tr("Clone"), _tr("Blur"),  _tr("Particle"),
+	        _tr("ColorID"), _tr("Picker"), _tr("Material"), _tr("Cursor"),  _tr("Select"), _tr("Empty"), _tr("Plane"), _tr("Cube"),
+	        _tr("Sphere"),  _tr("Cone"),   _tr("Cylinder"), _tr("Capsule"), _tr("Torus"),  _tr("Text"),  _tr("Path"),  _tr("Curve"),
 	        _tr("Bake"), // Hidden, used by Bake Texture node
 	    },
-	    14);
-	ui_toolbar_tool_names->length--; // Hide Bake tool
+	    25);
 
 	ui_toolbar_tooltip_extras = any_array_create_from_raw(
 	    (void *[]){
@@ -302,12 +311,25 @@ void _kickstart() {
 	        "",
 	        "",
 	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
+	        "",
 	    },
-	    13);
+	    25);
 
 	uniforms_ext_ortho_p    = mat4_ortho(-0.5, 0.5, -0.5, 0.5, -0.5, 0.5);
 	import_mesh_importers   = any_map_create();
 	ui_menubar_hwnd         = ui_window_create();
+	ui_menubar_split_hwnd   = ui_window_create();
 	ui_menubar_menu_handle  = ui_window_create();
 	ui_menubar_w            = ui_menubar_default_w;
 	translator_translations = any_map_create();
@@ -330,6 +352,7 @@ void _kickstart() {
 	parser_material_custom_nodes = any_map_create();
 	ui_header_h                  = ui_header_default_h;
 	ui_header_handle             = ui_window_create();
+	ui_header_split_handle       = ui_window_create();
 	g_plugins                    = any_map_create();
 	parser_logic_custom_nodes    = any_map_create();
 	resource_bundled             = any_map_create();
@@ -398,14 +421,12 @@ void _kickstart() {
 	double t_start = iron_time();
 #endif
 
-	if (g_config->layout == NULL) {
-		config_init_layout();
-	}
 	iron_set_app_name(manifest_title);
 
 	data_cached_scene_raws = any_map_create();
 	any_map_set(data_cached_scene_raws, "Scene", startup_get_scene());
 	scene_set_active("Scene");
+	util_render_make_default_world();
 
 	uniforms_ext_init();
 	render_path_base_init();

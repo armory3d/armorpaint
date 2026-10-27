@@ -303,3 +303,7 @@ float fmodf(float x, float y) {
 int isnan(float x) {
 	return x != x;
 }
+
+int isfinite(float x) {
+	return (x - x) == 0.0f;
+}

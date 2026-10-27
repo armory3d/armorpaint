@@ -9,22 +9,23 @@
 ANativeActivity *iron_android_get_activity(void);
 jclass           iron_android_find_class(JNIEnv *env, const char *name);
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
-                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, iron_https_callback_t callback,
+                      void *callbackdata, const char *dst_path) {
 	ANativeActivity *activity = iron_android_get_activity();
 	JNIEnv          *env;
 	JavaVM          *vm = iron_android_get_activity()->vm;
 	(*vm)->AttachCurrentThread(vm, &env, NULL);
 	jclass activityClass = iron_android_find_class(env, "arm.AndroidHttpRequest");
 
-	jstring    jurl_base   = (*env)->NewStringUTF(env, url_base);
-	jstring    jurl_path   = (*env)->NewStringUTF(env, url_path);
-	jstring    jdata       = data ? (*env)->NewStringUTF(env, data) : NULL;
-	jstring    jheaders    = headers ? (*env)->NewStringUTF(env, headers) : NULL;
-	jbyteArray bytes_array = (jbyteArray)((*env)->CallStaticObjectMethod(
-	    env, activityClass,
-	    (*env)->GetStaticMethodID(env, activityClass, "androidHttpRequest", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)[B"),
-	    jurl_base, jurl_path, jdata, method, jheaders));
+	jstring    jurl_base = (*env)->NewStringUTF(env, url_base);
+	jstring    jurl_path = (*env)->NewStringUTF(env, url_path);
+	jstring    jdata     = data ? (*env)->NewStringUTF(env, data) : NULL;
+	jstring    jheaders  = headers ? (*env)->NewStringUTF(env, headers) : NULL;
+	jbyteArray bytes_array =
+	    (jbyteArray)((*env)->CallStaticObjectMethod(env, activityClass,
+	                                                (*env)->GetStaticMethodID(env, activityClass, "androidHttpRequest",
+	                                                                          "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ILjava/lang/String;)[B"),
+	                                                jurl_base, jurl_path, jdata, method, jheaders));
 	int status = (*env)->GetStaticIntField(env, activityClass, (*env)->GetStaticFieldID(env, activityClass, "status", "I"));
 
 	if (bytes_array == NULL) {

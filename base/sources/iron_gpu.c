@@ -26,7 +26,11 @@ gpu_pipeline_t *current_pipeline                   = NULL;
 gpu_texture_t   framebuffers[GPU_FRAMEBUFFER_COUNT];
 gpu_texture_t   framebuffer_depth;
 gpu_texture_t  *gpu_framebuffer_redirect = NULL;
-uint32_t        framebuffer_index = 0;
+uint32_t        framebuffer_index        = 0;
+#ifndef NDEBUG
+uint32_t gpu_debug_draw_calls       = 0;
+uint32_t gpu_debug_draw_calls_frame = 0;
+#endif
 
 void gpu_init(int depth_buffer_bits, bool vsync) {
 	gpu_init_internal(depth_buffer_bits, vsync);
@@ -85,6 +89,9 @@ void gpu_draw() {
 	gpu_constant_buffer_unlock(&constant_buffer);
 	gpu_set_constant_buffer(&constant_buffer, constant_buffer_index * GPU_CONSTANT_BUFFER_SIZE, GPU_CONSTANT_BUFFER_SIZE);
 	gpu_draw_internal();
+#ifndef NDEBUG
+	gpu_debug_draw_calls++;
+#endif
 
 	constant_buffer_index++;
 	if (constant_buffer_index >= GPU_CONSTANT_BUFFER_MULTIPLE) {
@@ -133,6 +140,10 @@ void gpu_present() {
 	draw_calls_last = draw_calls;
 	draw_calls      = 0;
 	draw_vb_index   = 0;
+#ifndef NDEBUG
+	gpu_debug_draw_calls_frame = gpu_debug_draw_calls;
+	gpu_debug_draw_calls       = 0;
+#endif
 	gpu_cleanup();
 }
 

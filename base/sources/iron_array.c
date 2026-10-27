@@ -38,15 +38,24 @@ static void array_alloc(void *a, uint8_t element_size) {
 		if (tmp->capacity == 0) {
 			// If the array was created in armpack, length can already be > 0
 			tmp->capacity   = tmp->length + 1;
-			size_t old_size = tmp->length * element_size;
-			size_t new_size = tmp->capacity * element_size;
+			size_t old_size = (size_t)tmp->length * element_size;
+			size_t new_size = (size_t)tmp->capacity * element_size;
 			tmp->buffer     = alloc_no_free(tmp->buffer, old_size, new_size);
 		}
 		else {
 			tmp->capacity *= 2;
-			tmp->buffer = realloc(tmp->buffer, tmp->capacity * element_size);
+			tmp->buffer = realloc(tmp->buffer, (size_t)tmp->capacity * element_size);
 		}
 	}
+}
+
+static void array_resize(void *a, uint32_t size, uint8_t element_size) {
+	u8_array_t *tmp = (u8_array_t *)a;
+	if (tmp->length > size) {
+		tmp->length = size;
+	}
+	tmp->capacity = size;
+	tmp->buffer   = array_realloc(tmp->buffer, (size_t)tmp->capacity * element_size);
 }
 
 void i8_array_push(i8_array_t *a, int8_t e) {
@@ -95,48 +104,39 @@ void string_array_push(string_array_t *a, void *e) {
 }
 
 void i8_array_resize(i8_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int8_t));
+	array_resize(a, size, sizeof(int8_t));
 }
 
 void u8_array_resize(u8_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint8_t));
+	array_resize(a, size, sizeof(uint8_t));
 }
 
 void i16_array_resize(i16_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int16_t));
+	array_resize(a, size, sizeof(int16_t));
 }
 
 void u16_array_resize(u16_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint16_t));
+	array_resize(a, size, sizeof(uint16_t));
 }
 
 void i32_array_resize(i32_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(int32_t));
+	array_resize(a, size, sizeof(int32_t));
 }
 
 void u32_array_resize(u32_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(uint32_t));
+	array_resize(a, size, sizeof(uint32_t));
 }
 
 void f32_array_resize(f32_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(float));
+	array_resize(a, size, sizeof(float));
 }
 
 void any_array_resize(any_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(void *));
+	array_resize(a, size, sizeof(void *));
 }
 
 void string_array_resize(string_array_t *a, uint32_t size) {
-	a->capacity = size;
-	a->buffer   = array_realloc(a->buffer, a->capacity * sizeof(void *));
+	array_resize(a, size, sizeof(void *));
 }
 
 void buffer_resize(buffer_t *b, uint32_t size) {

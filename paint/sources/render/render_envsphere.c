@@ -107,10 +107,9 @@ static mesh_object_t *create_envsphere_object(char *name, f32 roughness, f32 met
 	                                                   ._        = ALLOC_INIT(shader_data_runtime_t, {.uid = 0.0}),
 	                                               });
 
-	mesh_object_t *obj   = mesh_object_create(md, mat);
-	obj->base->name      = name;
-	obj->base->visible   = false;
-	obj->frustum_culling = false;
+	mesh_object_t *obj = mesh_object_create(md, mat);
+	obj->base->name    = name;
+	obj->base->visible = false;
 	return obj;
 }
 
@@ -120,7 +119,7 @@ static void render_envsphere_init() {
 }
 
 void render_envsphere() {
-	if (!g_context->show_envmap_spheres || g_config->workspace == WORKSPACE_PLAYER || g_context->capturing_screenshot) {
+	if (!g_context->show_envmap_spheres || base_player || g_context->capturing_screenshot) {
 		return;
 	}
 	if (render_envsphere_metallic == NULL) {
@@ -138,24 +137,20 @@ void render_envsphere() {
 	f32 sphere_x_left  = (7.4 - 1.1) * ratio;
 	f32 sphere_scale   = 1.6;
 
-	render_envsphere_metallic->base->visible          = true;
 	render_envsphere_metallic->base->parent           = cam->base;
 	render_envsphere_metallic->base->transform->loc   = (vec4_t){sphere_x_right, sphere_y, -1, 1.0};
 	render_envsphere_metallic->base->transform->scale = (vec4_t){sphere_scale, sphere_scale, sphere_scale, 1.0};
 	transform_build_matrix(render_envsphere_metallic->base->transform);
-	mesh_object_render(render_envsphere_metallic, "overlay", NULL);
+	mesh_object_draw(render_envsphere_metallic, render_path_base_own_scon(render_envsphere_metallic), NULL);
 
-	render_envsphere_diffuse->base->visible          = true;
 	render_envsphere_diffuse->base->parent           = cam->base;
 	render_envsphere_diffuse->base->transform->loc   = (vec4_t){sphere_x_left, sphere_y, -1, 1.0};
 	render_envsphere_diffuse->base->transform->scale = (vec4_t){sphere_scale, sphere_scale, sphere_scale, 1.0};
 	transform_build_matrix(render_envsphere_diffuse->base->transform);
-	mesh_object_render(render_envsphere_diffuse, "overlay", NULL);
+	mesh_object_draw(render_envsphere_diffuse, render_path_base_own_scon(render_envsphere_diffuse), NULL);
 
 	cam->p = _P;
 
-	render_envsphere_metallic->base->visible = false;
-	render_envsphere_metallic->base->parent  = NULL;
-	render_envsphere_diffuse->base->visible  = false;
-	render_envsphere_diffuse->base->parent   = NULL;
+	render_envsphere_metallic->base->parent = NULL;
+	render_envsphere_diffuse->base->parent  = NULL;
 }

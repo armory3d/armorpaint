@@ -10,16 +10,16 @@
 __attribute__((import_module("imports"), import_name("js_time"))) int                js_time();
 __attribute__((import_module("imports"), import_name("js_canvas_w"))) int            js_canvas_w();
 __attribute__((import_module("imports"), import_name("js_canvas_h"))) int            js_canvas_h();
-__attribute__((import_module("imports"), import_name("js_pixel_ratio"))) float        js_pixel_ratio();
+__attribute__((import_module("imports"), import_name("js_pixel_ratio"))) float       js_pixel_ratio();
 __attribute__((import_module("imports"), import_name("js_mouse_set_cursor"))) void   js_mouse_set_cursor(int i);
 __attribute__((import_module("imports"), import_name("js_mouse_show"))) void         js_mouse_show();
 __attribute__((import_module("imports"), import_name("js_mouse_hide"))) void         js_mouse_hide();
 __attribute__((import_module("imports"), import_name("js_window_set_title"))) void   js_window_set_title(const char *title);
 __attribute__((import_module("imports"), import_name("js_window_change_mode"))) void js_window_change_mode(int mode);
 __attribute__((import_module("imports"), import_name("js_load_url"))) void           js_load_url(const char *url);
-__attribute__((import_module("imports"), import_name("js_net_request"))) void
-js_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, int callback_id, void *callbackdata,
-               const char *dst_path);
+__attribute__((import_module("imports"), import_name("js_net_request"))) void js_net_request(const char *url_base, const char *url_path, const char *data,
+                                                                                             int port, int method, const char *headers, int callback_id,
+                                                                                             void *callbackdata, const char *dst_path);
 
 static iron_window_mode_t iron_internal_window_mode = IRON_WINDOW_MODE_WINDOW;
 static bool               mouse_hidden              = false;
@@ -131,6 +131,14 @@ __attribute__((export_name("wasm_keyup"))) void wasm_keyup(int key) {
 	iron_internal_keyboard_trigger_key_up(key);
 }
 
+__attribute__((export_name("wasm_foreground"))) void wasm_foreground(void) {
+	iron_internal_foreground_callback();
+}
+
+__attribute__((export_name("wasm_background"))) void wasm_background(void) {
+	iron_internal_background_callback();
+}
+
 __attribute__((export_name("wasm_keypress"))) void wasm_keypress(int key) {
 	iron_internal_keyboard_trigger_key_press(key);
 }
@@ -206,8 +214,8 @@ __attribute__((export_name("wasm_net_callback"))) void wasm_net_callback(int cal
 	callbacks[callback_id].in_use = false;
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
-                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, iron_https_callback_t callback,
+                      void *callbackdata, const char *dst_path) {
 	int callback_id = register_callback(callback, callbackdata);
 	if (callback_id < 0) {
 		callback(0, NULL, callbackdata);

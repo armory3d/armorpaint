@@ -232,6 +232,10 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_add_texture(kong, "texuvmap", "_texuvmap");
 		}
 
+		if (plugin_tool_overlay() != NULL) {
+			texture_count++; // Added in the last pass
+		}
+
 		if (g_context->viewport_mode == VIEWPORT_MODE_MASK && slot_layer_get_masks(g_context->layer, true) != NULL) {
 			for (i32 i = 0; i < slot_layer_get_masks(g_context->layer, true)->length; ++i) {
 				slot_layer_t *m = slot_layer_get_masks(g_context->layer, true)->buffer[i];
@@ -270,7 +274,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			if (!slot_layer_is_layer(l)) {
 				continue;
 			}
-			if (slot_layer_get_filters(l, false) != NULL) {
+			if (slot_layer_has_visible_filter(l)) {
 				continue;
 			}
 
@@ -471,6 +475,16 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_write_frag(kong, "if (texel2xmod == texel2ymod) { basecol = basecol * 0.9; }");
 		}
 
+		plugin_tool_t *overlay_tool = plugin_tool_overlay();
+		if (last_pass && overlay_tool != NULL) {
+			i32 c = overlay_tool->overlay_color;
+			node_shader_add_texture(kong, "texplugin_overlay", "_texplugin_overlay");
+			node_shader_write_frag(kong, string_tmp("float plugin_overlay = sample_lod(texplugin_overlay, sampler_linear, %s, 0.0).r * %f;", tex_coord_layer,
+			                                        color_get_ab(c) / 255.0));
+			node_shader_write_frag(kong, string_tmp("basecol = lerp(basecol, float3(%f, %f, %f), plugin_overlay);", color_get_rb(c) / 255.0,
+			                                        color_get_gb(c) / 255.0, color_get_bb(c) / 255.0));
+		}
+
 		if (last_pass && g_context->draw_wireframe) {
 			node_shader_write_frag(kong, string_tmp("float wireframe = sample_lod(texuvmap, sampler_linear, %s, 0.0).a;", tex_coord_layer));
 			node_shader_write_frag(kong, "basecol = basecol * (1.0 - wireframe * 0.25);");
@@ -499,7 +513,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			return con_mesh;
 		}
 		kong->frag_vvec = true;
-		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, vvec, tex_coord);");
+		node_shader_write_frag(kong, "float3x3 TBN = cotangent_frame(n, input.eye_dir, tex_coord);");
 		node_shader_write_frag(kong, "n = ntex * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
 		node_shader_write_frag(kong, "n.y = -n.y;");
 		node_shader_write_frag(kong, "n = normalize(TBN * n);");
@@ -508,13 +522,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_write_frag(kong, "basecol = pow(basecol, float3(2.2, 2.2, 2.2));");
 			node_shader_write_frag(kong, "basecol = max(basecol, float3(0.0, 0.0, 0.0));");
 
-			if (g_context->viewport_shader != NULL) {
-				node_shader_write_frag(kong, "float3 output_color;");
-				minic_val_t args[1] = {minic_val_ptr(kong)};
-				minic_call_fn(g_context->viewport_shader, args, 1);
-				node_shader_write_frag(kong, "output[1] = float4(output_color, 1.0);");
-			}
-			else if (g_config->render_mode == RENDER_MODE_FORWARD && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE) {
+			if (g_config->render_mode == RENDER_MODE_FORWARD && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE) {
 				node_shader_write_frag(kong, "float3 albedo = lerp(basecol, float3(0.0, 0.0, 0.0), metallic);");
 				node_shader_write_frag(kong, "float3 f0 = lerp(float3(0.04, 0.04, 0.04), basecol, metallic);");
 				kong->frag_vvec = true;
@@ -602,6 +610,20 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			kong->frag_nattr = true;
 			node_shader_write_frag(kong, "output[1] = float4(input.nattr, 1.0);");
 		}
+		else if (g_context->viewport_mode == VIEWPORT_MODE_WORLD_NORMAL) {
+			node_shader_write_frag(kong, "output[1] = float4(n * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5), 1.0);");
+		}
+		else if (g_context->viewport_mode == VIEWPORT_MODE_PLUGIN) {
+			node_shader_write_frag(kong, "float3 output_color = basecol;");
+			if (g_context->viewport_texture != NULL) {
+				node_shader_add_texture(kong, "texviewport", "_texviewport");
+			}
+			if (g_context->viewport_shader != NULL) {
+				minic_val_t args[1] = {minic_val_ptr(kong)};
+				minic_call_fn(g_context->viewport_shader, args, 1);
+			}
+			node_shader_write_frag(kong, "output[1] = float4(output_color, 1.0);");
+		}
 		else if (g_context->viewport_mode == VIEWPORT_MODE_MATERIAL_ID) {
 			i32 id = g_context->layer->id;
 			node_shader_add_texture(kong, string_tmp("texpaint_nor%s", i32_to_string(id)), NULL);
@@ -618,7 +640,9 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		else if (g_context->viewport_mode == VIEWPORT_MODE_OBJECT_ID) {
 			node_shader_add_constant(kong, "float object_id", "_object_id");
 			if (g_context->pick_object_id) {
-				node_shader_write_frag(kong, "output[1] = float4((constants.object_id + 1.0) / 255.0, 0.0, 0.0, 1.0);");
+				// Low byte in r, high byte in g
+				node_shader_write_frag(kong, "float id1 = constants.object_id + 1.0;");
+				node_shader_write_frag(kong, "output[1] = float4((id1 % 256.0) / 255.0, floor(id1 / 256.0) / 255.0, 0.0, 1.0);");
 			}
 			else {
 				node_shader_write_frag(kong, "float obid = constants.object_id + 1.0 / 255.0;");
@@ -659,7 +683,9 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		node_shader_write_frag(kong, "output[0] = float4(n.xy, roughness, pack_f32_i16(metallic, uint(float(int(matid * 255.0)) % float(3))));");
 	}
 
-	node_shader_write_frag(kong, string_tmp("output[2] = float4(0.0, 0.0, %s.xy);", tex_coord_layer));
+	// Half floats, split the texcoord into a coarse part and a residual
+	node_shader_write_frag(kong, string_tmp("float2 tex_coord_hi = floor(%s.xy * 256.0) / 256.0;", tex_coord_layer));
+	node_shader_write_frag(kong, string_tmp("output[2] = float4(%s.xy - tex_coord_hi, tex_coord_hi);", tex_coord_layer));
 
 	parser_material_finalize(con_mesh);
 

@@ -3,7 +3,6 @@
 
 bool                     _box_export_bake_material;
 export_preset_texture_t *_box_export_t;
-bool                     _box_export_merge_vertices = true;
 i32                      _box_export_tab            = 0;
 char                    *box_export_new_preset_name = "new_preset";
 
@@ -148,6 +147,10 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		ui_combo((int *)&g_context->layers_destination, layers_destination_combo, tr("Destination"), true, UI_ALIGN_LEFT, true);
 
 		ui_check(&g_context->export_padding, tr("Padding"), "");
+
+		if (bake_material) {
+			ui_check(&g_context->bake_create_material, tr("Create Baked Material"), "");
+		}
 
 		ui_row2();
 		if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
@@ -420,7 +423,7 @@ void box_export_tab_export_mesh_path_picked(char *path) {
             },
             1);
 	}
-	export_mesh_run(string("%s%s%s", path, PATH_SEP, f), paint_objects, _box_export_merge_vertices);
+	export_mesh_run(string("%s%s%s", path, PATH_SEP, f), paint_objects);
 }
 
 void box_export_tab_export_mesh(i32 *tab) {
@@ -458,8 +461,6 @@ void box_export_tab_export_mesh(i32 *tab) {
 			any_array_push(ar, p->base->name);
 		}
 		ui_combo(&box_export_mesh, ar, tr("Meshes"), true, UI_ALIGN_LEFT, true);
-
-		ui_check(&_box_export_merge_vertices, tr("Merge Shared Vertices"), "");
 
 		i32                    tris = 0;
 		i32                    pos  = box_export_mesh;

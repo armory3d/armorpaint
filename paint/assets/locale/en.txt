@@ -1,0 +1,862 @@
+(compressed)
+(packed)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+2D View
+3D
+3D View
+A
+About
+About...
+Absolute
+Add
+Add Animation
+Add Swatch
+Add new swatch
+Add picked color to swatches
+All
+All processing is done locally on device
+Allow Upside Down Camera
+Alpha
+Alpha Discard
+Amount
+Angle
+Angle Reject
+Animation
+Anisotropy
+Append
+Apply
+Apply Displacement
+Apply Filter
+Apply Mask
+Apply Nodes
+Apply Sculpt
+Apply Skinning
+Arccosine
+Arcsine
+Arctan2
+Arctangent
+Array
+Asset
+Atlas
+Atlases
+Attribute
+Auto
+Average
+Axis
+B
+Back
+Bake
+Bake Material...
+Bake Texture
+Bake to Textures
+Bands
+Base
+Base Color
+Bent Normal
+Bevel
+Bias
+Bits
+Black Mask
+Blender Executable
+Blender executable path not set
+Blending
+Bloom
+Blur
+Blur Envmap
+Blur Type
+Bookmark
+Boolean
+Bottom
+Bounce
+Box
+Brick Texture
+Brick Width
+Brightness
+Brightness/Contrast
+Browser
+Brush
+Brush Angle
+Brush Hardness
+Brush Opacity
+Brush Output
+Brush Radius
+Brush...
+Brushes
+Bump
+Burn
+Calculate Normals
+Camera
+Camera Pan Speed
+Camera Rotation Speed
+Camera Texture
+Camera Zoom Speed
+Cancel
+Capture Background
+Capture Output
+Capture Screenshot
+Capture Video
+Ceil
+Cell size in pixels
+Center
+Channels
+Check for Updates...
+Checker Texture
+Clamp
+Clamp Factor
+Clamp Result
+Clay
+Clear
+Clear Layer
+Clear Swatches
+Clip End
+Clip Start
+Clipping
+Clone
+Close
+Cloth
+Cloud
+Cloud Projects...
+Cloud Server
+Cloud projects
+Color
+Color 1
+Color 2
+Color ID
+Color ID Map
+Color Mask
+Color Ramp
+Color Space
+ColorID
+Combine
+Combine Color
+Combine XYZ
+Compass
+Confirm
+Console
+Console Model
+Constant
+Continue in the browser.
+Contrast
+Contributors
+Convert From
+Convert To
+Copy
+Copy Hex Code
+Cosine
+Could not download
+Count
+Crease
+Create Color Layer
+Create Material
+Cross Product
+Cull Backfaces
+Cursor
+Curvature
+Curvature Texture
+Curve
+Curved
+Custom
+Cut
+Darken
+Debug
+Decal
+Decimate
+Default Camera Controls
+Default Camera FoV
+Default Camera Pivot
+Default Layer Resolution
+Default Mode
+Delete
+Delete Brush
+Delete Layer
+Delete Material
+Delete Node Group
+Delete Swatch
+Delete Unused
+Delta
+Depth
+Depth Reject
+Derivative
+Desktop
+Destination
+Detail
+Detail Roughness
+Detail Scale
+Diagonal
+Difference
+Dilate Radius
+Dilate painted textures to prevent seams
+Dimensions
+DirectX Normal Map
+Direction
+Direction to Zoom
+Directional
+Disk
+Displacement
+Display
+Distance
+Distortion
+Distract Free
+Divide
+Dodge
+Dot
+Dot Product
+Down
+Download
+Downloaded file from
+Downloading
+Drag and drop files here
+Drag and drop picked color to swatches, materials, layers or to the node editor
+Draw
+Draw live brush preview in viewport
+Duplicate
+Duplicate Brush
+Duplicate Layer
+Duplicate Material
+Duplicate Swatch
+Edit
+Edit Image
+Edit Nodes
+Edit Script
+Edit Stage
+Edit Swatch
+Edit Timeline
+Edit UV Map
+Edit in Script Tab
+Edit in Text Editor
+Emission
+Empty
+End Frame
+Environment
+Environment Angle
+Envmap
+Envmap Spheres
+Envmap...
+Eraser
+Error: .arm file expected
+Error: .hdr file expected
+Error: Check internet connection to access the cloud
+Error: Could not locate texture
+Error: Failed to read font data
+Error: Failed to read mesh data
+Error: Unknown asset format
+Exclusion
+Exit
+Experimental Features
+Exponent
+Export
+Export Brush
+Export Icon
+Export Material
+Export Mesh
+Export Player
+Export Textures
+Export swatches
+Export texture files
+Exporting mesh
+Exporting textures
+F1
+F2
+Fac
+Face
+Factor
+Failed to import material
+Failed to read sound:
+Fast
+Feature Output
+File
+Fill
+Fill Layer
+Fill Mask
+Fill Mode
+Filter
+Filter Textures
+Flat
+Flatten
+Float Curve
+Floor
+Floored Modulo
+Fly
+Fly mode:\nHold the right mouse button and one of the following commands:\nmove mouse to rotate.\nw, up or scroll up to move forward.\ns, down or scroll down to move backward.\na or left to move left.\nd or right to move right.\ne to move up.\nq to move down.\nHold shift to move faster or alt to move slower.
+FoV
+Folder does not contain textures
+Font
+Font...
+Fonts
+Format
+Fraction
+Frame
+Frame Count
+Frame Rate
+Framerate
+Frames
+Frequency
+Friction
+From Max
+From Min
+Front
+Full
+Fuzziness
+G
+Gabor Texture
+Gamma
+Generated
+Geometry
+Geometry to Origin
+Get Started
+Grab
+Gradient Texture
+Gravity X
+Gravity Y
+Gravity Z
+Greater Than
+Grid Cell
+Grid Snap
+Group
+Group Input
+Group Output
+Hardness
+Height
+Height Blend
+Help
+Hide 3D View
+High Poly
+History
+Hold {action_paint} to erase\nHold {brush_ruler} and press {action_paint} to erase a straight line (ruler mode)
+Hold {action_paint} to paint\nHold {brush_ruler} and press {action_paint} to paint a straight line (ruler mode)
+Hold {brush_opacity} and move mouse to the left to decrease the opacity\nHold {brush_opacity} and move mouse to the right to increase the opacity
+Hold {brush_radius} and move mouse to the left or press {brush_radius_decrease} to decrease the radius\nHold {brush_radius} and move mouse to the right or press {brush_radius_increase} to increase the radius
+Hold {decal_mask} to paint on a decal mask
+Hold {decal_mask} to use the text as a mask
+Hold {set_clone_source} to set source
+Horizontal
+Horizontal Inverted
+How To
+Hue
+Hue/Saturation/Value
+Hyperbolic Cosine
+Hyperbolic Sine
+Hyperbolic Tangent
+Image Texture
+Image to PBR
+Import
+Import Mesh
+Import Swatches
+Import font file
+Import mesh file
+Import swatches
+Import texture file
+Import...
+Importing mesh
+In
+Incoming
+Inflate
+Info: Asset already imported
+Input
+Inspect as Script
+Instantly update material preview on node change
+Intensity
+Interface
+Interpolate
+Invalid export directory
+Invalid script path
+Invalid texture type
+Inverse Square Root
+Invert
+Invert Color
+Invert Mask
+Invert Selection
+Issue Tracker
+Iterations
+Join
+Keyframe
+Keymap
+Keymap imported:
+Lacunarity
+Language
+Layer
+Layer Angle
+Layer Blending
+Layer Mask
+Layer Object
+Layer Opacity
+Layer UV Scale
+Layer UV Type
+Layer Visibility
+Layers
+Lazy Radius
+Lazy Step
+Left
+Length
+Less Than
+Levels
+Lifetime
+Lighten
+Lightmap
+Linear
+Linear Light
+Lit
+Live Brush Preview
+Live Material Preview
+Location
+Logarithm
+Magic Texture
+Make Unique
+Manual
+Map Range
+Mapping
+Mask
+Mask Color
+Mass
+Material
+Material ID
+Material Index
+Material Output
+Material...
+Materials
+Math
+Max
+Maximum
+Merge Down
+Merge Geometry
+Merge Group
+Merge Layers
+Mesh
+Mesh Input
+Mesh Output
+Mesh...
+Meshes
+Metallic
+Min
+Min Max
+Minimum
+Mirror
+Mix
+Mix Color
+Mix Normal Map
+Mobile
+Mode
+Model
+Models
+Models Directory...
+Modifier
+Modify
+Modify Animation
+Modulo
+Mortar
+Mortar Size
+Mortar Smooth
+Multiply
+Name
+Neural
+New
+New Black Mask
+New Brush
+New Color
+New Fill Mask
+New Group
+New Keymap
+New Layer
+New Material
+New Plugin
+New Preset
+New Project
+New Project...
+New Swatch
+New Theme
+New White Mask
+Next
+No
+No response
+Node
+Node Previews
+Nodes
+Noise Grain
+Noise Texture
+None
+Normal
+Normal Blend
+Normal Map
+Normal Map 1
+Normal Map 2
+Normalize
+Not available in debug build
+Not implemented
+OK
+Object
+Object ID
+Object Index
+Object Info
+Object Normal
+Occlusion
+Offset
+Old Color
+Opacity
+Opacity Mode
+Open Browser
+Open Containing Directory...
+Open Externally
+Open Recent...
+Open in Browser
+Open...
+Opening project
+Operation
+Opposite
+Orbit
+Orbit and Rotate mode:\n{rotate_shortcut} or move right mouse button to rotate.\n{zoom_shortcut} or scroll to zoom.\n{pan_shortcut} or move middle mouse to pan.
+Order Layers
+Orientation 2D
+Orientation 3D
+Origin to Geometry
+Orthographic
+Out
+Overlay
+PBR
+Pack Assets
+Pack into Project
+Padding
+Paint
+Paint Layer
+Paint Mask
+Parametric
+Parent
+Partial Derivative
+Particle
+Paste
+Path
+Path Traced
+Path Tracer
+Pause
+Pen
+Pencil
+Per Object
+Per Udim Tile
+Perspective
+Phase
+Phase Offset
+Physics
+Picked Color
+Picker
+Pin to Header
+Pinch
+Ping-Pong
+Pivot
+Pixel Size
+Plateau
+Play
+Player
+Player...
+Plugin imported:
+Plugins
+Point
+Pointiness
+Position
+Post Process
+Power
+Preferences
+Preferences...
+Preset
+Preset imported:
+Presets
+Pressure controls
+Previous
+Previous folder
+Processing...
+Project
+Project saved
+Projects
+Prompt
+Quality
+Quantize
+R
+RGB Curves
+RGB to BW
+RGBA
+Radial
+Radius
+Random
+Randomness
+Range
+Ratio
+Recent
+Redo {step}
+Reflect
+Refresh
+Reimport
+Reimport Mesh
+Reimport Textures
+Relative Offset
+Remove
+Rename Layer
+Renderer
+Reoriented
+Repeat
+Replace
+Replace Color
+Replace Existing
+Replace Swatches
+Report Bug
+Request Feature
+Reset
+Reset Envmap
+Reset Layout
+Resolution
+Restore
+Restore Swatches
+Restore default swatches
+Right
+Rings
+Rotate
+Rotation
+Roughness
+Round
+Row Height
+Run
+Run in Player
+Running...
+SSAO
+Samples
+Saturation
+Save
+Save As...
+Save Image
+Save project first
+Save the project to the cloud first
+Save to Cloud
+Save to Cloud...
+Save to Disk...
+Saving project
+Saw
+Scale
+Scale X
+Screen
+Script
+Script Nodes
+Script opened
+Scripts
+Sculpt
+Sculpt Layer
+Search
+Search for nodes
+Segments
+Select
+Select All
+Select Hidden
+Select Material
+Select Visible
+Selected
+Sensitivity
+Separate Color
+Separate Vector
+Separate XYZ
+Set Source
+Set as Color ID Map
+Set as Envmap
+Set as Mask
+Setting Source
+Setup
+Shader
+Shape
+Share Player Link
+Shared
+Show 2D View
+Show Asset Names
+Show Grid
+Show Node Editor
+Show node preview on each node by default
+Sign
+Sign In...
+Sign Out
+Sign in expired, try again
+Sign in to store projects in the cloud.
+Sign in with armorpaint.org account.
+Signed in
+Signed in as
+Signing in...
+Sine
+Size
+Slot
+Smooth
+Smudge
+Snap
+Snippets
+Socket
+Soft Light
+Sort
+Sound
+Sound imported:
+Sounds
+Sphere
+Spherical
+Splash Screen
+Split
+Split By
+Split View
+Split mesh into objects
+Square Root
+Squash
+Stage
+Start Frame
+Stencil
+Step limit reached
+Stop
+Stop Capture
+Stop Sharing
+Straight
+Strength
+Stretch
+Subdivide
+Subsurface
+Subtract
+Super Sample
+Swatches
+Swatches...
+Symmetry
+Tangent
+Target
+Template
+Templates
+Terrain
+TexCoord
+Texels
+Text
+Text Texture
+Text to Image
+Texture
+Texture Coordinate
+Texture imported:
+Texture...
+Textures
+Textures exported
+Textures...
+Theme
+Theme imported:
+Thickness
+Tile
+Tile X
+Tile Y
+Tiled
+Tiles X
+Tiles Y
+Tilesheet
+Tilesheet Animation
+Time
+Timeline
+To Degrees
+To Fill Layer
+To Fill Mask
+To Layer
+To Mask
+To Max
+To Min
+To Paint Layer
+To Paint Mask
+To Radians
+Toggle Fullscreen
+Toggle header
+Tools
+Top
+Touch UI
+Transform
+Transform Object
+Translucency
+Triangle
+Trim
+Triplanar
+Truncate
+Truncated Modulo
+Trust project scripts?
+Tween
+Twist
+Type
+UDIM Tile
+UI Scale
+UV
+UV Island
+UV Map
+UV Scale
+UV Unwrap
+UVMap
+Unable to check for updates.\nPlease visit {url}.
+Undo Steps
+Undo {step}
+Unwrap
+Unwrap Mesh
+Unwrapping mesh
+Up
+Up Axis
+Update
+Update is available!\nPlease visit {url}.
+Upscale Image
+Usage
+Utilities
+Val
+Value
+Variance
+Vector
+Vector Curves
+Vector Math
+Vector Rotate
+Vector Transform
+Vertex Color
+Vertical
+Vertical Inverted
+Vertical and Horizontal
+Vertical and Horizontal Inverted
+View
+Viewport
+Viewport Mask
+Viewport Mode
+Vignette
+Visible
+Voronoi Texture
+Warp
+Wave Profile
+Wave Texture
+Wave Type
+What's New
+White Mask
+Whiteout
+Width
+Window
+Wireframe
+Workspace
+World
+Wrap Mouse
+Wrap mouse around view boundaries during camera control
+X
+X-Ray
+XYZ
+Y
+Yes
+You are up to date!
+Z
+Zoom In
+Zoom Out
+Zoom to Fit
+blend_type
+color_space
+ctrl+f to search
+esc to cancel
+fBM
+file
+gpu memory
+gradient_type
+nodes
+operation
+packed
+player
+plugin enabled
+prompt
+sRGB
+source
+triangles
+type
+untitled
+x
+{shortcut} and move mouse

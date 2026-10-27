@@ -43,7 +43,8 @@ static node_shader_context_t *make_particle_bullet_run() {
 	node_shader_write_frag(kong, "if (n.z < 0.0) { n.xy = octahedron_wrap(n.xy); }");
 	node_shader_write_frag(kong, "output[0] = float4(n.xy, roughness, pack_f32_i16(metallic, uint(0)));");
 	node_shader_write_frag(kong, "output[1] = float4(basecol, occlusion);");
-	node_shader_write_frag(kong, "output[2] = float4(0.0, 0.0, input.tex_coord.xy);");
+	node_shader_write_frag(kong, "float2 tex_coord_hi = floor(input.tex_coord.xy * 256.0) / 256.0;");
+	node_shader_write_frag(kong, "output[2] = float4(input.tex_coord.xy - tex_coord_hi, tex_coord_hi);");
 
 	parser_material_finalize(con);
 	con->data->shader_from_source = true;

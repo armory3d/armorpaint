@@ -1,0 +1,862 @@
+(compressé)
+(empaqueté)
++
+-X
+-Y
+-Z
+.cube LUT
+2D
+Vue 2D
+3D
+Vue 3D
+A
+À propos
+À propos...
+Absolu
+Ajouter
+Ajouter une animation
+Ajouter l'échantillon
+Ajouter nouvel échantillon
+Ajouter la couleur sélectionnée aux échantillons
+Tout
+Tout le traitement est effectué localement sur l'appareil
+Autoriser la caméra à l'envers
+Alpha
+Rejeter Alpha
+Quantité
+Angle
+Rejet par angle
+Animation
+Anisotropie
+Ajouter
+Appliquer
+Appliquer déplacement
+Appliquer filtre
+Appliquer le masque
+Appliquer les nœuds
+Appliquer la sculpture
+Appliquer le skinning
+Arc cosinus
+Arc sinus
+Arc tangente 2
+Arc tangente
+Réseau
+Asset
+Atlas
+Atlas
+Attributs
+Auto
+Moyenne
+Axe
+B
+Arrière
+Rendu
+Exporter le matériau...
+Rendu de texture
+Rendu des textures
+Bandes
+Base
+Couleur de base
+Bent Normal
+Biseau
+Biais
+Bits
+Masque noir
+Exécutable Blender
+Chemin vers l'exécutable Blender non défini
+Mode de fusion
+Éblouissement
+Flou
+Flouter l'environnement
+Type de flou
+Signet
+Booléen
+Dessous
+Rebond
+Boîte
+Texture de brique
+Largeur de brique
+Luminosité
+Luminosité/Contraste
+Navigateur
+Brosse
+Angle d'inclinaison de la brosse
+Dureté de la brosse
+Opacité de la brosse
+Sortie du pinceau
+Rayon de la brosse
+Pinceau...
+Brosses
+Relief
+Brûler
+Calculer les normales
+Caméra
+Vitesse du panorama caméra
+Vitesse de rotation caméra
+Texture caméra
+Vitesse du zoom caméra
+Annuler
+Capturer l'arrière-plan
+Capturer sortie
+Capturer capture d'écran
+Capturer une vidéo
+Plafond
+Taille de cellule en pixels
+Centre
+Canaux
+Vérifier les mises à jour...
+Texture d'échiquier
+Resserrement
+Resserrer le facteur
+Resserrer le résultat
+Argile
+Effacer
+Effacer le calque
+Effacer les échantillons
+Fin du clip
+Début du clip
+Découpage
+Clonage
+Fermer
+Tissu
+Serveur
+Projets cloud...
+Serveur de stockage
+Projets cloud
+Couleur
+Couleur 1
+Couleur 2
+Color ID
+Carte de Color ID
+Masque de couleur
+Plage de couleur
+Espace couleur
+ID Couleur
+Combiner
+Recomposer couleur
+Recomposer XYZ
+Gizmos XYZ
+Confirmer
+Console
+Modèle de console
+Constante
+Continuez dans le navigateur.
+Contraste
+Contributaires
+Convertir depuis
+Convertir vers
+Copier...
+Copier le code HEX
+Cosinus
+Impossible de télécharger
+Nombre
+Pli
+Créer un calque de couleur
+Créer un matériau
+Produit vectoriel
+Éliminer les faces arrière
+Curseur
+Courbure
+Texture de courbure
+Courbe
+Courbé
+Personnalisé
+Couper
+Assombrir
+Débogage
+Décalcomanie
+Décimer
+Contrôles caméra par défaut
+Champ de vision par défaut de la caméra
+Pivot de caméra par défaut
+Résolution du calque par défaut
+Mode par défaut
+Supprimer
+Supprimer la brosse
+Supprimer le calque
+Supprimer matériau
+Supprimer groupe de nœuds
+Supprimer l'échantillon
+Supprimer les inutilisées
+Delta
+Profondeur
+Rejet par profondeur
+Dérivée
+Bureau
+Destination
+Détail
+Rugosité du détail
+Échelle du détail
+Diagonale
+Différence
+Rayon de dilatation
+Dilater textures peintes pour éviter les coutures
+Dimensions
+Carte de normales DirectX
+Direction
+Direction du zoom
+Directionnel
+Sur le disque
+Déplacement
+Affichage
+Distance
+Distorsion
+Mode sans distraction
+Division
+Délaver
+Point
+Produit scalaire
+Bas
+Télécharger
+Fichier téléchargé depuis
+Téléchargement
+Glissez-déposez des fichiers ici
+Glisser-déposer couleur sélectionnée vers échantillons, matériaux, calques ou éditeur de nœuds
+Dessiner
+Afficher un aperçu de la brosse en direct sur la vue 3D
+Dupliquer
+Dupliquer la brosse
+Dupliquer le calque
+Dupliquer matériau
+Dupliquer l'échantillon
+Modifier
+Éditer image
+Modifier nœuds
+Modifier le script
+Modifier l'étape
+Modifier l'échantillon
+Modifier la chronologie
+Modifier la carte UV
+Modifier dans l'onglet Scripts
+Modifier dans l'éditeur de texte
+Émission
+Vide
+Image de fin
+Environnement
+Rotation de l'environnement
+Environnement
+Sphères de la carte d'environnement
+Carte d'environnement...
+Gomme
+Erreur : fichier .arm attendu
+Erreur : fichier .hdr attendu
+Erreur : Vérifiez la connexion internet pour accéder au cloud
+Erreur : Impossible de localiser la texture
+Erreur : Échec lecture données police
+Erreur : Échec lecture données maillage
+Erreur : Format de ressource inconnu
+Exclusion
+Quitter
+Fonctionnalités expérimentales
+Exposant
+Exporter
+Exporter la brosse
+Exporter l'icone
+Exporter matériau
+Exporter le maillage
+Exporter le lecteur
+Exporter les textures
+Exporter échantillons
+Exporter des fichiers de textures
+Export du maillage
+Export des textures
+F1
+F2
+Fac
+Face
+Facteur
+Échec de l'importation du matériau
+Échec de la lecture du son :
+Rapide
+Sortie de caractéristique
+Fichier
+Remplissage
+Calque de remplissage
+Masque de remplissage
+Mode de remplissage
+Filtrer
+Filtrer les textures
+Plat
+Aplatir
+Courbe de flottant
+Plancher
+Modulo plancher
+Voler
+Mode vol :\nMaintenez le bouton droit de la souris et l'une des commandes suivantes :\ndéplacez la souris pour tourner.\nw, haut ou molette vers le haut pour avancer.\ns, bas ou molette vers le bas pour reculer.\na ou gauche pour aller à gauche.\nd ou droite pour aller à droite.\ne pour monter.\nq pour descendre.\nMaintenez shift pour aller plus vite ou alt pour aller plus lentement.
+Champ de vision
+Le dossier ne contient pas de textures
+Police
+Police...
+Polices
+Format
+Fraction
+Image
+Nombre d'images
+Fréquence d'images
+Fréquence d'images
+Images
+Fréquence
+Friction
+De maximum
+De minimum
+Avant
+Complet
+Flou
+V
+Texture Gabor
+Gamma
+Générées
+Géométrie
+Géométrie vers origine
+Commencer
+Saisir
+Texture de dégradé
+Gravité X
+Gravité Y
+Gravité Z
+Plus grand que
+Cellule de la grille
+Aimantation grille
+Groupe
+Entrée groupe
+Sortie groupe
+Dureté
+Hauteur
+Mélange hauteur
+Aide
+Masquer la vue 3D
+High Poly
+Historique
+Maintenir {action_paint} pour effacer\nMaintenir {brush_ruler} et appuyer {action_paint} pour effacer ligne droite (mode règle)
+Maintenir {action_paint} pour peindre\nMaintenir {brush_ruler} et appuyer {action_paint} pour peindre ligne droite (mode règle)
+Maintenez {brush_opacity} et déplacez la souris vers la gauche pour réduire l'opacité\nMaintenez {brush_opacity} et déplacez la souris vers la droite pour augmenter l'opacité
+Maintenez {brush_radius} et déplacez la souris vers la gauche ou appuyez sur {brush_radius_decrease} pour réduire le rayon\nMaintenez {brush_radius} et déplacez la souris vers la droite ou appuyez sur {brush_radius_increase} pour augmenter le rayon
+Maintenir {decal_mask} pour peindre sur masque décalcomanie
+Maintenir {decal_mask} pour utiliser le texte comme masque
+Maintenir {set_clone_source} pour définir source
+Horizontal
+Horizontal inversé
+Comment fait-on ?
+Teinte
+Teinte/Saturation/Valeur
+Cosinus hyperbolique
+Sinus hyperbolique
+Tangente hyperbolique
+Texture image
+Image vers PBR
+Importer
+Importer le maillage
+Importer les échantillons
+Importer le fichier de police
+Importer le fichier de maillage
+Importer échantillons
+Importer le fichier de texture
+Importer...
+Import du maillage
+Entrée
+Entrante
+Gonfler
+Info : Ressource déjà importée
+Entrée
+Inspecter en tant que script
+Mettre à jour instantanément l'aperçu du matériau lors du changement de nœud
+Intensité
+Interface
+Interpolator
+Dossier d'export invalide
+Chemin de script invalide
+Type de texture invalide
+Racine carrée inverse
+Inverser
+Inverser couleur
+Inverser masque
+Inverser la sélection
+Traqueur de demandes
+Itérations
+Joindre
+Image clé
+Raccourcis clavier
+Raccourcis importés :
+Lacunarité
+Langue
+Calque
+Angle du calque
+Mode de fusion calque
+Masque du calque
+Objet du calque
+Opacité du calque
+Échelle UV du calque
+Type UV du calque
+Visibilité du calque
+Calques
+Rayon du ralenti
+Étape du ralenti
+Gauche
+Longueur
+Moins que
+Niveaux
+Durée de vie
+Éclaircir
+Carte de lumière
+Linéaire
+Lumière linéaire
+Éclairé
+Aperçu de brosse en live
+Aperçu de matière en live
+Position
+Logarithme
+Texture magique
+Rendre unique
+Manuel
+Plage de carte
+Mappage
+Masque
+Couleur de masque
+Masse
+Matériau
+ID matériau
+Index de matériau
+Sortie du matériau
+Matériau...
+Matériaux
+Mathématique
+Max
+Maximum
+Fusionner vers le bas
+Fusionner la géométrie
+Fusionner le groupe
+Fusionner les calques
+Maillage
+Entrée du maillage
+Sortie du maillage
+Maillage...
+Maillages
+Métallique
+Min
+Min Max
+Minimum
+Miroir
+Mélanger
+Mélanger couleur
+Mélange de carte de normales
+Mobile
+Mode
+Modèle
+Modèles
+Dossier modèles...
+Modificateur
+Modifier
+Modifier l'animation
+Modulo
+Mortier
+Taille du mortier
+Adoucissement du mortier
+Multiplier
+Nom
+Neuronal
+Nouveau
+Nouveau masque noir
+Nouvelle brosse
+Nouvelle couleur
+Nouveau masque de remplissage
+Nouveau groupe
+Nouveaux raccourcis
+Nouveau calque
+Nouveau matériau
+Nouveau plugin
+Nouveau préréglage
+Nouveau projet
+Nouveau projet...
+Nouvel échantillon
+Nouveau thème
+Nouveau masque blanc
+Suivant
+Non
+Aucune réponse
+Nœud
+Aperçus de nœuds
+Nœuds
+Grain du bruit
+Texture de bruit
+Aucun
+Normale
+Mélange normales
+Carte de normales
+Carte de normales 1
+Carte de normales 2
+Normaliser
+Non disponible dans la version de débogage
+Non implémenté
+OK
+Objet
+ID objet
+Index d'objet
+Info d'objet
+Normale objet
+Occlusion
+Décalage
+Ancienne couleur
+Opacité
+Mode d'opacité
+Ouvrir le navigateur
+Ouvrir le dossier source
+Ouvrir en externe
+Ouvrir fichier récent
+Ouvrir dans le navigateur
+Ouvrir...
+Ouverture du projet
+Opération
+Opposé
+Orbite
+Mode orbite et rotation :\n{rotate_shortcut} ou déplacez le bouton droit de la souris pour tourner.\n{zoom_shortcut} ou molette pour zoomer.\n{pan_shortcut} ou déplacez le bouton du milieu pour faire un panoramique.
+Ordonner les calques
+Orientation 2D
+Orientation 3D
+Origine vers la géométrie
+Orthographique
+Sortie
+Superposer
+PBR
+Embarquer les assets
+Empaqueter dans projet
+Marge
+Peindre
+Calque de peinture
+Masque de peinture
+Paramétrique
+Parent
+Dérivée partielle
+Particules
+Coller
+Chemin
+Tracé de chemin
+Traceur de chemins
+Pause
+Stylo
+Crayon
+Par objet
+Par tuile UDIM
+Perspective
+Phase
+Décalage de phase
+Physique
+Couleur sélectionnée
+Sélectionneur
+Épingler à l'entête
+Pincer
+Ping-pong
+Pivot
+Taille de pixel
+Plateau
+Lecture
+Lecteur
+Lecteur...
+Plugin importé :
+Plugins
+Point
+Pointu
+Position
+Post-traitement
+Puissance
+Préférences
+Paramètres...
+Préréglage
+Préréglage importé :
+Préréglages
+Contrôles de pression
+Précédent
+Dossier précédent
+Traitement...
+Projet
+Projet enregistré
+Projets
+Prompt
+Qualité
+Quantifier
+R
+Courbes RGB
+RGB vers NB
+RGBA
+Radial
+Rayon
+Aléatoire
+Caractère aléatoire
+Plage
+Ratio
+Récent
+Refaire {step}
+Refléter
+Rafraîchir
+Ré-importer
+Ré-importer le maillage
+Ré-importer les textures
+Décalage relatif
+Supprimer
+Renommer le calque
+Rendu
+Réorienté
+Répéter
+Remplacer
+Remplacer couleur
+Remplacer existant
+Remplacer les échantillons
+Signaler un bug
+Demander une fonctionnalité
+Réinitialiser
+Réinitialiser carte d'environnement
+Réinitialiser la mise en page
+Résolution
+Rétablir
+Rétablir les échantillons
+Restaurer échantillons par défaut
+Droite
+Anneaux
+Rotation
+Rotation
+Rugosité
+Arrondi
+Hauteur de rangée
+Exécuter
+Exécuter dans le lecteur
+En cours...
+SSAO
+Échantillons
+Saturation
+Enregistrer
+Enregistrer sous...
+Enregistrer l'image
+Enregistrer le projet d'abord
+Enregistrez d'abord le projet dans le cloud
+Enregistrer dans le cloud
+Enregistrer dans le cloud...
+Enregistrer sur le disque...
+Enregistrement du projet
+Dents de scie
+Échelle
+Échelle X
+Écran
+Script
+Nœuds de script
+Script ouvert
+Scripts
+Sculpture
+Calque sculpture
+Rechercher
+Rechercher des nœuds
+Segments
+Sélectionner
+Tout sélectionner
+Sélectionner les masqués
+Sélectionner matériau
+Sélectionner les visibles
+Sélectionnés
+Sensibilité
+Décomposer couleur
+Décomposer vecteur
+Décomposer XYZ
+Définir la source
+Définir comme carte d'ID couleur
+Définir comme carte d'environnement
+Définir comme masque
+Définition de la source
+Configuration
+Shader
+Forme
+Partager le lien du lecteur
+Partagé
+Afficher la vue 2D
+Montrer les noms des assets
+Afficher la grille
+Afficher l'éditeur de nœuds
+Afficher aperçu sur chaque nœud par défaut
+Signe
+Se connecter...
+Se déconnecter
+Connexion expirée, réessayez
+Connectez-vous pour stocker vos projets dans le cloud.
+Connectez-vous avec un compte armorpaint.org.
+Connecté
+Connecté en tant que
+Connexion en cours...
+Sinus
+Taille
+Emplacement
+Adoucir
+Étaler
+Accrocher
+Extraits
+Connecteur
+Lumière douce
+Trier
+Son
+Son importé :
+Sons
+Sphère
+Sphérique
+Écran d'accueil
+Séparer
+Séparer par
+Vue partagée
+Diviser le maillage en objets
+Racine carrée
+Écrasement
+Étape
+Image de début
+Pochoir
+Limite d'étapes atteinte
+Arrêter
+Arrêter la capture
+Arrêter le partage
+Droit
+Force
+Étirer
+Subdiviser
+Sous-surface
+Soustraire
+Superéchantillonnage
+Échantillons
+Échantillons...
+Symétrie
+Tangente
+Cible
+Modèle
+Gabarits
+Terrain
+Coordonnées de texture
+Texels par mètre
+Texte
+Texture texte
+Texte vers image
+Texture
+Coordonnées de texture
+Texture importée :
+Texture...
+Textures
+Textures exportées
+Textures...
+Thème
+Thème importé :
+Épaisseur
+Tuile
+Tuile X
+Tuile Y
+Carrelé
+Tuiles X
+Tuiles Y
+Feuille de tuiles
+Animation de feuille de tuiles
+Temps
+Chronologie
+En degrés
+Vers calque de remplissage
+Vers masque de remplissage
+Vers le calque
+Vers masque
+Vers maximum
+Vers minimum
+Vers calque de peinture
+Vers masque de peinture
+En radians
+Plein écran
+Basculer en-tête
+Outils
+Dessus
+Interface tactile
+Transformation
+Transformer l'objet
+Translucidité
+Triangle
+Rogner
+Tri-planaire
+Tronquer
+Modulo tronqué
+Faire confiance aux scripts du projet ?
+Interpolation
+Torsion
+Type
+Tuile UDIM
+Échelle interface
+UV
+Îlot UV
+Carte UV
+Échelle UV
+Dépliage UV
+Carte UV
+Impossible de vérifier les mises à jour.\nVeuillez visiter {url}.
+Étapes d'annulation
+Annuler {step}
+Déplier
+Déplier maillage
+Dépliage du maillage
+Haut
+Axe haut
+Mettre à jour
+Mise à jour disponible !\nVeuillez visiter {url}.
+Agrandir image
+Utilisation
+Utilitaires
+Val
+Valeur
+Variance
+Vecteur
+Courbes vectorielles
+Mathématiques vectorielles
+Rotation de vecteur
+Transformation de vecteur
+Couleur de sommet
+Vertical
+Vertical inversé
+Vertical et horizontal
+Vertical et horizontal inversés
+Vue
+Vue 3D
+Masque de la vue 3D
+Mode vue 3D
+Vignette
+Visible
+Texture Voronoï
+Déformer
+Profil d'onde
+Texture d'onde
+Type d'onde
+Quoi de neuf ?
+Masque blanc
+Voile blanc
+Largeur
+Fenêtre
+Fil de fer
+Espace de travail
+Monde
+Boucler la souris
+Boucler la souris autour des limites de la vue pendant le contrôle caméra
+X
+Rayons X
+XYZ
+Y
+Oui
+Vous êtes à jour !
+Z
+Zoom avant
+Zoom arrière
+Ajuster à la vue
+type_de_mélange
+espace_couleur
+Ctrl+F pour rechercher
+Échap pour annuler
+fBM
+fichier
+mémoire GPU
+type_de_dégradé
+nœuds
+opération
+empaqueté
+player
+plugin activé
+invite
+sRGB
+source
+triangles
+type
+sans titre
+x
+{shortcut} et déplacer la souris

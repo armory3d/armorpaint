@@ -1,76 +1,25 @@
 
 #include "../global.h"
 
-extern gpu_texture_t *base_color_wheel;
-extern gpu_texture_t *base_color_wheel_gradient;
-
 void ui_base_init_on_next_frame(void *_) {
 	layers_init();
 }
 
-void ui_base_on_border_hover(ui_window_t *handle, i32 side) {
-	if (!base_ui_enabled) {
-		return;
-	}
+static tab_draw_t *ui_base_all_tabs[TAB_COUNT];
 
-	if (handle != ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0] && handle != ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1] &&
-	    handle != ui_base_hwnds->buffer[TAB_AREA_STATUS] && handle != ui_nodes_hwnd && handle != ui_view2d_hwnd) {
-		return; // Scalable handles
-	}
-	if (handle == ui_view2d_hwnd && side != BORDER_SIDE_LEFT) {
-		return;
-	}
-	if (handle == ui_nodes_hwnd && side == BORDER_SIDE_TOP && !ui_view2d_show) {
-		return;
-	}
-	if (handle == ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0] && side == BORDER_SIDE_TOP) {
-		return;
-	}
-
-	if (handle == ui_nodes_hwnd && side != BORDER_SIDE_LEFT && side != BORDER_SIDE_TOP) {
-		return;
-	}
-	if (handle == ui_base_hwnds->buffer[TAB_AREA_STATUS] && side != BORDER_SIDE_TOP) {
-		return;
-	}
-	if (side == BORDER_SIDE_RIGHT) {
-		return; // UI is snapped to the right side
-	}
-
-	side == BORDER_SIDE_LEFT || side == BORDER_SIDE_RIGHT ? iron_mouse_set_cursor(IRON_CURSOR_SIZEWE) : iron_mouse_set_cursor(IRON_CURSOR_SIZENS);
-
-	if (g_ui->input_started) {
-		ui_base_border_started = side;
-		ui_base_border_handle  = handle;
-		base_is_resizing       = true;
-	}
+tab_draw_t *ui_base_get_tab(i32 id) {
+	return id >= 0 && id < TAB_COUNT ? ui_base_all_tabs[id] : NULL;
 }
 
-void ui_base_on_tab_drop(int *to, i32 to_position, int *from, i32 from_position) {
-	i32 i = -1;
-	i32 j = -1;
-	for (i32 k = 0; k < ui_base_tabs->length; ++k) {
-		if (&ui_base_tabs->buffer[k] == to) {
-			i = k;
-		}
-		if (&ui_base_tabs->buffer[k] == from) {
-			j = k;
-		}
+// Windows drawn once per 3D view display the same content, keep them redrawing together
+void ui_window_sync_redraws(ui_window_t *handle, ui_window_t *split_handle, bool split) {
+	if (split) {
+		i32 redraws           = math_max(handle->redraws, split_handle->redraws);
+		handle->redraws       = redraws;
+		split_handle->redraws = redraws;
 	}
-	if (i == j && to_position == from_position) {
-		return;
-	}
-	if (i > -1 && j > -1) {
-		tab_draw_t_array_t *tabsi = ui_base_hwnd_tabs->buffer[i];
-		tab_draw_t_array_t *tabsj = ui_base_hwnd_tabs->buffer[j];
-		if (tabsj->length == 1) {
-			return; // Keep at least one tab in place
-		}
-		tab_draw_t *element = tabsj->buffer[from_position];
-		array_splice(tabsj, from_position, 1);
-		array_insert(tabsi, to_position, element);
-		ui_base_hwnds->buffer[i]->redraws = 2;
-		ui_base_hwnds->buffer[j]->redraws = 2;
+	else {
+		split_handle->redraws = 2;
 	}
 }
 
@@ -82,7 +31,6 @@ void ui_base_init() {
 	ui_toolbar_init();
 	g_context->text_tool_text = string_copy(tr("Text"));
 	ui_header_init();
-	ui_statusbar_init();
 	ui_menubar_init();
 
 	ui_header_h  = math_floor(ui_header_default_h * g_config->window_scale);
@@ -113,23 +61,21 @@ void ui_base_init() {
 
 	string_array_t *resources = any_array_create_from_raw(
 	    (void *[]){
-	        "cursor.k",
 	        "icons.k",
 	        "icons05x.k",
 	    },
-	    3);
+	    2);
 	resource_load(resources);
 
 	f32           scale = g_config->window_scale;
-	ui_options_t *ops   = ALLOC_INIT(
-        ui_options_t,
-        {.theme = g_theme, .font = g_font, .scale_factor = scale, .color_wheel = base_color_wheel, .black_white_gradient = base_color_wheel_gradient});
+	ui_options_t *ops   = ALLOC_INIT(ui_options_t, {.theme = g_theme, .font = g_font, .scale_factor = scale});
 
 	g_ui = ui_create(ops);
 
-	ui_on_border_hover = ui_base_on_border_hover;
-
-	ui_on_tab_drop = ui_base_on_tab_drop;
+	ui_on_tab_drop         = ui_dock_on_tab_drop;
+	ui_on_tab_dock         = ui_dock_on_tab_dock;
+	ui_on_tab_context_menu = ui_dock_on_tab_context_menu;
+	ui_dock_load();
 	if (UI_SCALE() > 1) {
 		ui_base_set_icon_scale();
 	}
@@ -137,6 +83,7 @@ void ui_base_init() {
 	ui_picker_button = ui_base_picker_button;
 
 	g_context->gizmo             = scene_get_child(".Gizmo");
+	array_remove(scene_meshes, g_context->gizmo->ext); // Drawn by render_gizmo_draw()
 	g_context->gizmo_translate_x = object_get_child(g_context->gizmo, ".TranslateX");
 	g_context->gizmo_translate_y = object_get_child(g_context->gizmo, ".TranslateY");
 	g_context->gizmo_translate_z = object_get_child(g_context->gizmo, ".TranslateZ");
@@ -161,10 +108,6 @@ void ui_base_menu_draw_viewport_mode() {
 
 	string_array_t *modes     = base_get_viewport_modes();
 	string_array_t *shortcuts = base_get_viewport_mode_shortcuts();
-	if (gpu_raytrace_supported()) {
-		any_array_push(modes, tr("Path Traced"));
-		any_array_push(shortcuts, "p");
-	}
 	for (i32 i = 0; i < modes->length; ++i) {
 		ui_radio(&mode, i, modes->buffer[i], shortcuts->buffer[i]);
 		mode_changed |= ui_item_changed();
@@ -190,12 +133,22 @@ void ui_base_update_ui_on_next_frame(void *_) {
 	make_material_parse_paint_material(false);
 }
 
+// Nothing docked is visible
+static void ui_base_draw_empty() {
+	draw_begin(NULL, true, g_theme->SEPARATOR_COL);
+	gpu_texture_t *img = data_get_texture("badge_bw.k");
+	draw_set_color(0x22ffffff);
+	draw_image(img, iron_window_width() / 2.0 - img->width / 2.0, iron_window_height() / 2.0 - img->height / 2.0);
+	draw_set_color(0xffffffff);
+	draw_end();
+}
+
 void ui_base_update(void *_) {
 
 	if (console_message_timer > 0) {
 		console_message_timer -= sys_delta();
 		if (console_message_timer <= 0) {
-			ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+			ui_dock_redraw(TAB_AREA_STATUS);
 		}
 	}
 
@@ -207,6 +160,9 @@ void ui_base_update(void *_) {
 		util_touch_update();
 		util_stencil_transform();
 		util_select_update();
+		util_shape_tool_update();
+		util_text_tool_update();
+		util_path_tool_update();
 		util_layer_check_path_grab();
 		util_brush_update();
 		util_layer_update_preview();
@@ -214,7 +170,7 @@ void ui_base_update(void *_) {
 		util_shortcut_global();
 		util_shortcut_brush();
 		util_shortcut_viewport();
-		util_resize_borders();
+		ui_toolbar_update();
 		util_particle_update();
 	}
 
@@ -227,11 +183,6 @@ void ui_base_update(void *_) {
 	}
 	array_free(keys);
 	free(keys);
-
-	if (!mouse_down("left")) {
-		ui_base_border_handle = NULL;
-		base_is_resizing      = false;
-	}
 
 	util_cursor_render(_);
 
@@ -253,110 +204,63 @@ void ui_base_update(void *_) {
 
 	g_ui->input_enabled = base_ui_enabled;
 
-	// Remember last tab positions
-	for (i32 i = 0; i < ui_base_tabs->length; ++i) {
-		if (ui_tab_changed(ui_base_hwnds->buffer[i], &ui_base_tabs->buffer[i])) {
-			g_config->layout_tabs->buffer[i] = ui_base_tabs->buffer[i];
-			config_save();
-		}
-	}
-
-	// Set tab positions
-	for (i32 i = 0; i < ui_base_tabs->length; ++i) {
-		ui_base_tabs->buffer[i] = g_config->layout_tabs->buffer[i];
-	}
-
-	// Nothing to display in the main area
-	if (!base_view3d_show && !ui_nodes_show && !ui_view2d_show) {
-		draw_begin(NULL, true, g_theme->SEPARATOR_COL);
-		gpu_texture_t *img = data_get_texture("badge_bw.k");
-		draw_set_color(0x22ffffff);
-		draw_image(img, base_view3d_w() / 2.0 - img->width / 2.0, base_h() / 2.0 - img->height / 2.0);
-		draw_end();
+	// Nothing to display
+	if (ui_dock_is_empty()) {
+		ui_base_draw_empty();
 	}
 
 	ui_begin(g_ui);
+	ui_menubar_update_w();
+	ui_dock_render_ui();
 	ui_toolbar_render_ui();
 	ui_menubar_render_ui();
 	ui_header_render_ui();
-	ui_statusbar_render_ui();
-	ui_sidebar_render_ui();
 	ui_end();
 	g_ui->input_enabled = true;
 }
 
-ui_window_array_t *ui_base_init_hwnds() {
-	ui_window_array_t *hwnds = any_array_create_from_raw(
-	    (void *[]){
-	        ui_window_create(),
-	        ui_window_create(),
-	        ui_window_create(),
-	    },
-	    3);
-	return hwnds;
-}
-
-i32_array_t *ui_base_init_tabs() {
-	return i32_array_create(3); // Selected tab per tab area
-}
-
-tab_draw_t *_draw_callback_create(void (*f)(i32 *)) {
-	tab_draw_t *cb = ALLOC_INIT(tab_draw_t, {.f = f});
+tab_draw_t *_draw_callback_create(void (*f)(i32 *), i32 id, char *name, i32 area) {
+	tab_draw_t *cb       = ALLOC_INIT(tab_draw_t, {.f = f, .id = id, .name = name, .area = area});
+	ui_base_all_tabs[id] = cb;
 	return cb;
 }
 
-tab_draw_array_t_array_t *ui_base_init_hwnd_tabs() {
-	tab_draw_array_t *a0 = any_array_create_from_raw(
-	    (void *[]){
-	        _draw_callback_create(tab_layers_draw),
-	        _draw_callback_create(tab_meshes_draw),
-	        _draw_callback_create(tab_scripts_draw),
-	    },
-	    3);
-	tab_draw_array_t *a1 = any_array_create_from_raw(
-	    (void *[]){
-	        _draw_callback_create(tab_materials_draw),
-	        _draw_callback_create(tab_brushes_draw),
-	        _draw_callback_create(tab_plugins_draw),
-	    },
-	    3);
-	tab_draw_array_t *a2 = any_array_create_from_raw(
-	    (void *[]){
-	        _draw_callback_create(tab_browser_draw),
-	        _draw_callback_create(tab_textures_draw),
-	        _draw_callback_create(tab_fonts_draw),
-	        _draw_callback_create(tab_sounds_draw),
-	        _draw_callback_create(tab_swatches_draw),
-	        _draw_callback_create(tab_timeline_draw),
-	        _draw_callback_create(tab_console_draw),
-	        _draw_callback_create(ui_statusbar_draw_version_tab),
-	    },
-	    8);
+void ui_base_init_tabs() {
+	_draw_callback_create(tab_layers_draw, TAB_LAYERS, "Layers", TAB_AREA_SIDEBAR0);
+	_draw_callback_create(tab_meshes_draw, TAB_MESHES, "Meshes", TAB_AREA_SIDEBAR0);
+	_draw_callback_create(tab_scripts_draw, TAB_SCRIPTS, "Scripts", TAB_AREA_SIDEBAR0);
+	_draw_callback_create(tab_materials_draw, TAB_MATERIALS, "Materials", TAB_AREA_SIDEBAR1);
+	_draw_callback_create(tab_brushes_draw, TAB_BRUSHES, "Brushes", TAB_AREA_SIDEBAR1);
+	_draw_callback_create(tab_plugins_draw, TAB_PLUGINS, "Plugins", TAB_AREA_SIDEBAR1);
+	_draw_callback_create(tab_browser_draw, TAB_BROWSER, "Browser", TAB_AREA_STATUS);
+	_draw_callback_create(tab_textures_draw, TAB_TEXTURES, "Textures", TAB_AREA_STATUS);
+	_draw_callback_create(tab_fonts_draw, TAB_FONTS, "Fonts", TAB_AREA_STATUS);
+	_draw_callback_create(tab_sounds_draw, TAB_SOUNDS, "Sounds", TAB_AREA_STATUS);
+	_draw_callback_create(tab_swatches_draw, TAB_SWATCHES, "Swatches", TAB_AREA_STATUS);
+	_draw_callback_create(tab_timeline_draw, TAB_TIMELINE, "Timeline", TAB_AREA_STATUS);
+	_draw_callback_create(tab_console_draw, TAB_CONSOLE, "Console", TAB_AREA_STATUS);
+#ifndef NDEBUG
+	_draw_callback_create(tab_debug_draw, TAB_DEBUG, "Debug", TAB_AREA_SIDEBAR0)->closed_default = true;
+#endif
+	// Views draw their own windows
+	_draw_callback_create(tab_view3d_draw, TAB_VIEW3D, "3D View", -1);
+	_draw_callback_create(tab_view2d_draw, TAB_VIEW2D, "2D View", -1)->closed_default = true;
+	_draw_callback_create(tab_nodes_draw, TAB_NODES, "Nodes", -1)->closed_default    = true;
 
 #ifdef IRON_IOS
 	if (config_is_iphone()) {
-		array_splice(a2, 5, 1); // Timeline
-		array_splice(a2, 4, 1); // Swatches
-		array_splice(a2, 3, 1); // Sounds
+		ui_base_all_tabs[TAB_TIMELINE]->closed_default = true;
+		ui_base_all_tabs[TAB_SWATCHES]->closed_default = true;
+		ui_base_all_tabs[TAB_SOUNDS]->closed_default   = true;
 	}
 #endif
 
 #ifdef IRON_ANDROID
 	if (iron_window_width() <= 1080) {
-		array_splice(a2, 5, 1); // Timeline
-		array_splice(a2, 3, 1); // Sounds
+		ui_base_all_tabs[TAB_TIMELINE]->closed_default = true;
+		ui_base_all_tabs[TAB_SOUNDS]->closed_default   = true;
 	}
 #endif
-
-#ifdef is_debug
-	any_array_push(a0, _draw_callback_create(tab_debug_draw));
-#endif
-
-	tab_draw_array_t_array_t *r = any_array_create_from_raw((void *[]){}, 0);
-	any_array_push(r, a0);
-	any_array_push(r, a1);
-	any_array_push(r, a2);
-	return r;
 }
 
 void ui_base_toggle_distract_free() {
@@ -369,81 +273,66 @@ void ui_base_toggle_distract_free() {
 	}
 
 	ui_base_show = !ui_base_show;
-	if (ui_base_show && g_config->workspace == WORKSPACE_PLAYER) {
-		g_config->workspace = WORKSPACE_VIEW_3D;
-		base_update_workspace();
+	if (ui_base_show && base_player) {
+		base_player = false;
+		base_set_workspace(WORKSPACE_PRESET_NONE);
 	}
+	base_resize();
+}
+
+static bool ui_base_is_portrait() {
+	return g_config->touch_ui && iron_window_width() < iron_window_height();
+}
+
+static void ui_base_show_nodes(canvas_type_t type) {
+	// Clear input state as ui receives input events even when not drawn
+	ui_end_input();
+
+	bool show            = !ui_nodes_show || ui_nodes_canvas_type != type;
+	ui_nodes_canvas_type = type;
+	ui_dock_show_view(TAB_NODES, show);
+
+	if (g_config->touch_ui && ui_view2d_show && base_view3d_show) {
+		ui_dock_show_view(TAB_VIEW2D, false);
+	}
+	if (ui_base_is_portrait()) {
+		if (show) {
+			ui_dock_show_view(TAB_VIEW2D, false);
+		}
+		ui_dock_show_view(TAB_VIEW3D, !show);
+	}
+
 	base_resize();
 }
 
 void ui_base_show_material_nodes() {
-	// Clear input state as ui receives input events even when not drawn
-	ui_end_input();
-
-	ui_nodes_show        = !ui_nodes_show || ui_nodes_canvas_type != CANVAS_TYPE_MATERIAL;
-	ui_nodes_canvas_type = CANVAS_TYPE_MATERIAL;
-
-	if (g_config->touch_ui && ui_view2d_show && base_view3d_show) {
-		ui_view2d_show = false;
-	}
-
-	if (g_config->touch_ui && ui_nodes_show && iron_window_width() < iron_window_height()) {
-		ui_view2d_show   = false;
-		base_view3d_show = false;
-	}
-
-	if (g_config->touch_ui && !ui_nodes_show && iron_window_width() < iron_window_height()) {
-		base_view3d_show = true;
-	}
-
-	base_resize();
+	ui_base_show_nodes(CANVAS_TYPE_MATERIAL);
 }
 
 void ui_base_show_brush_nodes() {
-	// Clear input state as ui receives input events even when not drawn
-	ui_end_input();
-	ui_nodes_show        = !ui_nodes_show || ui_nodes_canvas_type != CANVAS_TYPE_BRUSH;
-	ui_nodes_canvas_type = CANVAS_TYPE_BRUSH;
+	ui_base_show_nodes(CANVAS_TYPE_BRUSH);
+}
 
-	if (g_config->touch_ui && ui_view2d_show && base_view3d_show) {
-		ui_view2d_show = false;
-	}
-
-	if (g_config->touch_ui && ui_nodes_show && iron_window_width() < iron_window_height()) {
-		ui_view2d_show   = false;
-		base_view3d_show = false;
-	}
-
-	if (g_config->touch_ui && !ui_nodes_show && iron_window_width() < iron_window_height()) {
-		base_view3d_show = true;
-	}
-
-	base_resize();
+void ui_base_show_mesh_nodes() {
+	ui_base_show_nodes(CANVAS_TYPE_MESH);
 }
 
 void ui_base_show_2d_view(view_2d_type_t type) {
 	// Clear input state as ui receives input events even when not drawn
 	ui_end_input();
-	if (ui_view2d_type != type) {
-		ui_view2d_show = true;
-	}
-	else {
-		ui_view2d_show = !ui_view2d_show;
-	}
+	bool show               = ui_view2d_type != type || !ui_view2d_show;
 	ui_view2d_type          = type;
 	ui_view2d_hwnd->redraws = 2;
+	ui_dock_show_view(TAB_VIEW2D, show);
 
 	if (g_config->touch_ui && ui_nodes_show && base_view3d_show) {
-		ui_nodes_show = false;
+		ui_dock_show_view(TAB_NODES, false);
 	}
-
-	if (g_config->touch_ui && ui_view2d_show && iron_window_width() < iron_window_height()) {
-		ui_nodes_show    = false;
-		base_view3d_show = false;
-	}
-
-	if (g_config->touch_ui && !ui_view2d_show && iron_window_width() < iron_window_height()) {
-		base_view3d_show = true;
+	if (ui_base_is_portrait()) {
+		if (show) {
+			ui_dock_show_view(TAB_NODES, false);
+		}
+		ui_dock_show_view(TAB_VIEW3D, !show);
 	}
 
 	base_resize();
@@ -452,21 +341,14 @@ void ui_base_show_2d_view(view_2d_type_t type) {
 void ui_base_show_3d_view() {
 	if (!base_view3d_show) {
 		if (g_config->touch_ui && ui_nodes_show && ui_view2d_show) {
-			ui_view2d_show = false;
+			ui_dock_show_view(TAB_VIEW2D, false);
 		}
-		if (g_config->touch_ui && (ui_nodes_show || ui_view2d_show) && iron_window_width() < iron_window_height()) {
-			ui_nodes_show  = false;
-			ui_view2d_show = false;
+		if (ui_base_is_portrait()) {
+			ui_dock_show_view(TAB_NODES, false);
+			ui_dock_show_view(TAB_VIEW2D, false);
 		}
 	}
 
-	base_view3d_show = !base_view3d_show;
-	base_resize();
-}
-
-void ui_base_toggle_browser() {
-	bool minimized                                 = g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] <= (ui_statusbar_default_h * g_config->window_scale);
-	g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] = minimized ? 240 : ui_statusbar_default_h;
-	g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] = math_floor(g_config->layout->buffer[LAYOUT_SIZE_STATUS_H] * g_config->window_scale);
+	ui_dock_show_view(TAB_VIEW3D, !base_view3d_show);
 	base_resize();
 }

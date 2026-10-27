@@ -382,6 +382,21 @@ float env_pdf(float3 dir) {
 	return 0.0;
 }
 
+uint hash_u32(uint x) {
+	x = (x ^ uint(61)) ^ (x >> uint(16));
+	x = x * uint(9);
+	x = x ^ (x >> uint(4));
+	x = x * uint(668265261);
+	x = x ^ (x >> uint(15));
+	return x;
+}
+
+float rnd_fine(uint2 pixel_coord, int sample_index, int dim, sampler_cache cache, int frame) {
+	uint  h = hash_u32(pixel_coord.x ^ hash_u32(pixel_coord.y ^ hash_u32(uint(sample_index) ^ hash_u32(uint(dim)))));
+	float j = float(h >> uint(8)) / 16777216.0;
+	return rnd(pixel_coord, sample_index, dim, cache, frame) + (j - 0.5) / 256.0;
+}
+
 float mis_weight(float pdf_a, float pdf_b) {
 	float a = pdf_a * pdf_a;
 	float b = pdf_b * pdf_b;
@@ -642,7 +657,7 @@ void raytrace() {
 
 #ifdef _ENV_SAMPLING
 			if (constant_buffer.params.w != 0.0) {
-				float4 light = sample_env(rnd(id.xy, sample_index, dim_base + DIM_LIGHT, cache, frame), rnd(id.xy, sample_index, dim_base + DIM_LIGHT + 1, cache, frame));
+				float4 light = sample_env(rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT, cache, frame), rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT + 1, cache, frame));
 				float3 wl        = light.xyz;
 				float  pdf_light = light.w;
 				if (pdf_light > 0.0 && dot(wl, ng) > 0.0) {

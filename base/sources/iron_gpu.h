@@ -172,6 +172,9 @@ void gpu_create_framebuffers(int depth_buffer_bits);
 void gpu_init(int depth_buffer_bits, bool vsync);
 void gpu_init_internal(int depth_buffer_bits, bool vsync);
 void gpu_draw(void);
+#ifndef NDEBUG
+extern uint32_t gpu_debug_draw_calls_frame;
+#endif
 void gpu_resize(int width, int height);
 void gpu_resize_internal(int width, int height);
 void gpu_set_int(int location, int value);

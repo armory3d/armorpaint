@@ -47,6 +47,9 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	}
 	ui_node_link_t_array_t *links          = parser_material_links;
 	i32                     socket_preview = i32_imap_get(g_context->node_preview_socket_map, node->id);
+	if (parser_material_blur_passthrough && string_equals(node->type, "BLUR")) {
+		socket_preview = 0; // Blur texture holds the color, opacity goes to alpha
+	}
 	ui_node_link_t         *link =
 	    ALLOC_INIT(ui_node_link_t,
 	               {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
@@ -66,7 +69,14 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 
 	kong->frag_out = "float4";
 	node_shader_write_frag(kong, string_tmp("float3 basecol = %s;", res));
-	node_shader_write_frag(kong, "output = float4(basecol.rgb, 1.0);");
+	if (parser_material_blur_passthrough && string_equals(node->type, "BLUR")) {
+		// Texture sampled by the blur node, premultiplied by the input alpha
+		node_shader_write_frag(kong, string_tmp("float basecol_a = %s;", blur_node_input_alpha(node)));
+		node_shader_write_frag(kong, "output = float4(basecol.rgb * basecol_a, basecol_a);");
+	}
+	else {
+		node_shader_write_frag(kong, "output = float4(basecol.rgb, 1.0);");
+	}
 
 	parser_material_finalize(con_mesh);
 

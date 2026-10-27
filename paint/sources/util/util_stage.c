@@ -179,3 +179,69 @@ void tab_stages_prune() {
 		}
 	}
 }
+
+static bool tab_stages_any_has_object(char *name) {
+	for (i32 i = 0; i < g_project->stages->length; ++i) {
+		if (string_array_index_of(g_project->stages->buffer[i]->objects, name) >= 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool tab_stages_any_has_layer(char *name) {
+	for (i32 i = 0; i < g_project->stages->length; ++i) {
+		if (string_array_index_of(g_project->stages->buffer[i]->layers, name) >= 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool tab_stages_layer_used(slot_layer_t *l) {
+	// The layer or any of its children, masks or filters is in a stage
+	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		slot_layer_t *c = g_project->_->layers->buffer[i];
+		for (slot_layer_t *p = c; p != NULL; p = p->parent) {
+			if (p == l) {
+				if (tab_stages_any_has_layer(c->name)) {
+					return true;
+				}
+				break;
+			}
+		}
+	}
+	return false;
+}
+
+void tab_stages_delete_unused() {
+	// Deleting a layer takes its children along, start from the topmost unused one
+	while (true) {
+		slot_layer_t *unused = NULL;
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			if (!tab_stages_layer_used(l) && (l->parent == NULL || tab_stages_layer_used(l->parent)) && tab_layers_can_delete(l)) {
+				unused = l;
+				break;
+			}
+		}
+		if (unused == NULL) {
+			break;
+		}
+		tab_layers_delete_layer(unused);
+	}
+
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	mesh_object_t_array_t *unused  = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 i = 0; i < objects->length; ++i) {
+		if (!tab_stages_any_has_object(objects->buffer[i]->base->name)) {
+			any_array_push(unused, objects->buffer[i]);
+		}
+	}
+	// At least one mesh has to remain, keep the first one
+	i32 first = unused->length == objects->length ? 1 : 0;
+	for (i32 i = unused->length - 1; i >= first; --i) {
+		tab_meshes_draw_context_menu_delete(unused->buffer[i]);
+	}
+	array_delete(unused);
+}

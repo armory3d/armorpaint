@@ -211,6 +211,24 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
+static void *_ui_box_commands;
+static void *_ui_box_on_hide;
+
+static void _ui_box_show_custom_commands(void) {
+	minic_call_fn(_ui_box_commands, NULL, 0);
+}
+
+static void _ui_box_show_custom_on_hide(void) {
+	minic_call_fn(_ui_box_on_hide, NULL, 0);
+}
+
+// Draggable window drawn by a script function, on_hide may be NULL
+void ui_box_show_custom2(void *commands, i32 mw, i32 mh, void *on_hide, char *title) {
+	_ui_box_commands = commands;
+	_ui_box_on_hide  = on_hide;
+	ui_box_show_custom(_ui_box_show_custom_commands, mw, mh, _ui_box_show_custom_on_hide, true, title);
+}
+
 static any_array_t *script_cloud_init_fns  = NULL;
 static any_array_t *script_cloud_dl_paths  = NULL;
 static any_array_t *script_cloud_dl_fns    = NULL;
@@ -278,7 +296,7 @@ static void script_cloud_dl_next(void) {
 		script_cloud_ensure(NULL);
 		return;
 	}
-	char *path = script_cloud_dl_paths->buffer[0];
+	char *path             = script_cloud_dl_paths->buffer[0];
 	script_cloud_dl_active = true;
 	if (i32_map_get(file_cloud_sizes, path) < 0) {
 		console_error(string("Cloud file not found: %s", path));
@@ -329,6 +347,9 @@ void project_filepath_set(char *s) {
 #endif
 	g_project->_->filepath = string_copy(s);
 }
+camera_object_t *script_get_camera() {
+	return scene_camera;
+}
 context_t *script_get_context() {
 	return g_context;
 }
@@ -337,6 +358,10 @@ config_t *script_get_config() {
 }
 project_t *script_get_project() {
 	return g_project;
+}
+
+world_data_t *script_get_world() {
+	return scene_world;
 }
 
 object_t *script_get_object(char *s) {
@@ -641,7 +666,7 @@ slot_layer_t *script_layer_new_fill(void) {
 	if (l != NULL) {
 		history_new_layer();
 		l->uv_type = UV_TYPE_UVMAP;
-		if (g_config->workflow == WORKFLOW_SCULPT) {
+		if (g_config->tools == TOOLS_SCULPT) {
 			sculpt_init();
 			sculpt_init_sculpt_texture(l);
 		}
@@ -706,10 +731,7 @@ slot_layer_t *script_layer_new_mask(slot_layer_t *l, i32 type) {
 	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
 	slot_layer_t         *m        = layers_new_mask(false, l, -1);
 	if (m != NULL) {
-		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-			slot_material_t *mat = g_project->_->materials->buffer[i];
-			tab_layers_remap_layer_pointers(mat->canvas->nodes, tab_layers_fill_layer_map(pointers));
-		}
+		tab_layers_remap_all_layer_pointers(pointers);
 		if (type == 0) {
 			history_new_black_mask();
 			slot_layer_clear(m, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
@@ -727,8 +749,8 @@ slot_layer_t *script_layer_new_mask(slot_layer_t *l, i32 type) {
 	}
 	script_gpu_end(current, in_use);
 	g_context->layers_preview_dirty = true;
-	g_context->rtdirty             = 1;
-	g_context->ddirty              = 2;
+	g_context->rtdirty              = 1;
+	g_context->ddirty               = 2;
 	return m;
 }
 
@@ -753,10 +775,7 @@ slot_layer_t *script_layer_new_group(slot_layer_t *l) {
 		array_remove(g_project->_->layers, group);
 		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
 		l->parent = group;
-		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-			slot_material_t *m = g_project->_->materials->buffer[i];
-			tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(pointers));
-		}
+		tab_layers_remap_all_layer_pointers(pointers);
 		context_set_layer(group);
 		history_new_group();
 	}
@@ -780,9 +799,7 @@ void script_layer_set_name(slot_layer_t *l, char *name) {
 	char *old_name = l->name;
 	l->name        = string_copy(slot_layer_unique_name(l, name));
 	tab_stages_rename_layer(old_name, l->name);
-	if (ui_base_hwnds != NULL) {
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-	}
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 void script_layer_update(slot_layer_t *l) {
@@ -840,9 +857,9 @@ bool script_layer_set_group(slot_layer_t *l, slot_layer_t *group) {
 	while (anchor > 0 && slot_layer_is_mask(g_project->_->layers->buffer[anchor - 1]) && g_project->_->layers->buffer[anchor - 1]->parent == group) {
 		--anchor;
 	}
-	i32  from       = array_index_of(g_project->_->layers, l);
-	i32  to         = from < anchor ? anchor - 1 : anchor;
-	bool show_panel = group->show_panel;
+	i32  from         = array_index_of(g_project->_->layers, l);
+	i32  to           = from < anchor ? anchor - 1 : anchor;
+	bool show_panel   = group->show_panel;
 	group->show_panel = true; // A collapsed group would make the move skip past its children
 	bool moved        = script_layer_move(l, to);
 	group->show_panel = show_panel;
@@ -889,6 +906,219 @@ void script_layer_set_object(slot_layer_t *l, object_t *object) {
 	g_context->ddirty  = 2;
 }
 
+// Layer context menu operations
+
+static void script_layer_op_end(gpu_texture_t *current, bool in_use) {
+	make_material_parse_mesh_material();
+	script_gpu_end(current, in_use);
+	g_context->layers_preview_dirty = true;
+	g_context->rtdirty              = 1;
+	g_context->ddirty               = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
+}
+
+slot_layer_t *script_layer_duplicate(slot_layer_t *l) {
+	if (!script_layer_valid(l)) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	history_duplicate_layer();
+	layers_duplicate_layer(l);
+	script_layer_op_end(current, in_use);
+	return g_context->layer;
+}
+
+slot_layer_t *script_layer_merge_down(slot_layer_t *l) {
+	if (!script_layer_valid(l) || !tab_layers_can_merge_down(l)) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	history_merge_layers();
+	layers_merge_down();
+	if (g_context->layer->fill_material != NULL) {
+		slot_layer_to_paint_layer(g_context->layer);
+	}
+	script_layer_op_end(current, in_use);
+	return g_context->layer;
+}
+
+slot_layer_t *script_layer_merge_group(slot_layer_t *group) {
+	if (!script_layer_valid(group) || !slot_layer_is_group(group) || slot_layer_get_children(group) == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_merge_group(group);
+	context_set_layer(l);
+	script_layer_op_end(current, in_use);
+	return l;
+}
+
+void script_layer_clear(slot_layer_t *l) {
+	if (!script_layer_valid(l) || l->fill_material != NULL) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	if (slot_layer_is_group(l)) {
+		slot_layer_t_array_t *children = slot_layer_get_children(l);
+		for (i32 i = 0; children != NULL && i < children->length; ++i) {
+			slot_layer_t *c  = children->buffer[i];
+			g_context->layer = c;
+			history_clear_layer();
+			slot_layer_clear(c, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+		}
+		g_context->layer = l;
+	}
+	else {
+		history_clear_layer();
+		slot_layer_clear(l, slot_layer_is_mask(l) ? 0xffffffff : 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+		util_layer_clear_path_points(l);
+	}
+	script_layer_op_end(current, in_use);
+}
+
+bool script_layer_invert_mask(slot_layer_t *m) {
+	if (!script_layer_valid(m) || !slot_layer_is_mask(m) || m->fill_material != NULL) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(m);
+	history_invert_mask();
+	slot_layer_invert_mask(m);
+	script_layer_op_end(current, in_use);
+	return true;
+}
+
+slot_layer_t *script_layer_apply_mask(slot_layer_t *m) {
+	if (!script_layer_valid(m) || !slot_layer_is_mask(m)) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *parent = m->parent;
+	g_context->layer     = m;
+	history_apply_mask();
+	slot_layer_apply_mask(m);
+	context_set_layer(parent);
+	script_layer_op_end(current, in_use);
+	return parent;
+}
+
+bool script_layer_to_fill(slot_layer_t *l) {
+	// Fills with the current material
+	if (!script_layer_valid(l) || slot_layer_is_group(l) || l->fill_material != NULL || l->path_material != NULL || g_context->material == NULL) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	context_set_layer(l);
+	slot_layer_is_layer(l) ? history_to_fill_layer() : history_to_fill_mask();
+	slot_layer_to_fill_layer(l);
+	script_layer_op_end(current, in_use);
+	return true;
+}
+
+bool script_layer_to_paint(slot_layer_t *l) {
+	if (!script_layer_valid(l) || slot_layer_is_group(l) || (l->fill_material == NULL && l->path_material == NULL)) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	if (slot_layer_is_filter(l)) {
+		i32 pi = array_index_of(g_project->_->layers, l->parent);
+		array_remove(g_project->_->layers, l);
+		array_insert(g_project->_->layers, pi, l);
+		l->parent = NULL;
+	}
+	context_set_layer(l);
+	slot_layer_is_layer(l) ? history_to_paint_layer() : history_to_paint_mask();
+	slot_layer_to_paint_layer(l);
+	script_layer_op_end(current, in_use);
+	return true;
+}
+
+// Path, curve and text layers paint with the current material along the points added to them
+
+slot_layer_t *script_layer_new_path(bool curved) {
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_path_layer(curved);
+	if (l != NULL) {
+		history_new_layer();
+	}
+	script_layer_op_end(current, in_use);
+	return l;
+}
+
+slot_layer_t *script_layer_new_text(char *text) {
+	// The layer name is the painted text
+	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL || text == NULL || text[0] == '\0') {
+		return NULL;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	slot_layer_t *l = layers_new_text_layer();
+	if (l != NULL) {
+		history_new_layer();
+		script_layer_set_name(l, text);
+	}
+	script_layer_op_end(current, in_use);
+	return l;
+}
+
+bool script_layer_add_path_point(slot_layer_t *l, f32 x, f32 y) {
+	// x, y in 0..1 viewport space like script_paint(), a curve takes anchor, control, anchor, control, ...
+	if (!script_layer_valid(l) || !slot_layer_is_path(l)) {
+		return false;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	tool_type_t tool = g_context->tool;
+	if (l->path_tool != -1) {
+		g_context->tool = l->path_tool;
+	}
+	else if (tool != TOOL_TYPE_BRUSH && tool != TOOL_TYPE_ERASER && tool != TOOL_TYPE_CLONE && tool != TOOL_TYPE_BLUR && tool != TOOL_TYPE_PARTICLE) {
+		g_context->tool = TOOL_TYPE_BRUSH; // The first point picks the tool the path paints with
+	}
+	i32 count              = l->path_points->length;
+	path_layer_last_active = count / 2 - 1; // Continue from the last point
+	util_layer_add_path_point(l, x, y);
+	g_context->tool = tool;
+	script_layer_op_end(current, in_use);
+	return l->path_points->length > count;
+}
+
 static void script_bake_lightmap_done(void *fn) {
 	if (fn != NULL) {
 		minic_call_fn(fn, NULL, 0);
@@ -902,8 +1132,30 @@ void script_bake_lightmap(object_t *o, i32 res, i32 samples, f32 range, char *pa
 	render_path_raytrace_bake_lightmap(o->ext, res, samples, range, path, script_bake_lightmap_done, done);
 }
 
+bool script_bake_lightmap_busy(void) {
+	return render_path_raytrace_bake_lightmap_busy();
+}
+
+void script_bake_lightmap_cancel(void) {
+	render_path_raytrace_bake_lightmap_cancel();
+}
+
 void script_quit(void) {
 	iron_stop();
+}
+
+void script_set_tools(i32 tools) {
+	if (tools < TOOLS_PAINT || tools > TOOLS_OBJECT || tools == g_config->tools) {
+		return;
+	}
+	gpu_texture_t *current;
+	bool           in_use;
+	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
+	g_config->tools = tools;
+	base_update_tools();
+	script_gpu_end(current, in_use);
+	g_context->ddirty = 2;
 }
 
 void script_project_new(void) {
@@ -934,6 +1186,16 @@ void script_project_open(char *path) {
 	import_arm_run_project(path);
 	script_gpu_end(current, in_use);
 	g_context->ddirty = 2;
+}
+
+i32 script_asset_index(char *search) {
+	for (i32 i = g_project->_->assets->length - 1; i >= 0; --i) {
+		asset_t *a = g_project->_->assets->buffer[i];
+		if (string_index_of(a->file, search) >= 0) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 void script_import_asset(char *path, bool hdr_as_envmap) {
@@ -981,6 +1243,10 @@ void script_append_mesh_skinned(char *glb_path) {
 	plugins_skinning_frame = 0;
 	script_append_mesh(glb_path);
 	plugins_skinning_frame = -1;
+}
+
+buffer_t *script_load_blob(char *path) {
+	return iron_load_blob(path);
 }
 
 void script_append_mesh_obj(char *data) {
@@ -1060,8 +1326,7 @@ i32 script_pack_assets(char *search) {
 	asset_t_array_t *assets = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->assets->length; ++i) {
 		asset_t *a = g_project->_->assets->buffer[i];
-		if (string_index_of(a->file, search) >= 0 &&
-		    (g_project->packed_assets == NULL || !project_packed_asset_exists(g_project->packed_assets, a->file))) {
+		if (string_index_of(a->file, search) >= 0 && (g_project->packed_assets == NULL || !project_packed_asset_exists(g_project->packed_assets, a->file))) {
 			any_array_push(assets, a);
 		}
 	}
@@ -1089,7 +1354,7 @@ void script_export_mesh(char *path) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
-	export_mesh_run(path, NULL, true);
+	export_mesh_run(path, NULL);
 	script_gpu_end(current, in_use);
 }
 
@@ -1123,9 +1388,7 @@ slot_material_t *script_material_create(char *name) {
 	script_gpu_end(current, in_use);
 
 	history_new_material();
-	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
-		ui_base_hwnds->buffer[1]->redraws = 2;
-	}
+	ui_dock_redraw(1);
 	return m;
 }
 
@@ -1297,6 +1560,17 @@ void script_material_remove_node(ui_node_t *node) {
 	}
 }
 
+void script_material_add_input(ui_node_t *node, char *type, char *name) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || node == NULL || type == NULL || !string_equals(node->type, "SHADER_GPU")) {
+		return;
+	}
+	nodes_mesh_script_add_socket(canvas, node, type, name);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
 static ui_node_socket_t *script_material_socket(ui_node_t *node, bool is_input, i32 socket) {
 	if (node == NULL) {
 		return NULL;
@@ -1366,6 +1640,90 @@ void script_material_set_text(ui_node_t *node, i32 button, char *text) {
 	}
 }
 
+static ui_node_canvas_t *script_mesh_canvas(mesh_object_t *o) {
+	if (o == NULL || g_project == NULL || array_index_of(g_project->_->paint_objects, o) < 0) {
+		return NULL;
+	}
+	return nodes_mesh_get(o, true)->canvas;
+}
+
+static void script_mesh_redraw(void) {
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
+ui_node_t *script_mesh_create_node_at(mesh_object_t *o, char *type, f32 x, f32 y) {
+	if (type == NULL || script_mesh_canvas(o) == NULL) {
+		return NULL;
+	}
+	ui_node_t *node = nodes_mesh_create_node(o, type);
+	if (node != NULL) {
+		node->x = x;
+		node->y = y;
+	}
+	script_mesh_redraw();
+	return node;
+}
+
+ui_node_t *script_mesh_get_node(mesh_object_t *o, char *type) {
+	ui_node_canvas_t *canvas = script_mesh_canvas(o);
+	for (i32 i = 0; canvas != NULL && type != NULL && i < canvas->nodes->length; ++i) {
+		if (string_equals(canvas->nodes->buffer[i]->type, type)) {
+			return canvas->nodes->buffer[i];
+		}
+	}
+	return NULL;
+}
+
+void script_mesh_connect(mesh_object_t *o, ui_node_t *from, i32 from_socket, ui_node_t *to, i32 to_socket) {
+	ui_node_canvas_t *canvas = script_mesh_canvas(o);
+	if (canvas == NULL || from == NULL || to == NULL) {
+		return;
+	}
+	if (from_socket < 0 || from_socket >= from->outputs->length || to_socket < 0 || to_socket >= to->inputs->length) {
+		return;
+	}
+	script_material_remove_links_to(canvas, to->id, to_socket);
+	any_array_push(canvas->links, project_create_node_link(canvas->links, from->id, from_socket, to->id, to_socket));
+	script_mesh_redraw();
+}
+
+void script_mesh_disconnect(mesh_object_t *o, ui_node_t *to, i32 to_socket) {
+	ui_node_canvas_t *canvas = script_mesh_canvas(o);
+	if (canvas == NULL || to == NULL) {
+		return;
+	}
+	script_material_remove_links_to(canvas, to->id, to_socket);
+	script_mesh_redraw();
+}
+
+void script_mesh_remove_node(mesh_object_t *o, ui_node_t *node) {
+	ui_node_canvas_t *canvas = script_mesh_canvas(o);
+	if (canvas == NULL || node == NULL || string_equals(node->type, "MESH_OUTPUT")) {
+		return;
+	}
+	ui_remove_node(node, canvas);
+	script_mesh_redraw();
+}
+
+void script_mesh_add_input(mesh_object_t *o, ui_node_t *node, char *type, char *name) {
+	ui_node_canvas_t *canvas = script_mesh_canvas(o);
+	if (canvas == NULL || node == NULL || type == NULL || !string_equals(node->type, "MESH_SCRIPT")) {
+		return;
+	}
+	nodes_mesh_script_add_socket(canvas, node, type, name);
+	script_mesh_redraw();
+}
+
+void script_mesh_update(mesh_object_t *o) {
+	if (script_mesh_canvas(o) == NULL) {
+		return;
+	}
+	nodes_mesh_update(o, false);
+	script_mesh_redraw();
+}
+
 void script_material_update(void) {
 	if (g_context == NULL || g_context->material == NULL) {
 		return;
@@ -1381,7 +1739,7 @@ void script_material_update(void) {
 	if (context_is_decal()) {
 		util_render_make_decal_preview();
 	}
-	base_update_workflow_nodes();
+	base_update_tools_nodes();
 
 	script_gpu_end(current, in_use);
 
@@ -1391,9 +1749,7 @@ void script_material_update(void) {
 	if (ui_header_handle != NULL) {
 		ui_header_handle->redraws = 2;
 	}
-	if (ui_base_hwnds != NULL && ui_base_hwnds->length > 1) {
-		ui_base_hwnds->buffer[1]->redraws = 2;
-	}
+	ui_dock_redraw(1);
 	g_context->ddirty  = 2;
 	g_context->rtdirty = 1;
 }
@@ -1423,9 +1779,7 @@ object_t *script_shape_add(char *name) {
 
 	tab_meshes_reset_preview_map();
 	g_context->ddirty = 2;
-	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-	}
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	return mo->base;
 }
 
@@ -1440,8 +1794,8 @@ object_t *script_object_duplicate(object_t *o) {
 	mesh_object_t *dup = util_mesh_duplicate_object(o->ext);
 	script_gpu_end(current, in_use);
 
-	g_context->ddirty                                 = 2;
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	g_context->ddirty = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	return dup->base;
 }
 
@@ -1465,9 +1819,7 @@ void script_object_remove(object_t *o) {
 
 	tab_meshes_reset_preview_map();
 	g_context->ddirty = 2;
-	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-	}
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 void script_object_origin_to_geometry(object_t *o) {
@@ -1488,20 +1840,20 @@ void script_object_set_name(object_t *o, char *name) {
 		return;
 	}
 
-	char *new_name = string_copy(name);
-	tab_stages_rename_object(o->name, new_name);
-	o->name = new_name;
-
 	if (o->ext != NULL && string_equals(o->ext_type, "mesh_object_t")) {
 		mesh_object_t *mo = o->ext;
-		if (mo->data != NULL && util_mesh_data_owner(mo->data) == array_index_of(g_project->_->paint_objects, mo)) {
-			mo->data->name = string_copy(new_name);
+		if (array_index_of(g_project->_->paint_objects, mo) >= 0) {
+			name = util_mesh_unique_name(mo, name);
 		}
+		util_mesh_rename(mo, name);
+	}
+	else {
+		char *new_name = string_copy(name);
+		tab_stages_rename_object(o->name, new_name);
+		o->name = new_name;
 	}
 
-	if (ui_base_hwnds != NULL && ui_base_hwnds->length > TAB_AREA_SIDEBAR0) {
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
-	}
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 static physics_body_t *script_physics_body(object_t *o) {
@@ -1544,6 +1896,35 @@ void script_physics_sync_transform(object_t *o) {
 	physics_body_t *body = script_physics_body(o);
 	if (body != NULL) {
 		physics_body_sync_transform(body);
+	}
+}
+
+physics_body_t *script_physics_get_body(object_t *o) {
+	return script_physics_body(o);
+}
+
+vec4_t script_physics_get_pos(object_t *o) {
+	vec4_t          pos  = {0.0, 0.0, 0.0, 1.0};
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_get_pos(body->_body, &pos);
+	}
+	return pos;
+}
+
+vec4_t script_physics_get_velocity(object_t *o) {
+	vec4_t          vel  = {0.0, 0.0, 0.0, 0.0};
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_get_velocity(body->_body, &vel);
+	}
+	return vel;
+}
+
+void script_physics_set_rotation(object_t *o, quat_t rot) {
+	physics_body_t *body = script_physics_body(o);
+	if (body != NULL) {
+		physics_body_set_rotation(body, rot);
 	}
 }
 
@@ -1635,6 +2016,84 @@ object_t *script_pick_object() {
 	return hit;
 }
 
+// Where the mouse ray hits the terrain body, nan on a miss
+vec4_t script_pick_terrain() {
+	vec4_t hit = vec4_nan();
+	ray_t *ray = raycast_get_ray(mouse_view_x(), mouse_view_y(), scene_camera);
+	if (ray == NULL || !physics_terrain_raycast(ray->origin, ray->dir, &hit)) {
+		return vec4_nan();
+	}
+	return hit;
+}
+
+typedef struct script_click {
+	i32 x;
+	i32 y;
+	i32 button;
+} script_click_t;
+
+static void script_mouse_click_up(void *data) {
+	script_click_t *c = data;
+	iron_internal_mouse_trigger_release(c->button, c->x, c->y);
+	free(c);
+}
+
+static void script_mouse_click_down(void *data) {
+	script_click_t *c = data;
+	iron_internal_mouse_trigger_move(c->x, c->y);
+	ui_mouse_move(g_ui, c->x, c->y, 0, 0);
+	iron_internal_mouse_trigger_press(c->button, c->x, c->y);
+	sys_notify_on_next_frame(script_mouse_click_up, c);
+}
+
+// Press at window pixel x, y next frame and release the frame after, button 0 left, 1 right, 2 middle
+void script_mouse_click(i32 x, i32 y, i32 button) {
+	if (button < 0 || button > 4) {
+		return;
+	}
+	script_click_t *c = malloc(sizeof(script_click_t));
+	c->x              = x;
+	c->y              = y;
+	c->button         = button;
+	sys_notify_on_next_frame(script_mouse_click_down, c);
+}
+
+static void script_key_press_up(void *data) {
+	iron_internal_keyboard_trigger_key_up((i32)(intptr_t)data);
+}
+
+static void script_key_press_down(void *data) {
+	i32 code = (i32)(intptr_t)data;
+	iron_internal_keyboard_trigger_key_down(code);
+	char *name = keyboard_key_code(code);
+	if (strlen(name) == 1) {
+		iron_internal_keyboard_trigger_key_press(name[0]);
+	}
+	sys_notify_on_next_frame(script_key_press_up, data);
+}
+
+// Press key next frame and release the frame after
+void script_key_press(char *key) {
+	for (i32 code = 1; code < 256; ++code) {
+		if (string_equals(keyboard_key_code(code), key)) {
+			sys_notify_on_next_frame(script_key_press_down, (void *)(intptr_t)code);
+			return;
+		}
+	}
+}
+
+// The paint objects as mesh_object_t, the scenes meshes
+any_array_t *script_get_mesh_objects() {
+	return (any_array_t *)g_project->_->paint_objects;
+}
+
+// Scripts have no indirect calls, a function stored in a variable is called through here
+void script_call(void *fn) {
+	if (fn != NULL) {
+		minic_call_fn(fn, NULL, 0);
+	}
+}
+
 extern string_array_t *_path_texture_formats;
 extern string_array_t *_path_mesh_formats;
 extern string_array_t *_path_text_formats;
@@ -1645,7 +2104,7 @@ static any_map_t      *custom_text_importers    = NULL;
 static string_array_t *custom_text_formats      = NULL;
 
 gpu_texture_t *script_import_custom_texture(char *path) {
-	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	char       *format  = path_ext(path);
 	void       *fn      = any_map_get(custom_texture_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_val_t r       = minic_call_fn(fn, args, 1);
@@ -1653,7 +2112,7 @@ gpu_texture_t *script_import_custom_texture(char *path) {
 }
 
 raw_mesh_t *script_import_custom_mesh(char *path) {
-	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	char       *format  = path_ext(path);
 	void       *fn      = any_map_get(custom_mesh_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_val_t r       = minic_call_fn(fn, args, 1);
@@ -1661,7 +2120,7 @@ raw_mesh_t *script_import_custom_mesh(char *path) {
 }
 
 void script_import_custom_text(char *path) {
-	char       *format  = substring(path, string_last_index_of(path, ".") + 1, string_length(path));
+	char       *format  = path_ext(path);
 	void       *fn      = any_map_get(custom_text_importers, format);
 	minic_val_t args[1] = {minic_val_ptr(path)};
 	minic_call_fn(fn, args, 1);
@@ -1871,8 +2330,36 @@ void script_timeline_pause(void) {
 	tab_timeline_pause();
 }
 
+i32 script_timeline_get_frame(void) {
+	if (nodes_mesh_script_running) {
+		nodes_mesh_eval_reads_frame = true;
+	}
+	return tab_timeline_selected_frame;
+}
+
 void script_timeline_set_frame(i32 frame) {
 	tab_timeline_set_frame(frame);
+}
+
+void script_clip_play(object_t *o, i32 start, i32 end) {
+	if (o != NULL && o->ext_type != NULL && string_equals(o->ext_type, "mesh_object_t")) {
+		tab_timeline_clip_play(o->ext, start, end);
+	}
+}
+
+// Frames in the skinned mesh clip, 0 without one
+i32 script_clip_frame_count(object_t *o) {
+	if (o == NULL || o->ext_type == NULL || !string_equals(o->ext_type, "mesh_object_t")) {
+		return 0;
+	}
+	mesh_object_t *mo = o->ext;
+	return util_skin_frame_count(mo->data->_->skin_blob);
+}
+
+void script_clip_set_frame(object_t *o, i32 frame) {
+	if (o != NULL && o->ext_type != NULL && string_equals(o->ext_type, "mesh_object_t")) {
+		tab_timeline_clip_set_frame(o->ext, frame);
+	}
 }
 
 void script_timeline_add_keyframe(char *name, i32 frame) {
@@ -1952,7 +2439,7 @@ typedef struct script_screenshot_request {
 	void (*done)(void);
 } script_screenshot_request_t;
 
-static any_array_t    *_script_screenshot_queue  = NULL;
+static any_array_t   *_script_screenshot_queue  = NULL;
 static gpu_texture_t *_script_screenshot_target = NULL;
 static i32            _script_screenshot_frames = 0;
 

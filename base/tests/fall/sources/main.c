@@ -8,7 +8,12 @@ physics_body_t *body;
 
 void render_commands() {
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0xff6495ed, 1.0);
-	render_path_draw_meshes("mesh");
+	_mesh_object_last_pipeline = NULL;
+	for (i32 i = 0; i < scene_meshes->length; ++i) {
+		mesh_object_t *mesh = scene_meshes->buffer[i];
+		mesh_object_render(mesh, mesh->material->contexts->buffer[0], _render_path_bind_params);
+	}
+	render_path_end();
 }
 
 void scene_update(void *_) {
@@ -51,12 +56,12 @@ void ready() {
         {.name    = "Scene",
 	           .objects = any_array_create_from_raw(
              (void *[]){
-                 ALLOC_INIT(obj_t,
+                 ALLOC_INIT(object_desc_t,
 	                              {.name = "Cube", .type = "mesh_object", .data_ref = "cube.arm/Cube", .material_ref = "MyShader", .visible = true, .spawn = true}),
                  ALLOC_INIT(
-                     obj_t,
+                     object_desc_t,
                      {.name = "Sphere", .type = "mesh_object", .data_ref = "sphere.arm/Sphere", .material_ref = "MyShader", .visible = true, .spawn = true}),
-                 ALLOC_INIT(obj_t, {.name = "Camera", .type = "camera_object", .data_ref = "MyCamera", .visible = true, .spawn = true}),
+                 ALLOC_INIT(object_desc_t, {.name = "Camera", .type = "camera_object", .data_ref = "MyCamera", .visible = true, .spawn = true}),
              },
              3),
 	           .camera_datas = any_array_create_from_raw(

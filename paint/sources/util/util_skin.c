@@ -5,9 +5,12 @@
 //   util_skin_header_t, name (name_len bytes padded to 4),
 //   f32 pos[vc * 3], f32 nor[vc * 3], f32 tex[vc * 2], u32 ind[ic], u16 joints[vc * 4], f32 weights[vc * 4],
 //   f32 mats[frames * joints * 12] (3 rows of 4 per bone)
+// Trailing bone section:
+//   u32 magic, i32 parents[joints], f32 heads[joints * 3], f32 tails[joints * 3] (rest pose, object space)
 
 #define UTIL_SKIN_MAGIC   0x4e494b53 // "SKIN"
 #define UTIL_SKIN_VERSION 1
+#define UTIL_SKIN_BONES   0x454e4f42 // "BONE"
 
 typedef struct util_skin_header {
 	u32 magic;
@@ -30,6 +33,9 @@ typedef struct util_skin_view {
 	u16                *joints;
 	f32                *weights;
 	f32                *mats;
+	i32                *parents; // NULL when the blob has no bone section
+	f32                *heads;
+	f32                *tails;
 } util_skin_view_t;
 
 static u32 util_skin_pad4(u32 n) {
@@ -65,7 +71,17 @@ static bool util_skin_view(buffer_t *blob, util_skin_view_t *v) {
 	p += h->vertex_count * 4 * 2;
 	v->weights = (f32 *)p;
 	p += h->vertex_count * 4 * 4;
-	v->mats = (f32 *)p;
+	v->mats    = (f32 *)p;
+	v->parents = NULL;
+	v->heads   = NULL;
+	v->tails   = NULL;
+	u32 size   = util_skin_size(h->vertex_count, h->index_count, h->joint_count, h->frame_count, h->name_len);
+	if (blob->length >= size + 4 + h->joint_count * 7 * 4 && *(u32 *)(blob->buffer + size) == UTIL_SKIN_BONES) {
+		p          = blob->buffer + size + 4;
+		v->parents = (i32 *)p;
+		v->heads   = (f32 *)(p + h->joint_count * 4);
+		v->tails   = (f32 *)(p + h->joint_count * 4 * 4);
+	}
 	return true;
 }
 
@@ -131,9 +147,13 @@ bool util_skin_apply(buffer_t *blob, i32 frame, i16_array_t *posa, i16_array_t *
 	return true;
 }
 
-buffer_t *util_skin_blob_create(char *name, i32 vc, f32 *pos, f32 *nor, f32 *tex, i32 ic, u32 *ind, u16 *joints, f32 *weights, i32 jc, i32 fc, f32 *mats) {
+// parents, heads and tails can be NULL to leave out the bone section
+buffer_t *util_skin_blob_create(char *name, i32 vc, f32 *pos, f32 *nor, f32 *tex, i32 ic, u32 *ind, u16 *joints, f32 *weights, i32 jc, i32 fc, f32 *mats,
+                                i32 *parents, f32 *heads, f32 *tails) {
 	u32       name_len = name != NULL ? (u32)strlen(name) : 0;
-	buffer_t *blob     = buffer_create(util_skin_size(vc, ic, jc, fc, name_len));
+	u32       size     = util_skin_size(vc, ic, jc, fc, name_len);
+	bool      bones    = parents != NULL && heads != NULL && tails != NULL;
+	buffer_t *blob     = buffer_create(size + (bones ? 4 + jc * 7 * 4 : 0));
 	memset(blob->buffer, 0, blob->length);
 	util_skin_header_t *h = (util_skin_header_t *)blob->buffer;
 	h->magic              = UTIL_SKIN_MAGIC;
@@ -154,6 +174,13 @@ buffer_t *util_skin_blob_create(char *name, i32 vc, f32 *pos, f32 *nor, f32 *tex
 	memcpy(v.joints, joints, sizeof(u16) * vc * 4);
 	memcpy(v.weights, weights, sizeof(f32) * vc * 4);
 	memcpy(v.mats, mats, sizeof(f32) * fc * jc * 12);
+	if (bones) {
+		*(u32 *)(blob->buffer + size) = UTIL_SKIN_BONES;
+		util_skin_view(blob, &v);
+		memcpy(v.parents, parents, sizeof(i32) * jc);
+		memcpy(v.heads, heads, sizeof(f32) * jc * 3);
+		memcpy(v.tails, tails, sizeof(f32) * jc * 3);
+	}
 
 	f32 scale = 1e-6f;
 	for (i32 f = 0; f < fc; ++f) {
@@ -165,6 +192,51 @@ buffer_t *util_skin_blob_create(char *name, i32 vc, f32 *pos, f32 *nor, f32 *tex
 	}
 	h->scale_pos = scale;
 	return blob;
+}
+
+static void util_skin_transform(f32 *m, f32 *p, f32 *out) {
+	for (i32 r = 0; r < 3; ++r) {
+		out[r] = m[r * 4] * p[0] + m[r * 4 + 1] * p[1] + m[r * 4 + 2] * p[2] + m[r * 4 + 3];
+	}
+}
+
+// Bones posed at a frame as segments of 7 floats: head xyz, tail xyz, relation line flag
+f32 *util_skin_bones(buffer_t *blob, i32 frame, i32 *count) {
+	*count = 0;
+	util_skin_view_t v;
+	if (!util_skin_view(blob, &v) || v.parents == NULL || v.h->frame_count == 0 || v.h->joint_count == 0) {
+		return NULL;
+	}
+	i32  jc  = v.h->joint_count;
+	f32 *fm  = &v.mats[(size_t)(frame % v.h->frame_count) * jc * 12];
+	f32 *out = malloc(sizeof(f32) * 7 * jc * 2);
+	i32  n   = 0;
+	for (i32 j = 0; j < jc; ++j) {
+		f32 *o = &out[n++ * 7];
+		util_skin_transform(&fm[j * 12], &v.heads[j * 3], &o[0]);
+		util_skin_transform(&fm[j * 12], &v.tails[j * 3], &o[3]);
+		o[6]  = 0.0f;
+		i32 p = v.parents[j];
+		if (p >= 0 && p < jc) {
+			f32 *t  = &v.tails[p * 3];
+			f32 *h  = &v.heads[j * 3];
+			f32  dx = t[0] - h[0], dy = t[1] - h[1], dz = t[2] - h[2];
+			if (dx * dx + dy * dy + dz * dz > 1e-8f) {
+				o = &out[n++ * 7];
+				util_skin_transform(&fm[p * 12], t, &o[0]);
+				util_skin_transform(&fm[j * 12], h, &o[3]);
+				o[6] = 1.0f;
+			}
+		}
+	}
+	f32 inv = 1.0f / v.h->scale_pos;
+	for (i32 i = 0; i < n; ++i) {
+		for (i32 k = 0; k < 6; ++k) {
+			out[i * 7 + k] *= inv;
+		}
+	}
+	*count = n;
+	return out;
 }
 
 raw_mesh_t *util_skin_raw_mesh(buffer_t *blob) {

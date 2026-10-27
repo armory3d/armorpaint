@@ -5,6 +5,7 @@
 #include "iron_audio.h"
 #include "iron_file.h"
 #include "iron_math.h"
+#include "iron_path.h"
 #include "iron_thread.h"
 #include "iron_video.h"
 
@@ -352,9 +353,9 @@ iron_a1_sound_t *iron_a1_sound_create_from_bytes(uint8_t *filedata, int filedata
 	sound->right  = NULL;
 	uint8_t *data = NULL;
 
-	if (strncmp(format, ".ogg", 4) == 0) {
+	if (path_has_ext((char *)format, "ogg")) {
 		int channels, sample_rate;
-		int samples               = stb_vorbis_decode_memory(filedata, (int)filedata_size, &channels, &sample_rate, (short **)&data);
+		int samples = stb_vorbis_decode_memory(filedata, (int)filedata_size, &channels, &sample_rate, (short **)&data);
 		if (samples <= 0) {
 			free(data);
 			sound->in_use = false;
@@ -365,7 +366,7 @@ iron_a1_sound_t *iron_a1_sound_create_from_bytes(uint8_t *filedata, int filedata
 		sound->size               = samples * 2 * sound->channel_count;
 		sound->bits_per_sample    = 16;
 	}
-	else if (strncmp(format, ".wav", 4) == 0) {
+	else if (path_has_ext((char *)format, "wav")) {
 		struct WaveData wave = {0};
 		{
 			uint8_t *pos = filedata;

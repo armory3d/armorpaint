@@ -351,6 +351,26 @@ int string_utf8_decode(const char *str, int *i) {
 	return u;
 }
 
+#ifdef _WIN32
+int32_t parse_int(const char *s) {
+	return _strtoi64(s, NULL, 10);
+}
+int32_t parse_int_hex(const char *s) {
+	return _strtoi64(s, NULL, 16);
+}
+#else
+int32_t parse_int(const char *s) {
+	return strtol(s, NULL, 10);
+}
+int32_t parse_int_hex(const char *s) {
+	return strtol(s, NULL, 16);
+}
+#endif
+
+float parse_float(const char *s) {
+	return strtof(s, NULL);
+}
+
 void string_buffer_init(buffer_t *sb) {
 	sb->capacity = 128;
 	sb->buffer   = malloc(sb->capacity);

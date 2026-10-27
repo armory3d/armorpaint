@@ -10,10 +10,10 @@
 
 #ifdef IRON_WASM
 __attribute__((import_module("imports"), import_name("js_memory_grow"))) void js_memory_grow(void);
-extern unsigned char __heap_base;
-#define heap (&__heap_base)
-#define WASM_PAGE_SIZE   65536ULL
-#define HEAP_GROW_PAGES  1024 // 64MB steps
+extern unsigned char                                                          __heap_base;
+#define heap            (&__heap_base)
+#define WASM_PAGE_SIZE  65536ULL
+#define HEAP_GROW_PAGES 1024 // 64MB steps
 
 static bool heap_reserve(unsigned long long end) {
 	unsigned long long size = __builtin_wasm_memory_size(0) * WASM_PAGE_SIZE - (size_t)heap;
@@ -21,8 +21,7 @@ static bool heap_reserve(unsigned long long end) {
 		return true;
 	}
 	size_t pages = (size_t)((end - size + WASM_PAGE_SIZE - 1) / WASM_PAGE_SIZE);
-	if (__builtin_wasm_memory_grow(0, pages < HEAP_GROW_PAGES ? HEAP_GROW_PAGES : pages) == (size_t)-1 &&
-	    __builtin_wasm_memory_grow(0, pages) == (size_t)-1) {
+	if (__builtin_wasm_memory_grow(0, pages < HEAP_GROW_PAGES ? HEAP_GROW_PAGES : pages) == (size_t)-1 && __builtin_wasm_memory_grow(0, pages) == (size_t)-1) {
 		return false;
 	}
 	js_memory_grow();

@@ -41,6 +41,9 @@ char        *to_lower_case(char *s);
 char        *to_upper_case(char *s);
 char        *trim_end(char *str);
 int          string_utf8_decode(const char *str, int *i);
+int32_t      parse_int(const char *s);
+int32_t      parse_int_hex(const char *s);
+float        parse_float(const char *s);
 
 void  string_buffer_init(buffer_t *sb);
 void  string_buffer_reset(buffer_t *sb);

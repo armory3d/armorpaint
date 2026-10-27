@@ -108,6 +108,7 @@ const char  *minic_ext_func_sig_at(int i);
 int          minic_global_count_get(void);
 const char  *minic_global_name_at(int i);
 minic_type_t minic_global_type_at(int i);
+void        *minic_global_ptr_at(int i);
 int          minic_enum_const_count_get(void);
 const char  *minic_enum_const_name_at(int i);
 int          minic_enum_const_value_at(int i);

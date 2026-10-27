@@ -19,7 +19,7 @@ void edit_image_node_button(i32 node_id) {
 	string_array_t *models           = any_array_create_from_raw((void *[]){"FLUX 2 klein"}, 1);
 	i32             model            = neural_node_model(node, models);
 	char           *prompt           = neural_node_prompt_area(node);
-	node->buttons->buffer[0]->height = string_split(prompt, "\n")->length + 4;
+	node->buttons->buffer[0]->height = string_split(prompt, "\n")->length * UI_TEXT_AREA_LINE_H() / UI_LINE_H() + 4;
 
 	f32 *values   = neural_node_values(node, 3); // Model, variance, tile
 	f32  variance = ui_slider(&values[1], tr("Variance"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_LEFT, true);

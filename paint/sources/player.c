@@ -8,7 +8,8 @@ void player_update() {
 void player_run_scripts() {
 	g_context->tool = TOOL_TYPE_CURSOR;
 	if (g_project->script_datas != NULL && g_project->script_datas->length > 0) {
-		minic_eval(g_project->script_datas->buffer[0]);
+		char *name = g_project->script_names->buffer[0];
+		minic_eval_named(tab_scripts_expand(g_project->script_datas->buffer[0], name), name);
 	}
 	tab_timeline_play();
 }
@@ -97,24 +98,24 @@ static void player_remove_new_objects() {
 }
 
 static bool player_workspace_on   = false;
-static i32  player_workspace_last = 0;
+static bool player_workspace_last = false;
 static bool player_ui_show_last   = true;
 static bool player_lock_last      = false;
 
 void player_set_workspace(bool on) {
 	if (on) {
-		player_workspace_last = g_config->workspace;
+		player_workspace_last = base_player;
 		player_ui_show_last   = ui_base_show;
 		player_lock_last      = base_player_lock;
-		g_config->workspace   = WORKSPACE_PLAYER;
+		base_player           = true;
 		ui_base_show          = false;
 		ui_menu_show          = false;
 		base_player_lock      = true;
 	}
 	else {
-		g_config->workspace = player_workspace_last;
-		ui_base_show        = player_ui_show_last;
-		base_player_lock    = player_lock_last;
+		base_player      = player_workspace_last;
+		ui_base_show     = player_ui_show_last;
+		base_player_lock = player_lock_last;
 	}
 	player_workspace_on = on;
 	render_path_resize();
@@ -123,7 +124,7 @@ void player_set_workspace(bool on) {
 
 void player_runtime_reset() {
 	script_reset_runtime();
-	trait_reset();
+	iron_mouse_unlock();
 	if (player_workspace_on) {
 		player_set_workspace(false);
 	}
@@ -140,10 +141,10 @@ void player_runtime_reset() {
 
 void player_runtime_restore_context() {
 	g_context->camera_controls = player_base_camera_controls;
-	context_set_viewport_mode(player_base_viewport_mode);
 	if (g_context->viewport_shader != player_base_viewport_shader) {
 		context_set_viewport_shader(player_base_viewport_shader);
 	}
+	context_set_viewport_mode(player_base_viewport_mode);
 	context_select_tool(player_base_tool);
 }
 
@@ -183,7 +184,7 @@ static void player_stop_reload(void *_) {
 		data_cached_blobs = any_map_create();
 	}
 	any_map_set(data_cached_blobs, player_snapshot_path, player_snapshot);
-	player_snapshot = NULL;
+	player_snapshot              = NULL;
 	import_arm_keep_script_trust = true;
 	import_arm_run_project(player_snapshot_path);
 

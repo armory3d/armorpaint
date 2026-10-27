@@ -84,6 +84,11 @@ file read_next_file(directory *dir) {
 	return f;
 }
 
-void close_dir(directory *dir) {}
+void close_dir(directory *dir) {
+	if (dir->handle != NULL) {
+		closedir(dir->handle);
+		dir->handle = NULL;
+	}
+}
 
 #endif

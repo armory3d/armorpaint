@@ -60,14 +60,21 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "float2 smudge_delta = constants.inp.xy - constants.inplast.xy;");
 		node_shader_write_frag(kong, "for (int i = 0; i < 7; i += 1) {");
 		node_shader_write_frag(kong, "float2 smudge_sp = sp.xy - smudge_delta * ((float(i) + 1.0) / 7.0);");
-		node_shader_write_frag(kong, "smudge_sp = float2(clamp(smudge_sp.x, 0.0, 0.9999), clamp(smudge_sp.y, 0.0, 0.9999));");
+		node_shader_write_frag(kong, "float2 tex_coord_inp2 = input.blur_uv;");
+		node_shader_write_frag(kong, "if (smudge_sp.x >= 0.0 && smudge_sp.y >= 0.0 && smudge_sp.x < 1.0 && smudge_sp.y < 1.0) {");
 		node_shader_write_frag(kong, "float4 tex_coord_inp24 = gbuffer2[uint2(uint(smudge_sp.x * constants.gbuffer_size.x), uint(smudge_sp.y * "
 		                             "constants.gbuffer_size.y))];");
-		node_shader_write_frag(kong, "float2 tex_coord_inp2 = tex_coord_inp24.ba;");
+		node_shader_write_frag(kong, "tex_coord_inp2 = tex_coord_inp24.ba + tex_coord_inp24.rg;");
+		node_shader_write_frag(kong, "}");
 		node_shader_write_frag(kong, "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp2);");
 		node_shader_write_frag(kong, "float blur_weight_i = get_smudge_tool_weight(i);");
-		node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_i;");
-		node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_i;");
+		if (is_mask) {
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * blur_weight_i;");
+		}
+		else {
+			node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_i;");
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_i;");
+		}
 		node_shader_write_frag(kong, "float4 texpaint_pack_sample = sample(texpaint_pack_ref, sampler_linear, tex_coord_inp2) * blur_weight_i;");
 		node_shader_write_frag(kong, "roughness += texpaint_pack_sample.g;");
 		node_shader_write_frag(kong, "metallic += texpaint_pack_sample.b;");
@@ -77,8 +84,7 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "}");
 	}
 	else {
-		node_shader_write_frag(kong, "float4 tex_coord_inp4 = gbuffer2[uint2(uint(sp.x * constants.gbuffer_size.x), uint(sp.y * constants.gbuffer_size.y))];");
-		node_shader_write_frag(kong, "float2 tex_coord_inp = tex_coord_inp4.ba;");
+		node_shader_write_frag(kong, "float2 tex_coord_inp = input.blur_uv;");
 		node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");
 		node_shader_write_frag(kong, "float blur_step = 1.0 / constants.texpaint_size.x;");
 		node_shader_add_function(kong, str_get_blur_tool_weight);
@@ -86,8 +92,13 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "for (int i = 0; i <= 14; i += 1) {");
 		node_shader_write_frag(kong, "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(blur_step * float(i - 7), 0.0));");
 		node_shader_write_frag(kong, "float blur_weight_i = get_blur_tool_weight(i);");
-		node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_i;");
-		node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_i;");
+		if (is_mask) {
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * blur_weight_i;");
+		}
+		else {
+			node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_i;");
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_i;");
+		}
 		node_shader_write_frag(kong, "float4 texpaint_pack_sample = sample(texpaint_pack_ref, sampler_linear, tex_coord_inp + float2(blur_step * float(i "
 		                             "- 7), 0.0)) * blur_weight_i;");
 		node_shader_write_frag(kong, "roughness += texpaint_pack_sample.g;");
@@ -101,8 +112,13 @@ void make_blur_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "for (int j = 0; j <= 14; j += 1) {");
 		node_shader_write_frag(kong, "float4 texpaint_sample = sample(texpaint_ref, sampler_linear, tex_coord_inp + float2(0.0, blur_step * float(j - 7)));");
 		node_shader_write_frag(kong, "float blur_weight_j = get_blur_tool_weight(j);");
-		node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_j;");
-		node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_j;");
+		if (is_mask) {
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * blur_weight_j;");
+		}
+		else {
+			node_shader_write_frag(kong, "opacity += texpaint_sample.a * blur_weight_j;");
+			node_shader_write_frag(kong, "basecol += texpaint_sample.rgb * texpaint_sample.a * blur_weight_j;");
+		}
 		node_shader_write_frag(kong, "float4 texpaint_pack_sample = sample(texpaint_pack_ref, sampler_linear, tex_coord_inp + float2(0.0, blur_step * "
 		                             "float(j - 7))) * blur_weight_j;");
 		node_shader_write_frag(kong, "roughness += texpaint_pack_sample.g;");

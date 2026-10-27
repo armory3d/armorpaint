@@ -4,6 +4,212 @@
 gpu_buffer_t *util_render_screen_aligned_full_vb = NULL;
 gpu_buffer_t *util_render_screen_aligned_full_ib = NULL;
 
+typedef struct preview_env {
+	vec4_t         up;
+	vec4_t         d;
+	gpu_texture_t *radiance;
+	any_array_t   *mips; // gpu_texture_t[], 5 blurred levels
+} preview_env_t;
+
+typedef struct env_params {
+	f32 ground;
+	f32 sky;
+	f32 horizon[6];  // Gradient half width per blur level
+	f32 lobe_exp[6]; // Key light lobe per blur level
+	f32 lobe_peak[6];
+} env_params_t;
+
+// Dim key light
+static env_params_t util_render_preview_env_params = {
+    .ground    = 0.12,
+    .sky       = 0.47,
+    .horizon   = {0.5, 0.55, 0.6, 0.7, 0.8, 1.0},
+    .lobe_exp  = {600.0, 150.0, 40.0, 12.0, 5.0, 2.0},
+    .lobe_peak = {3.0, 2.0, 1.2, 0.8, 0.5, 0.35},
+};
+
+static f32_array_t   *util_render_preview_irradiance = NULL;
+static preview_env_t  util_render_preview_envs[4];
+static i32            util_render_preview_envs_count     = 0;
+static f32_array_t   *util_render_saved_irradiance       = NULL;
+static gpu_texture_t *util_render_saved_radiance         = NULL;
+static any_array_t   *util_render_saved_radiance_mipmaps = NULL;
+static f32            util_render_saved_envmap_angle     = 0.0;
+static f32            util_render_saved_strength         = 0.0;
+
+static f32 util_render_smoothstep(f32 e0, f32 e1, f32 x) {
+	f32 t = math_min(math_max((x - e0) / (e1 - e0), 0.0), 1.0);
+	return t * t * (3.0 - 2.0 * t);
+}
+
+static buffer_t *util_render_make_env_pixels(env_params_t *p, vec4_t up, vec4_t d, i32 level, i32 w) {
+	// Equirect RGBA16F sky over a dark ground with a key light lobe, prefiltered for the given blur level
+	// Inverse of envmap_equirect() in deferred_light with angle 0, n = (sin_phi * cos_theta, -sin_phi * sin_theta, cos_phi)
+	i32       h       = w / 2;
+	buffer_t *b       = buffer_create(w * h * 8);
+	u16      *px      = (u16 *)b->buffer;
+	f32      *col_up  = malloc(sizeof(f32) * w * 2);
+	f32      *col_d   = col_up + w;
+	f32       horizon = p->horizon[level];
+	f32       e       = p->lobe_exp[level];
+	f32       peak    = p->lobe_peak[level];
+	f32       cutoff  = math_pow(0.0005 / peak, 1.0 / e); // Lobe below half float precision
+	u16       one     = float_to_half_fast(1.0);
+	for (i32 x = 0; x < w; ++x) {
+		f32 theta = (x + 0.5) / w * 2.0 * math_pi() - math_pi();
+		f32 ct    = math_cos(theta);
+		f32 st    = math_sin(theta);
+		col_up[x] = ct * up.x - st * up.y;
+		col_d[x]  = ct * d.x - st * d.y;
+	}
+	for (i32 y = 0; y < h; ++y) {
+		f32 phi = (y + 0.5) / h * math_pi();
+		f32 sp  = math_sin(phi);
+		f32 cp  = math_cos(phi);
+		for (i32 x = 0; x < w; ++x) {
+			f32 dot_up = sp * col_up[x] + cp * up.z;
+			f32 dot_d  = sp * col_d[x] + cp * d.z;
+			f32 v      = p->ground + (p->sky - p->ground) * util_render_smoothstep(-horizon, horizon, dot_up);
+			if (dot_d > cutoff) {
+				v += peak * math_pow(dot_d, e);
+			}
+			u16 hv    = float_to_half_fast(v);
+			i32 i     = (y * w + x) * 4;
+			px[i]     = hv;
+			px[i + 1] = hv;
+			px[i + 2] = hv;
+			px[i + 3] = one;
+		}
+	}
+	free(col_up);
+	return b;
+}
+
+static void util_render_make_env(env_params_t *p, vec4_t up, vec4_t d, i32 w, gpu_texture_t **radiance, any_array_t **mips, buffer_t **radiance_pixels) {
+	*mips = any_array_create_from_raw((void *[]){}, 0);
+	for (i32 level = 0; level < 6; ++level) {
+		buffer_t      *b   = util_render_make_env_pixels(p, up, d, level, w);
+		gpu_texture_t *tex = gpu_create_texture_from_bytes(b, w, w / 2, GPU_TEXTURE_FORMAT_RGBA64);
+		if (level == 0) {
+			*radiance = tex;
+		}
+		else {
+			any_array_push(*mips, tex);
+		}
+		if (level == 0 && radiance_pixels != NULL) {
+			*radiance_pixels = b;
+		}
+		else {
+			array_free(b);
+			free(b);
+		}
+		w /= 2;
+	}
+}
+
+// Energy conserving sun
+static env_params_t util_render_world_env_params = {
+    .ground    = 0.15,
+    .sky       = 0.5,
+    .horizon   = {0.1, 0.15, 0.25, 0.4, 0.6, 0.9},
+    .lobe_exp  = {600.0, 150.0, 40.0, 12.0, 5.0, 2.0},
+    .lobe_peak = {191.0, 48.0, 13.0, 4.1, 1.9, 0.95}, // sun_energy * (exp + 1) / 2pi
+};
+
+static gpu_texture_t *util_render_default_radiance        = NULL;
+static buffer_t      *util_render_default_radiance_pixels = NULL;
+
+void util_render_make_default_world() {
+	vec4_t       up = (vec4_t){0.0, 0.0, 1.0, 0.0};
+	vec4_t       d  = vec4_norm((vec4_t){-0.43, -0.52, 1.0, 0.0});
+	any_array_t *mips;
+	util_render_make_env(&util_render_world_env_params, up, d, util_render_default_envmap_w, &util_render_default_radiance, &mips,
+	                     &util_render_default_radiance_pixels);
+	// Prefiltering conserves the sun energy, a blurred level projects to sh without aliasing
+	buffer_t *b                      = util_render_make_env_pixels(&util_render_world_env_params, up, d, 3, 64);
+	scene_world->_->irradiance       = import_envmap_get_spherical_harmonics(b, 64, 32);
+	scene_world->_->radiance         = util_render_default_radiance;
+	scene_world->_->radiance_mipmaps = mips;
+	scene_world->envmap              = util_render_default_envmap_name;
+	array_free(b);
+	free(b);
+}
+
+bool util_render_is_default_envmap(char *file) {
+	return file != NULL && string_equals(file, util_render_default_envmap_name);
+}
+
+gpu_texture_t *util_render_default_envmap() {
+	return util_render_default_radiance;
+}
+
+buffer_t *util_render_default_envmap_pixels() {
+	return util_render_default_radiance_pixels;
+}
+
+void util_render_preview_lighting_begin(f32 ambient, f32 key) {
+	// Neutral lighting independent of the scene envmap, with a key light from the top left of the camera
+	if (util_render_preview_irradiance == NULL) {
+		util_render_preview_irradiance = f32_array_create(27);
+	}
+	f32_array_t *irr = util_render_preview_irradiance;
+	memset(irr->buffer, 0, 27 * sizeof(f32));
+	vec4_t right = camera_object_right(scene_camera);
+	vec4_t up    = camera_object_up(scene_camera);
+	vec4_t back  = vec4_mult(camera_object_look(scene_camera), -1.0);
+	vec4_t d     = vec4_norm((vec4_t){-0.6 * right.x + 0.3 * back.x + up.x, -0.6 * right.y + 0.3 * back.y + up.y, -0.6 * right.z + 0.3 * back.z + up.z, 0.0});
+	for (i32 c = 0; c < 3; ++c) {
+		irr->buffer[0 + c] = ambient;   // l00
+		irr->buffer[3 + c] = key * d.y; // l1-1
+		irr->buffer[6 + c] = key * d.z; // l10
+		irr->buffer[9 + c] = key * d.x; // l11
+	}
+
+	// One radiance per preview camera
+	preview_env_t *env = NULL;
+	for (i32 i = 0; i < util_render_preview_envs_count; ++i) {
+		preview_env_t *e = &util_render_preview_envs[i];
+		if (vec4_dot(e->up, up) > 0.999 && vec4_dot(e->d, d) > 0.999) {
+			env = e;
+			break;
+		}
+	}
+	if (env == NULL) {
+		if (util_render_preview_envs_count < 4) {
+			env = &util_render_preview_envs[util_render_preview_envs_count++];
+		}
+		else {
+			env = &util_render_preview_envs[0];
+			gpu_delete_texture(env->radiance);
+			for (i32 i = 0; i < env->mips->length; ++i) {
+				gpu_delete_texture(env->mips->buffer[i]);
+			}
+		}
+		env->up = up;
+		env->d  = d;
+		util_render_make_env(&util_render_preview_env_params, up, d, 256, &env->radiance, &env->mips, NULL);
+	}
+
+	util_render_saved_irradiance       = scene_world->_->irradiance;
+	util_render_saved_radiance         = scene_world->_->radiance;
+	util_render_saved_radiance_mipmaps = scene_world->_->radiance_mipmaps;
+	util_render_saved_envmap_angle     = g_context->envmap_angle;
+	scene_world->_->irradiance         = irr;
+	scene_world->_->radiance           = env->radiance;
+	scene_world->_->radiance_mipmaps   = env->mips;
+	g_context->envmap_angle            = 0.0;
+	util_render_saved_strength         = scene_world->strength;
+	scene_world->strength              = 2.0;
+}
+
+void util_render_preview_lighting_end() {
+	scene_world->_->irradiance       = util_render_saved_irradiance;
+	scene_world->_->radiance         = util_render_saved_radiance;
+	scene_world->_->radiance_mipmaps = util_render_saved_radiance_mipmaps;
+	g_context->envmap_angle          = util_render_saved_envmap_angle;
+	scene_world->strength            = util_render_saved_strength;
+}
+
 void util_render_make_material_preview() {
 	g_context->material_preview = true;
 
@@ -31,19 +237,17 @@ void util_render_make_material_preview() {
 	scene_camera->data->fov = 0.92;
 	viewport_update_camera_type(CAMERA_TYPE_PERSPECTIVE);
 
-	world_data_t *probe           = scene_world;
-	f32           _probe_strength = probe->strength;
-	probe->strength               = 2;
-	f32 _envmap_angle             = g_context->envmap_angle;
-	g_context->envmap_angle       = 0.0;
-	f32 _brush_scale              = g_context->brush_scale;
-	g_context->brush_scale        = 1.5;
-	f32 _brush_nodes_scale        = g_context->brush_nodes_scale;
-	g_context->brush_nodes_scale  = 1.0;
+	f32 _brush_scale             = g_context->brush_scale;
+	g_context->brush_scale       = 1.5;
+	f32 _brush_nodes_scale       = g_context->brush_nodes_scale;
+	g_context->brush_nodes_scale = 1.0;
 
 	gpu_texture_t *_envmap = scene_world->_->envmap;
 	scene_world->_->envmap = g_context->preview_envmap;
+	util_render_preview_lighting_begin(0.5, 0.65);
 	// No resize
+	i32 _last_w         = _render_path_last_w;
+	i32 _last_h         = _render_path_last_h;
 	_render_path_last_w = util_render_material_preview_size;
 	_render_path_last_h = util_render_material_preview_size;
 	camera_object_build_proj(scene_camera, -1.0);
@@ -56,8 +260,8 @@ void util_render_make_material_preview() {
 	render_path_commands = _commands;
 
 	g_context->material_preview = false;
-	_render_path_last_w         = sys_w();
-	_render_path_last_h         = sys_h();
+	_render_path_last_w         = _last_w; // Keep a pending viewport resize
+	_render_path_last_h         = _last_h;
 
 	// Restore
 	sphere->base->visible = false;
@@ -72,11 +276,10 @@ void util_render_make_material_preview() {
 	camera_object_build_proj(scene_camera, -1.0);
 	camera_object_build_mat(scene_camera);
 
-	probe->strength              = _probe_strength;
-	g_context->envmap_angle      = _envmap_angle;
 	g_context->brush_scale       = _brush_scale;
 	g_context->brush_nodes_scale = _brush_nodes_scale;
 	scene_world->_->envmap       = _envmap;
+	util_render_preview_lighting_end();
 
 	make_material_parse_mesh_material();
 	g_context->ddirty = 0;
@@ -111,8 +314,11 @@ void util_render_make_decal_preview() {
 	viewport_update_camera_type(CAMERA_TYPE_PERSPECTIVE);
 	gpu_texture_t *_envmap = scene_world->_->envmap;
 	scene_world->_->envmap = g_context->preview_envmap;
+	util_render_preview_lighting_begin(0.7, 0.65);
 
 	// No resize
+	i32 _last_w         = _render_path_last_w;
+	i32 _last_h         = _render_path_last_h;
 	_render_path_last_w = util_render_decal_preview_size;
 	_render_path_last_h = util_render_decal_preview_size;
 	camera_object_build_proj(scene_camera, -1.0);
@@ -125,8 +331,8 @@ void util_render_make_decal_preview() {
 	render_path_commands = _commands;
 
 	g_context->decal_preview = false;
-	_render_path_last_w      = sys_w();
-	_render_path_last_h      = sys_h();
+	_render_path_last_w      = _last_w; // Keep a pending viewport resize
+	_render_path_last_h      = _last_h;
 
 	// Restore
 	plane->base->visible = false;
@@ -142,6 +348,7 @@ void util_render_make_decal_preview() {
 	camera_object_build_mat(scene_camera);
 
 	scene_world->_->envmap = _envmap;
+	util_render_preview_lighting_end();
 
 	make_material_parse_mesh_material();
 	g_context->ddirty = 1; // Refresh depth for decal paint
@@ -209,12 +416,32 @@ void util_render_make_brush_preview_parse_paint_material(void *_) {
 	make_material_parse_paint_material(false);
 }
 
+#define UTIL_RENDER_BRUSH_DOT_RADIUS 1.0
+
+static f32 util_render_brush_wave_x(i32 i, i32 segments) {
+	return 0.15 + 0.7 * (i / (f32)segments);
+}
+
+static f32 util_render_brush_wave_y(i32 i, i32 segments) {
+	return 0.5 + 0.04 * sinf(i / (f32)segments * math_pi() * 2.0);
+}
+
+// Scale the horizontal strip of the given height around the center of the live layer down to the target
+static void util_render_brush_preview_copy(gpu_texture_t *source, gpu_texture_t *target, f32 strip) {
+	f32 sh = strip > 0.0 ? source->height * strip : source->height;
+	draw_begin(target, true, 0x00000000);
+	draw_set_pipeline(pipes_copy);
+	draw_scaled_sub_image(source, 0, (source->height - sh) / 2.0, source->width, sh, 0, 0, target->width, target->height);
+	draw_set_pipeline(NULL);
+	draw_end();
+}
+
 void util_render_make_brush_preview() {
 	if (render_path_paint_live_layer_locked) {
 		return;
 	}
 
-	if (g_config->workflow == WORKFLOW_SCULPT) {
+	if (g_config->tools == TOOLS_SCULPT) {
 		return;
 	}
 
@@ -236,6 +463,10 @@ void util_render_make_brush_preview() {
 	if (g_context->brush->image == NULL) {
 		g_context->brush->image = gpu_create_render_target(util_render_material_preview_size, util_render_material_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
 		g_context->brush->image_icon = gpu_create_render_target(50, 50, GPU_TEXTURE_FORMAT_RGBA32);
+	}
+	if (g_context->brush->image_wave == NULL) {
+		i32 w                        = util_render_material_preview_size;
+		g_context->brush->image_wave = gpu_create_render_target(w, math_floor(w * util_render_brush_wave_strip), GPU_TEXTURE_FORMAT_RGBA32);
 	}
 
 	slot_material_t *_material = g_context->material;
@@ -318,73 +549,80 @@ void util_render_make_brush_preview() {
 	i32 _pdirty               = g_context->pdirty;
 	g_context->pdirty         = 2;
 
-	f32_array_t *points_x = f32_array_create_from_raw(
-	    (f32[]){
-	        0.2,
-	        0.2,
-	        0.35,
-	        0.5,
-	        0.5,
-	        0.5,
-	        0.65,
-	        0.8,
-	        0.8,
-	        0.8,
-	    },
-	    10);
-	f32_array_t *points_y = f32_array_create_from_raw(
-	    (f32[]){
-	        0.5,
-	        0.5,
-	        0.35 - 0.04,
-	        0.2 - 0.08,
-	        0.4 + 0.015,
-	        0.6 + 0.03,
-	        0.45 - 0.025,
-	        0.3 - 0.05,
-	        0.5 + 0.025,
-	        0.7 + 0.05,
-	    },
-	    10);
+	// Dot, saved with the brush and shown in the brushes tab
+	g_context->brush_radius     = UTIL_RENDER_BRUSH_DOT_RADIUS;
+	g_context->prev_paint_vec_x = 0.49; // Directional brushes discard the dab without a previous position
+	g_context->prev_paint_vec_y = 0.5;
+	g_context->last_paint_vec_x = 0.5;
+	g_context->last_paint_vec_y = 0.5;
+	g_context->paint_vec.x      = 0.5;
+	g_context->paint_vec.y      = 0.5;
+	render_path_paint_commands_paint(false);
+	util_render_brush_preview_copy(l->texpaint, g_context->brush->image, 0.0);
 
-	bool sphere_mode = g_context->brush_lazy_radius > 0 && g_context->brush_lazy_step > 0;
-	f32  dot_spacing = 0.0;
-	if (sphere_mode) {
+	// Shallow sine wave, generated at runtime for the parameters panel
+	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
+	g_context->brush_radius = 0.25;
+
+	// Lazy radius in screen space, the brush sits on the plane
+	f32 lazy_r = 0.0;
+	if (g_context->brush_lazy_radius > 0) {
 		f32 _posx              = g_context->posx_picked;
 		f32 _posy              = g_context->posy_picked;
 		f32 _posz              = g_context->posz_picked;
 		g_context->posx_picked = planeo->base->transform->loc.x;
 		g_context->posy_picked = planeo->base->transform->loc.y;
 		g_context->posz_picked = planeo->base->transform->loc.z;
-		dot_spacing            = g_context->brush_lazy_radius * g_context->brush_lazy_step * util_layer_brush_screen_radius() * 3.0;
+		lazy_r                 = g_context->brush_lazy_radius * util_layer_brush_screen_radius() * 3.0;
 		g_context->posx_picked = _posx;
 		g_context->posy_picked = _posy;
 		g_context->posz_picked = _posz;
 	}
+	f32  lazy_step   = g_context->brush_lazy_step;
+	bool sphere_mode = lazy_r > 0 && lazy_step > 0;
 
-	f32 aspect = sys_w() / (f32)sys_h();
-	for (i32 i = 1; i < points_x->length; ++i) {
-		f32 x0 = points_x->buffer[i - 1];
-		f32 y0 = points_y->buffer[i - 1];
-		f32 x1 = points_x->buffer[i];
-		f32 y1 = points_y->buffer[i];
-		i32 n  = 1;
-		if (dot_spacing > 0.0) {
-			f32 len = vec4_dist((vec4_t){x0 * aspect, y0, 0.0, 1.0}, (vec4_t){x1 * aspect, y1, 0.0, 1.0});
-			n       = ceilf(len / dot_spacing);
-			n       = n < 1 ? 1 : n > 16 ? 16 : n;
-		}
-		for (i32 s = 1; s <= n; ++s) {
-			f32 t                       = s / (f32)n;
-			f32 px                      = x0 + (x1 - x0) * t;
-			f32 py                      = y0 + (y1 - y0) * t;
-			g_context->last_paint_vec_x = sphere_mode ? px : x0;
-			g_context->last_paint_vec_y = sphere_mode ? py : y0;
-			g_context->paint_vec.x      = px;
-			g_context->paint_vec.y      = py;
-			render_path_paint_commands_paint(false);
-		}
+	// The mouse moves along the wave and the brush follows it as in input_node_update
+	// Spaced dabs are left in sphere mode, sampled finely as a slow mouse would be
+	f32 aspect  = sys_w() / (f32)sys_h();
+	i32 samples = 64;
+	if (sphere_mode) {
+		f32 len = 0.7 * aspect;
+		samples = math_ceil(len / (lazy_step * lazy_r) * 4.0);
+		samples = samples < 64 ? 64 : samples > 256 ? 256 : samples;
 	}
+	f32 bx = util_render_brush_wave_x(0, samples) * aspect; // Brush, aspect corrected
+	f32 by = util_render_brush_wave_y(0, samples);
+	f32 lx = bx; // Last dab
+	f32 ly = by;
+	// Directional brushes discard the dab without a previous position, lead into the wave
+	g_context->prev_paint_vec_x = util_render_brush_wave_x(-1, samples);
+	g_context->prev_paint_vec_y = util_render_brush_wave_y(-1, samples);
+	for (i32 i = 0; i <= samples; ++i) {
+		f32 mx = util_render_brush_wave_x(i, samples) * aspect;
+		f32 my = util_render_brush_wave_y(i, samples);
+		if (lazy_r > 0) {
+			f32 d = vec4_dist((vec4_t){mx, my, 0.0, 1.0}, (vec4_t){bx, by, 0.0, 1.0});
+			if (i > 0 && d <= lazy_r) {
+				continue;
+			}
+			if (d > lazy_r) {
+				bx = mx + (bx - mx) / d * (1.0 - lazy_step) * lazy_r;
+				by = my + (by - my) / d * (1.0 - lazy_step) * lazy_r;
+			}
+		}
+		else {
+			bx = mx;
+			by = my;
+		}
+		g_context->last_paint_vec_x = (sphere_mode ? bx : lx) / aspect; // Starts with a dot
+		g_context->last_paint_vec_y = sphere_mode ? by : ly;
+		g_context->paint_vec.x      = bx / aspect;
+		g_context->paint_vec.y      = by;
+		render_path_paint_commands_paint(false);
+		lx = bx;
+		ly = by;
+	}
+	util_render_brush_preview_copy(l->texpaint, g_context->brush->image_wave, util_render_brush_wave_strip);
 
 	g_context->brush_radius     = _brush_radius;
 	g_context->brush_opacity    = _brush_opacity;
@@ -418,15 +656,6 @@ void util_render_make_brush_preview() {
 	viewport_update_camera_type(g_context->camera_type);
 	camera_object_build_proj(scene_camera, -1.0);
 	camera_object_build_mat(scene_camera);
-
-	// Scale layer down to to image preview
-	l                     = render_path_paint_live_layer;
-	gpu_texture_t *target = g_context->brush->image;
-	draw_begin(target, true, 0x00000000);
-	draw_set_pipeline(pipes_copy);
-	draw_scaled_image(l->texpaint, 0, 0, target->width, target->height);
-	draw_set_pipeline(NULL);
-	draw_end();
 
 	// Scale image preview down to icon
 	render_target_t *texpreview      = any_map_get(render_path_render_targets, "texpreview");
@@ -830,6 +1059,15 @@ bool util_render_pick_fill_candidates() {
 		g_context->fill_xray_valid = true;
 	}
 	return true;
+}
+
+// Background pixels reconstruct to the far plane
+bool util_render_picked_on_mesh() {
+	camera_object_t *cam = scene_camera;
+	vec4_t           loc = (vec4_t){transform_world_x(cam->base->transform), transform_world_y(cam->base->transform), transform_world_z(cam->base->transform), 0.0};
+	vec4_t           p   = (vec4_t){g_context->posx_picked, g_context->posy_picked, g_context->posz_picked, 0.0};
+	f32              d   = vec4_dot(vec4_sub(p, loc), camera_object_look_world(cam));
+	return d < cam->data->far_plane * 0.99;
 }
 
 mat4_t util_render_get_decal_mat() {

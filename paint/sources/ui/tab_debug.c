@@ -1,4 +1,6 @@
 
+#ifndef NDEBUG
+
 #include "../global.h"
 
 static bool tab_debug_render_targets = false;
@@ -21,6 +23,9 @@ void tab_debug_draw(i32 *htab) {
 
 		if (ui_panel(&tab_debug_performance, "Performance", false, false, false)) {
 			ui_text(string_tmp("%.2f ms", sys_real_delta() * 1000.0f), UI_ALIGN_LEFT, 0x00000000);
+			ui_text(string_tmp("%u draw calls", gpu_debug_draw_calls_frame), UI_ALIGN_LEFT, 0x00000000);
 		}
 	}
 }
+
+#endif

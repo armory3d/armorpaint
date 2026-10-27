@@ -7,9 +7,8 @@ typedef struct tex_image_node {
 } tex_image_node_t;
 
 logic_node_value_t *tex_image_node_get(tex_image_node_t *self, i32 from) {
-	string_array_t *ar   = ui_nodes_enum_texts(self->raw->type);
-	i32             i    = self->raw->buttons->buffer[0]->default_value->buffer[0];
-	char           *file = ar->buffer[i];
+	i32   i    = self->raw->buttons->buffer[0]->default_value->buffer[0];
+	char *file = i >= 0 && i < g_project->_->assets->length ? g_project->_->assets->buffer[i]->file : ""; // 9999 - Texture deleted
 
 	if (from == 0) {
 		logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._str = string_tmp("%s.rgb", file)});

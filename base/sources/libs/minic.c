@@ -1,17 +1,27 @@
 
 // Minimal C interpreter
-// The source is tokenized and compiled to bytecode once, then run on a small stack VM.
-// Names resolve at compile time: variables to frame or global slots, fields to byte offsets,
-// functions to indices. Values keep their runtime type tags, arithmetic widens like C.
+// The source is tokenized and compiled to bytecode once, then run on a register VM.
+// Names resolve at compile time: variables to frame or static registers, fields to byte offsets,
+// functions to indices. Values keep their runtime type tags, arithmetic widens like C. Operations
+// on values whose static type surely matches the tag (floats and ints) use typed instructions.
 
 #include "minic.h"
 #include <ctype.h>
+#include <limits.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(__clang__) && !defined(__wasm__)
+#define MINIC_COMPUTED_GOTO
+#endif
+
+#ifdef __clang__
+#pragma STDC FP_CONTRACT OFF
+#endif
 
 // ████████╗ ██████╗ ██╗  ██╗███████╗███╗   ██╗
 // ╚══██╔══╝██╔═══██╗██║ ██╔╝██╔════╝████╗  ██║
@@ -20,37 +30,40 @@
 //    ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║
 //    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
 
-#define MINIC_TOK_LIST                                                                                                                                        \
-	X(TOK_INT, "'int'")                                                                                                                                       \
-	X(TOK_FLOAT, "'float'")                                                                                                                                   \
-	X(TOK_CHAR, "'char'")                                                                                                                                     \
-	X(TOK_DOUBLE, "'double'")                                                                                                                                 \
-	X(TOK_BOOL, "'bool'")                                                                                                                                     \
-	X(TOK_INT16, "'int16_t'")                                                                                                                                 \
-	X(TOK_UINT16, "'uint16_t'")                                                                                                                               \
-	X(TOK_VOID, "'void'")                                                                                                                                     \
-	X(TOK_RETURN, "'return'")                                                                                                                                 \
-	X(TOK_IF, "'if'")                                                                                                                                         \
-	X(TOK_ELSE, "'else'")                                                                                                                                     \
-	X(TOK_WHILE, "'while'")                                                                                                                                   \
-	X(TOK_FOR, "'for'")                                                                                                                                       \
-	X(TOK_BREAK, "'break'")                                                                                                                                   \
-	X(TOK_CONTINUE, "'continue'")                                                                                                                             \
-	X(TOK_STRUCT, "'struct'")                                                                                                                                 \
-	X(TOK_TYPEDEF, "'typedef'")                                                                                                                               \
-	X(TOK_ENUM, "'enum'")                                                                                                                                     \
-	X(TOK_IDENT, "identifier")                                                                                                                                \
-	X(TOK_NUMBER, "number")                                                                                                                                   \
-	X(TOK_CHAR_LIT, "char literal")                                                                                                                           \
-	X(TOK_STR_LIT, "string literal")                                                                                                                          \
-	X(TOK_LPAREN, "'('") X(TOK_RPAREN, "')'") X(TOK_LBRACE, "'{'") X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") \
-	    X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='")   \
-	        X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='")                \
-	            X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='")          \
-	                X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'")        \
-	                    X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'")                 \
-	                        X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_QUESTION, "'?'")          \
-	                            X(TOK_COLON, "':'") X(TOK_EOF, "end of file")
+#define MINIC_TOK_LIST                                                                                                                                 \
+	X(TOK_INT, "'int'")                                                                                                                                \
+	X(TOK_FLOAT, "'float'")                                                                                                                            \
+	X(TOK_CHAR, "'char'")                                                                                                                              \
+	X(TOK_DOUBLE, "'double'")                                                                                                                          \
+	X(TOK_BOOL, "'bool'")                                                                                                                              \
+	X(TOK_INT16, "'int16_t'")                                                                                                                          \
+	X(TOK_UINT16, "'uint16_t'")                                                                                                                        \
+	X(TOK_VOID, "'void'")                                                                                                                              \
+	X(TOK_RETURN, "'return'")                                                                                                                          \
+	X(TOK_IF, "'if'")                                                                                                                                  \
+	X(TOK_ELSE, "'else'")                                                                                                                              \
+	X(TOK_WHILE, "'while'")                                                                                                                            \
+	X(TOK_FOR, "'for'")                                                                                                                                \
+	X(TOK_BREAK, "'break'")                                                                                                                            \
+	X(TOK_CONTINUE, "'continue'")                                                                                                                      \
+	X(TOK_STRUCT, "'struct'")                                                                                                                          \
+	X(TOK_TYPEDEF, "'typedef'")                                                                                                                        \
+	X(TOK_ENUM, "'enum'")                                                                                                                              \
+	X(TOK_IDENT, "identifier")                                                                                                                         \
+	X(TOK_NUMBER, "number")                                                                                                                            \
+	X(TOK_CHAR_LIT, "char literal")                                                                                                                    \
+	X(TOK_STR_LIT, "string literal")                                                                                                                   \
+	X(TOK_LPAREN, "'('")                                                                                                                               \
+	X(TOK_RPAREN, "')'")                                                                                                                               \
+	X(TOK_LBRACE, "'{'")                                                                                                                               \
+	X(TOK_RBRACE, "'}'") X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='")                \
+	    X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='")           \
+	        X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='")         \
+	            X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'")          \
+	                X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") \
+	                    X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'") X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'")         \
+	                        X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'") X(TOK_ARROW, "'->'") X(TOK_QUESTION, "'?'") X(TOK_COLON, "':'")   \
+	                            X(TOK_EOF, "end of file")
 
 typedef enum {
 #define X(t, s) t,
@@ -82,10 +95,10 @@ static const struct {
 	const char      *kw;
 	minic_tok_type_t tok;
 } minic_keywords[] = {
-    {"int", TOK_INT},           {"float", TOK_FLOAT},   {"char", TOK_CHAR},       {"double", TOK_DOUBLE}, {"bool", TOK_BOOL}, {"void", TOK_VOID},
-    {"int16_t", TOK_INT16},     {"short", TOK_INT16},   {"uint16_t", TOK_UINT16},
-    {"return", TOK_RETURN},     {"if", TOK_IF},         {"else", TOK_ELSE},       {"while", TOK_WHILE},   {"for", TOK_FOR},   {"break", TOK_BREAK},
-    {"continue", TOK_CONTINUE}, {"struct", TOK_STRUCT}, {"typedef", TOK_TYPEDEF}, {"enum", TOK_ENUM},
+    {"int", TOK_INT},       {"float", TOK_FLOAT}, {"char", TOK_CHAR},       {"double", TOK_DOUBLE},     {"bool", TOK_BOOL},     {"void", TOK_VOID},
+    {"int16_t", TOK_INT16}, {"short", TOK_INT16}, {"uint16_t", TOK_UINT16}, {"return", TOK_RETURN},     {"if", TOK_IF},         {"else", TOK_ELSE},
+    {"while", TOK_WHILE},   {"for", TOK_FOR},     {"break", TOK_BREAK},     {"continue", TOK_CONTINUE}, {"struct", TOK_STRUCT}, {"typedef", TOK_TYPEDEF},
+    {"enum", TOK_ENUM},
 };
 
 // Longer operators must come before their prefixes
@@ -345,27 +358,28 @@ typedef struct {
 	char          params[MINIC_MAX_PARAMS][MINIC_MAX_NAME];
 	minic_ctype_t param_types[MINIC_MAX_PARAMS];
 	int           param_count;
-	int           body;  // token index of the '{' that starts the body, -1 for a prototype
-	int           entry; // bytecode offset
-	int           slot_count;
+	int           body;       // token index of the '{' that starts the body, -1 for a prototype
+	int           entry;      // bytecode offset, script callers pass converted arguments
+	int           entry_ext;  // bytecode offset that converts the arguments first, for native callers
+	int           slot_count; // registers: parameters, locals and temporaries
 	minic_ctype_t ret_type;
 	minic_ctx_t  *ctx; // owning context
 } minic_func_t;
 
 typedef struct {
-	int          pc;
-	minic_val_t *fp;
+	const int    *ip;
+	minic_val_t  *fp;
+	minic_func_t *fn;
 } minic_frame_t;
 
-#define MINIC_STACK_SIZE      (1024 * 1024) // Top of the arena, VM values: call frames and temporaries
-#define MINIC_STACK_SLACK     1024          // Temporaries a frame may push on top of its slots
+#define MINIC_STACK_SIZE      (1024 * 1024) // Top of the arena, the registers of the active calls
 #define MINIC_MAX_FRAMES      4096
 #define MINIC_MAX_GLOBAL_VARS 1024
 
 struct minic_ctx_s {
 	minic_u8       *mem;
 	int             mem_used;
-	int             mem_frame; // End of the heap, the VM stack sits above it
+	int             mem_frame; // End of the heap, the call registers sit above it
 	char           *str_pool;  // String literals, indexed by source offset
 	char           *src_copy;
 	const char     *filename;
@@ -373,19 +387,17 @@ struct minic_ctx_s {
 	int            *code_pos; // Source offset of each code word, for runtime errors
 	int             code_len;
 	int             code_cap;
-	minic_val_t    *consts;
-	int             const_count;
-	int             const_cap;
+	minic_val_t    *statics; // Registers shared by all calls: global variables and constants
+	int             static_count;
+	int             static_cap;
 	minic_func_t   *funcs;
 	int             func_count;
 	int             func_cap;
 	minic_struct_t *structs;
 	int             struct_count;
-	minic_val_t    *globals;
-	int             global_count;
 	minic_func_t    init; // Global initializers
 	minic_val_t    *stack_end;
-	minic_val_t    *sp;
+	minic_val_t    *sp; // Registers from here on are free, a native that calls back into the context runs there
 	minic_frame_t  *frames;
 	int             depth;
 	minic_val_t     return_val;
@@ -528,58 +540,94 @@ static minic_ctype_t minic_field_type(minic_ctx_t *ctx, minic_struct_t *def, int
 //  ╚████╔╝ ██║  ██║███████╗╚██████╔╝███████╗███████║
 //   ╚═══╝  ╚═╝  ╚═╝╚══════╝ ╚═════╝ ╚══════╝╚══════╝
 
+// Instructions write register d and read registers a, b, c. Registers are numbered from 0 up in
+// the frame of the call, statics (global variables and constants) are ~0, ~1 and down. The
+// operands list the words after the opcode: r a register, i an immediate. In the final code a
+// register is a byte offset from the frame, or from the end of the statics stored in reverse.
+// [addr] is 8 words, base idx mul add scale off len field: the address base + i * scale + off
+// where i = idx * mul + add must be below the length register. A null base is an error when
+// field (struct index * MINIC_MAX_STRUCT_FIELDS + field index) is >= 0, else loads read 0 and
+// stores are dropped.
+// The instructions from MOV to MADD_I write d as their first operand, compare and jump
+// instructions keep the order of the comparisons from LT_F to NE_I.
+#define MINIC_OPS                                                                                          \
+	X(HALT, "")                                                                                            \
+	X(MOV, "rr")          /* d a */                                                                        \
+	X(INIT, "rrii")       /* d a kind deref: declare d with a converted to kind */                         \
+	X(INIT_EMBED, "rrii") /* d a size align: allocate struct storage, copy a */                            \
+	X(INIT_ARR, "rrriii") /* d b a kind size align: allocate a elements, b is the count */                 \
+	X(ADDRV, "rri")       /* d a deref: the address of variable a */                                       \
+	X(LD, "rrriiiirii")   /* d [addr] kind|deref<<8 */                                                     \
+	X(LEA, "rrriiiiri")   /* d [addr] */                                                                   \
+	X(BIN, "rrri")        /* d a b op: any binary operator on any values */                                \
+	X(MIX, "rrri")        /* d a b op|a_int<<4|b_int<<5: arithmetic or comparison of a float and an int */ \
+	X(CAST, "rri")        /* d a kind */                                                                   \
+	X(NEG, "rr")          /* d a */                                                                        \
+	X(ADD_F, "rrr")       /* d a b: two floats */                                                          \
+	X(SUB_F, "rrr")                                                                                        \
+	X(MUL_F, "rrr")                                                                                        \
+	X(DIV_F, "rrr")                                                                                        \
+	X(ADD_I, "rrr") /* d a b: two ints */                                                                  \
+	X(SUB_I, "rrr")                                                                                        \
+	X(MUL_I, "rrr")                                                                                        \
+	X(DIV_I, "rrr")                                                                                        \
+	X(MOD_I, "rrr")                                                                                        \
+	X(LT_F, "rrr")                                                                                         \
+	X(LE_F, "rrr")                                                                                         \
+	X(EQ_F, "rrr")                                                                                         \
+	X(NE_F, "rrr")                                                                                         \
+	X(LT_I, "rrr")                                                                                         \
+	X(LE_I, "rrr")                                                                                         \
+	X(EQ_I, "rrr")                                                                                         \
+	X(NE_I, "rrr")                                                                                         \
+	X(MADD_F, "rrrr") /* d a b c: a + b * c */                                                             \
+	X(MADD_I, "rrrr")                                                                                      \
+	X(STV, "rrii")       /* a b kind size: store b into variable a */                                      \
+	X(ST, "rriiiiririi") /* [addr] b kind size */                                                          \
+	X(JMP, "i")          /* target */                                                                      \
+	X(JZ, "ir")          /* target a */                                                                    \
+	X(JNZ, "ir")         /* target a */                                                                    \
+	X(JLT_F, "irr")      /* target a b: jump when a < b */                                                 \
+	X(JLE_F, "irr")                                                                                        \
+	X(JEQ_F, "irr")                                                                                        \
+	X(JNE_F, "irr")                                                                                        \
+	X(JLT_I, "irr")                                                                                        \
+	X(JLE_I, "irr")                                                                                        \
+	X(JEQ_I, "irr")                                                                                        \
+	X(JNE_I, "irr")                                                                                        \
+	X(JNLT_F, "irr") /* target a b: jump when not a < b */                                                 \
+	X(JNLE_F, "irr")                                                                                       \
+	X(LOOP_LT, "irir") /* target a k b: a += k, jump when a < b */                                         \
+	X(LOOP_LE, "irir")                                                                                     \
+	X(CALL, "ir")   /* func base: arguments from register base on, the result lands there */               \
+	X(CALLN, "iri") /* ext base argc */                                                                    \
+	X(RET, "rii")   /* a kind deref */
+
 typedef enum {
-	OP_HALT,
-	OP_INT,   // imm: push an int
-	OP_CONST, // k: push consts[k]
-	OP_POP,
-	OP_DUP,
-	OP_LOADV,      // ref: push a variable slot
-	OP_STOREV,     // ref kind size: store the top into a variable, the value stays
-	OP_INITV,      // ref kind deref: pop the initial value of a declared variable
-	OP_INIT_EMBED, // ref size alignment: allocate struct storage for a variable
-	OP_INIT_ARR,   // ref kind size alignment: pop the count, allocate an array
-	OP_ADDRV,      // ref deref: push the address of a variable
-	OP_LOADM,      // kind deref: replace an address with the value stored there
-	OP_STOREM,     // kind size: pop value and address, store, push the value
-	OP_LOADH,      // k: push a host global, consts[k] holds its address and type
-	OP_FIELD,      // offset field: replace a struct pointer with a field address
-	OP_INDEX,      // size length: pop index and pointer, push the element address
-	OP_INDEX_ARR,  // ref size: pop index, push the element address of an array variable
-	OP_INDEX_BUF,  // size delta: pop index and a buffer field address, bounded by its length field
-	OP_INCV,       // ref kind delta post stride
-	OP_INCM,       // kind deref delta post stride size
-	OP_COMPV,      // ref op kind size: compound assignment to a variable
-	OP_COMPM,      // op kind deref size: compound assignment through an address
-	OP_ADD,        // Binary operators, in the order of minic_binop
-	OP_SUB,
-	OP_MUL,
-	OP_DIV,
-	OP_MOD,
-	OP_SHL,
-	OP_SHR,
-	OP_BAND,
-	OP_BOR,
-	OP_XOR,
-	OP_EQ,
-	OP_NE,
-	OP_LT,
-	OP_GT,
-	OP_LE,
-	OP_GE,
-	OP_NEG,
-	OP_NOT,
-	OP_BNOT,
-	OP_CAST,  // kind
-	OP_TOPTR, // deref
-	OP_JMP,   // target
-	OP_JZ,    // target: pop, jump when false
-	OP_JNZ,   // target: pop, jump when true
-	OP_CALL,  // func argc
-	OP_CALLN, // ext argc
-	OP_FNPTR, // func
-	OP_RET,   // kind deref
+#define X(name, operands) OP_##name,
+	MINIC_OPS
+#undef X
 } minic_op_t;
+
+// Operators of OP_BIN and OP_MIX
+enum {
+	BIN_ADD,
+	BIN_SUB,
+	BIN_MUL,
+	BIN_DIV,
+	BIN_MOD,
+	BIN_SHL,
+	BIN_SHR,
+	BIN_BAND,
+	BIN_BOR,
+	BIN_XOR,
+	BIN_EQ,
+	BIN_NE,
+	BIN_LT,
+	BIN_GT,
+	BIN_LE,
+	BIN_GE
+};
 
 static inline int minic_val_to_i(minic_val_t v) {
 	return v.type == MINIC_T_INT ? v.i : (int)minic_val_to_d(v);
@@ -676,7 +724,7 @@ static void minic_mem_store(void *p, minic_val_t v, minic_type_t kind, int size)
 	}
 }
 
-// Variables live in minic_val_t slots whose tag is set when they are declared: int, char,
+// Variables live in minic_val_t registers whose tag is set when they are declared: int, char,
 // int16_t, uint16_t and bool use an INT tag, struct variables hold a pointer to their storage. The union
 // is the variable's native storage, so '&x' points at it. MINIC_T_VOID is a variable
 // typed by its first value.
@@ -721,8 +769,11 @@ static void minic_slot_store(minic_val_t *s, minic_val_t v, minic_type_t kind, i
 }
 
 static void minic_slot_init(minic_val_t *s, minic_val_t v, minic_type_t kind, minic_type_t deref) {
-	if (kind == MINIC_T_VOID) {
+	if (kind == MINIC_T_VOID || (v.type == kind && (kind == MINIC_T_FLOAT || kind == MINIC_T_INT))) {
 		*s = v;
+		if (kind != MINIC_T_VOID) {
+			s->deref_type = deref;
+		}
 		return;
 	}
 	s->type       = kind == MINIC_T_CHAR || kind == MINIC_T_BOOL || kind == MINIC_T_I16 || kind == MINIC_T_U16 ? MINIC_T_INT : kind;
@@ -736,13 +787,13 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, int op) {
 		unsigned int x = (unsigned int)a.i;
 		unsigned int y = (unsigned int)b.i;
 		switch (op) {
-		case OP_ADD:
+		case BIN_ADD:
 			return minic_val_int((int)(x + y));
-		case OP_SUB:
+		case BIN_SUB:
 			return minic_val_int((int)(x - y));
-		case OP_MUL:
+		case BIN_MUL:
 			return minic_val_int((int)(x * y));
-		case OP_DIV:
+		case BIN_DIV:
 			return minic_val_int(b.i == 0 ? 0 : b.i == -1 ? (int)(0u - x) : a.i / b.i);
 		default:
 			return minic_val_int(b.i == 0 || b.i == -1 ? 0 : a.i % b.i);
@@ -751,13 +802,13 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, int op) {
 	if (a.type == MINIC_T_FLOAT && b.type == MINIC_T_FLOAT) {
 		// Same results as the double path below: one float op rounds exactly like double then float
 		switch (op) {
-		case OP_ADD:
+		case BIN_ADD:
 			return minic_val_float(a.f + b.f);
-		case OP_SUB:
+		case BIN_SUB:
 			return minic_val_float(a.f - b.f);
-		case OP_MUL:
+		case BIN_MUL:
 			return minic_val_float(a.f * b.f);
-		case OP_DIV:
+		case BIN_DIV:
 			return minic_val_float(b.f != 0.0f ? a.f / b.f : 0.0f);
 		default:
 			return minic_val_float(b.f != 0.0f ? fmodf(a.f, b.f) : 0.0f);
@@ -781,16 +832,16 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, int op) {
 	double db = minic_val_to_d(b);
 	double r;
 	switch (op) {
-	case OP_ADD:
+	case BIN_ADD:
 		r = da + db;
 		break;
-	case OP_SUB:
+	case BIN_SUB:
 		r = da - db;
 		break;
-	case OP_MUL:
+	case BIN_MUL:
 		r = da * db;
 		break;
-	case OP_DIV:
+	case BIN_DIV:
 		r = db != 0.0 ? da / db : 0.0;
 		break;
 	default:
@@ -808,31 +859,31 @@ static minic_val_t minic_arith(minic_val_t a, minic_val_t b, int op) {
 
 static minic_val_t minic_binop(int op, minic_val_t a, minic_val_t b) {
 	switch (op) {
-	case OP_ADD:
-	case OP_SUB:
-	case OP_MUL:
-	case OP_DIV:
-	case OP_MOD:
+	case BIN_ADD:
+	case BIN_SUB:
+	case BIN_MUL:
+	case BIN_DIV:
+	case BIN_MOD:
 		return minic_arith(a, b, op);
-	case OP_SHL:
+	case BIN_SHL:
 		return minic_val_int((int)((unsigned int)minic_val_to_i(a) << (minic_val_to_i(b) & 31)));
-	case OP_SHR:
+	case BIN_SHR:
 		return minic_val_int(minic_val_to_i(a) >> (minic_val_to_i(b) & 31));
-	case OP_BAND:
+	case BIN_BAND:
 		return minic_val_int(minic_val_to_i(a) & minic_val_to_i(b));
-	case OP_BOR:
+	case BIN_BOR:
 		return minic_val_int(minic_val_to_i(a) | minic_val_to_i(b));
-	case OP_XOR:
+	case BIN_XOR:
 		return minic_val_int(minic_val_to_i(a) ^ minic_val_to_i(b));
-	case OP_EQ:
+	case BIN_EQ:
 		return minic_val_int(minic_val_to_d(a) == minic_val_to_d(b));
-	case OP_NE:
+	case BIN_NE:
 		return minic_val_int(minic_val_to_d(a) != minic_val_to_d(b));
-	case OP_LT:
+	case BIN_LT:
 		return minic_val_int(minic_val_to_d(a) < minic_val_to_d(b));
-	case OP_GT:
+	case BIN_GT:
 		return minic_val_int(minic_val_to_d(a) > minic_val_to_d(b));
-	case OP_LE:
+	case BIN_LE:
 		return minic_val_int(minic_val_to_d(a) <= minic_val_to_d(b));
 	default:
 		return minic_val_int(minic_val_to_d(a) >= minic_val_to_d(b));
@@ -883,8 +934,8 @@ static minic_val_t minic_cast(minic_val_t v, minic_type_t kind) {
 typedef struct {
 	char          name[MINIC_MAX_NAME];
 	minic_ctype_t type;  // Element type for arrays, MINIC_T_VOID when typed by its first value
-	int           ref;   // Frame slot, or -(global slot + 1)
-	bool          array; // The slot holds the data pointer, the next one the element count
+	int           ref;   // Register
+	bool          array; // The register holds the data pointer, the next one the element count
 } minic_sym_t;
 
 typedef struct {
@@ -903,40 +954,85 @@ typedef struct {
 	int            global_count;
 	minic_func_t  *fn; // Function being compiled
 	bool           in_main;
-	int            depth; // Block depth, the top level of main() is 1
-	int            slot_count;
+	int            depth;      // Block depth, the top level of main() is 1
+	int            locals_end; // Registers from here on hold temporaries
+	int            slot_count; // Next free register
 	minic_loop_t  *loop;
+	int            last;  // Offset of the last instruction, -1 when unknown
+	int            prev;  // and of the one before it
+	int            label; // Last jump target, instructions before it are not rewritten
+	int            expr_depth;
+	int            expr_end; // Token after the outermost expression being compiled
+	bool          *konst;    // Which statics are constants
+	int            k0;       // Constant registers: 0, the default index, and INT_MAX, no length
+	int            kmax;
 } minic_comp_t;
 
 typedef enum {
-	MINIC_E_VALUE,  // On the stack
-	MINIC_E_VAR,    // In a variable slot
-	MINIC_E_MEM,    // At the address on the stack
-	MINIC_E_FUNC,   // A function name
-	MINIC_E_NEWVAR, // Unknown name about to be assigned, declares a variable
+	MINIC_E_VALUE,   // In register reg
+	MINIC_E_VAR,     // A variable
+	MINIC_E_MEM,     // In memory at addr
+	MINIC_E_ADDR,    // The address addr itself, a pointer value
+	MINIC_E_FUNC,    // A function name
+	MINIC_E_NEWVAR,  // Unknown name about to be assigned, declares a variable
+	MINIC_E_POSTINC, // 'x++' of a float or int variable, emitted once it is known whether the old value is read
 } minic_emode_t;
+
+typedef struct {
+	int  base;
+	int  idx;
+	int  mul;
+	int  add;
+	int  scale;
+	int  off;
+	int  len;
+	int  field;
+	bool indexed;
+} minic_addr_t;
 
 typedef struct {
 	minic_emode_t     mode;
 	minic_ctype_t     type; // MINIC_T_VOID when only known at run time
 	minic_sym_t      *sym;
+	int               reg;
+	minic_addr_t      addr;
 	int               length;    // Static element count of a decayed array field, else -1
 	int               buf_delta; // '->buffer' field address to its 'length' field, 0 if none
+	int               delta;     // Step of MINIC_E_POSTINC
 	int               fn;        // Script function index, or -1 for a native
 	minic_ext_func_t *ext;
 	const char       *name;
+	bool              loose; // The runtime tag may differ from type.kind: native results, void function results
+	bool              konst; // A number literal
 } minic_cexpr_t;
+
+#define MINIC_ADDR_ARGS(a) (a).base, (a).idx, (a).mul, (a).add, (a).scale, (a).off, (a).len, (a).field
 
 void console_log(char *s);
 
-static int minic_line_at(const char *src, int pos) {
-	int line = 1;
+// "file:line" of pos, following #line N "file" directives
+static const char *minic_where(minic_ctx_t *ctx, int pos) {
+	static char where[256];
+	const char *src  = ctx->src_copy;
+	const char *file = ctx->filename;
+	int         len  = (int)strlen(file);
+	int         line = 1;
 	for (int i = 0; i < pos && src[i] != '\0'; i++) {
+		if ((i == 0 || src[i - 1] == '\n') && strncmp(src + i, "#line ", 6) == 0) {
+			line          = atoi(src + i + 6) - 1; // The directive's own newline counts it up to N
+			const char *q = strchr(src + i, '"');
+			const char *e = q != NULL ? strchr(q + 1, '"') : NULL;
+			if (e != NULL && memchr(src + i, '\n', q - (src + i)) == NULL) {
+				file = q + 1;
+				len  = (int)(e - file);
+			}
+		}
 		if (src[i] == '\n') {
 			line++;
 		}
 	}
-	return line;
+	snprintf(where, sizeof(where), "%.*s:%d", len, file, line);
+	return where;
 }
 
 static minic_token_t *minic_tok(minic_comp_t *c) {
@@ -984,7 +1080,7 @@ static void minic_error(minic_comp_t *c, const char *fmt, ...) {
 	vsnprintf(msg, sizeof(msg), fmt, args);
 	va_end(args);
 	char log[512];
-	snprintf(log, sizeof(log), "%s:%d: error: %s (got %s)", c->ctx->filename, minic_line_at(c->ctx->src_copy, minic_tok(c)->pos), msg,
+	snprintf(log, sizeof(log), "%s: error: %s (got %s)", minic_where(c->ctx, minic_tok(c)->pos), msg,
 	         minic_tok_names[minic_cur(c)]);
 	console_log(log);
 	c->error = true;
@@ -1009,7 +1105,9 @@ static void minic_emit_word(minic_comp_t *c, int word) {
 	ctx->code[ctx->code_len++]   = word;
 }
 
-static void minic_emit(minic_comp_t *c, int op, int n, ...) {
+// Emit an instruction with n operands, return its offset
+static int minic_emit(minic_comp_t *c, int op, int n, ...) {
+	int at = c->ctx->code_len;
 	minic_emit_word(c, op);
 	va_list args;
 	va_start(args, n);
@@ -1017,16 +1115,40 @@ static void minic_emit(minic_comp_t *c, int op, int n, ...) {
 		minic_emit_word(c, va_arg(args, int));
 	}
 	va_end(args);
+	c->prev = c->last;
+	c->last = at;
+	return at;
 }
 
-// Emit a jump, return its operand for minic_patch
-static int minic_emit_jump(minic_comp_t *c, int op, int target) {
-	minic_emit(c, op, 1, target);
-	return c->ctx->code_len - 1;
+// Offset of the last instruction when it is one of first to last and no jump lands after it, else -1
+static int minic_last(minic_comp_t *c, int first, int last) {
+	int p = c->last;
+	return p >= 0 && p >= c->label && c->ctx->code[p] >= first && c->ctx->code[p] <= last ? p : -1;
+}
+
+// Drop the last instruction
+static void minic_unemit(minic_comp_t *c) {
+	c->ctx->code_len = c->last;
+	c->last          = c->prev;
+	c->prev          = -1;
+}
+
+// The next instruction is a jump target
+static int minic_label(minic_comp_t *c) {
+	c->label = c->ctx->code_len;
+	return c->label;
+}
+
+// Emit a jump, return its target operand for minic_patch
+static int minic_emit_jump(minic_comp_t *c, int op, int target, int reg) {
+	return minic_emit(c, op, op == OP_JMP ? 1 : 2, target, reg) + 1;
 }
 
 // Point a chain of jump operands at the next instruction
 static void minic_patch(minic_comp_t *c, int chain) {
+	if (chain > 0) {
+		minic_label(c);
+	}
 	while (chain > 0) {
 		int next            = c->ctx->code[chain];
 		c->ctx->code[chain] = c->ctx->code_len;
@@ -1034,23 +1156,90 @@ static void minic_patch(minic_comp_t *c, int chain) {
 	}
 }
 
-static int minic_const(minic_comp_t *c, minic_val_t v) {
+static int minic_static(minic_comp_t *c, minic_val_t v, bool konst) {
 	minic_ctx_t *ctx = c->ctx;
-	if (ctx->const_count == ctx->const_cap) {
-		ctx->const_cap = ctx->const_cap > 0 ? ctx->const_cap * 2 : 64;
-		ctx->consts    = realloc(ctx->consts, ctx->const_cap * sizeof(minic_val_t));
+	if (ctx->static_count == ctx->static_cap) {
+		ctx->static_cap = ctx->static_cap > 0 ? ctx->static_cap * 2 : 64;
+		ctx->statics    = realloc(ctx->statics, ctx->static_cap * sizeof(minic_val_t));
+		c->konst        = realloc(c->konst, ctx->static_cap * sizeof(bool));
 	}
-	ctx->consts[ctx->const_count] = v;
-	return ctx->const_count++;
+	ctx->statics[ctx->static_count] = v;
+	c->konst[ctx->static_count]     = konst;
+	return ~ctx->static_count++;
 }
 
-static void minic_emit_val(minic_comp_t *c, minic_val_t v) {
-	if (v.type == MINIC_T_INT && v.deref_type == MINIC_T_INT) {
-		minic_emit(c, OP_INT, 1, v.i);
+static int minic_const(minic_comp_t *c, minic_val_t v) {
+	minic_val_t *s = c->ctx->statics;
+	for (int i = 0; i < c->ctx->static_count; ++i) {
+		if (c->konst[i] && s[i].type == v.type && s[i].deref_type == v.deref_type && memcmp(&s[i].d, &v.d, sizeof(v.d)) == 0) {
+			return ~i;
+		}
 	}
-	else {
-		minic_emit(c, OP_CONST, 1, minic_const(c, v));
+	return minic_static(c, v, true);
+}
+
+static int minic_kint(minic_comp_t *c, int n) {
+	return minic_const(c, minic_val_int(n));
+}
+
+// The constant in register r, NULL for any other register
+static minic_val_t *minic_konst(minic_comp_t *c, int r) {
+	return r < 0 && c->konst[~r] ? &c->ctx->statics[~r] : NULL;
+}
+
+static bool minic_is_temp(minic_comp_t *c, int r) {
+	return r >= c->locals_end;
+}
+
+static int minic_temp(minic_comp_t *c) {
+	int r = c->slot_count++;
+	if (c->slot_count > c->fn->slot_count) {
+		c->fn->slot_count = c->slot_count;
 	}
+	return r;
+}
+
+// Release the temporaries from mark on
+static void minic_free(minic_comp_t *c, int mark) {
+	c->slot_count = mark > c->locals_end ? mark : c->locals_end;
+}
+
+// A register for the result of an instruction that reads a and b, their temporaries are released
+static int minic_dest(minic_comp_t *c, int a, int b) {
+	int mark = c->slot_count;
+	if (minic_is_temp(c, a) && a < mark) {
+		mark = a;
+	}
+	if (minic_is_temp(c, b) && b < mark) {
+		mark = b;
+	}
+	minic_free(c, mark);
+	return minic_temp(c);
+}
+
+// Copy register r to register to, the instruction that just computed r writes to 'to' instead when it can
+static void minic_move(minic_comp_t *c, int to, int r) {
+	if (r == to) {
+		return;
+	}
+	int p = minic_last(c, OP_MOV, OP_MADD_I);
+	if (p >= 0 && c->ctx->code[p + 1] == r && minic_is_temp(c, r)) {
+		c->ctx->code[p + 1] = to;
+		return;
+	}
+	minic_emit(c, OP_MOV, 2, to, r);
+}
+
+static bool minic_is_integer(minic_ctype_t t) {
+	return t.kind == MINIC_T_INT || t.kind == MINIC_T_CHAR || t.kind == MINIC_T_BOOL || t.kind == MINIC_T_I16 || t.kind == MINIC_T_U16;
+}
+
+// MINIC_T_FLOAT or MINIC_T_INT when the value surely carries that tag at run time, else MINIC_T_VOID
+static minic_type_t minic_typed(minic_cexpr_t e) {
+	if (e.loose || e.type.pointer > 0) {
+		return MINIC_T_VOID;
+	}
+	return e.type.kind == MINIC_T_FLOAT ? MINIC_T_FLOAT : minic_is_integer(e.type) ? MINIC_T_INT : MINIC_T_VOID;
 }
 
 // On failure the index is unchanged. Opaque names are accepted in declaration
@@ -1165,19 +1354,29 @@ static minic_sym_t *minic_sym_find(minic_comp_t *c, const char *name) {
 	return NULL;
 }
 
-// Globals are the top-level declarations plus the top level of main(), which every function sees
+// Globals are the top-level declarations plus the top level of main(), which every function sees.
+// The name is set by the caller, a variable is not visible in its own initializer.
 static minic_sym_t *minic_declare(minic_comp_t *c, const char *name, minic_ctype_t type, bool array) {
-	int          slots  = array ? 2 : 1;
-	bool         global = c->fn == &c->ctx->init || (c->in_main && c->depth == 1);
 	minic_sym_t *sym;
-	if (global) {
+	if (c->fn == &c->ctx->init || (c->in_main && c->depth == 1)) {
+		// Included scripts share one scope, a repeated top-level name would silently rebind every use
+		if (c->fn == &c->ctx->init) {
+			for (int i = 0; i < c->global_count; ++i) {
+				if (strcmp(c->globals[i].name, name) == 0) {
+					minic_error(c, "redefinition of global '%s'", name);
+					return NULL;
+				}
+			}
+		}
 		if (c->global_count >= MINIC_MAX_GLOBAL_VARS) {
 			minic_error(c, "too many global variables (max %d), cannot declare '%s'", MINIC_MAX_GLOBAL_VARS, name);
 			return NULL;
 		}
 		sym      = &c->globals[c->global_count++];
-		sym->ref = -(c->ctx->global_count + 1);
-		c->ctx->global_count += slots;
+		sym->ref = minic_static(c, minic_val_int(0), false);
+		if (array) {
+			minic_static(c, minic_val_int(0), false); // The element count, register ref - 1
+		}
 	}
 	else {
 		if (c->local_count >= MINIC_MAX_VARS) {
@@ -1185,82 +1384,140 @@ static minic_sym_t *minic_declare(minic_comp_t *c, const char *name, minic_ctype
 			return NULL;
 		}
 		sym      = &c->locals[c->local_count++];
-		sym->ref = c->slot_count;
-		c->slot_count += slots;
-		if (c->slot_count > c->fn->slot_count) {
-			c->fn->slot_count = c->slot_count;
+		sym->ref = minic_temp(c);
+		if (array) {
+			minic_temp(c);
 		}
+		c->locals_end = c->slot_count;
 	}
-	strncpy(sym->name, name, MINIC_MAX_NAME - 1);
-	sym->name[MINIC_MAX_NAME - 1] = '\0';
-	sym->type                     = type;
-	sym->array                    = array;
+	sym->name[0] = '\0';
+	sym->type    = type;
+	sym->array   = array;
 	return sym;
 }
 
-// Initialize a declared variable, from the value on the stack when there is one
-static void minic_init_var(minic_comp_t *c, minic_sym_t *sym, bool has_value) {
-	minic_ctype_t type = sym->type;
-	if (type.kind == MINIC_T_EMBED) {
-		if (type.size <= 0) {
-			minic_error(c, "incomplete struct type for '%s'", sym->name);
-			return;
-		}
-		minic_emit(c, OP_INIT_EMBED, 3, sym->ref, type.size, type.alignment);
-		if (has_value) {
-			minic_emit(c, OP_STOREV, 3, sym->ref, MINIC_T_EMBED, type.size);
-			minic_emit(c, OP_POP, 0);
-		}
-		return;
-	}
-	if (!has_value) {
-		minic_emit(c, OP_INT, 1, 0);
-	}
-	minic_emit(c, OP_INITV, 3, sym->ref, type.kind, minic_load_deref(type));
+static void minic_name(minic_sym_t *sym, const char *name) {
+	strncpy(sym->name, name, MINIC_MAX_NAME - 1);
+	sym->name[MINIC_MAX_NAME - 1] = '\0';
 }
 
 static void minic_scope_push(minic_comp_t *c, int *saved) {
 	saved[0] = c->local_count;
-	saved[1] = c->slot_count;
+	saved[1] = c->locals_end;
 	c->depth++;
 }
 
 static void minic_scope_pop(minic_comp_t *c, int *saved) {
 	c->local_count = saved[0];
+	c->locals_end  = saved[1];
 	c->slot_count  = saved[1];
 	c->depth--;
 }
 
 static minic_cexpr_t minic_c_assign(minic_comp_t *c);
+static int           minic_c_branch(minic_comp_t *c, minic_cexpr_t e, bool when, int chain);
 static minic_cexpr_t minic_c_unary(minic_comp_t *c);
 static minic_cexpr_t minic_c_ternary(minic_comp_t *c);
 static void          minic_c_stmt(minic_comp_t *c);
 
-static minic_cexpr_t minic_expr(minic_emode_t mode, minic_ctype_t type) {
+static minic_cexpr_t minic_expr(minic_emode_t mode, minic_ctype_t type, int reg) {
 	minic_cexpr_t r = {0};
 	r.mode          = mode;
 	r.type          = type;
+	r.reg           = reg;
 	r.length        = -1;
 	r.fn            = -1;
 	return r;
 }
 
-// Turn an expression into a value on the stack
+static minic_cexpr_t minic_var_expr(minic_sym_t *sym) {
+	minic_cexpr_t r = minic_expr(MINIC_E_VAR, sym->array ? minic_pointer_type(sym->type) : sym->type, sym->ref);
+	r.sym           = sym;
+	return r;
+}
+
+// An address at the pointer in register base
+static minic_addr_t minic_addr_at(minic_comp_t *c, int base) {
+	minic_addr_t a = {0};
+	a.base         = base;
+	a.idx          = c->k0;
+	a.len          = c->kmax;
+	a.field        = -1;
+	return a;
+}
+
+// A register for a value computed from the address a, the temporaries of a are released
+static int minic_addr_dest(minic_comp_t *c, minic_addr_t a) {
+	int regs[] = {a.base, a.idx, a.len};
+	int mark   = c->slot_count;
+	for (int k = 0; k < 3; ++k) {
+		if (minic_is_temp(c, regs[k]) && regs[k] < mark) {
+			mark = regs[k];
+		}
+	}
+	minic_free(c, mark);
+	return minic_temp(c);
+}
+
+static int minic_kd(minic_ctype_t t) {
+	return t.kind | minic_load_deref(t) << 8;
+}
+
+// Whether the rest of the expression may change a variable that was just read: it assigns the
+// variable, or calls a script function and the variable is a global
+static bool minic_changed_later(minic_comp_t *c, minic_sym_t *sym) {
+	if (sym->array || sym->type.kind == MINIC_T_EMBED) {
+		return false;
+	}
+	for (int i = c->i; i < c->expr_end; ++i) {
+		minic_token_t   *t    = &c->toks[i];
+		minic_tok_type_t next = c->toks[i + 1].type;
+		if (t->type == TOK_IDENT && next == TOK_LPAREN && sym->ref < 0 && minic_func_index(c->ctx, t->text) >= 0) {
+			return true;
+		}
+		if (t->type == TOK_IDENT && strcmp(t->text, sym->name) == 0 &&
+		    (next == TOK_ASSIGN || (next >= TOK_PLUS_ASSIGN && next <= TOK_XOR_ASSIGN) || next == TOK_INC || next == TOK_DEC || t[-1].type == TOK_INC ||
+		     t[-1].type == TOK_DEC)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static void minic_c_step(minic_comp_t *c, minic_sym_t *sym, int delta);
+
+// Turn an expression into a value in a register
 static minic_cexpr_t minic_c_load(minic_comp_t *c, minic_cexpr_t e) {
+	int d;
 	switch (e.mode) {
 	case MINIC_E_VAR:
-		minic_emit(c, OP_LOADV, 1, e.sym->ref);
+		e.reg = e.sym->ref;
+		if (minic_changed_later(c, e.sym)) {
+			e.reg = minic_temp(c); // Read it now
+			minic_emit(c, OP_MOV, 2, e.reg, e.sym->ref);
+		}
 		break;
 	case MINIC_E_MEM:
-		if (e.type.kind != MINIC_T_EMBED) { // Struct storage is its own address
-			minic_emit(c, OP_LOADM, 2, e.type.kind, minic_load_deref(e.type));
-		}
+		d = minic_addr_dest(c, e.addr);
+		minic_emit(c, OP_LD, 10, d, MINIC_ADDR_ARGS(e.addr), minic_kd(e.type));
+		e.reg = d;
+		break;
+	case MINIC_E_ADDR:
+		d = minic_addr_dest(c, e.addr);
+		minic_emit(c, OP_LEA, 9, d, MINIC_ADDR_ARGS(e.addr));
+		e.reg = d;
+		break;
+	case MINIC_E_POSTINC:
+		e.reg = minic_temp(c);
+		minic_emit(c, OP_MOV, 2, e.reg, e.sym->ref);
+		minic_c_step(c, e.sym, e.delta);
 		break;
 	case MINIC_E_FUNC:
 		if (e.fn < 0) {
 			minic_error(c, "native function '%s' cannot be used as a value", e.name);
+			break;
 		}
-		minic_emit(c, OP_FNPTR, 1, e.fn);
+		e.reg  = minic_const(c, minic_val_ptr(&c->ctx->funcs[e.fn])); // The function list is complete, the address stays
 		e.type = minic_scalar_type(MINIC_T_PTR);
 		break;
 	case MINIC_E_NEWVAR:
@@ -1274,15 +1531,105 @@ static minic_cexpr_t minic_c_load(minic_comp_t *c, minic_cexpr_t e) {
 	return e;
 }
 
+static minic_cexpr_t minic_c_binop(minic_comp_t *c, int o, minic_cexpr_t a, minic_cexpr_t b, int dest);
+static minic_cexpr_t minic_c_store_var(minic_comp_t *c, minic_sym_t *sym, minic_cexpr_t v);
+
+// The tag of a value of type t
+static minic_type_t minic_tag(minic_ctype_t t) {
+	return minic_is_integer(t) ? MINIC_T_INT : t.kind == MINIC_T_EMBED ? MINIC_T_PTR : t.kind;
+}
+
+// 'target o= v': the old value is read after v, the result converts to its type. The value of the
+// expression is the old one when 'post'.
+static minic_cexpr_t minic_c_update(minic_comp_t *c, minic_cexpr_t target, int o, minic_cexpr_t v, bool post) {
+	minic_ctype_t t   = target.type;
+	minic_type_t  tag = minic_tag(t);
+	minic_cexpr_t old = minic_expr(MINIC_E_VALUE, t, target.reg);
+	if (target.mode == MINIC_E_MEM) {
+		old.reg = minic_temp(c); // The address stays for the store
+		minic_emit(c, OP_LD, 10, old.reg, MINIC_ADDR_ARGS(target.addr), minic_kd(t));
+	}
+	else if (post) {
+		old.reg = minic_temp(c);
+		minic_emit(c, OP_MOV, 2, old.reg, target.reg);
+	}
+	minic_cexpr_t r = minic_c_binop(c, o, old, v, post ? minic_temp(c) : -1);
+	if (tag != MINIC_T_VOID && (r.loose || minic_tag(r.type) != tag)) {
+		minic_emit(c, OP_CAST, 3, r.reg, r.reg, tag);
+		r.type  = minic_scalar_type(tag);
+		r.loose = false;
+	}
+	if (tag == MINIC_T_PTR) {
+		r.type = t; // Keep the pointee type
+	}
+	if (target.mode == MINIC_E_MEM) {
+		minic_emit(c, OP_ST, 11, MINIC_ADDR_ARGS(target.addr), r.reg, t.kind, t.size);
+	}
+	else {
+		minic_cexpr_t stored = minic_c_store_var(c, target.sym, r);
+		r                    = tag == MINIC_T_VOID ? target : stored; // A variable typed at run time reads back converted
+	}
+	return post ? old : r;
+}
+
+// Add delta to a float or int variable
+static void minic_c_step(minic_comp_t *c, minic_sym_t *sym, int delta) {
+	minic_c_update(c, minic_var_expr(sym), BIN_ADD, minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, delta)), false);
+}
+
 static minic_cexpr_t minic_c_value(minic_comp_t *c) {
 	return minic_c_load(c, minic_c_assign(c));
 }
 
+// A value whose result is not used
+static void minic_c_drop(minic_comp_t *c, minic_cexpr_t e) {
+	if (e.mode == MINIC_E_POSTINC) {
+		minic_c_step(c, e.sym, e.delta);
+	}
+	else {
+		minic_c_load(c, e);
+	}
+	minic_free(c, c->locals_end);
+}
+
+// Store the value v in the variable sym being declared, converted to its type
+static void minic_c_init(minic_comp_t *c, minic_sym_t *sym, minic_cexpr_t *v) {
+	minic_ctype_t type = sym->type;
+	if (type.kind == MINIC_T_EMBED) {
+		if (type.size <= 0) {
+			minic_error(c, "incomplete struct type for '%s'", sym->name);
+			return;
+		}
+		minic_emit(c, OP_INIT_EMBED, 4, sym->ref, v != NULL ? v->reg : c->k0, type.size, type.alignment);
+	}
+	else if (v != NULL && minic_typed(*v) == type.kind) {
+		minic_move(c, sym->ref, v->reg);
+	}
+	else {
+		minic_emit(c, OP_INIT, 4, sym->ref, v != NULL ? v->reg : c->k0, type.kind, minic_load_deref(type));
+	}
+}
+
 static minic_cexpr_t minic_c_call(minic_comp_t *c, minic_cexpr_t f) {
 	minic_next(c); // Consume '('
-	int argc = 0;
+	minic_func_t *fn   = f.fn >= 0 ? &c->ctx->funcs[f.fn] : NULL;
+	int           base = c->slot_count; // Arguments go to consecutive registers, the callee's first ones
+	int           argc = 0;
 	while (minic_cur(c) != TOK_RPAREN && minic_cur(c) != TOK_EOF && !c->error) {
-		minic_c_value(c);
+		int           slot = base + argc;
+		minic_cexpr_t v    = minic_c_value(c);
+		minic_free(c, slot);
+		if (c->slot_count != slot) {
+			minic_error(c, "cannot declare a variable in a call argument");
+		}
+		minic_move(c, minic_temp(c), v.reg);
+		if (fn != NULL && argc < fn->param_count) {
+			// The callee takes its arguments converted to the parameter types, unless the types match
+			minic_ctype_t p = fn->param_types[argc];
+			if (p.kind != MINIC_T_EMBED && minic_typed(v) != p.kind && !(p.kind == MINIC_T_PTR && v.type.kind == MINIC_T_PTR && !v.loose)) {
+				minic_emit(c, OP_INIT, 4, slot, slot, p.kind, minic_load_deref(p));
+			}
+		}
 		argc++;
 		if (minic_cur(c) == TOK_COMMA) {
 			minic_next(c);
@@ -1295,14 +1642,17 @@ static minic_cexpr_t minic_c_call(minic_comp_t *c, minic_cexpr_t f) {
 	if (argc > MINIC_MAX_ARGS) {
 		minic_error(c, "too many arguments (max %d)", MINIC_MAX_ARGS);
 	}
-	if (f.fn >= 0) {
-		minic_func_t *fn = &c->ctx->funcs[f.fn];
+	minic_free(c, base);
+	minic_temp(c); // The result
+	if (fn != NULL) {
 		if (argc != fn->param_count) {
 			minic_error(c, "'%s' expects %d arguments, got %d", fn->name, fn->param_count, argc);
 		}
-		minic_emit(c, OP_CALL, 2, f.fn, argc);
-		minic_ctype_t type = fn->ret_type.kind == MINIC_T_VOID ? minic_scalar_type(MINIC_T_INT) : fn->ret_type;
-		return minic_expr(MINIC_E_VALUE, type);
+		minic_emit(c, OP_CALL, 2, f.fn, base);
+		bool          is_void = fn->ret_type.kind == MINIC_T_VOID;
+		minic_cexpr_t r       = minic_expr(MINIC_E_VALUE, is_void ? minic_scalar_type(MINIC_T_INT) : fn->ret_type, base);
+		r.loose               = is_void; // 'return x;' in a void function passes x as it is
+		return r;
 	}
 	const char *open = strchr(f.ext->sig, '(');
 	if (open != NULL && strstr(f.ext->sig, "...") == NULL) {
@@ -1314,41 +1664,45 @@ static minic_cexpr_t minic_c_call(minic_comp_t *c, minic_cexpr_t f) {
 			minic_error(c, "'%s' expects %d arguments, got %d", f.name, count, argc);
 		}
 	}
-	minic_emit(c, OP_CALLN, 2, (int)(f.ext - minic_ext_funcs), argc);
-	return minic_expr(MINIC_E_VALUE, minic_native_type(c, f.ext));
+	minic_emit(c, OP_CALLN, 3, (int)(f.ext - minic_ext_funcs), base, argc);
+	minic_cexpr_t r = minic_expr(MINIC_E_VALUE, minic_native_type(c, f.ext), base);
+	r.loose         = true; // The signature does not bind what the native returns
+	return r;
 }
 
 static minic_cexpr_t minic_c_sizeof(minic_comp_t *c) {
 	minic_expect(c, TOK_LPAREN);
 	minic_ctype_t type;
 	int           i = c->i;
+	minic_cexpr_t r = minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), 0);
 	if (minic_parse_type(c, &i, false, &type)) {
-		c->i = i;
-		minic_emit(c, OP_INT, 1, type.size);
+		c->i  = i;
+		r.reg = minic_kint(c, type.size);
 	}
 	else {
 		minic_sym_t *sym = minic_cur(c) == TOK_IDENT ? minic_sym_find(c, minic_tok(c)->text) : NULL;
 		minic_expect(c, TOK_IDENT);
+		r.reg = minic_kint(c, sym != NULL ? sym->type.size : 0);
 		if (sym != NULL && sym->array) {
-			minic_emit(c, OP_LOADV, 1, sym->ref >= 0 ? sym->ref + 1 : sym->ref - 1); // Element count
-			minic_emit(c, OP_INT, 1, sym->type.size);
-			minic_emit(c, OP_MUL, 0);
-		}
-		else {
-			minic_emit(c, OP_INT, 1, sym != NULL ? sym->type.size : 0);
+			int count = sym->ref >= 0 ? sym->ref + 1 : sym->ref - 1;
+			int d     = minic_temp(c);
+			minic_emit(c, OP_MUL_I, 3, d, count, r.reg);
+			r.reg = d;
 		}
 	}
 	minic_expect(c, TOK_RPAREN);
-	return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+	return r;
 }
 
 static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 	minic_token_t *t = minic_tok(c);
 	if (t->type == TOK_NUMBER || t->type == TOK_CHAR_LIT || t->type == TOK_STR_LIT) {
 		minic_next(c);
-		minic_emit_val(c, t->val);
-		bool string = t->type == TOK_STR_LIT;
-		return minic_expr(MINIC_E_VALUE, string ? minic_pointer_type(minic_scalar_type(MINIC_T_CHAR)) : minic_scalar_type(t->val.type));
+		bool          string = t->type == TOK_STR_LIT;
+		minic_cexpr_t r =
+		    minic_expr(MINIC_E_VALUE, string ? minic_pointer_type(minic_scalar_type(MINIC_T_CHAR)) : minic_scalar_type(t->val.type), minic_const(c, t->val));
+		r.konst = !string;
+		return r;
 	}
 	if (t->type == TOK_IDENT) {
 		const char *name = t->text;
@@ -1356,7 +1710,7 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		if (strcmp(name, "sizeof") == 0) {
 			return minic_c_sizeof(c);
 		}
-		minic_cexpr_t r = minic_expr(MINIC_E_FUNC, minic_scalar_type(MINIC_T_PTR));
+		minic_cexpr_t r = minic_expr(MINIC_E_FUNC, minic_scalar_type(MINIC_T_PTR), 0);
 		r.name          = name;
 		if (minic_cur(c) == TOK_LPAREN) {
 			r.fn  = minic_func_index(c->ctx, name);
@@ -1371,10 +1725,7 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		}
 		minic_sym_t *sym = minic_sym_find(c, name);
 		if (sym != NULL) {
-			r.mode = MINIC_E_VAR;
-			r.sym  = sym;
-			r.type = sym->array ? minic_pointer_type(sym->type) : sym->type;
-			return r;
+			return minic_var_expr(sym);
 		}
 		r.fn = minic_func_index(c->ctx, name);
 		if (r.fn >= 0) {
@@ -1382,8 +1733,9 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		}
 		int ec = minic_enum_const_find(name);
 		if (ec >= 0) {
-			minic_emit(c, OP_INT, 1, minic_enum_const_value_at(ec));
-			return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+			r       = minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, minic_enum_const_value_at(ec)));
+			r.konst = true;
+			return r;
 		}
 		minic_tok_type_t next = minic_cur(c);
 		if (next == TOK_ASSIGN) {
@@ -1393,11 +1745,12 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		minic_type_t kind;
 		const void  *host = minic_global_ptr(name, &kind);
 		if (host != NULL && next != TOK_INC && next != TOK_DEC && (next < TOK_PLUS_ASSIGN || next > TOK_XOR_ASSIGN)) {
-			minic_emit(c, OP_LOADH, 1, minic_const(c, minic_val_typed_ptr((void *)host, kind)));
-			return minic_expr(MINIC_E_VALUE, minic_scalar_type(kind));
+			r      = minic_expr(MINIC_E_MEM, minic_scalar_type(kind), 0);
+			r.addr = minic_addr_at(c, minic_const(c, minic_val_ptr((void *)host)));
+			return minic_c_load(c, r); // A value, not assignable
 		}
 		minic_error(c, "unknown identifier '%s'", name);
-		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), c->k0);
 	}
 	if (t->type == TOK_LPAREN) {
 		minic_ctype_t type;
@@ -1405,13 +1758,14 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		if (minic_parse_type(c, &i, false, &type) && c->toks[i].type == TOK_RPAREN) {
 			c->i            = i + 1;
 			minic_cexpr_t v = minic_c_load(c, minic_c_unary(c));
-			if (type.pointer) {
-				minic_emit(c, OP_TOPTR, 1, type.deref);
+			minic_cexpr_t r = minic_expr(MINIC_E_VALUE, type, v.reg);
+			r.loose         = v.loose;
+			if (type.pointer || (type.def == NULL && v.type.kind != type.kind)) {
+				r.reg = minic_dest(c, v.reg, v.reg);
+				minic_emit(c, OP_CAST, 3, r.reg, v.reg, type.pointer ? MINIC_T_PTR : type.kind);
+				r.loose = type.pointer && v.loose;
 			}
-			else if (type.def == NULL && v.type.kind != type.kind) {
-				minic_emit(c, OP_CAST, 1, type.kind);
-			}
-			return minic_expr(MINIC_E_VALUE, type);
+			return r;
 		}
 		minic_next(c);
 		minic_cexpr_t r = minic_c_assign(c);
@@ -1419,66 +1773,129 @@ static minic_cexpr_t minic_c_primary(minic_comp_t *c) {
 		return r;
 	}
 	minic_error(c, "expected expression");
-	return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+	return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), c->k0);
 }
 
 static minic_cexpr_t minic_c_field(minic_comp_t *c, minic_cexpr_t owner, const char *name) {
 	minic_struct_t *def = owner.type.def;
 	if (def == NULL) {
 		minic_error(c, "member access requires a known struct type");
-		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), c->k0);
 	}
 	int idx = minic_struct_field_idx(def, name);
 	if (idx < 0) {
 		minic_error(c, "struct '%s' has no field '%s'", def->name, name);
-		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), c->k0);
 	}
-	minic_c_load(c, owner); // The struct pointer
-	minic_emit(c, OP_FIELD, 2, def->offsets[idx], (int)(def - c->ctx->structs) * MINIC_MAX_STRUCT_FIELDS + idx);
+	minic_addr_t a;
+	if ((owner.mode == MINIC_E_MEM && owner.type.kind == MINIC_T_EMBED) || owner.mode == MINIC_E_ADDR) {
+		a = owner.addr; // The struct is at that address
+	}
+	else {
+		a = minic_addr_at(c, minic_c_load(c, owner).reg);
+	}
+	a.off += def->offsets[idx];
+	if (a.field < 0) {
+		a.field = (int)(def - c->ctx->structs) * MINIC_MAX_STRUCT_FIELDS + idx;
+	}
 	minic_ctype_t type = minic_field_type(c->ctx, def, idx);
 	if (def->counts[idx] > 0) {
-		minic_cexpr_t r = minic_expr(MINIC_E_VALUE, minic_pointer_type(type));
+		minic_cexpr_t r = minic_expr(MINIC_E_ADDR, minic_pointer_type(type), 0);
+		r.addr          = a;
 		r.length        = def->counts[idx];
 		return r;
 	}
-	minic_cexpr_t r = minic_expr(MINIC_E_MEM, type);
-	int           l = strcmp(name, "buffer") == 0 ? minic_struct_field_idx(def, "length") : -1;
+	minic_cexpr_t r = minic_expr(MINIC_E_MEM, type, 0);
+	r.addr          = a;
+	int l           = strcmp(name, "buffer") == 0 ? minic_struct_field_idx(def, "length") : -1;
 	if (l >= 0 && def->offsets[l] != def->offsets[idx]) {
 		r.buf_delta = def->offsets[l] - def->offsets[idx]; // Indexing checks against the array's length
 	}
 	return r;
 }
 
+// 'p[i * 3 + 1]' is a single instruction: the constant addend and multiplier of the index move into the address
+static void minic_fold_index(minic_comp_t *c, minic_addr_t *a) {
+	int *code = c->ctx->code;
+	int  p    = minic_last(c, OP_ADD_I, OP_MADD_I);
+	if (p < 0 || code[p + 1] != a->idx || !minic_is_temp(c, a->idx)) {
+		return;
+	}
+	int          x  = code[p + 2];
+	int          y  = code[p + 3];
+	minic_val_t *kx = minic_konst(c, x);
+	minic_val_t *ky = minic_konst(c, y);
+	minic_val_t *kz = code[p] == OP_MADD_I ? minic_konst(c, code[p + 4]) : NULL;
+	if (code[p] == OP_MADD_I && kx != NULL && (ky != NULL || kz != NULL)) { // k + i * k
+		a->add = kx->i;
+		a->mul = kz != NULL ? kz->i : ky->i;
+		a->idx = kz != NULL ? y : code[p + 4];
+	}
+	else if ((code[p] == OP_ADD_I || code[p] == OP_MUL_I) && (kx != NULL || ky != NULL)) {
+		*(code[p] == OP_ADD_I ? &a->add : &a->mul) = ky != NULL ? ky->i : kx->i;
+		a->idx                                     = ky != NULL ? x : y;
+	}
+	else {
+		return;
+	}
+	minic_unemit(c);
+}
+
 static minic_cexpr_t minic_c_index(minic_comp_t *c, minic_cexpr_t owner) {
-	if (owner.mode == MINIC_E_VAR && owner.sym->array) {
-		minic_c_value(c);
-		minic_emit(c, OP_INDEX_ARR, 2, owner.sym->ref, owner.sym->type.size);
-		return minic_expr(MINIC_E_MEM, owner.sym->type);
-	}
 	minic_ctype_t element = minic_element_type(owner.type);
-	if (owner.mode == MINIC_E_MEM && owner.buf_delta != 0) {
-		minic_c_value(c);
-		minic_emit(c, OP_INDEX_BUF, 2, element.size, owner.buf_delta);
-		return minic_expr(MINIC_E_MEM, element);
+	minic_addr_t  a;
+	if (owner.mode == MINIC_E_VAR && owner.sym->array) {
+		element = owner.sym->type;
+		a       = minic_addr_at(c, owner.sym->ref);
+		a.len   = owner.sym->ref >= 0 ? owner.sym->ref + 1 : owner.sym->ref - 1;
 	}
-	owner = minic_c_load(c, owner);
-	minic_c_value(c);
-	minic_emit(c, OP_INDEX, 2, element.size, owner.length);
-	return minic_expr(MINIC_E_MEM, element);
+	else if (owner.mode == MINIC_E_MEM && owner.buf_delta != 0) {
+		a              = minic_addr_at(c, minic_temp(c));
+		a.len          = minic_temp(c);
+		minic_addr_t l = owner.addr;
+		l.off += owner.buf_delta;
+		minic_emit(c, OP_LD, 10, a.base, MINIC_ADDR_ARGS(owner.addr), minic_kd(owner.type));
+		minic_emit(c, OP_LD, 10, a.len, MINIC_ADDR_ARGS(l), MINIC_T_INT | MINIC_T_INT << 8);
+	}
+	else if (owner.mode == MINIC_E_ADDR && !owner.addr.indexed) {
+		a = owner.addr;
+	}
+	else {
+		owner = minic_c_load(c, owner);
+		a     = minic_addr_at(c, owner.reg);
+	}
+	if (owner.length >= 0) {
+		a.len = minic_kint(c, owner.length);
+	}
+	minic_cexpr_t i = minic_c_value(c);
+	a.idx           = i.reg;
+	a.mul           = 1;
+	a.scale         = element.size;
+	a.indexed       = true;
+	if (minic_typed(i) != MINIC_T_INT) {
+		a.idx = minic_dest(c, i.reg, i.reg);
+		minic_emit(c, OP_CAST, 3, a.idx, i.reg, MINIC_T_INT);
+	}
+	else {
+		minic_fold_index(c, &a);
+	}
+	minic_cexpr_t r = minic_expr(MINIC_E_MEM, element, 0);
+	r.addr          = a;
+	return r;
 }
 
 static minic_cexpr_t minic_c_increment(minic_comp_t *c, minic_cexpr_t r, int delta, bool post) {
-	int stride = r.type.kind == MINIC_T_PTR ? minic_element_type(r.type).size : 0;
-	if (r.mode == MINIC_E_VAR && !r.sym->array) {
-		minic_emit(c, OP_INCV, 5, r.sym->ref, r.sym->type.kind, delta, post, stride);
-	}
-	else if (r.mode == MINIC_E_MEM) {
-		minic_emit(c, OP_INCM, 6, r.type.kind, minic_load_deref(r.type), delta, post, stride, r.type.size);
-	}
-	else {
+	if ((r.mode != MINIC_E_VAR || r.sym->array) && r.mode != MINIC_E_MEM) {
 		minic_error(c, "expression is not writable");
+		return r;
 	}
-	return minic_expr(MINIC_E_VALUE, r.type);
+	if (r.mode == MINIC_E_VAR && post && (r.sym->type.kind == MINIC_T_FLOAT || r.sym->type.kind == MINIC_T_INT)) {
+		r.mode  = MINIC_E_POSTINC;
+		r.delta = delta;
+		return r;
+	}
+	int step = r.type.kind == MINIC_T_PTR ? delta * minic_element_type(r.type).size : delta;
+	return minic_c_update(c, r, BIN_ADD, minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, step)), post);
 }
 
 static minic_cexpr_t minic_c_postfix(minic_comp_t *c) {
@@ -1526,51 +1943,62 @@ static minic_cexpr_t minic_c_unary(minic_comp_t *c) {
 	switch (op) {
 	case TOK_AMP: {
 		minic_ctype_t type = minic_pointer_type(r.type);
-		if (r.mode == MINIC_E_VAR && r.sym->array) {
-			return minic_c_load(c, r); // Arrays already decay to the address of their first element
+		if (r.mode == MINIC_E_VAR && (r.sym->array || r.sym->type.kind == MINIC_T_EMBED)) {
+			r      = minic_c_load(c, r); // Arrays decay to the address of their first element, struct variables hold their address
+			r.type = r.sym->array ? r.type : type;
+			return r;
 		}
 		if (r.mode == MINIC_E_VAR) {
-			if (r.sym->type.kind == MINIC_T_EMBED) {
-				minic_emit(c, OP_LOADV, 1, r.sym->ref); // The slot holds the storage address
-			}
-			else {
-				minic_emit(c, OP_ADDRV, 2, r.sym->ref, r.sym->type.kind);
-			}
-			return minic_expr(MINIC_E_VALUE, type);
+			int d = minic_temp(c);
+			minic_emit(c, OP_ADDRV, 3, d, r.sym->ref, r.sym->type.kind);
+			return minic_expr(MINIC_E_VALUE, type, d);
 		}
 		if (r.mode == MINIC_E_MEM) {
-			return minic_expr(MINIC_E_VALUE, type); // The address is already on the stack
+			r.mode = MINIC_E_ADDR;
+			r.type = type;
+			return r;
 		}
-		if (r.mode == MINIC_E_VALUE && r.length >= 0) {
+		if (r.mode == MINIC_E_ADDR || (r.mode == MINIC_E_VALUE && r.length >= 0)) {
 			return r;
 		}
 		minic_error(c, "expression has no address");
 		return r;
 	}
 	case TOK_STAR:
-		r = minic_c_load(c, r);
-		return minic_expr(MINIC_E_MEM, minic_element_type(r.type));
+		if (r.mode != MINIC_E_ADDR) {
+			r      = minic_c_load(c, r);
+			r.addr = minic_addr_at(c, r.reg);
+		}
+		r.mode = MINIC_E_MEM;
+		r.type = minic_element_type(r.type);
+		return r;
 	case TOK_INC:
 	case TOK_DEC:
 		return minic_c_increment(c, r, op == TOK_INC ? 1 : -1, false);
-	case TOK_MINUS:
-		r = minic_c_load(c, r);
-		minic_emit(c, OP_NEG, 0);
-		r.length = -1;
+	case TOK_MINUS: {
+		r              = minic_c_load(c, r);
+		minic_val_t *k = r.konst ? minic_konst(c, r.reg) : NULL;
+		r.length       = -1;
+		if (k != NULL) { // A negative literal is a constant too
+			minic_val_t v = *k;
+			v             = v.type == MINIC_T_INT ? minic_val_int((int)(0u - (unsigned int)v.i)) : minic_val_coerce(-minic_val_to_d(v), v.type);
+			r.reg         = minic_const(c, v);
+			return r;
+		}
+		int d = minic_dest(c, r.reg, r.reg);
+		minic_emit(c, OP_NEG, 2, d, r.reg);
+		r.reg   = d;
+		r.konst = false;
 		return r;
-	case TOK_NOT:
-		minic_c_load(c, r);
-		minic_emit(c, OP_NOT, 0);
-		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
-	default:
-		minic_c_load(c, r);
-		minic_emit(c, OP_BNOT, 0);
-		return minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+	}
+	default: // '!x' is 'x == 0', '~x' is 'x ^ -1'
+		return minic_c_binop(c, op == TOK_NOT ? BIN_EQ : BIN_XOR, minic_c_load(c, r),
+		                     minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, op == TOK_NOT ? 0 : -1)), -1);
 	}
 }
 
 // C precedence, loosest first, every level is left-associative. Compound assignments
-// have no precedence but share the opcode of their operator.
+// have no precedence but share the operator.
 #define MINIC_PREC_MAX 10
 static const struct {
 	int prec;
@@ -1578,37 +2006,33 @@ static const struct {
 } minic_binops[TOK_EOF + 1] = {
     [TOK_OR]           = {1, 0},
     [TOK_AND]          = {2, 0},
-    [TOK_BITOR]        = {3, OP_BOR},
-    [TOK_XOR]          = {4, OP_XOR},
-    [TOK_AMP]          = {5, OP_BAND},
-    [TOK_EQ]           = {6, OP_EQ},
-    [TOK_NEQ]          = {6, OP_NE},
-    [TOK_LT]           = {7, OP_LT},
-    [TOK_GT]           = {7, OP_GT},
-    [TOK_LE]           = {7, OP_LE},
-    [TOK_GE]           = {7, OP_GE},
-    [TOK_SHL]          = {8, OP_SHL},
-    [TOK_SHR]          = {8, OP_SHR},
-    [TOK_PLUS]         = {9, OP_ADD},
-    [TOK_MINUS]        = {9, OP_SUB},
-    [TOK_STAR]         = {10, OP_MUL},
-    [TOK_SLASH]        = {10, OP_DIV},
-    [TOK_PERCENT]      = {10, OP_MOD},
-    [TOK_PLUS_ASSIGN]  = {0, OP_ADD},
-    [TOK_MINUS_ASSIGN] = {0, OP_SUB},
-    [TOK_MUL_ASSIGN]   = {0, OP_MUL},
-    [TOK_DIV_ASSIGN]   = {0, OP_DIV},
-    [TOK_MOD_ASSIGN]   = {0, OP_MOD},
-    [TOK_SHL_ASSIGN]   = {0, OP_SHL},
-    [TOK_SHR_ASSIGN]   = {0, OP_SHR},
-    [TOK_AND_ASSIGN]   = {0, OP_BAND},
-    [TOK_OR_ASSIGN]    = {0, OP_BOR},
-    [TOK_XOR_ASSIGN]   = {0, OP_XOR},
+    [TOK_BITOR]        = {3, BIN_BOR},
+    [TOK_XOR]          = {4, BIN_XOR},
+    [TOK_AMP]          = {5, BIN_BAND},
+    [TOK_EQ]           = {6, BIN_EQ},
+    [TOK_NEQ]          = {6, BIN_NE},
+    [TOK_LT]           = {7, BIN_LT},
+    [TOK_GT]           = {7, BIN_GT},
+    [TOK_LE]           = {7, BIN_LE},
+    [TOK_GE]           = {7, BIN_GE},
+    [TOK_SHL]          = {8, BIN_SHL},
+    [TOK_SHR]          = {8, BIN_SHR},
+    [TOK_PLUS]         = {9, BIN_ADD},
+    [TOK_MINUS]        = {9, BIN_SUB},
+    [TOK_STAR]         = {10, BIN_MUL},
+    [TOK_SLASH]        = {10, BIN_DIV},
+    [TOK_PERCENT]      = {10, BIN_MOD},
+    [TOK_PLUS_ASSIGN]  = {0, BIN_ADD},
+    [TOK_MINUS_ASSIGN] = {0, BIN_SUB},
+    [TOK_MUL_ASSIGN]   = {0, BIN_MUL},
+    [TOK_DIV_ASSIGN]   = {0, BIN_DIV},
+    [TOK_MOD_ASSIGN]   = {0, BIN_MOD},
+    [TOK_SHL_ASSIGN]   = {0, BIN_SHL},
+    [TOK_SHR_ASSIGN]   = {0, BIN_SHR},
+    [TOK_AND_ASSIGN]   = {0, BIN_BAND},
+    [TOK_OR_ASSIGN]    = {0, BIN_BOR},
+    [TOK_XOR_ASSIGN]   = {0, BIN_XOR},
 };
-
-static bool minic_is_integer(minic_ctype_t t) {
-	return t.kind == MINIC_T_INT || t.kind == MINIC_T_CHAR || t.kind == MINIC_T_BOOL || t.kind == MINIC_T_I16 || t.kind == MINIC_T_U16;
-}
 
 // 'p + n' and 'p += n' step by whole elements, the same stride as 'p[n]' and 'p++'
 // An untyped pointer (bare 'p' natives, void *) keeps stepping in bytes
@@ -1636,6 +2060,56 @@ static minic_ctype_t minic_arith_type(minic_ctype_t a, minic_ctype_t b) {
 	return minic_scalar_type(MINIC_T_INT);
 }
 
+// An int literal next to a float becomes a float when it converts exactly, one float operation
+// then rounds like the double one
+static void minic_float_literal(minic_comp_t *c, minic_cexpr_t *e, minic_type_t other) {
+	minic_val_t *k = e->konst ? minic_konst(c, e->reg) : NULL;
+	if (other == MINIC_T_FLOAT && k != NULL && k->type == MINIC_T_INT && k->i >= -(1 << 24) && k->i <= (1 << 24)) {
+		e->reg  = minic_const(c, minic_val_float((float)k->i));
+		e->type = minic_scalar_type(MINIC_T_FLOAT);
+	}
+}
+
+// The typed instruction of a binary operator on two floats or two ints, or -1
+static int minic_typed_op(int o, minic_type_t t) {
+	static const int f[] = {OP_ADD_F, OP_SUB_F, OP_MUL_F, OP_DIV_F, -1, -1, -1, -1, -1, -1, OP_EQ_F, OP_NE_F, OP_LT_F, OP_LT_F, OP_LE_F, OP_LE_F};
+	static const int i[] = {OP_ADD_I, OP_SUB_I, OP_MUL_I, OP_DIV_I, OP_MOD_I, -1, -1, -1, -1, -1, OP_EQ_I, OP_NE_I, OP_LT_I, OP_LT_I, OP_LE_I, OP_LE_I};
+	return t == MINIC_T_FLOAT ? f[o] : t == MINIC_T_INT ? i[o] : -1;
+}
+
+// a o b into register dest, or into a new one when dest is -1
+static minic_cexpr_t minic_c_binop(minic_comp_t *c, int o, minic_cexpr_t a, minic_cexpr_t b, int dest) {
+	minic_float_literal(c, &b, minic_typed(a));
+	minic_float_literal(c, &a, minic_typed(b));
+	minic_type_t  t = minic_typed(a);
+	minic_cexpr_t r = minic_expr(MINIC_E_VALUE, o <= BIN_MOD ? minic_arith_type(a.type, b.type) : minic_scalar_type(MINIC_T_INT), 0);
+	r.loose         = o <= BIN_MOD && (a.loose || b.loose);
+	int op          = t == minic_typed(b) ? minic_typed_op(o, t) : -1;
+	int x           = o == BIN_GT || o == BIN_GE ? b.reg : a.reg; // 'a > b' is 'b < a'
+	int y           = o == BIN_GT || o == BIN_GE ? a.reg : b.reg;
+	if (op < 0) {
+		minic_type_t tb  = minic_typed(b);
+		bool         mix = t != tb && t != MINIC_T_VOID && tb != MINIC_T_VOID && o != BIN_MOD && (o <= BIN_DIV || o >= BIN_EQ);
+		r.reg            = dest >= 0 ? dest : minic_dest(c, a.reg, b.reg);
+		minic_emit(c, mix ? OP_MIX : OP_BIN, 4, r.reg, a.reg, b.reg, mix ? o | (t == MINIC_T_INT) << 4 | (tb == MINIC_T_INT) << 5 : o);
+		return r;
+	}
+	int *code = c->ctx->code;
+	int  p    = op == OP_ADD_F || op == OP_ADD_I ? minic_last(c, op + 2, op + 2) : -1; // MUL_F or MUL_I, the product in 'a + x * y'
+	if (dest < 0 && p >= 0 && (code[p + 1] == x || code[p + 1] == y) && x != y && minic_is_temp(c, code[p + 1])) {
+		int other = code[p + 1] == x ? y : x;
+		int m1    = code[p + 2];
+		int m2    = code[p + 3];
+		minic_unemit(c);
+		r.reg = minic_dest(c, a.reg, b.reg);
+		minic_emit(c, op == OP_ADD_F ? OP_MADD_F : OP_MADD_I, 4, r.reg, other, m1, m2);
+		return r;
+	}
+	r.reg = dest >= 0 ? dest : minic_dest(c, a.reg, b.reg);
+	minic_emit(c, op, 3, r.reg, x, y);
+	return r;
+}
+
 static minic_cexpr_t minic_c_binary(minic_comp_t *c, int level) {
 	if (level > MINIC_PREC_MAX) {
 		return minic_c_unary(c);
@@ -1643,43 +2117,56 @@ static minic_cexpr_t minic_c_binary(minic_comp_t *c, int level) {
 	minic_cexpr_t r = minic_c_binary(c, level + 1);
 	while (!c->error && minic_binops[minic_cur(c)].prec == level) {
 		minic_tok_type_t op = minic_cur(c);
-		if (r.mode == MINIC_E_VAR && r.sym->array) {
-			r.type = minic_pointer_type(r.sym->type); // An array name decays to a pointer to its first element
-		}
-		r = minic_c_load(c, r);
+		r                   = minic_c_load(c, r);
 		minic_next(c);
 		if (op == TOK_AND || op == TOK_OR) {
 			// Short-circuit: the right side only runs when it decides the result
-			int jump = op == TOK_AND ? OP_JZ : OP_JNZ;
-			int j1   = minic_emit_jump(c, jump, 0);
-			minic_c_load(c, minic_c_binary(c, level + 1));
-			int j2 = minic_emit_jump(c, jump, j1);
-			minic_emit(c, OP_INT, 1, op == TOK_AND);
-			int end = minic_emit_jump(c, OP_JMP, 0);
+			int d  = minic_temp(c);
+			int j1 = minic_c_branch(c, r, op == TOK_OR, 0);
+			int j2 = minic_c_branch(c, minic_c_load(c, minic_c_binary(c, level + 1)), op == TOK_OR, j1);
+			minic_emit(c, OP_MOV, 2, d, minic_kint(c, op == TOK_AND));
+			int end = minic_emit_jump(c, OP_JMP, 0, 0);
 			minic_patch(c, j2);
-			minic_emit(c, OP_INT, 1, op != TOK_AND);
+			minic_emit(c, OP_MOV, 2, d, minic_kint(c, op != TOK_AND));
 			minic_patch(c, end);
-			r = minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT));
+			minic_free(c, d + 1);
+			r = minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), d);
 			continue;
 		}
 		minic_cexpr_t b = minic_c_load(c, minic_c_binary(c, level + 1));
 		int           o = minic_binops[op].op;
-		if ((o == OP_ADD || o == OP_SUB) && minic_is_integer(b.type)) {
+		if ((o == BIN_ADD || o == BIN_SUB) && minic_is_integer(b.type)) {
 			int stride = minic_ptr_stride(r.type);
 			if (stride > 1) {
-				minic_emit(c, OP_INT, 1, stride);
-				minic_emit(c, OP_MUL, 0);
+				b = minic_c_binop(c, BIN_MUL, b, minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, stride)), -1);
 			}
 			if (r.type.kind == MINIC_T_PTR) {
-				minic_emit(c, o, 0);
-				r = minic_expr(MINIC_E_VALUE, r.type); // Keep the pointee type
+				minic_ctype_t type = r.type; // Keep the pointee type
+				r                  = minic_c_binop(c, o, r, b, -1);
+				r.type             = type;
 				continue;
 			}
 		}
-		minic_emit(c, o, 0);
-		r = minic_expr(MINIC_E_VALUE, o <= OP_MOD ? minic_arith_type(r.type, b.type) : minic_scalar_type(MINIC_T_INT));
+		r = minic_c_binop(c, o, r, b, -1);
 	}
 	return r;
+}
+
+// Jump to chain when e is true, or when it is false, through the comparison that computed it when there is one
+static int minic_c_branch(minic_comp_t *c, minic_cexpr_t e, bool when, int chain) {
+	static const int jt[] = {OP_JLT_F, OP_JLE_F, OP_JEQ_F, OP_JNE_F, OP_JLT_I, OP_JLE_I, OP_JEQ_I, OP_JNE_I};
+	static const int jf[] = {OP_JNLT_F, OP_JNLE_F, OP_JNE_F, OP_JEQ_F, OP_JLE_I, OP_JLT_I, OP_JNE_I, OP_JEQ_I}; // Ints swap the operands
+	int             *code = c->ctx->code;
+	int              p    = minic_last(c, OP_LT_F, OP_NE_I);
+	if (p < 0 || code[p + 1] != e.reg || !minic_is_temp(c, e.reg)) {
+		return minic_emit_jump(c, when ? OP_JNZ : OP_JZ, chain, e.reg);
+	}
+	int  k    = code[p] - OP_LT_F;
+	int  x    = code[p + 2];
+	int  y    = code[p + 3];
+	bool swap = !when && (k == 4 || k == 5);
+	minic_unemit(c);
+	return minic_emit(c, when ? jt[k] : jf[k], 3, chain, swap ? y : x, swap ? x : y) + 1;
 }
 
 static minic_cexpr_t minic_c_ternary(minic_comp_t *c) {
@@ -1687,19 +2174,36 @@ static minic_cexpr_t minic_c_ternary(minic_comp_t *c) {
 	if (c->error || minic_cur(c) != TOK_QUESTION) {
 		return r;
 	}
-	minic_c_load(c, r);
+	r = minic_c_load(c, r);
 	minic_next(c); // Consume '?'
-	int           skip = minic_emit_jump(c, OP_JZ, 0);
+	int           d    = minic_temp(c);
+	int           skip = minic_c_branch(c, r, false, 0);
 	minic_cexpr_t a    = minic_c_value(c);
+	minic_move(c, d, a.reg);
 	minic_expect(c, TOK_COLON);
-	int end = minic_emit_jump(c, OP_JMP, 0);
+	int end = minic_emit_jump(c, OP_JMP, 0, 0);
 	minic_patch(c, skip);
 	minic_cexpr_t b = minic_c_load(c, minic_c_ternary(c));
+	minic_move(c, d, b.reg);
 	minic_patch(c, end);
-	return minic_expr(MINIC_E_VALUE, a.type.kind == b.type.kind ? a.type : minic_scalar_type(MINIC_T_VOID));
+	minic_free(c, d + 1);
+	r       = minic_expr(MINIC_E_VALUE, a.type.kind == b.type.kind ? a.type : minic_scalar_type(MINIC_T_VOID), d);
+	r.loose = a.loose || b.loose;
+	return r;
 }
 
-static minic_cexpr_t minic_c_assign(minic_comp_t *c) {
+// Store v in a variable, converted to its type
+static minic_cexpr_t minic_c_store_var(minic_comp_t *c, minic_sym_t *sym, minic_cexpr_t v) {
+	minic_type_t kind = sym->type.kind;
+	if (minic_typed(v) == kind && (kind == MINIC_T_FLOAT || kind == MINIC_T_INT)) {
+		minic_move(c, sym->ref, v.reg);
+		return minic_var_expr(sym);
+	}
+	minic_emit(c, OP_STV, 4, sym->ref, v.reg, kind, sym->type.size);
+	return v;
+}
+
+static minic_cexpr_t minic_c_assign_to(minic_comp_t *c) {
 	minic_cexpr_t    target = minic_c_ternary(c);
 	minic_tok_type_t op     = minic_cur(c);
 	if (c->error || (op != TOK_ASSIGN && (op < TOK_PLUS_ASSIGN || op > TOK_XOR_ASSIGN))) {
@@ -1711,8 +2215,8 @@ static minic_cexpr_t minic_c_assign(minic_comp_t *c) {
 		minic_cexpr_t v   = minic_c_value(c);
 		minic_sym_t  *sym = minic_declare(c, target.name, v.type, false);
 		if (sym != NULL) {
-			minic_emit(c, OP_DUP, 0);
-			minic_init_var(c, sym, true);
+			minic_name(sym, target.name);
+			minic_c_init(c, sym, &v);
 		}
 		return v;
 	}
@@ -1722,28 +2226,38 @@ static minic_cexpr_t minic_c_assign(minic_comp_t *c) {
 		minic_error(c, "expression is not writable");
 		return target;
 	}
-	minic_cexpr_t v = minic_c_value(c);
 	if (op == TOK_ASSIGN) {
+		minic_cexpr_t v = minic_c_value(c);
 		if (var) {
-			minic_emit(c, OP_STOREV, 3, target.sym->ref, t.kind, t.size);
+			return minic_c_store_var(c, target.sym, v);
 		}
-		else {
-			minic_emit(c, OP_STOREM, 2, t.kind, t.size);
-		}
+		minic_emit(c, OP_ST, 11, MINIC_ADDR_ARGS(target.addr), v.reg, t.kind, t.size);
 		return v;
 	}
-	if ((op == TOK_PLUS_ASSIGN || op == TOK_MINUS_ASSIGN) && minic_is_integer(v.type) && minic_ptr_stride(t) > 1) {
-		minic_emit(c, OP_INT, 1, minic_ptr_stride(t));
-		minic_emit(c, OP_MUL, 0);
+	int           o = minic_binops[op].op;
+	minic_cexpr_t v = minic_c_value(c);
+	if ((o == BIN_ADD || o == BIN_SUB) && minic_is_integer(v.type) && minic_ptr_stride(t) > 1) {
+		v = minic_c_binop(c, BIN_MUL, v, minic_expr(MINIC_E_VALUE, minic_scalar_type(MINIC_T_INT), minic_kint(c, minic_ptr_stride(t))), -1);
 	}
-	// The old value is read after the right side runs
-	if (var) {
-		minic_emit(c, OP_COMPV, 4, target.sym->ref, minic_binops[op].op, t.kind, t.size);
+	return minic_c_update(c, target, o, v, false);
+}
+
+static minic_cexpr_t minic_c_assign(minic_comp_t *c) {
+	if (c->expr_depth++ == 0) {
+		int depth = 0;
+		int i     = c->i;
+		for (; c->toks[i].type != TOK_EOF; ++i) {
+			minic_tok_type_t t = c->toks[i].type;
+			if (depth == 0 && (t == TOK_SEMICOLON || t == TOK_COMMA || t == TOK_RPAREN || t == TOK_RBRACKET || t == TOK_RBRACE)) {
+				break;
+			}
+			depth += (t == TOK_LPAREN || t == TOK_LBRACKET || t == TOK_LBRACE) - (t == TOK_RPAREN || t == TOK_RBRACKET || t == TOK_RBRACE);
+		}
+		c->expr_end = i;
 	}
-	else {
-		minic_emit(c, OP_COMPM, 4, minic_binops[op].op, t.kind, minic_load_deref(t), t.size);
-	}
-	return minic_expr(MINIC_E_VALUE, t);
+	minic_cexpr_t r = minic_c_assign_to(c);
+	c->expr_depth--;
+	return r;
 }
 
 // Count the top-level elements of the brace initializer that starts at token 'start'
@@ -1787,13 +2301,11 @@ static void minic_c_decl(minic_comp_t *c, minic_ctype_t type) {
 		if (minic_cur(c) == TOK_LBRACKET) {
 			minic_next(c); // Consume '['
 			bool sized = minic_cur(c) != TOK_RBRACKET;
-			if (sized) {
-				minic_c_value(c);
-			}
+			int  count = sized ? minic_c_value(c).reg : 0;
 			minic_expect(c, TOK_RBRACKET);
 			bool listed = minic_cur(c) == TOK_ASSIGN && minic_peek(c, 1) == TOK_LBRACE;
 			if (!sized) { // 'name[]' takes its size from the initializer
-				minic_emit(c, OP_INT, 1, listed ? minic_init_list_count(c, c->i + 1) : 0);
+				count = minic_kint(c, listed ? minic_init_list_count(c, c->i + 1) : 0);
 			}
 			if (type.size <= 0) {
 				minic_error(c, "invalid array element type for '%s'", name);
@@ -1803,16 +2315,20 @@ static void minic_c_decl(minic_comp_t *c, minic_ctype_t type) {
 			if (sym == NULL) {
 				return;
 			}
-			minic_emit(c, OP_INIT_ARR, 4, sym->ref, type.kind, type.size, type.alignment);
+			minic_name(sym, name);
+			minic_emit(c, OP_INIT_ARR, 6, sym->ref, sym->ref >= 0 ? sym->ref + 1 : sym->ref - 1, count, type.kind, type.size, type.alignment);
+			minic_free(c, c->locals_end);
 			if (listed) {
 				minic_next(c); // Consume '='
 				minic_next(c); // Consume '{'
+				minic_addr_t a = minic_addr_at(c, sym->ref);
+				a.len          = sym->ref >= 0 ? sym->ref + 1 : sym->ref - 1;
+				a.scale        = type.size;
 				for (int i = 0; minic_cur(c) != TOK_RBRACE && !c->error; ++i) {
-					minic_emit(c, OP_INT, 1, i);
-					minic_emit(c, OP_INDEX_ARR, 2, sym->ref, type.size);
-					minic_c_value(c);
-					minic_emit(c, OP_STOREM, 2, type.kind, type.size);
-					minic_emit(c, OP_POP, 0);
+					a.add = i;
+					int v = minic_c_value(c).reg;
+					minic_emit(c, OP_ST, 11, MINIC_ADDR_ARGS(a), v, type.kind, type.size);
+					minic_free(c, c->locals_end);
 					if (minic_cur(c) != TOK_COMMA) {
 						break;
 					}
@@ -1822,16 +2338,20 @@ static void minic_c_decl(minic_comp_t *c, minic_ctype_t type) {
 			}
 		}
 		else {
-			bool initialized = minic_cur(c) == TOK_ASSIGN;
-			if (initialized) {
-				minic_next(c);
-				minic_c_value(c);
-			}
 			minic_sym_t *sym = minic_declare(c, name, type, false);
 			if (sym == NULL) {
 				return;
 			}
-			minic_init_var(c, sym, initialized);
+			if (minic_cur(c) == TOK_ASSIGN) {
+				minic_next(c);
+				minic_cexpr_t v = minic_c_value(c);
+				minic_c_init(c, sym, &v);
+			}
+			else {
+				minic_c_init(c, sym, NULL);
+			}
+			minic_name(sym, name);
+			minic_free(c, c->locals_end);
 		}
 		if (minic_cur(c) != TOK_COMMA || c->error) {
 			break;
@@ -1881,11 +2401,52 @@ static void minic_c_block(minic_comp_t *c) {
 	minic_scope_pop(c, saved);
 }
 
-static void minic_c_loop_body(minic_comp_t *c, minic_loop_t *loop) {
+// A loop at the body, with the condition and the step at tokens 'cond' and 'step', -1 when empty.
+// The condition is compiled twice: before the body, and after the step to jump back.
+static void minic_c_loop(minic_comp_t *c, int cond, int step) {
+	minic_loop_t  loop  = {0};
 	minic_loop_t *outer = c->loop;
-	c->loop             = loop;
+	int           body  = c->i;
+	if (cond >= 0) {
+		c->i        = cond;
+		loop.breaks = minic_c_branch(c, minic_c_value(c), false, 0);
+		minic_free(c, c->locals_end);
+		c->i = body;
+	}
+	int top = minic_label(c);
+	c->loop = &loop;
 	minic_c_body(c);
 	c->loop = outer;
+	minic_patch(c, loop.continues);
+	int after = c->i;
+	if (step >= 0) {
+		c->i = step;
+		minic_c_drop(c, minic_c_assign(c));
+	}
+	if (cond >= 0) {
+		c->i = cond;
+		minic_c_branch(c, minic_c_value(c), true, top);
+		minic_free(c, c->locals_end);
+		// 'i++' then 'i < n' is a single instruction
+		int *code = c->ctx->code;
+		int  p    = c->last;
+		int  q    = c->prev;
+		if ((code[p] == OP_JLT_I || code[p] == OP_JLE_I) && q >= c->label && q + 4 == p && code[q] == OP_ADD_I && code[q + 1] == code[q + 2] &&
+		    code[q + 1] == code[p + 2] && minic_konst(c, code[q + 3]) != NULL) {
+			int op = code[p] == OP_JLT_I ? OP_LOOP_LT : OP_LOOP_LE;
+			int x  = code[q + 1];
+			int k  = minic_konst(c, code[q + 3])->i;
+			int n  = code[p + 3];
+			minic_unemit(c);
+			minic_unemit(c);
+			minic_emit(c, op, 4, top, x, k, n);
+		}
+	}
+	else {
+		minic_emit_jump(c, OP_JMP, top, 0);
+	}
+	c->i = after;
+	minic_patch(c, loop.breaks);
 }
 
 static void minic_c_stmt(minic_comp_t *c) {
@@ -1913,13 +2474,9 @@ static void minic_c_stmt(minic_comp_t *c) {
 
 	if (t == TOK_RETURN) {
 		minic_next(c);
-		if (minic_cur(c) == TOK_SEMICOLON) {
-			minic_emit(c, OP_INT, 1, 0);
-		}
-		else {
-			minic_c_value(c);
-		}
-		minic_emit(c, OP_RET, 2, c->fn->ret_type.kind, minic_load_deref(c->fn->ret_type));
+		int r = minic_cur(c) == TOK_SEMICOLON ? c->k0 : minic_c_value(c).reg;
+		minic_emit(c, OP_RET, 3, r, c->fn->ret_type.kind, minic_load_deref(c->fn->ret_type));
+		minic_free(c, c->locals_end);
 		minic_expect(c, TOK_SEMICOLON);
 		return;
 	}
@@ -1927,13 +2484,13 @@ static void minic_c_stmt(minic_comp_t *c) {
 	if (t == TOK_IF) {
 		minic_next(c);
 		minic_expect(c, TOK_LPAREN);
-		minic_c_value(c);
+		int skip = minic_c_branch(c, minic_c_value(c), false, 0);
+		minic_free(c, c->locals_end);
 		minic_expect(c, TOK_RPAREN);
-		int skip = minic_emit_jump(c, OP_JZ, 0);
 		minic_c_body(c);
 		if (minic_cur(c) == TOK_ELSE) {
 			minic_next(c);
-			int end = minic_emit_jump(c, OP_JMP, 0);
+			int end = minic_emit_jump(c, OP_JMP, 0, 0);
 			minic_patch(c, skip);
 			minic_c_body(c);
 			minic_patch(c, end);
@@ -1954,49 +2511,29 @@ static void minic_c_stmt(minic_comp_t *c) {
 		}
 		else {
 			if (minic_cur(c) != TOK_SEMICOLON) {
-				minic_c_value(c);
-				minic_emit(c, OP_POP, 0);
+				minic_c_drop(c, minic_c_assign(c));
 			}
 			minic_expect(c, TOK_SEMICOLON);
 		}
-		minic_loop_t loop = {0};
-		int          top  = c->ctx->code_len;
-		if (minic_cur(c) != TOK_SEMICOLON) {
-			minic_c_value(c);
-			loop.breaks = minic_emit_jump(c, OP_JZ, 0);
-		}
+		// The condition and the step run after the body, compile them there
+		int cond = minic_cur(c) != TOK_SEMICOLON ? c->i : -1;
+		minic_skip_to(c, TOK_SEMICOLON);
 		minic_expect(c, TOK_SEMICOLON);
-		// The increment runs after the body, compile it there
-		int step = c->i;
+		int step = minic_cur(c) != TOK_RPAREN ? c->i : -1;
 		minic_skip_to(c, TOK_RPAREN);
 		minic_expect(c, TOK_RPAREN);
-		minic_c_loop_body(c, &loop);
-		minic_patch(c, loop.continues);
-		int after = c->i;
-		c->i      = step;
-		if (minic_cur(c) != TOK_RPAREN) {
-			minic_c_value(c);
-			minic_emit(c, OP_POP, 0);
-		}
-		c->i = after;
-		minic_emit(c, OP_JMP, 1, top);
-		minic_patch(c, loop.breaks);
+		minic_c_loop(c, cond, step);
 		minic_scope_pop(c, saved);
 		return;
 	}
 
 	if (t == TOK_WHILE) {
 		minic_next(c);
-		minic_loop_t loop = {0};
-		int          top  = c->ctx->code_len;
 		minic_expect(c, TOK_LPAREN);
-		minic_c_value(c);
+		int cond = c->i;
+		minic_skip_to(c, TOK_RPAREN);
 		minic_expect(c, TOK_RPAREN);
-		loop.breaks = minic_emit_jump(c, OP_JZ, 0);
-		minic_c_loop_body(c, &loop);
-		minic_patch(c, loop.continues);
-		minic_emit(c, OP_JMP, 1, top);
-		minic_patch(c, loop.breaks);
+		minic_c_loop(c, cond, -1);
 		return;
 	}
 
@@ -2007,13 +2544,12 @@ static void minic_c_stmt(minic_comp_t *c) {
 		}
 		minic_next(c);
 		int *chain = t == TOK_BREAK ? &c->loop->breaks : &c->loop->continues;
-		*chain     = minic_emit_jump(c, OP_JMP, *chain);
+		*chain     = minic_emit_jump(c, OP_JMP, *chain, 0);
 		minic_expect(c, TOK_SEMICOLON);
 		return;
 	}
 
-	minic_c_value(c);
-	minic_emit(c, OP_POP, 0);
+	minic_c_drop(c, minic_c_assign(c));
 	minic_expect(c, TOK_SEMICOLON);
 }
 
@@ -2022,22 +2558,32 @@ static void minic_c_function(minic_comp_t *c, minic_func_t *fn) {
 	c->in_main     = strcmp(fn->name, "main") == 0;
 	c->depth       = 0;
 	c->local_count = 0;
+	c->locals_end  = 0;
 	c->slot_count  = 0;
 	c->loop        = NULL;
-	fn->entry      = c->ctx->code_len;
 	c->i           = fn->body;
-	// Arguments arrive in the first slots, give them the parameter types
+	fn->entry_ext  = minic_label(c);
+	// Arguments arrive in the first registers, native callers pass them unconverted
 	for (int i = 0; i < fn->param_count; ++i) {
-		minic_sym_t *sym = minic_declare(c, fn->params[i], fn->param_types[i], false);
+		minic_ctype_t type = fn->param_types[i];
+		minic_sym_t  *sym  = minic_declare(c, fn->params[i], type, false);
 		if (sym == NULL) {
 			return;
 		}
-		minic_emit(c, OP_LOADV, 1, sym->ref);
-		minic_init_var(c, sym, true);
+		minic_name(sym, fn->params[i]);
+		if (type.kind != MINIC_T_EMBED) {
+			minic_emit(c, OP_INIT, 4, i, i, type.kind, minic_load_deref(type));
+		}
+	}
+	fn->entry = minic_label(c);
+	for (int i = 0; i < fn->param_count; ++i) {
+		if (fn->param_types[i].kind == MINIC_T_EMBED) {
+			minic_cexpr_t v = minic_expr(MINIC_E_VALUE, fn->param_types[i], i);
+			minic_c_init(c, &c->locals[i], &v); // Struct arguments are copies
+		}
 	}
 	minic_c_block(c);
-	minic_emit(c, OP_INT, 1, 0);
-	minic_emit(c, OP_RET, 2, fn->ret_type.kind, minic_load_deref(fn->ret_type));
+	minic_emit(c, OP_RET, 3, c->k0, fn->ret_type.kind, minic_load_deref(fn->ret_type));
 }
 
 // Constant integer expression of an enum value: literals, earlier enum constants and operators
@@ -2408,10 +2954,14 @@ static void minic_scan_top_level(minic_comp_t *c, bool globals) {
 static bool minic_compile(minic_ctx_t *ctx) {
 	minic_comp_t c = {0};
 	c.ctx          = ctx;
+	c.last         = -1;
+	c.prev         = -1;
 	c.toks         = minic_tokenize(ctx->src_copy, ctx->str_pool);
 	minic_emit_word(&c, OP_HALT); // Offset 0 terminates the jump patch chains
 	c.locals  = malloc(MINIC_MAX_VARS * sizeof(minic_sym_t));
 	c.globals = malloc(MINIC_MAX_GLOBAL_VARS * sizeof(minic_sym_t));
+	c.k0      = minic_kint(&c, 0);
+	c.kmax    = minic_kint(&c, INT_MAX);
 
 	// Seed with globally pre-registered struct definitions
 	for (int i = 0; i < minic_struct_count && ctx->struct_count < MINIC_MAX_STRUCTS; ++i) {
@@ -2426,15 +2976,15 @@ static bool minic_compile(minic_ctx_t *ctx) {
 	}
 
 	// Global initializers, then main() so that its top level joins the globals, then the rest
-	ctx->init.ctx      = ctx;
-	ctx->init.ret_type = minic_scalar_type(MINIC_T_VOID);
-	ctx->init.entry    = ctx->code_len;
-	c.fn               = &ctx->init;
+	ctx->init.ctx       = ctx;
+	ctx->init.ret_type  = minic_scalar_type(MINIC_T_VOID);
+	ctx->init.entry     = minic_label(&c);
+	ctx->init.entry_ext = ctx->init.entry;
+	c.fn                = &ctx->init;
 	if (!c.error) {
 		minic_scan_top_level(&c, true);
 	}
-	minic_emit(&c, OP_INT, 1, 0);
-	minic_emit(&c, OP_RET, 2, MINIC_T_VOID, MINIC_T_VOID);
+	minic_emit(&c, OP_RET, 3, c.k0, MINIC_T_VOID, MINIC_T_VOID);
 	int main_idx = minic_func_index(ctx, "main");
 	if (main_idx >= 0 && ctx->funcs[main_idx].body >= 0 && !c.error) {
 		minic_c_function(&c, &ctx->funcs[main_idx]);
@@ -2445,9 +2995,26 @@ static bool minic_compile(minic_ctx_t *ctx) {
 		}
 	}
 
+	// Registers to byte offsets, statics in reverse: the instructions select the frame or the statics by the sign
+	static const char *operands[] = {
+#define X(name, operands) operands,
+	    MINIC_OPS
+#undef X
+	};
+	for (int pc = 0; pc < ctx->code_len; pc += 1 + (int)strlen(operands[ctx->code[pc]])) {
+		for (int k = 0; operands[ctx->code[pc]][k] != '\0'; ++k) {
+			ctx->code[pc + 1 + k] *= operands[ctx->code[pc]][k] == 'r' ? (int)sizeof(minic_val_t) : 1;
+		}
+	}
+	for (int i = 0; i < ctx->static_count / 2; ++i) {
+		minic_val_t v                           = ctx->statics[i];
+		ctx->statics[i]                         = ctx->statics[ctx->static_count - 1 - i];
+		ctx->statics[ctx->static_count - 1 - i] = v;
+	}
 	free(c.toks);
 	free(c.locals);
 	free(c.globals);
+	free(c.konst);
 	return !c.error;
 }
 
@@ -2466,19 +3033,19 @@ static void minic_runtime_error(minic_ctx_t *ctx, int pc, const char *fmt, ...) 
 	vsnprintf(msg, sizeof(msg), fmt, args);
 	va_end(args);
 	char log[512];
-	snprintf(log, sizeof(log), "%s:%d: error: %s", ctx->filename, minic_line_at(ctx->src_copy, ctx->code_pos[pc]), msg);
+	snprintf(log, sizeof(log), "%s: error: %s", minic_where(ctx, ctx->code_pos[pc]), msg);
 	console_log(log);
 }
 
 // Run a function to completion. Script calls stay in this loop, natives that call back
-// into the context start a nested run above the current stack top.
+// into the context start a nested run above the registers of the current call.
 static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int argc, minic_val_t *ret) {
 	minic_val_t *base       = ctx->sp;
 	int          base_depth = ctx->depth;
-	minic_val_t *globals    = ctx->globals;
+	minic_val_t *st         = ctx->statics + ctx->static_count;
 	const int   *code       = ctx->code;
 	*ret                    = minic_val_int(0);
-	if (base + fn->slot_count + MINIC_STACK_SLACK > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
+	if (base + fn->slot_count > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
 		minic_runtime_error(ctx, fn->entry, "out of script memory calling '%s', recursion too deep", fn->name);
 		return false;
 	}
@@ -2486,333 +3053,325 @@ static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int
 	for (int i = 0; i < fn->slot_count; ++i) {
 		fp[i] = i < argc && i < fn->param_count ? args[i] : minic_val_int(0);
 	}
-	minic_val_t *sp              = fp + fn->slot_count;
-	ctx->frames[ctx->depth].pc   = 0;
-	ctx->frames[ctx->depth++].fp = NULL;
-	int pc                       = fn->entry;
+	minic_func_t *cur         = fn;
+	ctx->frames[ctx->depth++] = (minic_frame_t){NULL, NULL, NULL};
+	const int *ip             = code + fn->entry_ext;
 
-#define MINIC_SLOT(r) ((r) >= 0 ? fp + (r) : globals - (r) - 1)
-#define MINIC_FAIL(...)                                \
-	do {                                               \
-		minic_runtime_error(ctx, pc - 1, __VA_ARGS__); \
-		goto fail;                                     \
+#define REG(r) ((minic_val_t *)((r) >= 0 ? (char *)fp + (r) : (char *)st + (r)))
+#define MINIC_FAIL(...)                                          \
+	do {                                                         \
+		minic_runtime_error(ctx, (int)(ip - code), __VA_ARGS__); \
+		goto fail;                                               \
 	} while (0)
-#define MINIC_ARITH(OPC, IEXPR, FEXPR)                                   \
-	case OPC: {                                                          \
-		minic_val_t *a = sp - 2;                                         \
-		minic_val_t *b = sp - 1;                                         \
-		if (a->type == MINIC_T_INT && b->type == MINIC_T_INT) {          \
-			a->i = (IEXPR);                                              \
-		}                                                                \
-		else if (a->type == MINIC_T_FLOAT && b->type == MINIC_T_FLOAT) { \
-			a->f = (FEXPR);                                              \
-		}                                                                \
-		else {                                                           \
-			*a = minic_binop(OPC, *a, *b);                               \
-		}                                                                \
-		sp--;                                                            \
-		break;                                                           \
+// The address of the [addr] operands from ip[o] on
+#define MINIC_ADDR(o, p)                                                                                                  \
+	char *p = minic_val_to_ptr(*REG(ip[o]));                                                                              \
+	{                                                                                                                     \
+		int i_   = (int)((unsigned int)REG(ip[o + 1])->i * (unsigned int)ip[o + 2] + (unsigned int)ip[o + 3]);            \
+		int len_ = REG(ip[o + 6])->i;                                                                                     \
+		if ((unsigned int)i_ >= (unsigned int)len_) {                                                                     \
+			MINIC_FAIL("index %d out of range (length %d)", i_, len_ == INT_MAX ? -1 : len_);                             \
+		}                                                                                                                 \
+		if (p != NULL) {                                                                                                  \
+			p += (size_t)i_ * ip[o + 4] + ip[o + 5];                                                                      \
+		}                                                                                                                 \
+		else if (ip[o + 7] >= 0) {                                                                                        \
+			minic_struct_t *def_ = &ctx->structs[ip[o + 7] / MINIC_MAX_STRUCT_FIELDS];                                    \
+			MINIC_FAIL("null pointer access on '%s->%s'", def_->name, def_->fields[ip[o + 7] % MINIC_MAX_STRUCT_FIELDS]); \
+		}                                                                                                                 \
 	}
-#define MINIC_CMP(OPC, OP)                                               \
-	case OPC: {                                                          \
-		minic_val_t *a = sp - 2;                                         \
-		minic_val_t *b = sp - 1;                                         \
-		int          r;                                                  \
-		if (a->type == MINIC_T_INT && b->type == MINIC_T_INT) {          \
-			r = a->i OP b->i;                                            \
-		}                                                                \
-		else if (a->type == MINIC_T_FLOAT && b->type == MINIC_T_FLOAT) { \
-			r = a->f OP b->f;                                            \
-		}                                                                \
-		else {                                                           \
-			r = minic_val_to_d(*a) OP minic_val_to_d(*b);                \
-		}                                                                \
-		*a = minic_val_int(r);                                           \
-		sp--;                                                            \
-		break;                                                           \
-	}
+// Typed instructions, x and y are the operands in EXPR
+#define MINIC_TYPED(NAME, T, M, MAKE, EXPR) \
+	case OP_##NAME:                         \
+		L_##NAME : {                        \
+			T x         = REG(ip[2])->M;    \
+			T y         = REG(ip[3])->M;    \
+			*REG(ip[1]) = MAKE(EXPR);       \
+			ip += 4;                        \
+			MINIC_NEXT;                     \
+		}
+#define MINIC_JUMP(NAME, T, M, EXPR)              \
+	case OP_##NAME:                               \
+		L_##NAME : {                              \
+			T x = REG(ip[2])->M;                  \
+			T y = REG(ip[3])->M;                  \
+			ip  = (EXPR) ? code + ip[1] : ip + 4; \
+			MINIC_NEXT;                           \
+		}
+#define MINIC_WRAP(OP) (int)((unsigned int)x OP(unsigned int) y)
+#ifdef MINIC_COMPUTED_GOTO
+	// Each instruction jumps straight to the next one through a table of label addresses
+	static const void *labels[] = {
+#define X(name, operands) &&L_##name,
+	    MINIC_OPS
+#undef X
+	};
+#define MINIC_NEXT goto *labels[*ip]
+	MINIC_NEXT;
+#else
+#define MINIC_NEXT break
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-label" // The labels after the cases are only jumped to with computed goto
+#endif
 
 	for (;;) {
-		switch ((minic_op_t)code[pc++]) {
+		switch (*ip) {
 		case OP_HALT:
+		L_HALT:
 			goto fail;
-		case OP_INT:
-			*sp++ = minic_val_int(code[pc++]);
-			break;
-		case OP_CONST:
-			*sp++ = ctx->consts[code[pc++]];
-			break;
-		case OP_POP:
-			sp--;
-			break;
-		case OP_DUP:
-			*sp = sp[-1];
-			sp++;
-			break;
-		case OP_LOADV:
-			*sp++ = *MINIC_SLOT(code[pc]);
-			pc++;
-			break;
-		case OP_STOREV: {
-			minic_val_t *s = MINIC_SLOT(code[pc]);
-			minic_val_t  v = sp[-1];
-			if (v.type == s->type && (v.type == MINIC_T_FLOAT || (v.type == MINIC_T_INT && code[pc + 1] == MINIC_T_INT))) {
-				s->d = v.d; // Same representation, copy the bits
-			}
-			else {
-				minic_slot_store(s, v, code[pc + 1], code[pc + 2]);
-			}
-			pc += 3;
-			break;
-		}
-		case OP_INITV:
-			minic_slot_init(MINIC_SLOT(code[pc]), *--sp, code[pc + 1], code[pc + 2]);
-			pc += 3;
-			break;
-		case OP_INIT_EMBED: {
-			void *p = minic_alloc_aligned(code[pc + 1], code[pc + 2]);
+		case OP_MOV:
+		L_MOV:
+			*REG(ip[1]) = *REG(ip[2]);
+			ip += 3;
+			MINIC_NEXT;
+		case OP_INIT:
+		L_INIT:
+			minic_slot_init(REG(ip[1]), *REG(ip[2]), ip[3], ip[4]);
+			ip += 5;
+			MINIC_NEXT;
+		case OP_INIT_EMBED:
+		L_INIT_EMBED: {
+			void       *p = minic_alloc_aligned(ip[3], ip[4]);
+			minic_val_t v = *REG(ip[2]);
 			if (p == NULL) {
 				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
 			}
-			memset(p, 0, code[pc + 1]);
-			*MINIC_SLOT(code[pc]) = minic_val_typed_ptr(p, MINIC_T_EMBED);
-			pc += 3;
-			break;
+			if (v.type == MINIC_T_PTR && v.p != NULL) {
+				memmove(p, v.p, ip[3]);
+			}
+			else {
+				memset(p, 0, ip[3]);
+			}
+			*REG(ip[1]) = minic_val_typed_ptr(p, MINIC_T_EMBED);
+			ip += 5;
+			MINIC_NEXT;
 		}
-		case OP_INIT_ARR: {
-			int count = minic_val_to_i(*--sp);
-			int size  = code[pc + 2];
+		case OP_INIT_ARR:
+		L_INIT_ARR: {
+			int count = minic_val_to_i(*REG(ip[3]));
+			int size  = ip[5];
 			if (count < 0 || count > MINIC_MEM_SIZE / size) {
 				MINIC_FAIL("invalid array size %d", count);
 			}
-			void *p = minic_alloc_aligned(count * size, code[pc + 3]);
+			void *p = minic_alloc_aligned(count * size, ip[6]);
 			if (p == NULL) {
 				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
 			}
 			memset(p, 0, count * size);
-			minic_val_t *s = MINIC_SLOT(code[pc]);
-			s[0]           = minic_val_typed_ptr(p, code[pc + 1]);
-			s[1]           = minic_val_int(count);
-			pc += 4;
-			break;
+			*REG(ip[1]) = minic_val_typed_ptr(p, ip[4]);
+			*REG(ip[2]) = minic_val_int(count);
+			ip += 7;
+			MINIC_NEXT;
 		}
 		case OP_ADDRV:
-			*sp++ = minic_val_typed_ptr(&MINIC_SLOT(code[pc])->i, code[pc + 1]);
-			pc += 2;
-			break;
-		case OP_LOADM:
-			sp[-1] = minic_mem_load(minic_val_to_ptr(sp[-1]), code[pc], code[pc + 1]);
-			pc += 2;
-			break;
-		case OP_STOREM:
-			minic_mem_store(minic_val_to_ptr(sp[-2]), sp[-1], code[pc], code[pc + 1]);
-			sp[-2] = sp[-1];
-			sp--;
-			pc += 2;
-			break;
-		case OP_LOADH: {
-			minic_val_t h = ctx->consts[code[pc++]];
-			*sp++         = minic_mem_load(h.p, h.deref_type, h.deref_type);
-			break;
-		}
-		case OP_FIELD: {
-			char *base = minic_val_to_ptr(sp[-1]);
-			if (base == NULL) {
-				int             f   = code[pc + 1];
-				minic_struct_t *def = &ctx->structs[f / MINIC_MAX_STRUCT_FIELDS];
-				pc += 2;
-				MINIC_FAIL("null pointer access on '%s->%s'", def->name, def->fields[f % MINIC_MAX_STRUCT_FIELDS]);
-			}
-			sp[-1] = minic_val_ptr(base + code[pc]);
-			pc += 2;
-			break;
-		}
-		case OP_INDEX: {
-			int   idx  = minic_val_to_i(*--sp);
-			int   len  = code[pc + 1];
-			char *base = minic_val_to_ptr(sp[-1]);
-			pc += 2;
-			if (idx < 0 || (len >= 0 && idx >= len)) {
-				MINIC_FAIL("index %d out of range (length %d)", idx, len);
-			}
-			sp[-1] = minic_val_ptr(base != NULL ? base + (size_t)idx * code[pc - 2] : NULL);
-			break;
-		}
-		case OP_INDEX_ARR: {
-			minic_val_t *s   = MINIC_SLOT(code[pc]);
-			int          idx = minic_val_to_i(sp[-1]);
-			pc += 2;
-			if (idx < 0 || idx >= s[1].i) {
-				MINIC_FAIL("index %d out of range (length %d)", idx, s[1].i);
-			}
-			sp[-1] = minic_val_ptr((char *)s[0].p + (size_t)idx * code[pc - 1]);
-			break;
-		}
-		case OP_INDEX_BUF: {
-			int   idx   = minic_val_to_i(*--sp);
-			char *field = sp[-1].p;
-			char *base;
-			int   len;
-			memcpy(&base, field, sizeof(base));
-			memcpy(&len, field + code[pc + 1], sizeof(len));
-			pc += 2;
-			if (idx < 0 || idx >= len) {
-				MINIC_FAIL("index %d out of range (length %d)", idx, len);
-			}
-			sp[-1] = minic_val_ptr(base != NULL ? base + (size_t)idx * code[pc - 2] : NULL);
-			break;
-		}
-		case OP_INCV: {
-			minic_val_t *s    = MINIC_SLOT(code[pc]);
-			minic_val_t  old  = *s;
-			minic_val_t  next = minic_step(old, code[pc + 2], code[pc + 4]);
-			if (code[pc + 1] == MINIC_T_INT && old.type == MINIC_T_INT) {
-				s->i = next.i;
+		L_ADDRV:
+			*REG(ip[1]) = minic_val_typed_ptr(&REG(ip[2])->i, ip[3]);
+			ip += 4;
+			MINIC_NEXT;
+		case OP_LD:
+		L_LD: {
+			MINIC_ADDR(2, p);
+			minic_type_t kind = ip[10] & 0xff;
+			minic_val_t *d    = REG(ip[1]);
+			if (p != NULL && (kind == MINIC_T_FLOAT || kind == MINIC_T_INT)) {
+				minic_val_t v = kind == MINIC_T_FLOAT ? minic_val_float(0.0f) : minic_val_int(0);
+				memcpy(&v.i, p, 4); // A float or an int32
+				*d = v;
 			}
 			else {
-				minic_slot_store(s, next, code[pc + 1], 0);
+				*d = minic_mem_load(p, kind, ip[10] >> 8);
 			}
-			*sp++ = code[pc + 3] ? old : next;
-			pc += 5;
-			break;
+			ip += 11;
+			MINIC_NEXT;
 		}
-		case OP_INCM: {
-			void       *p    = minic_val_to_ptr(sp[-1]);
-			minic_val_t old  = minic_mem_load(p, code[pc], code[pc + 1]);
-			minic_val_t next = minic_step(old, code[pc + 2], code[pc + 4]);
-			minic_mem_store(p, next, code[pc], code[pc + 5]);
-			sp[-1] = code[pc + 3] ? old : next;
-			pc += 6;
-			break;
+		case OP_LEA:
+		L_LEA: {
+			MINIC_ADDR(2, p);
+			*REG(ip[1]) = minic_val_ptr(p);
+			ip += 10;
+			MINIC_NEXT;
 		}
-		case OP_COMPV: {
-			minic_val_t *s = MINIC_SLOT(code[pc]);
-			minic_val_t  r = minic_binop(code[pc + 1], *s, sp[-1]);
-			if (r.type != s->type) {
-				r = minic_val_cast(r, s->type);
+		case OP_BIN:
+		L_BIN:
+			*REG(ip[1]) = minic_binop(ip[4], *REG(ip[2]), *REG(ip[3]));
+			ip += 5;
+			MINIC_NEXT;
+		case OP_MIX:
+		L_MIX: {
+			minic_val_t *a = REG(ip[2]);
+			minic_val_t *b = REG(ip[3]);
+			double       x = ip[4] & 16 ? (double)a->i : (double)a->f;
+			double       y = ip[4] & 32 ? (double)b->i : (double)b->f;
+			minic_val_t *d = REG(ip[1]);
+			switch (ip[4] & 15) {
+			case BIN_ADD:
+				*d = minic_val_float((float)(x + y));
+				break;
+			case BIN_SUB:
+				*d = minic_val_float((float)(x - y));
+				break;
+			case BIN_MUL:
+				*d = minic_val_float((float)(x * y));
+				break;
+			case BIN_DIV:
+				*d = minic_val_float(y != 0.0 ? (float)(x / y) : 0.0f);
+				break;
+			default:
+				*d = minic_binop(ip[4] & 15, minic_val_double(x), minic_val_double(y));
+				break;
 			}
-			if (code[pc + 2] == (int)s->type && (s->type == MINIC_T_FLOAT || s->type == MINIC_T_INT)) {
-				s->d = r.d; // Same representation, copy the bits
-			}
-			else {
-				minic_slot_store(s, r, code[pc + 2], code[pc + 3]);
-			}
-			sp[-1] = r;
-			pc += 4;
-			break;
+			ip += 5;
+			MINIC_NEXT;
 		}
-		case OP_COMPM: {
-			void       *p   = minic_val_to_ptr(sp[-2]);
-			minic_val_t old = minic_mem_load(p, code[pc + 1], code[pc + 2]);
-			minic_val_t r   = minic_val_cast(minic_binop(code[pc], old, sp[-1]), old.type);
-			minic_mem_store(p, r, code[pc + 1], code[pc + 3]);
-			sp[-2] = r;
-			sp--;
-			pc += 4;
-			break;
+		case OP_NEG:
+		L_NEG: {
+			minic_val_t v = *REG(ip[2]);
+			*REG(ip[1])   = v.type == MINIC_T_INT ? minic_val_int((int)(0u - (unsigned int)v.i)) : minic_val_coerce(-minic_val_to_d(v), v.type);
+			ip += 3;
+			MINIC_NEXT;
 		}
-			MINIC_ARITH(OP_ADD, (int)((unsigned int)a->i + (unsigned int)b->i), a->f + b->f)
-			MINIC_ARITH(OP_SUB, (int)((unsigned int)a->i - (unsigned int)b->i), a->f - b->f)
-			MINIC_ARITH(OP_MUL, (int)((unsigned int)a->i * (unsigned int)b->i), a->f * b->f)
-			MINIC_ARITH(OP_DIV, minic_arith(*a, *b, OP_DIV).i, b->f != 0.0f ? a->f / b->f : 0.0f)
-			MINIC_CMP(OP_EQ, ==)
-			MINIC_CMP(OP_NE, !=)
-			MINIC_CMP(OP_LT, <)
-			MINIC_CMP(OP_GT, >)
-			MINIC_CMP(OP_LE, <=)
-			MINIC_CMP(OP_GE, >=)
-		case OP_MOD:
-		case OP_SHL:
-		case OP_SHR:
-		case OP_BAND:
-		case OP_BOR:
-		case OP_XOR:
-			sp[-2] = minic_binop(code[pc - 1], sp[-2], sp[-1]);
-			sp--;
-			break;
-		case OP_NEG: {
-			minic_val_t v = sp[-1];
-			sp[-1]        = v.type == MINIC_T_INT ? minic_val_int((int)(0u - (unsigned int)v.i)) : minic_val_coerce(-minic_val_to_d(v), v.type);
-			break;
-		}
-		case OP_NOT:
-			sp[-1] = minic_val_int(!minic_val_is_true(sp[-1]));
-			break;
-		case OP_BNOT:
-			sp[-1] = minic_val_int(~minic_val_to_i(sp[-1]));
-			break;
 		case OP_CAST:
-			sp[-1] = minic_cast(sp[-1], code[pc++]);
-			break;
-		case OP_TOPTR:
-			sp[-1] = minic_val_typed_ptr(minic_val_to_ptr(sp[-1]), code[pc++]);
-			break;
+		L_CAST:
+			*REG(ip[1]) = minic_cast(*REG(ip[2]), ip[3]);
+			ip += 4;
+			MINIC_NEXT;
+			MINIC_TYPED(ADD_F, float, f, minic_val_float, x + y)
+			MINIC_TYPED(SUB_F, float, f, minic_val_float, x - y)
+			MINIC_TYPED(MUL_F, float, f, minic_val_float, x *y)
+			MINIC_TYPED(DIV_F, float, f, minic_val_float, y != 0.0f ? x / y : 0.0f)
+			MINIC_TYPED(ADD_I, int, i, minic_val_int, MINIC_WRAP(+))
+			MINIC_TYPED(SUB_I, int, i, minic_val_int, MINIC_WRAP(-))
+			MINIC_TYPED(MUL_I, int, i, minic_val_int, MINIC_WRAP(*))
+			MINIC_TYPED(DIV_I, int, i, minic_val_int, y == 0 ? 0 : (y == -1 ? (int)(0u - (unsigned int)x) : x / y))
+			MINIC_TYPED(MOD_I, int, i, minic_val_int, y == 0 || y == -1 ? 0 : x % y)
+			MINIC_TYPED(LT_F, float, f, minic_val_int, x < y)
+			MINIC_TYPED(LE_F, float, f, minic_val_int, x <= y)
+			MINIC_TYPED(EQ_F, float, f, minic_val_int, x == y)
+			MINIC_TYPED(NE_F, float, f, minic_val_int, x != y)
+			MINIC_TYPED(LT_I, int, i, minic_val_int, x < y)
+			MINIC_TYPED(LE_I, int, i, minic_val_int, x <= y)
+			MINIC_TYPED(EQ_I, int, i, minic_val_int, x == y)
+			MINIC_TYPED(NE_I, int, i, minic_val_int, x != y)
+		case OP_MADD_F:
+		L_MADD_F: {
+			float m     = REG(ip[3])->f * REG(ip[4])->f; // Rounded before the add, no fused multiply-add
+			*REG(ip[1]) = minic_val_float(REG(ip[2])->f + m);
+			ip += 5;
+			MINIC_NEXT;
+		}
+		case OP_MADD_I:
+		L_MADD_I: {
+			unsigned int m = (unsigned int)REG(ip[3])->i * (unsigned int)REG(ip[4])->i;
+			*REG(ip[1])    = minic_val_int((int)((unsigned int)REG(ip[2])->i + m));
+			ip += 5;
+			MINIC_NEXT;
+		}
+		case OP_STV:
+		L_STV: {
+			minic_val_t *s = REG(ip[1]);
+			minic_val_t  v = *REG(ip[2]);
+			if (v.type == s->type && (v.type == MINIC_T_FLOAT || (v.type == MINIC_T_INT && ip[3] == MINIC_T_INT))) {
+				s->d = v.d; // Same representation, copy the bits
+			}
+			else {
+				minic_slot_store(s, v, ip[3], ip[4]);
+			}
+			ip += 5;
+			MINIC_NEXT;
+		}
+		case OP_ST:
+		L_ST: {
+			MINIC_ADDR(1, p);
+			minic_val_t v = *REG(ip[9]);
+			if (p != NULL && v.type == (minic_type_t)ip[10] && (v.type == MINIC_T_FLOAT || v.type == MINIC_T_INT)) {
+				memcpy(p, &v.i, 4); // A float or an int32
+			}
+			else {
+				minic_mem_store(p, v, ip[10], ip[11]);
+			}
+			ip += 12;
+			MINIC_NEXT;
+		}
 		case OP_JMP:
-			pc = code[pc];
-			break;
-		case OP_JZ: {
-			minic_val_t v = *--sp;
-			pc            = (v.type == MINIC_T_INT ? v.i != 0 : minic_val_is_true(v)) ? pc + 1 : code[pc];
-			break;
+		L_JMP:
+			ip = code + ip[1];
+			MINIC_NEXT;
+		case OP_JZ:
+		L_JZ:
+		case OP_JNZ:
+		L_JNZ: {
+			minic_val_t *v = REG(ip[2]);
+			bool         t = v->type == MINIC_T_INT ? v->i != 0 : minic_val_is_true(*v);
+			ip             = t == (*ip == OP_JNZ) ? code + ip[1] : ip + 3;
+			MINIC_NEXT;
 		}
-		case OP_JNZ: {
-			minic_val_t v = *--sp;
-			pc            = (v.type == MINIC_T_INT ? v.i != 0 : minic_val_is_true(v)) ? code[pc] : pc + 1;
-			break;
+			MINIC_JUMP(JLT_F, float, f, x < y)
+			MINIC_JUMP(JLE_F, float, f, x <= y)
+			MINIC_JUMP(JEQ_F, float, f, x == y)
+			MINIC_JUMP(JNE_F, float, f, x != y)
+			MINIC_JUMP(JLT_I, int, i, x < y)
+			MINIC_JUMP(JLE_I, int, i, x <= y)
+			MINIC_JUMP(JEQ_I, int, i, x == y)
+			MINIC_JUMP(JNE_I, int, i, x != y)
+			MINIC_JUMP(JNLT_F, float, f, !(x < y))
+			MINIC_JUMP(JNLE_F, float, f, !(x <= y))
+		case OP_LOOP_LT:
+		L_LOOP_LT:
+		case OP_LOOP_LE:
+		L_LOOP_LE: {
+			minic_val_t *a = REG(ip[2]);
+			a->i           = (int)((unsigned int)a->i + (unsigned int)ip[3]);
+			int x          = a->i;
+			int y          = REG(ip[4])->i;
+			ip             = (*ip == OP_LOOP_LT ? x < y : x <= y) ? code + ip[1] : ip + 5;
+			MINIC_NEXT;
 		}
-		case OP_CALL: {
-			minic_func_t *f = &ctx->funcs[code[pc]];
-			int           n = code[pc + 1];
-			pc += 2;
-			if (sp + f->slot_count + MINIC_STACK_SLACK > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
+		case OP_CALL:
+		L_CALL: {
+			minic_func_t *f   = &ctx->funcs[ip[1]];
+			minic_val_t  *nfp = REG(ip[2]);
+			if (nfp + f->slot_count > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
 				MINIC_FAIL("out of script memory calling '%s', recursion too deep", f->name);
 			}
-			ctx->frames[ctx->depth].pc   = pc;
-			ctx->frames[ctx->depth++].fp = fp;
-			fp                           = sp - n;
-			for (; sp < fp + f->slot_count; ++sp) {
-				*sp = minic_val_int(0);
-			}
-			sp = fp + f->slot_count;
-			pc = f->entry;
-			break;
+			ctx->frames[ctx->depth++] = (minic_frame_t){ip + 3, fp, cur};
+			fp                        = nfp;
+			cur                       = f;
+			ip                        = code + f->entry;
+			MINIC_NEXT;
 		}
-		case OP_CALLN: {
-			minic_ext_func_t *ef = &minic_ext_funcs[code[pc]];
-			int               n  = code[pc + 1];
-			pc += 2;
-			ctx->sp       = sp; // A native may call back into this context
-			minic_val_t r = minic_dispatch(ef, sp - n, n);
-			sp -= n;
-			*sp++ = r;
+		case OP_CALLN:
+		L_CALLN: {
+			minic_val_t *a = REG(ip[2]);
+			ctx->sp        = fp + cur->slot_count; // A native may call back into this context
+			minic_val_t r  = minic_dispatch(&minic_ext_funcs[ip[1]], a, ip[3]);
+			*a             = r;
 			if (minic_mem_oom) {
 				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
 			}
-			break;
+			ip += 4;
+			MINIC_NEXT;
 		}
-		case OP_FNPTR:
-			*sp++ = minic_val_ptr(&ctx->funcs[code[pc++]]);
-			break;
-		case OP_RET: {
-			minic_val_t  v    = sp[-1];
-			minic_type_t kind = code[pc];
+		case OP_RET:
+		L_RET: {
+			minic_val_t  v    = *REG(ip[1]);
+			minic_type_t kind = ip[2];
 			if (kind == MINIC_T_PTR) {
-				v = minic_val_typed_ptr(minic_val_to_ptr(v), code[pc + 1]);
+				v = minic_val_typed_ptr(minic_val_to_ptr(v), ip[3]);
 			}
 			else if (kind != MINIC_T_VOID && kind != MINIC_T_EMBED && v.type != kind) {
 				v = minic_cast(v, kind);
 			}
-			sp                   = fp;
 			minic_frame_t *frame = &ctx->frames[--ctx->depth];
 			if (ctx->depth == base_depth) {
 				*ret    = v;
 				ctx->sp = base;
 				return true;
 			}
-			pc    = frame->pc;
-			fp    = frame->fp;
-			*sp++ = v;
-			break;
+			*fp = v; // The caller's register base
+			ip  = frame->ip;
+			fp  = frame->fp;
+			cur = frame->fn;
+			MINIC_NEXT;
 		}
 		}
 	}
@@ -2821,11 +3380,17 @@ fail:
 	ctx->depth = base_depth;
 	ctx->sp    = base;
 	return false;
-#undef MINIC_SLOT
+#undef REG
 #undef MINIC_FAIL
-#undef MINIC_ARITH
-#undef MINIC_CMP
+#undef MINIC_ADDR
+#undef MINIC_TYPED
+#undef MINIC_JUMP
+#undef MINIC_WRAP
+#undef MINIC_NEXT
 }
+#ifndef MINIC_COMPUTED_GOTO
+#pragma GCC diagnostic pop // After the function, gcc reports unused labels at its end
+#endif
 
 static minic_val_t minic_call_in_ctx(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int argc) {
 	minic_ctx_t *prev       = minic_active;
@@ -2877,7 +3442,6 @@ minic_ctx_t *minic_eval_named(const char *src, const char *filename) {
 
 	bool ok = minic_compile(ctx);
 	if (ok) {
-		ctx->globals = calloc(ctx->global_count + 1, sizeof(minic_val_t));
 		minic_val_t r;
 		ok           = minic_run(ctx, &ctx->init, NULL, 0, &r);
 		int main_idx = minic_func_index(ctx, "main");
@@ -2901,10 +3465,9 @@ void minic_ctx_free(minic_ctx_t *ctx) {
 		free(ctx->funcs);
 		free(ctx->structs);
 		free(ctx->frames);
-		free(ctx->globals);
+		free(ctx->statics);
 		free(ctx->code);
 		free(ctx->code_pos);
-		free(ctx->consts);
 		free(ctx->src_copy);
 		free(ctx->str_pool);
 		free(ctx);
@@ -3171,6 +3734,10 @@ const char *minic_global_name_at(int i) {
 
 minic_type_t minic_global_type_at(int i) {
 	return minic_globals[i].type;
+}
+
+void *minic_global_ptr_at(int i) {
+	return (void *)minic_globals[i].ptr;
 }
 
 int minic_enum_const_count_get(void) {

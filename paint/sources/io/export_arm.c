@@ -148,9 +148,9 @@ buffer_t *export_arm_encode_project(char *path) {
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
 
-	workflow_t _workflow = g_config->workflow;
-	g_config->workflow   = WORKFLOW_PBR;
-	base_update_workflow_nodes();
+	tools_t _tools  = g_config->tools;
+	g_config->tools = TOOLS_PAINT;
+	base_update_tools_nodes();
 
 	ui_node_canvas_t_array_t *mnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -163,8 +163,8 @@ buffer_t *export_arm_encode_project(char *path) {
 		any_array_push(mnodes, c);
 	}
 
-	g_config->workflow = _workflow;
-	base_update_workflow_nodes();
+	g_config->tools = _tools;
+	base_update_tools_nodes();
 
 	ui_node_canvas_t_array_t *bnodes = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
@@ -211,6 +211,8 @@ buffer_t *export_arm_encode_project(char *path) {
 			any_array_push(mdata2, d);
 		}
 	}
+
+	nodes_mesh_export_begin();
 
 	mesh_data_t_array_t *md = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
@@ -279,19 +281,22 @@ buffer_t *export_arm_encode_project(char *path) {
 	bool same_drive = g_project->envmap != NULL ? char_at(relative_to, 0)[0] == char_at(g_project->envmap, 0)[0] : true;
 #endif
 
-	g_project->version         = string_copy(manifest_version_project);
-	g_project->material_groups = mgroups;
-	g_project->material_datas  = mdata2;
-	g_project->assets          = texture_files;
-	g_project->packed_assets   = packed_assets;
-	g_project->swatches        = g_project->swatches;
-	g_project->envmap          = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
-	g_project->envmap_strength = scene_world->strength;
-	g_project->envmap_angle    = g_context->envmap_angle;
-	g_project->envmap_blur     = g_context->show_envmap_blur;
-	g_project->camera_world    = mat4_to_f32_array(scene_camera->base->transform->local);
-	g_project->camera_origin   = vec3_to_f32_array(camera_origins[0]);
-	g_project->camera_fov      = scene_camera->data->fov;
+	g_project->version                = string_copy(manifest_version_project);
+	g_project->material_groups        = mgroups;
+	g_project->material_datas         = mdata2;
+	g_project->assets                 = texture_files;
+	g_project->packed_assets          = packed_assets;
+	g_project->swatches               = g_project->swatches;
+	g_project->envmap                 = g_project->envmap != NULL ? (same_drive ? path_to_relative(relative_to, g_project->envmap) : g_project->envmap) : NULL;
+	g_project->envmap_strength        = scene_world->strength;
+	g_project->envmap_angle           = g_context->envmap_angle;
+	g_project->envmap_blur            = g_context->show_envmap_blur;
+	g_project->camera_world           = mat4_to_f32_array(scene_camera->base->transform->local);
+	g_project->camera_origin          = vec3_to_f32_array(camera_origins[0]);
+	g_project->camera_fov             = scene_camera->data->fov;
+	g_project->camera_near            = scene_camera->data->near_plane;
+	g_project->camera_far             = scene_camera->data->far_plane;
+	g_project->camera_frustum_culling = scene_camera->data->frustum_culling;
 
 	// g_project.mesh_datas = md; // TODO: fix GC ref
 	if (g_project->mesh_datas == NULL) {
@@ -311,6 +316,7 @@ buffer_t *export_arm_encode_project(char *path) {
 		any_array_push(mesh_transforms, ar);
 	}
 	g_project->mesh_transforms = mesh_transforms;
+	util_path_tool_export();
 
 	// Source mesh bytes
 	// Meshes with no skin data store an empty buffer
@@ -381,6 +387,7 @@ buffer_t *export_arm_encode_project(char *path) {
 	}
 
 	buffer_t *buffer = util_encode_project(g_project);
+	nodes_mesh_export_end();
 
 	for (i32 i = 0; i < ld->length; ++i) {
 		layer_data_t *d = ld->buffer[i];
@@ -414,21 +421,21 @@ void export_arm_run_project(char *path) {
 #else
 	{
 #endif
-	render_target_t *rt        = any_map_get(render_path_render_targets, "buf");
-	gpu_texture_t   *tex       = rt->_image;
-	gpu_texture_t   *mesh_icon = gpu_create_render_target(256, 256, GPU_TEXTURE_FORMAT_RGBA32);
-	f32              r         = sys_w() / (float)sys_h();
-	draw_begin(mesh_icon, false, 0);
-	draw_scaled_image(tex, -(256 * r - 256) / 2.0, 0, 256 * r, 256);
-	draw_end();
+		render_target_t *rt        = any_map_get(render_path_render_targets, "buf");
+		gpu_texture_t   *tex       = rt->_image;
+		gpu_texture_t   *mesh_icon = gpu_create_render_target(256, 256, GPU_TEXTURE_FORMAT_RGBA32);
+		f32              r         = sys_w() / (float)sys_h();
+		draw_begin(mesh_icon, false, 0);
+		draw_scaled_image(tex, -(256 * r - 256) / 2.0, 0, 256 * r, 256);
+		draw_end();
 
-	buffer_t   *mesh_icon_pixels = gpu_get_texture_pixels(mesh_icon);
-	u8_array_t *u8a              = mesh_icon_pixels;
-	for (i32 i = 0; i < 256 * 256 * 4; ++i) {
-		u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
-	}
-	iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
-	gpu_delete_texture(mesh_icon);
+		buffer_t   *mesh_icon_pixels = gpu_get_texture_pixels(mesh_icon);
+		u8_array_t *u8a              = mesh_icon_pixels;
+		for (i32 i = 0; i < 256 * 256 * 4; ++i) {
+			u8a->buffer[i] = math_floor(math_pow(u8a->buffer[i] / 255.0, 1.0 / 2.2) * 255);
+		}
+		iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), mesh_icon_pixels, 256, 256, 0);
+		gpu_delete_texture(mesh_icon);
 	}
 #endif
 
@@ -620,25 +627,48 @@ void export_arm_run_brush(char *path) {
 	free(buffer);
 }
 
+static buffer_t *export_arm_asset_bytes(char *file) {
+	if (g_project->packed_assets != NULL) {
+		for (i32 i = 0; i < g_project->packed_assets->length; ++i) {
+			packed_asset_t *pa = g_project->packed_assets->buffer[i];
+			if (string_equals(pa->name, file)) {
+				return u8_array_create_from_array(pa->bytes);
+			}
+		}
+	}
+	return iron_load_blob(file);
+}
+
 void export_arm_pack_assets(project_t *raw, asset_t_array_t *assets) {
 	if (raw->packed_assets == NULL) {
 		raw->packed_assets = any_array_create_from_raw((void *[]){}, 0);
 	}
 	gpu_texture_t_array_t *temp_images = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < assets->length; ++i) {
-		if (!project_packed_asset_exists(raw->packed_assets, assets->buffer[i]->file)) {
+		char *file = assets->buffer[i]->file;
+		if (project_packed_asset_exists(raw->packed_assets, file)) {
+			continue;
+		}
+		char     *ext = path_ext(file);
+		buffer_t *bytes;
+		if (any_map_get(import_texture_importers, ext) != NULL) { // Script importer format, store as png
 			gpu_texture_t *image = project_get_image(assets->buffer[i]);
 			gpu_texture_t *temp  = gpu_create_render_target(image->width, image->height, GPU_TEXTURE_FORMAT_RGBA32);
 			draw_begin(temp, false, 0);
 			draw_image(image, 0, 0);
 			draw_end();
 			any_array_push(temp_images, temp);
-			packed_asset_t *pa = ALLOC_INIT(packed_asset_t, {.name  = assets->buffer[i]->file,
-			                                                 .bytes = ends_with(assets->buffer[i]->file, ".jpg")
-			                                                              ? iron_encode_jpg(gpu_get_texture_pixels(temp), temp->width, temp->height, 0, 80)
-			                                                              : iron_encode_png(gpu_get_texture_pixels(temp), temp->width, temp->height, 0)});
-			any_array_push(raw->packed_assets, pa);
+			bytes = iron_encode_png(gpu_get_texture_pixels(temp), temp->width, temp->height, 0);
 		}
+		else {
+			bytes = export_arm_asset_bytes(file);
+			if (bytes == NULL) {
+				console_error(string("%s %s", strings_could_not_locate_texture(), file));
+				continue;
+			}
+		}
+		packed_asset_t *pa = ALLOC_INIT(packed_asset_t, {.name = file, .bytes = bytes});
+		any_array_push(raw->packed_assets, pa);
 	}
 
 	for (i32 i = 0; i < temp_images->length; ++i) {

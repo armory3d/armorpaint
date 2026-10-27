@@ -172,16 +172,16 @@ static int do_request(async_context_t *async_ctx) {
 		return 0;
 	}
 
-	async_ctx->ssl     = ssl;
-	async_ctx->sock_fd = sock_fd;
+	async_ctx->ssl          = ssl;
+	async_ctx->sock_fd      = sock_fd;
 	const char *method      = async_ctx->method == IRON_HTTPS_POST ? "POST" : "GET";
 	const char *headers     = async_ctx->headers ? async_ctx->headers : "";
 	const char *data        = async_ctx->data ? async_ctx->data : "";
 	int         data_len    = (int)strlen(data);
 	int         request_cap = (int)(strlen(async_ctx->url_path) + strlen(async_ctx->url_base) + strlen(headers) + data_len + 256);
 	char       *request     = malloc(request_cap);
-	int request_len = snprintf(request, request_cap, "%s /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n%s", method, async_ctx->url_path, async_ctx->url_base,
-	                           headers);
+	int         request_len =
+	    snprintf(request, request_cap, "%s /%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n%s", method, async_ctx->url_path, async_ctx->url_base, headers);
 	if (async_ctx->method == IRON_HTTPS_POST) {
 		request_len += snprintf(request + request_len, request_cap - request_len, "Content-Length: %d\r\n", data_len);
 	}
@@ -315,8 +315,8 @@ static void *download_thread(void *arg) {
 	return NULL;
 }
 
-void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers,
-                      iron_https_callback_t callback, void *callbackdata, const char *dst_path) {
+void iron_net_request(const char *url_base, const char *url_path, const char *data, int port, int method, const char *headers, iron_https_callback_t callback,
+                      void *callbackdata, const char *dst_path) {
 	if (ctx == NULL) {
 		ctx = SSL_CTX_new(TLS_client_method());
 		SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);

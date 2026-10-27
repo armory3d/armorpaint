@@ -72,7 +72,7 @@ ui_node_t *util_clone_canvas_node(ui_node_t *n) {
 
 	u32 _length = 0;
 	if (n->inputs != NULL && n->inputs->length < 9 && string_equals(n->type, "OUTPUT_MATERIAL_PBR")) {
-		// Base workflow
+		// Base color materials
 		_length           = n->inputs->length;
 		n->inputs->length = 9;
 	}
@@ -125,29 +125,6 @@ ui_node_canvas_t *util_clone_canvas(ui_node_canvas_t *c) {
 	r->name             = string_copy(c->name);
 	r->nodes            = util_clone_canvas_nodes(c->nodes);
 	r->links            = util_clone_canvas_links(c->links);
-	return r;
-}
-
-obj_t *util_clone_obj(obj_t *o) {
-	if (o == NULL) {
-		return NULL;
-	}
-	obj_t *r        = ALLOC_INIT(obj_t, {0});
-	r->name         = string_copy(o->name);
-	r->type         = string_copy(o->type);
-	r->data_ref     = string_copy(o->data_ref);
-	r->transform    = util_clone_f32_array(o->transform);
-	r->dimensions   = util_clone_f32_array(o->dimensions);
-	r->visible      = o->visible;
-	r->spawn        = o->spawn;
-	r->material_ref = string_copy(o->material_ref);
-	if (o->children != NULL) {
-		r->children = any_array_create_from_raw((void *[]){}, 0);
-		for (i32 i = 0; i < o->children->length; ++i) {
-			obj_t *c = util_clone_obj(o->children->buffer[i]);
-			any_array_push(r->children, c);
-		}
-	}
 	return r;
 }
 

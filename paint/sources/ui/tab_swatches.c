@@ -5,15 +5,29 @@ gpu_texture_t *_tab_swatches_empty;
 i32            tab_swatches_drag_pos = -1;
 i32            _tab_swatches_draw_i;
 swatch_color_t tab_swatches_edit_prev;
+bool           tab_swatches_large = false;
 
+// White rounded rect, tinted with the swatch color
 gpu_texture_t *tab_swatches_empty_get() {
 	if (_tab_swatches_empty == NULL) {
-		u8_array_t *b       = u8_array_create(4);
-		b->buffer[0]        = 255;
-		b->buffer[1]        = 255;
-		b->buffer[2]        = 255;
-		b->buffer[3]        = 255;
-		_tab_swatches_empty = gpu_create_texture_from_bytes(b, 1, 1, GPU_TEXTURE_FORMAT_RGBA32);
+		i32         size   = 64;
+		f32         radius = 10.0;
+		u8_array_t *b      = u8_array_create(size * size * 4);
+		for (i32 y = 0; y < size; ++y) {
+			for (i32 x = 0; x < size; ++x) {
+				// Distance into the corner circle, anti-aliased edge
+				f32 cx           = math_max(math_max(radius - (x + 0.5), (x + 0.5) - (size - radius)), 0.0);
+				f32 cy           = math_max(math_max(radius - (y + 0.5), (y + 0.5) - (size - radius)), 0.0);
+				f32 d            = math_sqrt(cx * cx + cy * cy);
+				f32 alpha        = math_min(math_max(radius - d + 0.5, 0.0), 1.0);
+				i32 i            = (y * size + x) * 4;
+				b->buffer[i + 0] = 255;
+				b->buffer[i + 1] = 255;
+				b->buffer[i + 2] = 255;
+				b->buffer[i + 3] = alpha * 255;
+			}
+		}
+		_tab_swatches_empty = gpu_create_texture_from_bytes(b, size, size, GPU_TEXTURE_FORMAT_RGBA32);
 		array_free(b);
 		free(b);
 	}
@@ -25,7 +39,15 @@ void tab_swatches_delete_swatch(swatch_color_t *swatch) {
 	history_delete_swatch(swatch);
 	g_context->swatch = g_project->swatches->buffer[i == g_project->swatches->length - 1 ? i - 1 : i + 1];
 	array_splice(g_project->swatches, i, 1);
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
+}
+
+static void tab_swatches_create_material_on_next_frame(void *swatch) {
+	tab_materials_accept_swatch_drop(swatch);
+}
+
+static void tab_swatches_apply_picked_color_on_next_frame(void *_) {
+	tab_materials_apply_picked_color(g_context->picked_color);
 }
 
 void tab_swatches_draw_menu() {
@@ -48,7 +70,7 @@ void tab_swatches_draw_menu() {
 		tab_swatches_delete_swatch(g_project->swatches->buffer[i]);
 	}
 	else if (ui_menu_button(tr("Create Material"), "", ICON_SPHERE)) {
-		tab_materials_accept_swatch_drop(g_project->swatches->buffer[i]);
+		sys_notify_on_next_frame(&tab_swatches_create_material_on_next_frame, g_project->swatches->buffer[i]);
 	}
 	else if (ui_menu_button(tr("Create Color Layer"), "", ICON_LAYERS)) {
 		i32 color = g_project->swatches->buffer[i]->base;
@@ -88,7 +110,7 @@ void tab_swatches_draw_edit_menu() {
 
 	ui_slider(&g_context->swatch->opacity, "Opacity", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
 
-	if (g_config->workflow == WORKFLOW_PBR) {
+	if (g_config->tools != TOOLS_SCULPT) {
 		ui_slider(&g_context->swatch->occlusion, "Occlusion", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		ui_slider(&g_context->swatch->roughness, "Roughness", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		ui_slider(&g_context->swatch->metallic, "Metallic", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
@@ -102,6 +124,7 @@ void tab_swatches_draw_edit_menu() {
 		g_context->swatch         = g_context->swatch; // Trigger material preview update
 		g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 		ui_header_handle->redraws = 2;
+		sys_notify_on_next_frame(&tab_swatches_apply_picked_color_on_next_frame, NULL);
 	}
 
 	i32 index = array_index_of(g_project->swatches, g_context->swatch);
@@ -121,6 +144,32 @@ void tab_swatches_draw_import() {
 	}
 }
 
+void tab_swatches_draw_edit() {
+	if (ui_menu_button(tr("Restore"), "", ICON_REPLAY)) {
+		history_replace_swatches(tr("Restore Swatches"));
+		project_set_default_swatches();
+		g_context->swatch = g_project->swatches->buffer[0];
+	}
+	if (ui_menu_button(tr("Clear"), "", ICON_ERASE)) {
+		history_replace_swatches(tr("Clear Swatches"));
+		g_context->swatch   = project_make_swatch(0xffffffff);
+		g_project->swatches = any_array_create_from_raw(
+		    (void *[]){
+		        g_context->swatch,
+		    },
+		    1);
+	}
+
+	ui_menu_separator();
+	i32 size = tab_swatches_large ? 1 : 0;
+	ui_radio(&size, 0, tr("Small Icons"), "");
+	ui_radio(&size, 1, tr("Large Icons"), "");
+	if (tab_swatches_large != (size == 1)) {
+		tab_swatches_large = size == 1;
+		ui_dock_redraw(TAB_AREA_STATUS);
+	}
+}
+
 void tab_swatches_draw(i32 *htab) {
 	if (ui_tab(htab, tr("Swatches"), false, -1, false) && g_ui->_window_h > ui_statusbar_default_h * UI_SCALE()) {
 
@@ -131,9 +180,8 @@ void tab_swatches_draw(i32 *htab) {
 		        -100,
 		        -100,
 		        -100,
-		        -100,
 		    },
-		    5);
+		    4);
 		ui_row(row);
 
 		if (ui_icon_button(tr("New"), ICON_PLUS, UI_ALIGN_CENTER)) {
@@ -159,29 +207,15 @@ void tab_swatches_draw(i32 *htab) {
 			ui_tooltip(tr("Export swatches"));
 		}
 
-		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
-			history_replace_swatches(tr("Clear Swatches"));
-			g_context->swatch   = project_make_swatch(0xffffffff);
-			g_project->swatches = any_array_create_from_raw(
-			    (void *[]){
-			        g_context->swatch,
-			    },
-			    1);
-		}
-
-		if (ui_icon_button(tr("Restore"), ICON_REPLAY, UI_ALIGN_CENTER)) {
-			history_replace_swatches(tr("Restore Swatches"));
-			project_set_default_swatches();
-			g_context->swatch = g_project->swatches->buffer[0];
-		}
-		if (g_ui->is_hovered) {
-			ui_tooltip(tr("Restore default swatches"));
+		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
+			ui_menu_draw(&tab_swatches_draw_edit, -1, -1);
 		}
 
 		ui_end_sticky();
 		ui_separator(3, false);
 
-		i32 slotw = math_floor(26 * UI_SCALE());
+		i32 size  = tab_swatches_large ? 50 : 26;
+		i32 slotw = math_floor(size * UI_SCALE());
 		i32 num   = math_floor(g_ui->_w / (float)(slotw + 3));
 		if (num == 0) {
 			return;
@@ -210,7 +244,7 @@ void tab_swatches_draw(i32 *htab) {
 				}
 
 				if (g_context->swatch == g_project->swatches->buffer[i]) {
-					i32 w = 32;
+					i32 w = size + 6;
 					draw_set_color(g_theme->HIGHLIGHT_COL);
 					ui_draw_rect(true, false, g_ui->_x - 2 * UI_SCALE(), g_ui->_y - 2 * UI_SCALE() - 1, w * UI_SCALE(), w * UI_SCALE());
 					draw_set_color(0xffffffff);
@@ -221,7 +255,7 @@ void tab_swatches_draw(i32 *htab) {
 
 				// Draw the drag position indicator
 				if (base_drag_swatch != NULL && tab_swatches_drag_pos == i) {
-					ui_fill(-1, -2, 2, 32, g_theme->HIGHLIGHT_COL);
+					ui_fill(-1, -2, 2, size + 6, g_theme->HIGHLIGHT_COL);
 				}
 
 				ui_state_t state = ui_image(tab_swatches_empty_get(), g_project->swatches->buffer[i]->base, slotw);
@@ -233,6 +267,7 @@ void tab_swatches_draw(i32 *htab) {
 					base_drag_swatch          = g_context->swatch;
 					g_context->picked_color   = util_clone_swatch_color(g_context->swatch);
 					ui_header_handle->redraws = 2;
+					sys_notify_on_next_frame(&tab_swatches_apply_picked_color_on_next_frame, NULL);
 				}
 				else if (state == UI_STATE_HOVERED) {
 					tab_swatches_drag_pos = (mouse_x > uix + g_ui->_window_x + slotw / 2.0)
@@ -269,7 +304,7 @@ void tab_swatches_draw(i32 *htab) {
 		if (base_drag_swatch != NULL && tab_swatches_drag_pos == g_project->swatches->length) {
 			g_ui->_x = uix; // Reset the position because otherwise it would start in the row below
 			g_ui->_y = uiy;
-			ui_fill(28, -2, 2, 32, g_theme->HIGHLIGHT_COL);
+			ui_fill(size + 2, -2, 2, size + 6, g_theme->HIGHLIGHT_COL);
 		}
 
 		// Currently there is no valid drag_position so reset it

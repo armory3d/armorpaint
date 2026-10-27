@@ -8,10 +8,17 @@ void project_fetch_default_meshes() {
 			char *s                              = project_default_mesh_list->buffer[i];
 			project_default_mesh_list->buffer[i] = substring(project_default_mesh_list->buffer[i], 0, string_length(s) - 4); // Trim .arm
 		}
+		// Procedural
+		any_array_push(project_default_mesh_list, "empty");
 		any_array_push(project_default_mesh_list, "plane");
 		any_array_push(project_default_mesh_list, "plane_2048");
+		any_array_push(project_default_mesh_list, "cube");
 		any_array_push(project_default_mesh_list, "sphere");
 		any_array_push(project_default_mesh_list, "sphere_2048");
+		any_array_push(project_default_mesh_list, "cone");
+		any_array_push(project_default_mesh_list, "cylinder");
+		any_array_push(project_default_mesh_list, "capsule");
+		any_array_push(project_default_mesh_list, "torus");
 #ifdef WITH_EMBED
 		any_array_push(project_default_mesh_list, "cube_bevel");
 #endif

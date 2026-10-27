@@ -1,8 +1,13 @@
 
 #include "../global.h"
 
-shader_context_t        *make_material_default_scon = NULL;
+static shader_context_t *make_material_default_scon = NULL;
 static shader_context_t *make_material_saved_scon   = NULL;
+
+// Objects without an override material draw with the pass shaders
+bool make_material_is_default(shader_data_t *m) {
+	return m == g_project->_->materials->buffer[0]->data;
+}
 
 bool make_material_get_mout() {
 	for (i32 i = 0; i < g_context->material->canvas->nodes->length; ++i) {
@@ -90,45 +95,23 @@ void make_material_delete_context(shader_context_t *c) {
 	sys_notify_on_next_frame(&make_material_delete_context_on_next_frame, c);
 }
 
-static bool make_material_is_mesh_context(char *name) {
-	if (!starts_with(name, "mesh")) {
-		return false;
-	}
-	for (char *c = name + 4; *c != '\0'; ++c) {
-		if (*c < '0' || *c > '9') {
-			return false;
-		}
-	}
-	return true;
-}
-
 void make_material_parse_mesh_material() {
-	shader_data_t *m = g_project->_->materials->buffer[0]->data;
-
-	i32 i = 0;
-	while (i < m->contexts->length) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (make_material_is_mesh_context(c->name)) {
-			array_remove(m->contexts, c);
-			make_material_delete_context(c);
-			continue;
-		}
-		++i;
+	if (make_material_mesh_scons == NULL) {
+		make_material_mesh_scons = any_array_create(0);
 	}
+	for (i32 i = 0; i < make_material_mesh_scons->length; ++i) {
+		if (make_material_mesh_scons->buffer[i] != NULL) {
+			make_material_delete_context(make_material_mesh_scons->buffer[i]);
+		}
+	}
+	make_material_mesh_scons->length = 0;
 
-	material_t *mm = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
-
-	node_shader_context_t *con = make_mesh_run(mm, 0);
-	shader_context_load(con->data);
-	any_array_push(m->contexts, con->data);
-	node_shader_context_free(con);
-	free(mm);
-
-	for (i32 i = 1; i < make_mesh_layer_pass_count; ++i) {
+	// The first pass decides the layer pass count
+	for (i32 i = 0; i == 0 || i < make_mesh_layer_pass_count; ++i) {
 		material_t            *mm  = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
 		node_shader_context_t *con = make_mesh_run(mm, i);
 		shader_context_load(con->data);
-		any_array_push(m->contexts, con->data);
+		any_array_push(make_material_mesh_scons, con->data);
 		node_shader_context_free(con);
 		free(mm);
 	}
@@ -146,61 +129,65 @@ void make_material_parse_mesh_preview_material() {
 		return;
 	}
 
-	shader_data_t    *m    = g_project->_->materials->buffer[0]->data;
-	shader_context_t *scon = NULL;
-	for (i32 i = 0; i < m->contexts->length; ++i) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "mesh")) {
-			scon = c;
-			break;
-		}
-	}
-
-	array_remove(m->contexts, scon);
-
+	// Replaces the first mesh pass shader, make_material_parse_mesh_material() restores it
 	material_t            *sd  = ALLOC_INIT(material_t, {.name = "Material", .canvas = NULL});
 	node_shader_context_t *con = make_mesh_preview_run(sd, false);
-
-	if (scon != NULL) {
-		make_material_delete_context(scon);
-	}
-
-	bool compile_error = false;
 	shader_context_load(con->data);
-	if (con->data == NULL) {
-		compile_error = true;
+	if (make_material_mesh_scons == NULL) {
+		make_material_mesh_scons = any_array_create(0);
 	}
-	scon = con->data;
+	if (make_material_mesh_scons->length == 0) {
+		any_array_push(make_material_mesh_scons, NULL);
+	}
+	if (make_material_mesh_scons->buffer[0] != NULL) {
+		make_material_delete_context(make_material_mesh_scons->buffer[0]);
+	}
+	make_material_mesh_scons->buffer[0] = con->data;
 	node_shader_context_free(con);
 	free(sd);
-	if (compile_error) {
-		return;
-	}
+}
 
-	any_array_push(m->contexts, scon);
+static bool make_material_bake_linked = false;
+
+char *make_material_node_preview_id(ui_node_t *node, ui_node_t_array_t *parents) {
+	return string_tmp("m%d_%s", g_context->material->id, parser_material_node_name(node, parents));
+}
+
+static gpu_texture_t *make_material_node_preview_target(char *id, i32 res_x, i32 res_y, gpu_texture_format_t format) {
+	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
+	any_array_push(g_context->node_previews_used, id);
+	if (image == NULL || image->width != res_x || image->height != res_y || image->format != format) {
+		if (image != NULL) {
+			gpu_delete_texture(image);
+		}
+		image = gpu_create_render_target(res_x, res_y, format);
+		any_map_set(g_context->node_previews, string_copy(id), image);
+	}
+	return image;
 }
 
 void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
 	if (string_equals(node->type, "BLUR")) {
-		char          *id    = parser_material_node_name(node, parents);
-		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
-		any_array_push(g_context->node_previews_used, id);
-		i32 res_x = math_floor(config_get_texture_res_x() / 4.0);
-		i32 res_y = math_floor(config_get_texture_res_y() / 4.0);
-		if (image == NULL || image->width != res_x || image->height != res_y) {
-			if (image != NULL) {
-				gpu_delete_texture(image);
-			}
-			image = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
-			any_map_set(g_context->node_previews, string_copy(id), image);
-		}
+		char *id     = make_material_node_preview_id(node, parents);
+		i32   passes = blur_node_seamless_passes(node);
+		i32   res_x  = math_floor(config_get_texture_res_x() / 4.0);
+		i32   res_y  = math_floor(config_get_texture_res_y() / 4.0);
+		// Seamless blur renders the input to _src, then diffuses it into the sampled texture
+		gpu_texture_t *image = make_material_node_preview_target(passes > 0 ? string_tmp("%s_src", id) : id, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA32);
 
 		parser_material_blur_passthrough = true;
 		util_render_make_node_preview(g_context->material->canvas, node, image, group, parents);
 		parser_material_blur_passthrough = false;
+
+		if (passes > 0) {
+			util_uv_cache_seam_map(res_x, res_y);
+			gpu_texture_t *dst = make_material_node_preview_target(id, res_x, res_y, GPU_TEXTURE_FORMAT_RGBA64);
+			gpu_texture_t *tmp = make_material_node_preview_target(string_tmp("%s_tmp", id), res_x, res_y, GPU_TEXTURE_FORMAT_RGBA64);
+			util_uv_blur_seamless(dst, tmp, image, passes);
+		}
 	}
 	else if (string_equals(node->type, "DIRECT_WARP")) {
-		char          *id    = parser_material_node_name(node, parents);
+		char          *id    = make_material_node_preview_id(node, parents);
 		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
 		any_array_push(g_context->node_previews_used, id);
 		i32 res_x = math_floor(config_get_texture_res_x());
@@ -221,7 +208,7 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 		if (g_context->merged_object == NULL) {
 			layers_set_object_mask();
 		}
-		char          *id    = parser_material_node_name(node, parents);
+		char          *id    = make_material_node_preview_id(node, parents);
 		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
 		any_array_push(g_context->node_previews_used, id);
 		i32 res_x = math_floor(config_get_texture_res_x());
@@ -232,6 +219,9 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 			}
 			image = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_R8);
 			any_map_set(g_context->node_previews, string_copy(id), image);
+		}
+		else if (make_material_bake_linked) {
+			return; // Curvature does not depend on painted layers, keep the existing bake
 		}
 
 		if (render_path_paint_live_layer == NULL) {
@@ -289,18 +279,16 @@ void make_material_traverse_nodes(ui_node_t_array_t *nodes, ui_node_canvas_t *gr
 	}
 }
 
-void make_material_bake_node_previews() {
-	g_context->node_previews_used = any_array_create_from_raw((void *[]){}, 0);
+// Deletes previews of material m, except the ones listed in keep
+void make_material_delete_node_previews(slot_material_t *m, string_array_t *keep) {
 	if (g_context->node_previews == NULL) {
-		g_context->node_previews = any_map_create();
+		return;
 	}
-	ui_node_t_array_t *empty = any_array_create_from_raw((void *[]){}, 0);
-	make_material_traverse_nodes(g_context->material->canvas->nodes, NULL, empty);
-
-	string_array_t *keys = map_keys(g_context->node_previews);
+	char           *prefix = string_tmp("m%d_", m->id);
+	string_array_t *keys   = map_keys(g_context->node_previews);
 	for (i32 i = 0; i < keys->length; ++i) {
 		char *key = keys->buffer[i];
-		if (string_array_index_of(g_context->node_previews_used, key) == -1) {
+		if (starts_with(key, prefix) && (keep == NULL || string_array_index_of(keep, key) == -1)) {
 			gpu_texture_t *image = any_map_get(g_context->node_previews, key);
 			gpu_delete_texture(image);
 			map_delete(g_context->node_previews, key);
@@ -309,11 +297,44 @@ void make_material_bake_node_previews() {
 	}
 	array_free(keys);
 	free(keys);
+}
+
+void make_material_bake_node_previews() {
+	g_context->node_previews_used = any_array_create_from_raw((void *[]){}, 0);
+	if (g_context->node_previews == NULL) {
+		g_context->node_previews = any_map_create();
+	}
+	ui_node_t_array_t *empty = any_array_create_from_raw((void *[]){}, 0);
+	make_material_traverse_nodes(g_context->material->canvas->nodes, NULL, empty);
+
+	make_material_delete_node_previews(g_context->material, g_context->node_previews_used);
 	array_free(empty);
 	free(empty);
 	array_free(g_context->node_previews_used);
 	free(g_context->node_previews_used);
 	g_context->node_previews_used = NULL;
+}
+
+// Refresh previews of a material that is not selected but fills linked layers,
+// blur and warp sample other layers so they go stale on every stroke
+void make_material_bake_node_previews_linked() {
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use)
+		draw_end();
+	make_material_bake_linked = true;
+	make_material_bake_node_previews();
+	make_material_bake_linked = false;
+	if (in_use)
+		draw_begin(current, false, 0);
+}
+
+static void make_material_set_paint_scon(shader_context_t *scon) {
+	shader_context_t *old = make_material_paint_scon;
+	if (old != NULL && old != scon && old != make_material_default_scon && old != make_material_saved_scon) {
+		make_material_delete_context(old);
+	}
+	make_material_paint_scon = scon;
 }
 
 void make_material_parse_paint_material(bool bake_previews) {
@@ -331,69 +352,29 @@ void make_material_parse_paint_material(bool bake_previews) {
 			draw_begin(current, false, 0);
 	}
 
-	shader_data_t *m = g_project->_->materials->buffer[0]->data;
-	for (i32 i = 0; i < m->contexts->length; ++i) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "paint")) {
-			array_remove(m->contexts, c);
-			if (c != make_material_default_scon && c != make_material_saved_scon) {
-				make_material_delete_context(c);
-			}
-			break;
-		}
-	}
-
 	material_t            *sdata = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
 	node_shader_context_t *con   = make_paint_run(sdata);
-
-	bool              compile_error = false;
-	shader_context_t *scon;
 	shader_context_load(con->data);
-	if (con->data == NULL) {
-		compile_error = true;
-	}
-	scon = con->data;
+	make_material_set_paint_scon(con->data);
 	node_shader_context_free(con);
 	free(sdata);
-	if (compile_error) {
-		return;
-	}
-
-	any_array_push(m->contexts, scon);
 
 	if (make_material_default_scon == NULL) {
-		make_material_default_scon = scon;
+		make_material_default_scon = make_material_paint_scon;
 	}
 }
 
 void make_material_save_paint_material() {
-	shader_data_t *m = g_project->_->materials->buffer[0]->data;
-	for (i32 i = 0; i < m->contexts->length; ++i) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "paint")) {
-			make_material_saved_scon = c;
-			break;
-		}
-	}
+	make_material_saved_scon = make_material_paint_scon;
 }
 
 void make_material_restore_paint_material() {
 	if (make_material_saved_scon == NULL) {
 		return;
 	}
-	shader_data_t *m = g_project->_->materials->buffer[0]->data;
-	for (i32 i = 0; i < m->contexts->length; ++i) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "paint")) {
-			array_remove(m->contexts, c);
-			if (c != make_material_default_scon && c != make_material_saved_scon) {
-				make_material_delete_context(c);
-			}
-			break;
-		}
-	}
-	any_array_push(m->contexts, make_material_saved_scon);
+	shader_context_t *saved  = make_material_saved_scon;
 	make_material_saved_scon = NULL;
+	make_material_set_paint_scon(saved);
 }
 
 shader_context_t *make_material_parse_node_preview_material(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
@@ -510,32 +491,13 @@ char *make_material_blend_mode(node_shader_t *kong, i32 blending, char *cola, ch
 }
 
 void make_material_parse_depth_material() {
-	shader_data_t *m = g_project->_->materials->buffer[0]->data;
-
-	for (i32 i = 0; i < m->contexts->length; ++i) {
-		shader_context_t *c = m->contexts->buffer[i];
-		if (string_equals(c->name, "depth")) {
-			array_remove(m->contexts, c);
-			make_material_delete_context(c);
-			break;
-		}
+	if (make_material_depth_scon != NULL) {
+		make_material_delete_context(make_material_depth_scon);
 	}
-
 	material_t            *sdata = ALLOC_INIT(material_t, {.name = "Material", .canvas = g_context->material->canvas});
 	node_shader_context_t *con   = make_depth_run(sdata);
-
-	bool              compile_error = false;
-	shader_context_t *scon;
 	shader_context_load(con->data);
-	if (con->data == NULL) {
-		compile_error = true;
-	}
-	scon = con->data;
+	make_material_depth_scon = con->data;
 	node_shader_context_free(con);
 	free(sdata);
-	if (compile_error) {
-		return;
-	}
-
-	any_array_push(m->contexts, scon);
 }

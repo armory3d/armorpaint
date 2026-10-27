@@ -75,7 +75,7 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 		    },
 		    1);
 		render_path_set_target("baketex0", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_draw_meshes("paint");
+		render_path_paint_draw_target();
 		g_context->bake_type = _bake_type;
 		sys_notify_on_next_frame(&render_path_raytrace_bake_commands_parse_paint_material, parse_paint_material);
 
@@ -186,11 +186,11 @@ bool render_path_raytrace_bake_commands(void (*parse_paint_material)(bool)) {
 }
 
 typedef struct lightmap_job {
-	i32            object_uid;
-	i32            res;
-	i32            samples;
-	f32            range;
-	char          *path;
+	i32   object_uid;
+	i32   res;
+	i32   samples;
+	f32   range;
+	char *path;
 	void (*done)(void *);
 	void *done_data;
 } lightmap_job_t;
@@ -200,15 +200,14 @@ static i32              lightmap_jobs_count = 0;
 static lightmap_job_t  *lightmap_job        = NULL;
 static i32              lightmap_frame      = 0;
 static i32              lightmap_frames     = 0;
-static i32              lightmap_viewport_mode;
-static gpu_texture_t   *lightmap_pos     = NULL;
-static gpu_texture_t   *lightmap_nor     = NULL;
-static gpu_texture_t   *lightmap_base    = NULL;
-static gpu_texture_t   *lightmap_target  = NULL;
-static u8              *lightmap_mask    = NULL;
-static f32_array_t     *lightmap_f32a    = NULL;
-static gpu_texture_t   *lightmap_env     = NULL;
-static gpu_texture_t   *lightmap_env_cdf = NULL;
+static gpu_texture_t   *lightmap_pos        = NULL;
+static gpu_texture_t   *lightmap_nor        = NULL;
+static gpu_texture_t   *lightmap_base       = NULL;
+static gpu_texture_t   *lightmap_target     = NULL;
+static u8              *lightmap_mask       = NULL;
+static f32_array_t     *lightmap_f32a       = NULL;
+static gpu_texture_t   *lightmap_env        = NULL;
+static gpu_texture_t   *lightmap_env_cdf    = NULL;
 
 #define LIGHTMAP_SAMPLES_PER_DISPATCH 8 // Matches SAMPLES in raytrace_bake_light.shader
 #define LIGHTMAP_MARGIN               16
@@ -312,6 +311,21 @@ static mesh_object_t *lightmap_find_object(i32 uid) {
 	return NULL;
 }
 
+// Scene of all visible objects, hit surfaces use their material base color
+static void lightmap_scene_init() {
+	if (!g_context->envmap_loaded) {
+		context_load_envmap();
+		context_update_envmap();
+	}
+	lightmap_env     = g_context->show_envmap_blur ? scene_world->_->radiance_mipmaps->buffer[0] : g_context->saved_envmap;
+	lightmap_env_cdf = render_path_raytrace_update_env_cdf();
+
+	render_path_raytrace_ready       = true;
+	render_path_raytrace_is_bake     = true;
+	render_path_raytrace_init_shader = true;
+	render_path_raytrace_raytrace_init(string("raytrace_bake_light%s", render_path_raytrace_ext), false);
+}
+
 static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
 	i32  res      = job->res;
 	f32 *pos      = calloc((size_t)res * res * 4, sizeof(f32));
@@ -337,18 +351,7 @@ static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
 		lightmap_f32a = f32_array_create(24);
 	}
 
-	if (!g_context->envmap_loaded) {
-		context_load_envmap();
-		context_update_envmap();
-	}
-	lightmap_env     = g_context->show_envmap_blur ? scene_world->_->radiance_mipmaps->buffer[0] : g_context->saved_envmap;
-	lightmap_env_cdf = render_path_raytrace_update_env_cdf();
-
-	// Scene of all visible objects, hit surfaces use their material base color
-	render_path_raytrace_ready       = true;
-	render_path_raytrace_is_bake     = true;
-	render_path_raytrace_init_shader = true;
-	render_path_raytrace_raytrace_init(string("raytrace_bake_light%s", render_path_raytrace_ext), false);
+	lightmap_scene_init();
 
 	lightmap_frame  = 0;
 	lightmap_frames = (job->samples + LIGHTMAP_SAMPLES_PER_DISPATCH - 1) / LIGHTMAP_SAMPLES_PER_DISPATCH;
@@ -415,7 +418,7 @@ static void lightmap_write(lightmap_job_t *job) {
 	for (i32 i = 0; i < res * res * 4; ++i) {
 		px[i] = render_path_raytrace_half_to_float(h[i]);
 	}
-	u8       *m   = lightmap_mask;
+	u8 *m = lightmap_mask;
 	lightmap_blur(px, m, res);
 	u8 *m2 = malloc((size_t)res * res);
 	for (i32 pass = 0; pass < LIGHTMAP_MARGIN; ++pass) {
@@ -500,11 +503,14 @@ static void lightmap_update(void *_) {
 			lightmap_job = NULL;
 			if (lightmap_jobs_count == 0) {
 				sys_remove_update(lightmap_update);
-				g_context->viewport_mode = lightmap_viewport_mode;
 			}
 		}
 	}
 	else if (lightmap_frame < lightmap_frames) {
+		// A mesh merge, edit or removal resets the raytrace scene and frees the buffers it points to
+		if (!render_path_raytrace_ready || !render_path_raytrace_is_bake) {
+			lightmap_scene_init();
+		}
 		lightmap_dispatch();
 	}
 	else {
@@ -515,7 +521,6 @@ static void lightmap_update(void *_) {
 		render_path_raytrace_ready = false; // Rebuild for the viewport
 		if (lightmap_jobs_count == 0) {
 			sys_remove_update(lightmap_update);
-			g_context->viewport_mode = lightmap_viewport_mode;
 		}
 		if (job->done != NULL) {
 			job->done(job->done_data);
@@ -541,11 +546,30 @@ void render_path_raytrace_bake_lightmap(mesh_object_t *object, i32 res, i32 samp
 
 	if (lightmap_job == NULL && lightmap_jobs_count == 0) {
 		sys_notify_on_update(lightmap_update, NULL);
-		lightmap_viewport_mode = g_context->viewport_mode;
-		if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
-			g_context->viewport_mode = VIEWPORT_MODE_LIT; // Path tracer shares the raytrace pipeline
-		}
 	}
 	lightmap_jobs                        = realloc(lightmap_jobs, sizeof(lightmap_job_t *) * (lightmap_jobs_count + 1));
 	lightmap_jobs[lightmap_jobs_count++] = job;
+}
+
+bool render_path_raytrace_bake_lightmap_busy(void) {
+	return lightmap_job != NULL || lightmap_jobs_count > 0;
+}
+
+void render_path_raytrace_bake_lightmap_cancel(void) {
+	if (!render_path_raytrace_bake_lightmap_busy()) {
+		return;
+	}
+	if (lightmap_job != NULL) {
+		lightmap_delete_textures();
+		free(lightmap_job->path);
+		free(lightmap_job);
+		lightmap_job               = NULL;
+		render_path_raytrace_ready = false;
+	}
+	for (i32 i = 0; i < lightmap_jobs_count; ++i) {
+		free(lightmap_jobs[i]->path);
+		free(lightmap_jobs[i]);
+	}
+	lightmap_jobs_count = 0;
+	sys_remove_update(lightmap_update);
 }

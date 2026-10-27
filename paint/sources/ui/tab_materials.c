@@ -27,11 +27,11 @@ void tab_materials_update_material() {
 	if (decal) {
 		util_render_make_decal_preview();
 	}
-	base_update_workflow_nodes();
+	base_update_tools_nodes();
 }
 
 void tab_materials_draw_slots_duplicate(void *_) {
-	i32   i             = _tab_materials_draw_slots;
+	i32 i               = _tab_materials_draw_slots;
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	any_array_push(g_project->_->materials, g_context->material);
 	ui_node_canvas_t *cloned    = util_clone_canvas(g_project->_->materials->buffer[i]->canvas);
@@ -79,7 +79,7 @@ void tab_materials_delete_material(slot_material_t *m) {
 	history_delete_material();
 	context_select_material(i == g_project->_->materials->length - 1 ? i - 1 : i + 1);
 	array_splice(g_project->_->materials, i, 1);
-	ui_base_hwnds->buffer[1]->redraws = 2;
+	ui_dock_redraw(1);
 	tab_materials_on_material_removed(m, i);
 }
 
@@ -152,7 +152,7 @@ void tab_materials_delete_unused() {
 		return;
 	}
 	context_set_material(selected != NULL ? selected : g_project->_->materials->buffer[0]);
-	ui_base_hwnds->buffer[1]->redraws = 2;
+	ui_dock_redraw(1);
 }
 
 void tab_materials_draw_slots_menu() {
@@ -180,10 +180,6 @@ void tab_materials_draw_slots_menu() {
 
 	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete"), "delete", ICON_DELETE)) {
 		tab_materials_delete_material(m);
-	}
-
-	if (g_project->_->materials->length > 1 && ui_menu_button(tr("Delete Unused"), "", ICON_DELETE)) {
-		tab_materials_delete_unused();
 	}
 
 	if (g_config->experimental && ui_menu_button(tr("Inspect as Script"), "", ICON_SEARCH)) {
@@ -215,7 +211,7 @@ void tab_materials_draw_slots_menu() {
 	ui_check(&m->paint_opac, tr("Opacity"), "");
 	channels_changed |= ui_item_changed();
 
-	if (g_config->workflow == WORKFLOW_PBR) {
+	if (g_config->tools != TOOLS_SCULPT) {
 		ui_row2();
 		ui_check(&m->paint_nor, tr("Normal"), "");
 		channels_changed |= ui_item_changed();
@@ -451,27 +447,34 @@ void tab_materials_draw_mini(i32 *htab) {
 	tab_materials_draw_slots(true);
 }
 
+void tab_materials_draw_edit() {
+	if (ui_menu_button(tr("Import"), "", ICON_IMPORT)) {
+		project_import_material();
+	}
+}
+
 void tab_materials_draw_full(i32 *htab) {
 	if (ui_tab(htab, tr("Materials"), false, -1, false)) {
 		ui_begin_sticky();
 		f32_array_t *row = f32_array_create_from_raw_tmp(
 		    (f32[]){
-		        -70,
-		        -70,
-		        -70,
+		        -64,
+		        -64,
+		        -64,
 		    },
 		    3);
 		ui_row(row);
 
 		tab_materials_button_new(tr("New"));
-		if (ui_icon_button(tr("Import"), ICON_IMPORT, UI_ALIGN_CENTER)) {
-			project_import_material();
-		}
 		tab_materials_button_nodes();
+		if (ui_icon_button(tr("Edit"), ICON_EDIT, UI_ALIGN_CENTER)) {
+			ui_menu_draw(&tab_materials_draw_edit, -1, -1);
+		}
 
 		ui_end_sticky();
 		ui_separator(3, false);
 		tab_materials_draw_slots(false);
+		ui_node_params_draw(CANVAS_TYPE_MATERIAL, &g_config->material_params);
 	}
 }
 
@@ -494,15 +497,40 @@ void tab_materials_accept_material_drop(slot_material_t *material) {
 	}
 }
 
+// Copy picked values into the Material Output node when it is the only node in the selected material
+void tab_materials_apply_picked_color(swatch_color_t *swatch) {
+	ui_node_canvas_t *canvas = g_context->material->canvas;
+	if (canvas->nodes->length != 1 || !string_equals(canvas->nodes->buffer[0]->type, "OUTPUT_MATERIAL_PBR")) {
+		return;
+	}
+	ui_node_t *node                                   = canvas->nodes->buffer[0];
+	node->inputs->buffer[0]->default_value            = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
+	                                                                          color_get_bb(swatch->base) / 255.0, 1.0);
+	node->inputs->buffer[1]->default_value->buffer[0] = swatch->opacity;
+	node->inputs->buffer[2]->default_value->buffer[0] = swatch->occlusion;
+	node->inputs->buffer[3]->default_value->buffer[0] = swatch->roughness;
+	node->inputs->buffer[4]->default_value->buffer[0] = swatch->metallic;
+	node->inputs->buffer[5]->default_value            = f32_array_create_xyz(color_get_rb(swatch->normal) / 255.0, color_get_gb(swatch->normal) / 255.0,
+	                                                                         color_get_bb(swatch->normal) / 255.0);
+	node->inputs->buffer[7]->default_value->buffer[0] = swatch->height;
+	tab_materials_update_material();
+	if (layers_is_fill_material()) {
+		layers_update_fill_layers();
+	}
+	if (layers_is_path_material()) {
+		layers_update_path_layers();
+	}
+	tab_meshes_refresh_overrides(g_context->material);
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
+}
+
 void tab_materials_accept_swatch_drop(swatch_color_t *swatch) {
 	g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
 	for (i32 i = 0; i < g_context->material->canvas->nodes->length; ++i) {
 		ui_node_t *node = g_context->material->canvas->nodes->buffer[i];
-		if (string_equals(node->type, "RGB")) {
-			node->outputs->buffer[0]->default_value = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
-			                                                                color_get_bb(swatch->base) / 255.0, color_get_ab(swatch->base) / 255.0);
-		}
-		else if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+		if (string_equals(node->type, "OUTPUT_MATERIAL_PBR")) {
+			node->inputs->buffer[0]->default_value            = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
+			                                                                          color_get_bb(swatch->base) / 255.0, color_get_ab(swatch->base) / 255.0);
 			node->inputs->buffer[1]->default_value->buffer[0] = swatch->opacity;
 			node->inputs->buffer[2]->default_value->buffer[0] = swatch->occlusion;
 			node->inputs->buffer[3]->default_value->buffer[0] = swatch->roughness;

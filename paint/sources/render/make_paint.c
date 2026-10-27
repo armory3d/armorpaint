@@ -214,6 +214,16 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 
 	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
 
+	if (g_context->tool == TOOL_TYPE_BLUR) {
+		node_shader_add_out(kong, "float2 blur_uv");
+		node_shader_write_vert(kong, string_tmp("output.blur_uv = %s;", tuv));
+	}
+
+	if (g_context->select_active && g_context->select_2d) {
+		node_shader_add_out(kong, "float2 select_uv");
+		node_shader_write_vert(kong, string_tmp("output.select_uv = %s;", tuv));
+	}
+
 	bool decal_layer = g_context->layer->fill_material != NULL && g_context->layer->uv_type == UV_TYPE_PROJECT;
 	if (decal_layer) {
 		node_shader_add_constant(kong, "float4x4 WVP", "_decal_layer_matrix");
@@ -244,7 +254,12 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	node_shader_write_frag(kong, "bsp = bsp * 0.5 + 0.5;");
 
 	// Select tool mask
-	if (g_context->select_active) {
+	if (g_context->select_active && g_context->select_2d) {
+		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
+		node_shader_write_frag(kong, "if (input.select_uv.x < constants.select_mask.x || input.select_uv.x > constants.select_mask.z || input.select_uv.y < "
+		                             "constants.select_mask.y || input.select_uv.y > constants.select_mask.w) { discard; }");
+	}
+	else if (g_context->select_active) {
 		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
 		node_shader_write_frag(kong, "if (sp.x < constants.select_mask.x || sp.x > constants.select_mask.z || sp.y < constants.select_mask.y || sp.y > "
 		                             "constants.select_mask.w) { discard; }");
@@ -354,7 +369,16 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_add_texture(kong, tex_pack_src, tex_pack_link);
 
 		if (g_context->tool == TOOL_TYPE_CLONE) {
-			make_clone_run(kong);
+			if (g_context->clone_layers == CLONE_LAYERS_VISIBLE) {
+				// Visible layers flattened at stroke start
+				node_shader_add_texture(kong, "texpaint_ref", "_texpaint_ref");
+				node_shader_add_texture(kong, "texpaint_nor_ref", "_texpaint_nor_ref");
+				node_shader_add_texture(kong, "texpaint_pack_ref", "_texpaint_pack_ref");
+				make_clone_run(kong, "texpaint_ref", "texpaint_nor_ref", "texpaint_pack_ref");
+			}
+			else {
+				make_clone_run(kong, tex_src, tex_nor_src, tex_pack_src);
+			}
 		}
 		else { // Blur, Smudge
 			make_blur_run(kong);

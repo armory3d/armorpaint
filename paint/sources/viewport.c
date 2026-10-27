@@ -15,9 +15,6 @@ void viewport_scale_to_bounds(f32 bounds) {
 	mesh_data_t *md            = g_context->merged_object == NULL ? po->data : g_context->merged_object->data;
 	vec4_t       aabb          = mesh_data_calculate_aabb(md);
 	f32          r             = math_sqrt(aabb.x * aabb.x + aabb.y * aabb.y + aabb.z * aabb.z);
-	po->base->transform->dim.x = aabb.x;
-	po->base->transform->dim.y = aabb.y;
-	po->base->transform->dim.z = aabb.z;
 	po->base->transform->scale = (vec4_t){bounds / (float)r, bounds / (float)r, bounds / (float)r, 1.0};
 	po->base->transform->loc   = (vec4_t){0, 0, 0, 1.0};
 	transform_build_matrix(po->base->transform);
@@ -26,7 +23,7 @@ void viewport_scale_to_bounds(f32 bounds) {
 void viewport_reset() {
 	camera_object_t *cam = scene_camera;
 	for (i32 i = 0; i < _scene_raw->objects->length; ++i) {
-		obj_t *o = _scene_raw->objects->buffer[i];
+		object_desc_t *o = _scene_raw->objects->buffer[i];
 		if (string_equals(o->type, "camera_object")) {
 			cam->base->transform->local = mat4_from_f32_array(o->transform, 0);
 			transform_decompose(cam->base->transform);
@@ -157,16 +154,73 @@ void viewport_capture_screenshot_to(gpu_texture_t *target, float x, float y, flo
 	g_context->ddirty               = 2;
 }
 
-void viewport_capture_video_update(void *_) {
-	render_target_t *rt     = any_map_get(render_path_render_targets, "last");
-	buffer_t        *pixels = gpu_get_texture_pixels(rt->_image);
-#ifdef IRON_BGRA
-	buffer_bgra_swap(pixels);
-#endif
+void viewport_capture_video_frame() {
+	// The viewport was drawn into viewport_video_frame, copy it to the framebuffer
+	gpu_framebuffer_redirect = NULL;
+	gpu_texture_t *frame     = viewport_video_frame;
+	i32            w         = viewport_video_w;
+	i32            h         = viewport_video_h;
+	i32            x         = math_min(sys_x(), frame->width - w);
+	i32            y         = math_min(sys_y(), frame->height - h);
+	draw_begin(NULL, false, 0);
+	draw_set_pipeline(pipes_copy);
+	draw_scaled_sub_image(frame, x, y, w, h, x, y, w, h);
+	draw_set_pipeline(NULL);
+	draw_end();
 
+	f64 time = iron_time();
+	if (viewport_video_stepped) {
+		if (viewport_video_time < 0.0) {
+			return;
+		}
+		time                = viewport_video_time;
+		viewport_video_time = -1.0;
+	}
+
+	// Crop the viewport rect in place
+	buffer_t *pixels = gpu_get_texture_pixels(frame);
+	for (i32 i = 0; i < h; ++i) {
+		memmove(pixels->buffer + i * w * 4, pixels->buffer + ((y + i) * frame->width + x) * 4, w * 4);
+	}
 #ifdef WITH_VIDEO_WRITE
-	iron_mp4_encode(pixels);
+	iron_mp4_encode(pixels, time);
 #endif
+}
+
+void viewport_capture_video_draw() {
+	// Recording time and stop button
+	f32   scale = UI_SCALE();
+	i32   t     = (i32)(iron_time() - viewport_video_start);
+	char *time  = string_tmp("%02d:%02d", t / 60, t % 60);
+	char *stop  = tr("Stop");
+	draw_begin(NULL, false, 0);
+	draw_set_font(g_font, g_ui->font_size);
+	f32  pad   = 8 * scale;
+	f32  h     = ui_header_h - 6 * scale;
+	f32  r     = h / 5.0;
+	f32  fh    = draw_font_height(draw_font, draw_font_size);
+	f32  tw    = draw_string_width(draw_font, draw_font_size, "00:00");
+	f32  bw    = draw_string_width(draw_font, draw_font_size, stop) + pad * 2;
+	f32  w     = r * 2 + pad + tw + pad + bw;
+	f32  x     = math_floor((iron_window_width() - w) / 2.0);
+	f32  y     = math_floor((ui_header_h - h) / 2.0);
+	f32  bx    = x + w - bw;
+	bool hover = mouse_x >= bx && mouse_x < bx + bw && mouse_y >= y && mouse_y < y + h;
+	draw_set_color(g_theme->WINDOW_BG_COL);
+	draw_filled_rect(x - pad, y, w + pad, h);
+	draw_set_color(0xffe53935);
+	draw_filled_circle(x + r, y + h / 2.0, r, 16);
+	draw_set_color(g_theme->TEXT_COL);
+	draw_string(time, x + r * 2 + pad, y + (h - fh) / 2.0);
+	draw_set_color(hover ? g_theme->HOVER_COL : g_theme->BUTTON_COL);
+	draw_filled_rect(bx, y, bw, h);
+	draw_set_color(g_theme->TEXT_COL);
+	draw_string(stop, bx + pad, y + (h - fh) / 2.0);
+	draw_end();
+
+	if (hover && mouse_started("left")) {
+		viewport_capture_video_end();
+	}
 }
 
 void viewport_capture_video_begin() {
@@ -174,19 +228,34 @@ void viewport_capture_video_begin() {
 		console_error(tr("Save project first"));
 		return;
 	}
-	viewport_recording    = true;
-	char            *path = string("%s/output.mp4", path_base_dir(g_project->_->filepath));
-	render_target_t *rt   = any_map_get(render_path_render_targets, "last");
+	viewport_recording   = true;
+	char *path           = string("%s/output.mp4", path_base_dir(g_project->_->filepath));
+	viewport_video_w     = sys_w();
+	viewport_video_h     = sys_h();
+	viewport_video_start = iron_time();
+	viewport_video_frame = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32);
+
+	// Keep post effects that change every frame out of the video
+	viewport_video_vignette = g_config->rp_vignette;
+	viewport_video_grain    = g_config->rp_grain;
+	g_config->rp_vignette   = 0.0;
+	g_config->rp_grain      = 0.0;
+	g_context->ddirty       = 2;
 #ifdef WITH_VIDEO_WRITE
-	iron_mp4_begin(path, rt->_image->width, rt->_image->height);
+	iron_mp4_begin(path, viewport_video_w, viewport_video_h);
 #endif
-	sys_notify_on_update(viewport_capture_video_update, NULL);
 }
 
 void viewport_capture_video_end() {
-	sys_remove_update(viewport_capture_video_update);
 #ifdef WITH_VIDEO_WRITE
 	iron_mp4_end();
 #endif
-	viewport_recording = false;
+	gpu_delete_texture(viewport_video_frame);
+	viewport_video_frame  = NULL;
+	viewport_recording     = false;
+	viewport_video_stepped = false;
+	viewport_video_time    = -1.0;
+	g_config->rp_vignette  = viewport_video_vignette;
+	g_config->rp_grain    = viewport_video_grain;
+	g_context->ddirty     = 2;
 }

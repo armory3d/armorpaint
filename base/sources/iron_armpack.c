@@ -5,6 +5,7 @@
 #include "iron_json.h"
 #include "iron_string.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -741,8 +742,9 @@ any_map_t *armpack_decode_to_map(buffer_t *b) {
 	return _armpack_decode_to_map();
 }
 
-static char *armpack_to_json_value();
-static bool  json_omit_large_arrays;
+static void     armpack_to_json_value();
+static bool     json_omit_large_arrays;
+static buffer_t json_sb;
 
 #define JSON_OMIT_LARGE_ARRAYS_MAX_ELEMENTS 64
 
@@ -768,112 +770,132 @@ static const char *peek_typed_array_suffix() {
 	return suffix;
 }
 
-static char *armpack_to_json_map(uint32_t count) {
-	char *result = "{";
-	for (uint32_t i = 0; i < count; i++) {
-		read_u8(); // 0xdb string flag
-		char       *key    = read_string_alloc();
-		const char *suffix = peek_typed_array_suffix();
-		char       *value  = armpack_to_json_value();
-		if (i > 0) {
-			result = string("%s,", result);
-		}
-		result = string("%s\"%s%s\":%s", result, json_escape(key), suffix, value);
-	}
-	return string("%s}", result);
+static void json_append_f32(float f) {
+	char s[64];
+	snprintf(s, sizeof(s), "%f", f);
+	string_buffer_append(&json_sb, s);
 }
 
-static char *armpack_to_json_value() {
+static void json_append_i32(int32_t i) {
+	char s[16];
+	snprintf(s, sizeof(s), "%d", i);
+	string_buffer_append(&json_sb, s);
+}
+
+static void json_append_string(char *str) {
+	string_buffer_append(&json_sb, "\"");
+	json_escape_to(&json_sb, str);
+	string_buffer_append(&json_sb, "\"");
+}
+
+static void armpack_to_json_map(uint32_t count) {
+	string_buffer_append(&json_sb, "{");
+	for (uint32_t i = 0; i < count; i++) {
+		if (i > 0) {
+			string_buffer_append(&json_sb, ",");
+		}
+		read_u8(); // 0xdb string flag
+		char *key = read_string_alloc();
+		string_buffer_append(&json_sb, "\"");
+		json_escape_to(&json_sb, key);
+		string_buffer_append(&json_sb, (char *)peek_typed_array_suffix());
+		string_buffer_append(&json_sb, "\":");
+		free(key);
+		armpack_to_json_value();
+	}
+	string_buffer_append(&json_sb, "}");
+}
+
+static void armpack_to_json_value() {
 	uint8_t flag = read_u8();
 	switch (flag) {
-	case 0xc0:
-		return "null";
 	case 0xc2:
-		return "false";
+		string_buffer_append(&json_sb, "false");
+		return;
 	case 0xc3:
-		return "true";
+		string_buffer_append(&json_sb, "true");
+		return;
 	case 0xca:
-		return f32_to_string_with_zeros(read_f32());
+		json_append_f32(read_f32());
+		return;
 	case 0xd2:
-		return i32_to_string(read_i32());
+		json_append_i32(read_i32());
+		return;
 	case 0xdb: {
 		char *s = read_string_alloc();
-		return string("\"%s\"", json_escape(s));
+		json_append_string(s);
+		free(s);
+		return;
 	}
 	case 0xdf:
-		return armpack_to_json_map(read_i32());
+		armpack_to_json_map(read_i32());
+		return;
 	case 0xdd: {
 		uint32_t count = read_u32();
 		if (count == 0) {
-			return "[]";
+			string_buffer_append(&json_sb, "[]");
+			return;
 		}
 		uint8_t flag2 = read_u8();
 		if (json_omit_large_arrays && count > JSON_OMIT_LARGE_ARRAYS_MAX_ELEMENTS) {
 			uint32_t elem_size = flag2 == 0xca || flag2 == 0xd2 ? 4 : flag2 == 0xd1 ? 2 : flag2 == 0xc4 ? 1 : 0;
 			if (elem_size > 0) {
 				ei += count * elem_size;
-				return string("\"<%d values omitted>\"", count);
+				char s[48];
+				snprintf(s, sizeof(s), "\"<%u values omitted>\"", count);
+				string_buffer_append(&json_sb, s);
+				return;
 			}
 		}
-		char *result = "[";
-		if (flag2 == 0xca) { // f32
-			for (uint32_t i = 0; i < count; i++) {
-				if (i > 0)
-					result = string("%s,", result);
-				result = string("%s%s", result, f32_to_string_with_zeros(read_f32()));
+		if (flag2 != 0xca && flag2 != 0xd2 && flag2 != 0xd1 && flag2 != 0xc4) {
+			ei--; // Dynamic (string, array, map), undo flag2 read
+		}
+		string_buffer_append(&json_sb, "[");
+		for (uint32_t i = 0; i < count; i++) {
+			if (i > 0) {
+				string_buffer_append(&json_sb, ",");
+			}
+			if (flag2 == 0xca) {
+				json_append_f32(read_f32());
+			}
+			else if (flag2 == 0xd2) {
+				json_append_i32(read_i32());
+			}
+			else if (flag2 == 0xd1) {
+				json_append_i32(read_i16());
+			}
+			else if (flag2 == 0xc4) {
+				json_append_i32(read_u8());
+			}
+			else {
+				armpack_to_json_value();
 			}
 		}
-		else if (flag2 == 0xd2) { // i32
-			for (uint32_t i = 0; i < count; i++) {
-				if (i > 0)
-					result = string("%s,", result);
-				result = string("%s%s", result, i32_to_string(read_i32()));
-			}
-		}
-		else if (flag2 == 0xd1) { // i16
-			for (uint32_t i = 0; i < count; i++) {
-				if (i > 0)
-					result = string("%s,", result);
-				result = string("%s%s", result, i32_to_string(read_i16()));
-			}
-		}
-		else if (flag2 == 0xc4) { // u8
-			for (uint32_t i = 0; i < count; i++) {
-				if (i > 0)
-					result = string("%s,", result);
-				result = string("%s%s", result, i32_to_string(read_u8()));
-			}
-		}
-		else {    // dynamic (string, array, map)
-			ei--; // undo flag2 read
-			for (uint32_t i = 0; i < count; i++) {
-				if (i > 0)
-					result = string("%s,", result);
-				result = string("%s%s", result, armpack_to_json_value());
-			}
-		}
-		return string("%s]", result);
+		string_buffer_append(&json_sb, "]");
+		return;
 	}
-	default:
-		return "null";
+	default: // 0xc0
+		string_buffer_append(&json_sb, "null");
+		return;
 	}
+}
+
+static char *armpack_to_json(buffer_t *b, bool omit_large_arrays) {
+	encoded                = b->buffer;
+	ei                     = 0;
+	json_omit_large_arrays = omit_large_arrays;
+	string_buffer_init(&json_sb);
+	read_u8(); // Must be 0xdf for a map
+	armpack_to_json_map(read_i32());
+	return string_buffer_get(&json_sb); // Caller owns the buffer
 }
 
 char *armpack_decode_to_json(buffer_t *b) {
-	encoded = b->buffer;
-	ei      = 0;
-	read_u8(); // Must be 0xdf for a map
-	return armpack_to_json_map(read_i32());
+	return armpack_to_json(b, false);
 }
 
 char *armpack_decode_to_json_omit_large_arrays(buffer_t *b) {
-	encoded                = b->buffer;
-	ei                     = 0;
-	json_omit_large_arrays = true;
-	read_u8(); // Must be 0xdf for a map
-	char *result           = armpack_to_json_map(read_i32());
-	json_omit_large_arrays = false;
-	return result;
+	return armpack_to_json(b, true);
 }
 
 float armpack_map_get_f32(any_map_t *map, char *key) {
@@ -898,5 +920,12 @@ void armpack_map_set_i32(any_map_t *map, char *key, int value) {
 	ptr_storage_t s;
 	s.i    = value;
 	s.type = 1;
+	any_map_set(map, key, s.p);
+}
+
+void armpack_map_set_f32(any_map_t *map, char *key, float value) {
+	ptr_storage_t s;
+	s.f    = value;
+	s.type = 0;
 	any_map_set(map, key, s.p);
 }

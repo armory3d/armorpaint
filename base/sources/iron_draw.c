@@ -10,8 +10,11 @@
 #include <math.h>
 #include <string.h>
 
-#define DRAW_BATCH_QUADS 512
-#define DRAW_VB_COUNT    64
+#define DRAW_BATCH_QUADS         512
+#define DRAW_VB_COUNT            64
+#define DRAW_FONT_FLATNESS       0.1f
+#define DRAW_FONT_COVERAGE_GAMMA 0.8f
+#define DRAW_FONT_BEARING_LOSS   0.2f
 
 draw_font_t   *draw_font = NULL;
 int            draw_font_size;
@@ -449,6 +452,113 @@ static inline bool draw_prepare_font_load_internal(draw_font_t *font, int size) 
 	return true;
 }
 
+typedef struct draw_font_fit {
+	int   count;
+	float src[6]; // Font units
+	float dst[6];
+} draw_font_fit_t;
+
+static void draw_font_fit_init(draw_font_fit_t *fit, stbtt_fontinfo *f, float scale) {
+	fit->count = 0;
+	int gx     = stbtt_FindGlyphIndex(f, 'x');
+	int go     = stbtt_FindGlyphIndex(f, 'o');
+	int gh     = stbtt_FindGlyphIndex(f, 'H');
+	int gO     = stbtt_FindGlyphIndex(f, 'O');
+	if (gx == 0 || go == 0 || gh == 0 || gO == 0) {
+		return;
+	}
+	int x0, y0, x1, y1;
+	stbtt_GetGlyphBox(f, gx, &x0, &y0, &x1, &y1);
+	float xh = (float)y1;
+	stbtt_GetGlyphBox(f, gh, &x0, &y0, &x1, &y1);
+	float cap = (float)y1;
+	stbtt_GetGlyphBox(f, go, &x0, &y0, &x1, &y1);
+	float o_bottom = y0 < 0 ? (float)y0 : 0.0f;
+	float o_top    = y1 > xh ? (float)y1 : xh;
+	stbtt_GetGlyphBox(f, gO, &x0, &y0, &x1, &y1);
+	float o_cap = y1 > cap ? (float)y1 : cap;
+	if (xh <= 0.0f || o_top >= cap) {
+		return;
+	}
+
+	float xh_fit  = floorf(xh * scale + 0.5f);
+	float cap_fit = floorf(cap * scale + 0.5f);
+	if (xh_fit < 1.0f) {
+		xh_fit = 1.0f;
+	}
+	if (cap_fit <= xh_fit) {
+		cap_fit = xh_fit + 1.0f;
+	}
+	xh_fit /= scale;
+	cap_fit /= scale;
+
+	float overshoot = 0.6f / scale;
+	fit->src[0]     = o_bottom;
+	fit->dst[0]     = -o_bottom < overshoot ? 0.0f : o_bottom;
+	fit->src[1]     = 0.0f;
+	fit->dst[1]     = 0.0f;
+	fit->src[2]     = xh;
+	fit->dst[2]     = xh_fit;
+	fit->src[3]     = o_top;
+	fit->dst[3]     = o_top - xh < overshoot ? xh_fit : xh_fit + (o_top - xh);
+	fit->src[4]     = cap;
+	fit->dst[4]     = cap_fit;
+	fit->src[5]     = o_cap;
+	fit->dst[5]     = o_cap - cap < overshoot ? cap_fit : cap_fit + (o_cap - cap);
+	fit->count      = 6;
+}
+
+static float draw_font_fit_y(draw_font_fit_t *fit, float y) {
+	if (fit->count == 0) {
+		return y;
+	}
+	if (y <= fit->src[0]) {
+		return y + fit->dst[0] - fit->src[0];
+	}
+	for (int i = 1; i < fit->count; ++i) {
+		if (y <= fit->src[i]) {
+			float t = (y - fit->src[i - 1]) / (fit->src[i] - fit->src[i - 1]);
+			return fit->dst[i - 1] + t * (fit->dst[i] - fit->dst[i - 1]);
+		}
+	}
+	return y + fit->dst[fit->count - 1] - fit->src[fit->count - 1];
+}
+
+static stbtt_vertex_type draw_font_fit_round(draw_font_fit_t *fit, stbtt_vertex_type y) {
+	return (stbtt_vertex_type)floorf(draw_font_fit_y(fit, (float)y) + 0.5f);
+}
+
+static float draw_font_fit_x(stbtt_vertex *verts, int num_verts, float scale, float shift, float shift_min, float shift_max, int bx0, int bx1, int iy0,
+                             int gh) {
+	int            tw         = (int)ceilf((bx1 - bx0) * scale) + 3;
+	unsigned char *tmp        = (unsigned char *)malloc(tw * gh);
+	float          best_shift = shift;
+	float          best       = 0.0f;
+	if (tmp == NULL) {
+		return shift;
+	}
+	for (int step = 0; step < 5; ++step) {
+		// 0, -1/8, 1/8, -2/8, 2/8
+		float offset = ((step + 1) / 2) * (step % 2 == 1 ? -0.125f : 0.125f);
+		float sh     = shift + offset;
+		sh           = sh < shift_min ? shift_min : sh > shift_max ? shift_max : sh;
+		memset(tmp, 0, tw * gh);
+		stbtt__bitmap bm = {tw, gh, tw, tmp};
+		stbtt_Rasterize(&bm, DRAW_FONT_FLATNESS, verts, num_verts, scale, scale, sh, 0.0f, (int)floorf(bx0 * scale + sh), iy0, 1, NULL);
+		float blur = 0.15f * fabsf(sh - shift) * gh;
+		for (int i = 0; i < tw * gh; ++i) {
+			float c = tmp[i] / 255.0f;
+			blur += c * (1.0f - c);
+		}
+		if (step == 0 || blur < best - 0.001f) {
+			best       = blur;
+			best_shift = sh;
+		}
+	}
+	free(tmp);
+	return best_shift;
+}
+
 static int stbtt_BakeFontBitmapArr(unsigned char *data, int offset,       // Font location (use offset=0 for plain .ttf)
                                    float          pixel_height,           // Height of font in pixels
                                    unsigned char *pixels, int pw, int ph, // Bitmap to be filled in
@@ -466,35 +576,89 @@ static int stbtt_BakeFontBitmapArr(unsigned char *data, int offset,       // Fon
 
 	scale = stbtt_ScaleForPixelHeight(&f, pixel_height);
 
+	draw_font_fit_t fit;
+	draw_font_fit_init(&fit, &f, scale);
+	draw_font_fit_t no_fit = {0};
+
 	for (i = 0; i < num_chars; ++i) {
 		int advance, lsb, x0, y0, x1, y1, gw, gh;
+		int bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
 		int g = stbtt_FindGlyphIndex(&f, chars[i]);
 		stbtt_GetGlyphHMetrics(&f, g, &advance, &lsb);
-		stbtt_GetGlyphBitmapBox(&f, g, scale, scale, &x0, &y0, &x1, &y1);
-		gw = x1 - x0;
+		stbtt_vertex *verts;
+		int           num_verts = stbtt_GetGlyphShape(&f, g, &verts);
+		if (num_verts > 0) {
+			stbtt_GetGlyphBox(&f, g, &bx0, &by0, &bx1, &by1);
+		}
+
+		// Whole pixel advance
+		float xadvance = floorf(scale * advance);
+		if (scale * advance - xadvance > DRAW_FONT_BEARING_LOSS * 2.0f) {
+			xadvance += 1.0f;
+		}
+		float shift     = (xadvance - scale * advance) * 0.5f;
+		float shift_min = -DRAW_FONT_BEARING_LOSS;
+		float shift_max = DRAW_FONT_BEARING_LOSS + xadvance - scale * advance;
+		// Latin metrics do not apply to cjk glyphs
+		bool             is_cjk = chars[i] >= 0x2e80;
+		draw_font_fit_t *gfit   = is_cjk ? &no_fit : &fit;
+		for (int j = 0; j < num_verts; ++j) {
+			verts[j].y   = draw_font_fit_round(gfit, verts[j].y);
+			verts[j].cy  = draw_font_fit_round(gfit, verts[j].cy);
+			verts[j].cy1 = draw_font_fit_round(gfit, verts[j].cy1);
+		}
+		y0 = (int)floorf(-draw_font_fit_y(gfit, (float)by1) * scale);
+		y1 = (int)ceilf(-draw_font_fit_y(gfit, (float)by0) * scale);
 		gh = y1 - y0;
-		if (x + gw + 1 >= pw)
-			y = bottom_y, x = 1; // Advance to next row
-		if (y + gh + 1 >= ph)    // Check if it fits vertically AFTER potentially moving to next row
+		if (!is_cjk && num_verts > 0 && gh > 0) {
+			shift = draw_font_fit_x(verts, num_verts, scale, shift, shift_min, shift_max, bx0, bx1, y0, gh);
+		}
+		x0 = (int)floorf(bx0 * scale + shift);
+		x1 = (int)ceilf(bx1 * scale + shift);
+		gw = num_verts > 0 ? x1 - x0 : 0;
+
+		if (x + gw + 1 >= pw) {
+			y = bottom_y;
+			x = 1;
+		}
+		if (y + gh + 1 >= ph) {
+			stbtt_FreeShape(&f, verts);
 			return -i;
+		}
 		STBTT_assert(x + gw < pw);
 		STBTT_assert(y + gh < ph);
-		stbtt_MakeGlyphBitmap(&f, pixels + x + y * pw, gw, gh, pw, scale, scale, g);
+		if (gw > 0 && gh > 0) {
+			stbtt__bitmap bm = {gw, gh, pw, pixels + x + y * pw};
+			stbtt_Rasterize(&bm, DRAW_FONT_FLATNESS, verts, num_verts, scale, scale, shift, 0.0f, x0, y0, 1, NULL);
+		}
+		stbtt_FreeShape(&f, verts);
 		chardata[i].x0       = (stbtt_int16)x;
 		chardata[i].y0       = (stbtt_int16)y;
 		chardata[i].x1       = (stbtt_int16)(x + gw);
 		chardata[i].y1       = (stbtt_int16)(y + gh);
-		chardata[i].xadvance = scale * advance;
+		chardata[i].xadvance = xadvance;
 		chardata[i].xoff     = (float)x0;
 		chardata[i].yoff     = (float)y0;
 		x                    = x + gw + 1;
 		if (y + gh + 1 > bottom_y)
 			bottom_y = y + gh + 1;
 	}
+
+	// Coverage boost
+	unsigned char boost[256];
+	for (i = 0; i < 256; ++i) {
+		boost[i] = (unsigned char)(powf(i / 255.0f, DRAW_FONT_COVERAGE_GAMMA) * 255.0f + 0.5f);
+	}
+	for (i = 0; i < pw * bottom_y; ++i) {
+		pixels[i] = boost[pixels[i]];
+	}
 	return bottom_y;
 }
 
+int draw_font_get_char_index_internal(int char_code);
+
 bool draw_font_load(draw_font_t *font, int size) {
+	draw_font_init(font); // Drop images baked before the glyph set changed
 	if (!draw_prepare_font_load_internal(font, size)) {
 		return true;
 	}
@@ -526,6 +690,13 @@ bool draw_font_load(draw_font_t *font, int size) {
 	int            ascent, descent, line_gap;
 	stbtt_InitFont(&info, font->blob, font->offset);
 	stbtt_GetFontVMetrics(&info, &ascent, &descent, &line_gap);
+	// Glyphs not present in the font draw as '?'
+	stbtt_bakedchar missing = baked[draw_font_get_char_index_internal('?')];
+	for (int i = 0; i < draw_font_glyphs->length; ++i) {
+		if (draw_font_glyphs->buffer[i] > 126 && stbtt_FindGlyphIndex(&info, draw_font_glyphs->buffer[i]) == 0) {
+			baked[i] = missing;
+		}
+	}
 	float scale         = stbtt_ScaleForPixelHeight(&info, (float)size);
 	img->m_size         = (float)size;
 	img->baseline       = (float)((int)((float)ascent * scale + 0.5f));
@@ -542,31 +713,27 @@ bool draw_font_load(draw_font_t *font, int size) {
 }
 
 gpu_texture_t *draw_font_get_texture(draw_font_t *font, int size) {
+	draw_font_load(font, size);
 	draw_font_image_t *img = draw_font_get_image_internal(font, size);
 	return img->tex;
 }
 
-int draw_font_get_char_index_internal(int char_index) {
-	if (draw_font_glyphs->length <= 0) {
-		return 0;
-	}
-	int offset = draw_font_glyph_blocks->buffer[0];
-	if (char_index < offset) {
-		return 0;
-	}
-
-	for (int i = 1; i < draw_font_glyph_blocks->length / 2; ++i) {
-		int prev_end = draw_font_glyph_blocks->buffer[i * 2 - 1];
-		int start    = draw_font_glyph_blocks->buffer[i * 2];
-		if (char_index > start - 1) {
-			offset += start - 1 - prev_end;
+int draw_font_get_char_index_internal(int char_code) {
+	int offset = 0;
+	for (int i = 0; i < draw_font_glyph_blocks->length / 2; ++i) {
+		int start = draw_font_glyph_blocks->buffer[i * 2];
+		int end   = draw_font_glyph_blocks->buffer[i * 2 + 1];
+		if (char_code < start) {
+			break;
 		}
+		if (char_code <= end) {
+			return offset + char_code - start;
+		}
+		offset += end - start + 1;
 	}
-
-	if (char_index - offset >= draw_font_glyphs->length) {
-		return 0;
-	}
-	return char_index - offset;
+	// Control characters draw as space, missing glyphs as '?'
+	int fallback = char_code < ' ' ? ' ' : '?';
+	return char_code == fallback ? 0 : draw_font_get_char_index_internal(fallback);
 }
 
 bool draw_font_get_baked_quad(draw_font_t *font, int size, draw_font_aligned_quad_t *q, int char_code, float xpos, float ypos) {
@@ -597,6 +764,7 @@ bool draw_font_get_baked_quad(draw_font_t *font, int size, draw_font_aligned_qua
 }
 
 void draw_string(const char *text, float x, float y) {
+	draw_font_load(draw_font, draw_font_size);
 	draw_font_image_t       *img  = draw_font_get_image_internal(draw_font, draw_font_size);
 	float                    xpos = x;
 	float                    ypos = y + img->baseline;
@@ -651,11 +819,12 @@ void draw_font_13(draw_font_t *font) {
 		draw_font_init_glyphs(32, 127);
 	}
 
-	font->blob         = font->buf->buffer;
-	font->images       = NULL;
-	font->m_images_len = 0;
-	font->m_capacity   = 0;
-	font->offset       = 0;
+	font->blob           = font->buf->buffer;
+	font->images         = NULL;
+	font->m_images_len   = 0;
+	font->m_capacity     = 0;
+	font->offset         = 0;
+	font->glyphs_version = draw_glyphs_version; // Keep the baked image in draw_font_init
 	draw_prepare_font_load_internal(font, 13);
 
 	draw_font_image_t *img = &(font->images[font->m_images_len]);
@@ -759,10 +928,15 @@ float draw_sub_string_width(draw_font_t *font, int font_size, const char *text, 
 	draw_font_load(font, font_size);
 	draw_font_image_t *img   = draw_font_get_image_internal(font, font_size);
 	float              width = 0.0;
-	for (int i = start; i < end; ++i) {
-		if (text[i] == '\0')
-			break;
-		width += draw_font_get_char_width_internal(img, text[i]);
+	int                i     = start;
+	while (i < end && ((unsigned char)text[i] & 0xc0) == 0x80) {
+		++i; // Range starts inside of a multi-byte character
+	}
+	while (i < end && text[i] != '\0') {
+		int l         = 0;
+		int codepoint = string_utf8_decode(&text[i], &l);
+		i += l > 0 ? l : 1;
+		width += draw_font_get_char_width_internal(img, codepoint);
 	}
 	return width;
 }

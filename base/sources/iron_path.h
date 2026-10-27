@@ -24,6 +24,8 @@ char *path_to_relative(char *from, char *to);
 char *path_normalize(char *path);
 char *path_base_dir(char *path);
 char *path_base_name(char *path);
+bool  path_has_ext(char *path, char *ext);
+char *path_ext(char *path);
 bool  path_is_mesh(char *path);
 bool  path_is_texture(char *path);
 bool  path_is_sound(char *path);

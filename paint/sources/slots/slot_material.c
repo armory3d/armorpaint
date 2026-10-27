@@ -95,6 +95,7 @@ void slot_material_unload(slot_material_t *raw) {
 
 void slot_material_delete(slot_material_t *raw) {
 	slot_material_unload(raw);
+	make_material_delete_node_previews(raw, NULL);
 	i32 mpos = array_index_of(g_project->_->materials, raw);
 	array_remove(g_project->_->materials, raw);
 	if (g_project->_->materials->length > 0) {

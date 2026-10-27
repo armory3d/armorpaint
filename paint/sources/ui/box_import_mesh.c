@@ -31,7 +31,7 @@ void project_import_mesh_box_draw() {
 	bool  keep_camera      = _project_import_mesh_box_keep_camera;
 	void (*done)(void)     = _project_import_mesh_box_done;
 
-	if (ends_with(to_lower_case(path), ".obj") || ends_with(to_lower_case(path), ".fbx")) {
+	if (path_has_ext(path, "obj") || path_has_ext(path, "fbx")) {
 		string_array_t *split_by_combo = any_array_create_from_raw_tmp(
 		    (void *[]){
 		        tr("Object"),
@@ -47,11 +47,11 @@ void project_import_mesh_box_draw() {
 		}
 	}
 
-	if (ends_with(to_lower_case(path), ".blend")) {
+	if (path_has_ext(path, "blend")) {
 		import_blend_mesh_ui();
 	}
 
-	if (ends_with(to_lower_case(path), ".fbx") || ends_with(to_lower_case(path), ".gltf") || ends_with(to_lower_case(path), ".glb")) {
+	if (path_has_ext(path, "fbx") || path_has_ext(path, "gltf") || path_has_ext(path, "glb")) {
 		static bool skinning = false;
 		static f32  frame    = 0.0;
 		ui_row2();

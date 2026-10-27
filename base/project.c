@@ -144,15 +144,13 @@ project_t *main() {
 		add_define(project, "WITH_EMBED");
 		add_define(project, "arm_embed");
 	}
-	else {
-		add_assets(project, "assets/extra/*", "data/{name}", 0);
-	}
 
 	if (flags->with_physics) {
 		add_define(project, "WITH_PHYSICS");
 	}
 
 	if (flags->with_raytrace) {
+		add_define(project, "WITH_RAYTRACE");
 		add_assets(project, "assets/raytrace/*", "data/{name}", 0);
 		if (graphics == GRAPHICS_DIRECT3D12) {
 			add_assets(project, "shaders/raytrace/*.cso", "data/{name}", 0);
@@ -211,6 +209,17 @@ project_t *main() {
 		add_define(project, "WITH_GAMEPAD");
 	}
 
+	bool with_websocket = platform == PLATFORM_LINUX || platform == PLATFORM_WINDOWS;
+	if (with_websocket) {
+		add_define(project, "WITH_WEBSOCKET");
+		if (platform == PLATFORM_WINDOWS) {
+			add_cfiles(project, "sources/backends/windows_websocket.c");
+		}
+		else if (platform == PLATFORM_LINUX) {
+			add_cfiles(project, "sources/backends/posix_websocket.c");
+		}
+	}
+
 	if (flags->idle_sleep) {
 		add_define(project, "IDLE_SLEEP");
 	}
@@ -263,8 +272,6 @@ project_t *main() {
 
 	if (flags->with_video_write) {
 		add_define(project, "WITH_VIDEO_WRITE");
-		add_cfiles(project, "sources/libs/minimp4.c");
-		add_cfiles(project, "sources/libs/minih264e.c");
 	}
 
 	project_flatten(project);

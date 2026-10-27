@@ -82,6 +82,9 @@ bool util_mesh_data_is_shared(mesh_data_t *data) {
 			users++;
 		}
 	}
+	if (nodes_mesh_holds(data)) {
+		users++; // Original mesh of an object with mesh nodes
+	}
 	return users > 1;
 }
 
@@ -500,11 +503,10 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	mesh_data_t *md                           = mesh_data_create(raw);
 	md->_->owns_arrays                        = true;
 	shader_data_t *paint_material             = g_project->_->materials->buffer[0]->data;
-	g_context->merged_object                  = mesh_object_create(md, paint_material);
-	g_context->merged_object->base->name      = string("%s_merged", g_context->paint_object->base->name);
-	g_context->merged_object->force_context   = "paint";
-	g_context->merged_object->frustum_culling = false;
-	g_context->merged_object->base->visible   = merged_visible;
+	g_context->merged_object                = mesh_object_create(md, paint_material);
+	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
+	g_context->merged_object->base->visible = merged_visible; // Painted instead of the objects when visible
+	array_remove(scene_meshes, g_context->merged_object);     // Drawn by the paint passes only
 	object_set_parent(g_context->merged_object->base, parent);
 	transform_build_matrix(g_context->merged_object->base->transform);
 	render_path_raytrace_ready = false;
@@ -557,6 +559,7 @@ bool util_mesh_merge_refresh() {
 }
 
 void util_mesh_transform_changed() {
+	nodes_mesh_request_refresh();
 	if (g_context->merged_object != NULL && !util_mesh_merge_refresh()) {
 		mesh_object_t_array_t *objects = any_array_create(0);
 		if (util_mesh_merged_objects != NULL) {
@@ -576,7 +579,7 @@ void util_mesh_transform_changed() {
 }
 
 void util_mesh_visibility_changed() {
-	if (g_config->workspace == WORKSPACE_PLAYER) {
+	if (base_player) {
 		util_mesh_merged_stale     = true;
 		render_path_raytrace_ready = false;
 		g_context->ddirty          = 2;
@@ -587,12 +590,13 @@ void util_mesh_visibility_changed() {
 	array_delete(visibles);
 	util_uv_uvmap_cached       = false;
 	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
 	util_uv_dilatemap_cached   = false;
 	g_context->ddirty          = 2;
 }
 
-static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {
-	mat4_t       m         = mat4_mult_mat(o->base->transform->world_unpack, inv_world);
+// Positions are transformed from their packed values
+static void util_mesh_bake_matrix(mesh_object_t *o, mat4_t m) {
 	mat4_t       nm        = mat4_transpose3(mat4_inv(m));
 	i16_array_t *va0       = o->data->vertex_arrays->buffer[0]->values;
 	i16_array_t *va1       = o->data->vertex_arrays->buffer[1]->values;
@@ -628,11 +632,84 @@ static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {
 	o->data->scale_pos = max_scale;
 }
 
+static void util_mesh_bake_transform(mesh_object_t *o, mat4_t inv_world) {
+	util_mesh_bake_matrix(o, mat4_mult_mat(o->base->transform->world_unpack, inv_world));
+}
+
+// Moves a rotation and scale matrix into the mesh, the object is left with its location only
+static void util_mesh_apply_matrix(mesh_object_t *o, mat4_t m) {
+	util_mesh_unshare_data(o);
+	mesh_data_t *g        = o->data;
+	mat4_t       m_unpack = m;
+	m_unpack.m00 *= g->scale_pos;
+	m_unpack.m01 *= g->scale_pos;
+	m_unpack.m02 *= g->scale_pos;
+	m_unpack.m10 *= g->scale_pos;
+	m_unpack.m11 *= g->scale_pos;
+	m_unpack.m12 *= g->scale_pos;
+	m_unpack.m20 *= g->scale_pos;
+	m_unpack.m21 *= g->scale_pos;
+	m_unpack.m22 *= g->scale_pos;
+	util_mesh_bake_matrix(o, m_unpack);
+	if (mat4_determinant(m) < 0.0) {
+		// Mirrored by a negative scale
+		u32_array_t *inda = g->index_array;
+		for (i32 i = 0; i + 2 < inda->length; i += 3) {
+			u32 tmp             = inda->buffer[i + 1];
+			inda->buffer[i + 1] = inda->buffer[i + 2];
+			inda->buffer[i + 2] = tmp;
+		}
+	}
+	mesh_data_build_vertices(g->_->vertex_buffer, g->vertex_arrays);
+	mesh_data_build_indices(g->_->index_buffer, g->index_array);
+
+	// Children stay in place
+	for (i32 i = 0; i < o->base->children->length; ++i) {
+		object_t    *c     = o->base->children->buffer[i];
+		transform_t *ct    = c->transform;
+		mat4_t       local = mat4_mult_mat(ct->local, m);
+		ct->local          = local;
+		transform_decompose(ct);
+		mat4_t composed = mat4_compose(ct->loc, ct->rot, ct->scale);
+		f32    diff     = 0.0;
+		f32    size     = 0.0;
+		for (i32 j = 0; j < 12; ++j) {
+			diff = math_max(diff, math_abs(composed.m[j] - local.m[j]));
+			size = math_max(size, math_abs(local.m[j]));
+		}
+		mesh_object_t *co = c->ext_type != NULL && string_equals(c->ext_type, "mesh_object_t") ? c->ext : NULL;
+		if (co != NULL && diff > size * 0.0001) {
+			// Skewed by a non-uniform scale, applied to the mesh of the child too
+			local.m30 = 0.0;
+			local.m31 = 0.0;
+			local.m32 = 0.0;
+			util_mesh_apply_matrix(co, local);
+		}
+	}
+
+	transform_t *t = o->base->transform;
+	t->rot         = (quat_t){0.0, 0.0, 0.0, 1.0};
+	t->scale       = (vec4_t){1.0, 1.0, 1.0, 1.0};
+	t->scale_world = g->scale_pos;
+}
+
+// Rotation and scale are moved into the mesh, the object and its children stay in place
+void util_mesh_apply_transform(mesh_object_t *o) {
+	transform_t *t = o->base->transform;
+	util_mesh_apply_matrix(o, mat4_compose((vec4_t){0.0, 0.0, 0.0, 1.0}, t->rot, t->scale));
+	transform_build_matrix(t);
+
+	util_mesh_merge(NULL);
+	nodes_mesh_request_refresh();
+	render_path_raytrace_ready = false;
+}
+
 static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 	// Keep the first object and join the geometry of the rest into it
 	mesh_object_t *main_object = objects->buffer[0];
 	mat4_t         inv_world   = mat4_inv(main_object->base->transform->world);
 	for (i32 i = 0; i < objects->length; ++i) {
+		nodes_mesh_remove(objects->buffer[i]); // Output meshes are joined
 		util_mesh_unshare_data(objects->buffer[i]);
 	}
 	for (i32 i = 0; i < objects->length; ++i) {
@@ -651,11 +728,12 @@ static void util_mesh_join_geometry(mesh_object_t_array_t *objects) {
 
 static void util_mesh_geometry_joined() {
 	util_mesh_merge(NULL);
-	util_uv_uvmap_cached                              = false;
-	util_uv_trianglemap_cached                        = false;
-	util_uv_dilatemap_cached                          = false;
-	g_context->ddirty                                 = 2;
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
+	util_uv_dilatemap_cached   = false;
+	g_context->ddirty          = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 }
 
 void util_mesh_merge_geometry() {
@@ -696,47 +774,61 @@ void util_mesh_merge_geometry() {
 	util_mesh_geometry_joined();
 }
 
-void util_mesh_merge_geometry_down(mesh_object_t *main_object, mesh_object_t *below) {
-	mesh_object_t_array_t *objects    = g_project->_->paint_objects;
-	i32                    main_index = array_index_of(objects, main_object);
-	i32                    index      = array_index_of(objects, below);
-	if (main_index < 0 || index < 0 || main_index == index) {
+void util_mesh_merge_geometry_objects(mesh_object_t_array_t *merged) {
+	// Join the geometry into the first object and remove the rest
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (merged->length < 2) {
 		return;
 	}
-
-	util_mesh_join_geometry(any_array_create_from_raw_tmp((void *[]){main_object, below}, 2));
-
-	while (below->base->children->length > 0) {
-		object_t *child  = below->base->children->buffer[0];
-		mat4_t    world  = child->transform->world;
-		object_t *parent = child == main_object->base ? below->base->parent : main_object->base;
-		object_set_parent(child, parent);
-		mat4_t parent_world = child->parent != NULL ? child->parent->transform->world : mat4_identity();
-		transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
+	for (i32 i = 0; i < merged->length; ++i) {
+		if (array_index_of(objects, merged->buffer[i]) < 0 || array_index_of(merged, merged->buffer[i]) != i) {
+			return;
+		}
 	}
+	mesh_object_t *main_object = merged->buffer[0];
 
-	char *merged_name = string_copy(below->base->name);
-	array_splice(objects, index, 1);
-	if (g_project->atlas_objects != NULL && index < g_project->atlas_objects->length) {
-		i32_array_splice(g_project->atlas_objects, index, 1);
-	}
-	object_set_parent(below->base, NULL);
-	util_mesh_delete_data_uncache(below->data);
-	mesh_object_remove(below);
+	util_mesh_join_geometry(merged);
 
-	i32 merged_mask = index + 1;
-	i32 new_mask    = (main_index < index ? main_index : main_index - 1) + 1;
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		slot_layer_t *l = g_project->_->layers->buffer[i];
-		l->object_mask  = l->object_mask == merged_mask ? new_mask : l->object_mask > merged_mask ? l->object_mask - 1 : l->object_mask;
+	string_array_t *merged_names = string_array_create(0);
+	for (i32 k = 1; k < merged->length; ++k) {
+		mesh_object_t *o          = merged->buffer[k];
+		i32            main_index = array_index_of(objects, main_object);
+		i32            index      = array_index_of(objects, o);
+
+		while (o->base->children->length > 0) {
+			object_t *child  = o->base->children->buffer[0];
+			mat4_t    world  = child->transform->world;
+			object_t *parent = child == main_object->base ? o->base->parent : main_object->base;
+			object_set_parent(child, parent);
+			mat4_t parent_world = child->parent != NULL ? child->parent->transform->world : mat4_identity();
+			transform_set_matrix(child->transform, mat4_mult_mat(world, mat4_inv(parent_world)));
+		}
+
+		string_array_push(merged_names, string_copy(o->base->name));
+		array_splice(objects, index, 1);
+		if (g_project->atlas_objects != NULL && index < g_project->atlas_objects->length) {
+			i32_array_splice(g_project->atlas_objects, index, 1);
+		}
+		object_set_parent(o->base, NULL);
+		util_mesh_delete_data_uncache(o->data);
+		mesh_object_remove(o);
+
+		i32 merged_mask = index + 1;
+		i32 new_mask    = (main_index < index ? main_index : main_index - 1) + 1;
+		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+			slot_layer_t *l = g_project->_->layers->buffer[i];
+			l->object_mask  = l->object_mask == merged_mask ? new_mask : l->object_mask > merged_mask ? l->object_mask - 1 : l->object_mask;
+		}
+		g_context->layer_filter = g_context->layer_filter == merged_mask  ? new_mask
+		                          : g_context->layer_filter > merged_mask ? g_context->layer_filter - 1
+		                                                                  : g_context->layer_filter;
 	}
-	g_context->layer_filter = g_context->layer_filter == merged_mask  ? new_mask
-	                          : g_context->layer_filter > merged_mask ? g_context->layer_filter - 1
-	                                                                  : g_context->layer_filter;
 
 	tab_meshes_sort_hierarchy();
 	context_select_paint_object(main_object);
-	tab_timeline_on_mesh_deleted(merged_name);
+	for (i32 i = 0; i < merged_names->length; ++i) {
+		tab_timeline_on_mesh_deleted(merged_names->buffer[i]);
+	}
 	tab_stages_prune();
 	util_mesh_geometry_joined();
 }
@@ -918,11 +1010,19 @@ void util_mesh_calc_normals(mesh_object_t_array_t *objects, bool smooth) {
 	render_path_raytrace_ready = false;
 }
 
-void util_mesh_to_origin() {
-	mesh_object_t_array_t *objects = util_mesh_get_unique_data();
-	f32                    dx      = 0.0;
-	f32                    dy      = 0.0;
-	f32                    dz      = 0.0;
+// Drops the bounds cached by transform_compute_dim, so the next matrix build measures the moved vertices
+static void util_mesh_clear_dim(mesh_object_t *o) {
+	transform_t *t = o->base->transform;
+	if (t->measured) {
+		t->has_dim  = false;
+		t->measured = false;
+	}
+}
+
+void util_mesh_to_origin(mesh_object_t_array_t *objects) {
+	f32 dx = 0.0;
+	f32 dy = 0.0;
+	f32 dz = 0.0;
 	for (i32 i = 0; i < objects->length; ++i) {
 		mesh_object_t *o    = objects->buffer[i];
 		i32            l    = 4;
@@ -990,6 +1090,14 @@ void util_mesh_to_origin() {
 		}
 
 		mesh_data_build_vertices(g->_->vertex_buffer, o->data->vertex_arrays);
+
+		for (i32 j = 0; j < g_project->_->paint_objects->length; ++j) {
+			mesh_object_t *p = g_project->_->paint_objects->buffer[j];
+			if (p->data == g) {
+				util_mesh_clear_dim(p);
+				transform_build_matrix(p->base->transform);
+			}
+		}
 	}
 
 	util_mesh_merge(NULL);
@@ -1036,6 +1144,7 @@ void util_mesh_origin_to_geometry(mesh_object_t_array_t *objects) {
 			if (p->data != g) {
 				continue;
 			}
+			util_mesh_clear_dim(p);
 			transform_t *t = p->base->transform;
 			vec4_t       d = vec4_apply_quat((vec4_t){c[0] * t->scale.x, c[1] * t->scale.y, c[2] * t->scale.z, 0.0}, t->rot);
 			t->loc         = (vec4_t){t->loc.x + d.x, t->loc.y + d.y, t->loc.z + d.z, t->loc.w};
@@ -2578,7 +2687,7 @@ static void _util_mesh_subdivide(mesh_object_t *o) {
                                                     3),
 	                                                     .index_array = new_inda,
 	                                                     .scale_pos   = o->data->scale_pos,
-	                                                     .scale_tex   = 1.0});
+	                                                     .scale_tex   = o->data->scale_tex});
 	mesh_data_t *new_data2    = mesh_data_create(raw);
 	new_data2->_->owns_arrays = true;
 	if (!util_mesh_data_is_shared(o->data)) {
@@ -2600,9 +2709,17 @@ static mesh_object_t_array_t *_util_mesh_modifier_begin(mesh_object_t_array_t *o
 	return ar;
 }
 
-static void _util_mesh_modifier_end(mesh_object_t_array_t *objects) {
+static void _util_mesh_modifier_end(mesh_object_t_array_t *objects, bool unwrap) {
 	util_mesh_calc_normals(objects, true);
-	util_mesh_uv_unwrap(objects);
+	if (unwrap) {
+		util_mesh_uv_unwrap(objects);
+	}
+	else {
+		util_uv_uvmap_cached       = false;
+		util_uv_trianglemap_cached = false;
+		util_uv_seammap_cached     = false;
+		util_uv_dilatemap_cached   = false;
+	}
 }
 
 void util_mesh_decimate(mesh_object_t_array_t *objects, f32 ratio) {
@@ -2610,7 +2727,7 @@ void util_mesh_decimate(mesh_object_t_array_t *objects, f32 ratio) {
 	for (i32 i = 0; i < objects->length; ++i) {
 		_util_mesh_decimate(objects->buffer[i], ratio);
 	}
-	_util_mesh_modifier_end(objects);
+	_util_mesh_modifier_end(objects, true);
 }
 
 void util_mesh_smooth(mesh_object_t_array_t *objects) {
@@ -2618,7 +2735,7 @@ void util_mesh_smooth(mesh_object_t_array_t *objects) {
 	for (i32 i = 0; i < objects->length; ++i) {
 		_util_mesh_smooth(objects->buffer[i]);
 	}
-	_util_mesh_modifier_end(objects);
+	_util_mesh_modifier_end(objects, false);
 }
 
 void util_mesh_bevel(mesh_object_t_array_t *objects, f32 amount) {
@@ -2626,7 +2743,7 @@ void util_mesh_bevel(mesh_object_t_array_t *objects, f32 amount) {
 	for (i32 i = 0; i < objects->length; ++i) {
 		_util_mesh_bevel(objects->buffer[i], amount);
 	}
-	_util_mesh_modifier_end(objects);
+	_util_mesh_modifier_end(objects, true);
 }
 
 void util_mesh_subdivide(mesh_object_t_array_t *objects) {
@@ -2634,7 +2751,7 @@ void util_mesh_subdivide(mesh_object_t_array_t *objects) {
 	for (i32 i = 0; i < objects->length; ++i) {
 		_util_mesh_subdivide(objects->buffer[i]);
 	}
-	_util_mesh_modifier_end(objects);
+	_util_mesh_modifier_end(objects, false);
 }
 
 static void _util_mesh_shift_object_masks(i32 from) {
@@ -2671,6 +2788,11 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 	dup->base->name = string_copy(_import_mesh_unique_name(so->base->name));
 	tab_stages_add_object(dup->base->name);
 
+	// Skinned meshes are posed in their vertices, make a copy so it can play a clip on its own
+	if (data->_->skin_blob != NULL) {
+		util_mesh_unshare_data(dup);
+	}
+
 	// Material override
 	i32 mat_index = tab_meshes_get_override(so);
 	if (mat_index >= 0) {
@@ -2684,6 +2806,8 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 		util_physics_set(dup->base, shape, util_physics_get_mass(so->base));
 	}
 
+	util_path_tool_copy(so, dup);
+
 	tab_meshes_sort_hierarchy();
 	tab_timeline_sync();
 
@@ -2693,17 +2817,278 @@ mesh_object_t *util_mesh_duplicate_object(mesh_object_t *so) {
 void util_mesh_duplicate() {
 	mesh_object_t *dup = util_mesh_duplicate_object(g_context->paint_object);
 	if (dup != NULL) {
-		g_context->paint_object                           = dup;
-		ui_header_handle->redraws                         = 2;
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		g_context->paint_object   = dup;
+		ui_header_handle->redraws = 2;
+		ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	}
 	util_mesh_merge(NULL);
 	g_context->ddirty = 2;
+}
+
+// Union-find over the vertices of g, joined by triangles and by equal positions
+static i32 *_util_mesh_connected(mesh_data_t *g) {
+	i16_array_t *va0       = g->vertex_arrays->buffer[0]->values;
+	u32_array_t *inda      = g->index_array;
+	i32          num_verts = math_floor(va0->length / 4.0);
+	i32          num_inds  = math_floor(inda->length / 3.0) * 3;
+
+	// Position-weld, vertices split by uv seams stay connected
+	i32_array_t *weld_sort = i32_array_create(num_verts);
+	i32         *uf        = malloc(num_verts * sizeof(i32));
+	for (i32 i = 0; i < num_verts; ++i) {
+		weld_sort->buffer[i] = i;
+		uf[i]                = i;
+	}
+	util_mesh_va0 = va0;
+	i32_array_sort(weld_sort, &util_mesh_calc_normals_sort);
+	for (i32 i = 1; i < num_verts; ++i) {
+		i32 curr = weld_sort->buffer[i];
+		i32 prev = weld_sort->buffer[i - 1];
+		if (va0->buffer[curr * 4] == va0->buffer[prev * 4] && va0->buffer[curr * 4 + 1] == va0->buffer[prev * 4 + 1] &&
+		    va0->buffer[curr * 4 + 2] == va0->buffer[prev * 4 + 2]) {
+			_util_mesh_bevel_union(uf, curr, prev);
+		}
+	}
+	array_delete(weld_sort);
+
+	for (i32 i = 0; i < num_inds; i += 3) {
+		_util_mesh_bevel_union(uf, inda->buffer[i], inda->buffer[i + 1]);
+		_util_mesh_bevel_union(uf, inda->buffer[i], inda->buffer[i + 2]);
+	}
+	return uf;
+}
+
+// Triangles connected to triangle tri, the same surface util_mesh_split separates
+u32_array_t *util_mesh_connected_indices(mesh_data_t *g, i32 tri) {
+	u32_array_t *inda     = g->index_array;
+	i32          num_inds = math_floor(inda->length / 3.0) * 3;
+	if (tri < 0 || tri * 3 >= num_inds) {
+		return NULL;
+	}
+	i32         *uf   = _util_mesh_connected(g);
+	i32          root = _util_mesh_bevel_find(uf, inda->buffer[tri * 3]);
+	u32_array_t *out  = u32_array_create(0);
+	for (i32 i = 0; i < num_inds; i += 3) {
+		if (_util_mesh_bevel_find(uf, inda->buffer[i]) == root) {
+			u32_array_push(out, inda->buffer[i]);
+			u32_array_push(out, inda->buffer[i + 1]);
+			u32_array_push(out, inda->buffer[i + 2]);
+		}
+	}
+	free(uf);
+	return out;
+}
+
+// Triangle of o hit by the ray, closest to its origin, -1 on a miss
+i32 util_mesh_raycast_triangle(mesh_object_t *o, ray_t *ray) {
+	i16_array_t *va0     = o->data->vertex_arrays->buffer[0]->values;
+	u32_array_t *inda    = o->data->index_array;
+	mat4_t       m       = o->base->transform->world_unpack;
+	i32          closest = -1;
+	f32          min_d   = 0.0;
+	for (i32 i = 0; i + 2 < inda->length; i += 3) {
+		vec4_t p[3];
+		for (i32 k = 0; k < 3; ++k) {
+			i32 v = inda->buffer[i + k] * 4;
+			p[k]  = vec4_apply_mat4((vec4_t){va0->buffer[v] / 32767.0, va0->buffer[v + 1] / 32767.0, va0->buffer[v + 2] / 32767.0, 1.0}, m);
+		}
+		vec4_t hit = ray_intersect_triangle(ray, p[0], p[1], p[2], false);
+		if (isnan(hit.x)) {
+			continue;
+		}
+		f32 d = vec4_dist(hit, ray->origin);
+		if (closest < 0 || d < min_d) {
+			closest = i / 3;
+			min_d   = d;
+		}
+	}
+	return closest;
+}
+
+void util_mesh_split(mesh_object_t *o) {
+	// Separate the connected surfaces of a mesh into objects of their own
+	mesh_object_t_array_t  *objects   = g_project->_->paint_objects;
+	i32                     index     = array_index_of(objects, o);
+	mesh_data_t            *g         = o->data;
+	vertex_array_t_array_t *vas       = g->vertex_arrays;
+	i16_array_t            *va0       = vas->buffer[0]->values;
+	u32_array_t            *inda      = g->index_array;
+	i32                     num_verts = math_floor(va0->length / 4.0);
+	i32                     num_inds  = math_floor(inda->length / 3.0) * 3;
+	if (index < 0 || num_inds < 6) {
+		return;
+	}
+
+	i32 *uf = _util_mesh_connected(g);
+
+	// Islands in triangle order
+	i32 *island = malloc(num_verts * sizeof(i32)); // Island of a root vertex
+	i32 *remap  = malloc(num_verts * sizeof(i32)); // Vertex index inside its island
+	for (i32 i = 0; i < num_verts; ++i) {
+		island[i] = -1;
+		remap[i]  = -1;
+	}
+	i32 count = 0;
+	for (i32 i = 0; i < num_inds; i += 3) {
+		i32 root = _util_mesh_bevel_find(uf, inda->buffer[i]);
+		if (island[root] < 0) {
+			island[root] = count++;
+		}
+	}
+	if (count < 2) {
+		free(uf);
+		free(island);
+		free(remap);
+		return;
+	}
+
+	i32 *vcount = calloc(count, sizeof(i32));
+	i32 *icount = calloc(count, sizeof(i32));
+	for (i32 i = 0; i < num_inds; ++i) {
+		i32 v = inda->buffer[i];
+		i32 c = island[_util_mesh_bevel_find(uf, v)];
+		if (remap[v] < 0) {
+			remap[v] = vcount[c]++;
+		}
+		icount[c]++;
+	}
+
+	mesh_data_t **raws = malloc(count * sizeof(mesh_data_t *));
+	for (i32 c = 0; c < count; ++c) {
+		mesh_data_t *raw   = calloc(1, sizeof(mesh_data_t));
+		raw->scale_pos     = g->scale_pos;
+		raw->scale_tex     = g->scale_tex;
+		raw->vertex_arrays = (vertex_array_t_array_t *)any_array_create_from_raw((void *[]){}, 0);
+		for (i32 k = 0; k < vas->length; ++k) {
+			vertex_array_t *src    = vas->buffer[k];
+			i32             stride = math_floor(src->values->length / (f32)num_verts);
+			vertex_array_t *va     = ALLOC_INIT(vertex_array_t, {.attrib = string_copy(src->attrib), .data = string_copy(src->data)});
+			va->values             = i16_array_create(vcount[c] * stride);
+			any_array_push(raw->vertex_arrays, va);
+		}
+		raw->index_array = u32_array_create(icount[c]);
+		icount[c]        = 0;
+		raws[c]          = raw;
+	}
+
+	for (i32 k = 0; k < vas->length; ++k) {
+		i16_array_t *src    = vas->buffer[k]->values;
+		i32          stride = math_floor(src->length / (f32)num_verts);
+		for (i32 v = 0; v < num_verts; ++v) {
+			if (remap[v] < 0) {
+				continue;
+			}
+			i16_array_t *dst = raws[island[_util_mesh_bevel_find(uf, v)]]->vertex_arrays->buffer[k]->values;
+			memcpy(dst->buffer + remap[v] * stride, src->buffer + v * stride, stride * sizeof(i16));
+		}
+	}
+	for (i32 i = 0; i < num_inds; ++i) {
+		i32 v                                     = inda->buffer[i];
+		i32 c                                     = island[_util_mesh_bevel_find(uf, v)];
+		raws[c]->index_array->buffer[icount[c]++] = remap[v];
+	}
+	free(uf);
+	free(island);
+	free(remap);
+	free(vcount);
+	free(icount);
+
+	// The first island stays with the object
+	nodes_mesh_remove(o); // Output mesh is split
+	bool shared        = util_mesh_data_is_shared(g);
+	raws[0]->name      = string_copy(o->base->name);
+	mesh_data_t *md    = mesh_data_create(raws[0]);
+	md->_->owns_arrays = true;
+	md->_->skin_frame  = -1;
+	mesh_object_set_data(o, md);
+	if (!shared) {
+		sys_notify_on_next_frame(&util_mesh_delete_data_uncache, g);
+	}
+
+	char *base;
+	i32   number    = strings_split_number_ext(o->base->name, &base);
+	i32   mat_index = tab_meshes_get_override(o);
+	i32   shape     = util_physics_get_shape(o->base);
+	for (i32 c = 1; c < count; ++c) {
+		char *name = string_tmp("%s%s", base, strings_number_ext(++number));
+		while (!_import_mesh_is_unique_name(name)) {
+			name = string_tmp("%s%s", base, strings_number_ext(++number));
+		}
+		raws[c]->name      = string_copy(name);
+		md                 = mesh_data_create(raws[c]);
+		md->_->owns_arrays = true;
+		md->_->skin_frame  = -1;
+
+		mesh_object_t *p = scene_add_mesh_object(md, o->material, o->base->parent);
+		p->base->name    = string_copy(name);
+		p->base->visible = o->base->visible;
+		transform_set_matrix(p->base->transform, o->base->transform->local);
+		array_insert((any_array_t *)objects, index + c, p);
+		_util_mesh_shift_object_masks(index + 2);
+		tab_stages_add_object(p->base->name);
+
+		if (mat_index >= 0) {
+			tab_meshes_set_override_data(p, mat_index, o->material);
+		}
+		if (shape >= 0) {
+			util_physics_set(p->base, shape, util_physics_get_mass(o->base));
+		}
+	}
+	free(raws);
+
+	if (mat_index >= 0) {
+		g_project->mesh_materials = i32_array_create(0);
+	}
+
+	char          *uid_key = i32_to_string(o->base->uid);
+	gpu_texture_t *preview = tab_meshes_preview_map != NULL ? any_map_get(tab_meshes_preview_map, uid_key) : NULL;
+	if (preview != NULL) {
+		gpu_delete_texture(preview);
+		map_delete(tab_meshes_preview_map, uid_key);
+	}
+
+	tab_meshes_sort_hierarchy();
+	tab_timeline_sync();
+	context_select_paint_object(o);
+	util_mesh_geometry_joined();
 }
 
 void util_mesh_delete() {
 	if (g_project->_->paint_objects->length < 2) {
 		return;
 	}
-	tab_meshes_draw_context_menu_delete(g_context->paint_object);
+	tab_meshes_delete_selected_next_frame(NULL);
+}
+
+static bool util_mesh_is_unique_name(mesh_object_t *self, char *name) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != self && string_equals(p->base->name, name)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+char *util_mesh_unique_name(mesh_object_t *self, char *name) {
+	if (util_mesh_is_unique_name(self, name)) {
+		return name;
+	}
+	char *base;
+	i32   i   = strings_split_number_ext(name, &base);
+	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
+	while (!util_mesh_is_unique_name(self, res)) {
+		res = string_tmp("%s%s", base, strings_number_ext(++i));
+	}
+	return res;
+}
+
+void util_mesh_rename(mesh_object_t *o, char *name) {
+	name = string_copy(name);
+	tab_stages_rename_object(o->base->name, name);
+	o->base->name = name;
+	// Mesh data shared by linked duplicates is named after the object holding it
+	if (o->data != NULL && util_mesh_data_owner(o->data) == array_index_of(g_project->_->paint_objects, o)) {
+		o->data->name = string_copy(name);
+	}
 }

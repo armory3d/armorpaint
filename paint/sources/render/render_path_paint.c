@@ -28,7 +28,7 @@ mesh_object_t   *render_path_paint_painto                = NULL;
 mesh_object_t   *render_path_paint_planeo                = NULL;
 u8_array_t      *render_path_paint_visibles              = NULL;
 bool             render_path_paint_merged_object_visible = false;
-f32              render_path_paint_saved_fov             = 0.0;
+f32_array_t     *render_path_paint_saved_ortho           = NULL;
 render_target_t *_render_path_paint_texpaint;
 render_target_t *_render_path_paint_texpaint_nor;
 render_target_t *_render_path_paint_texpaint_pack;
@@ -120,24 +120,81 @@ void render_path_paint_init() {
 	render_path_load_shader("Scene/dilate_pass/dilateRGBA128_pass");
 }
 
-void render_path_paint_draw_fullscreen_triangle(char *ctx) {
+void render_path_paint_draw_fullscreen_triangle() {
 	// Vertices are mangled in vertex shader to form a fullscreen triangle,
 	// so plane transform does not matter
-	mesh_object_t *plane    = scene_get_child(".Plane")->ext;
-	bool           _visible = plane->base->visible;
-	plane->base->visible    = true;
-	mesh_object_render(plane, ctx, _render_path_bind_params);
-	plane->base->visible = _visible;
+	if (make_material_paint_scon != NULL) {
+		mesh_object_draw(scene_get_child(".Plane")->ext, make_material_paint_scon, _render_path_bind_params);
+	}
+	render_path_end();
+}
+
+// The merged mesh is painted unless an object mask selects a single object
+mesh_object_t *render_path_paint_target() {
+	mesh_object_t *merged = g_context->merged_object;
+	if (merged != NULL && merged->base->visible) {
+		return merged;
+	}
+	mesh_object_t *o = g_context->paint_object;
+	return o->base->visible && make_material_is_default(o->material) ? o : NULL;
+}
+
+// Texture space, the whole mesh is drawn wherever the camera looks
+void render_path_paint_draw_target() {
+	mesh_object_t *o = render_path_paint_target();
+	if (o != NULL && make_material_paint_scon != NULL) {
+		_mesh_object_last_pipeline = NULL;
+		mesh_object_draw(o, make_material_paint_scon, _render_path_bind_params);
+	}
+	render_path_end();
+}
+
+static mesh_object_t *render_path_paint_fill_object  = NULL; // Picked on mesh fill stroke start
+static gpu_buffer_t  *render_path_paint_fill_indices = NULL; // Submesh fill, triangles connected to the clicked one
+
+static void render_path_paint_pick_fill_submesh() {
+	if (render_path_paint_fill_indices != NULL) {
+		gpu_delete_buffer(render_path_paint_fill_indices);
+		render_path_paint_fill_indices = NULL;
+	}
+	mesh_object_t *o = render_path_paint_fill_object;
+	if (o == NULL) {
+		return;
+	}
+	ray_t *ray = raycast_get_ray(mouse_view_x(), mouse_view_y(), scene_camera);
+	i32    tri = util_mesh_raycast_triangle(o, ray);
+	if (tri < 0) {
+		return;
+	}
+	u32_array_t *indices           = util_mesh_connected_indices(o->data, tri);
+	render_path_paint_fill_indices = gpu_create_index_buffer(indices->length);
+	mesh_data_build_indices(render_path_paint_fill_indices, indices);
+	array_delete(indices);
+}
+
+// Mesh fill, only the clicked paint object is drawn, submesh fill only its clicked connected part
+static void render_path_paint_draw_fill_object() {
+	mesh_object_t *o       = render_path_paint_fill_object;
+	mesh_object_t *target  = render_path_paint_target();
+	bool           merged  = target != NULL && target == g_context->merged_object;
+	bool           painted = o != NULL && (merged || o == target) && array_index_of(g_project->_->paint_objects, o) >= 0;
+	bool           submesh = g_context->fill_type == FILL_TYPE_SUBMESH;
+	if (submesh && render_path_paint_fill_indices == NULL) {
+		painted = false;
+	}
+	if (painted && o->base->visible && make_material_is_default(o->material) && make_material_paint_scon != NULL) {
+		_mesh_object_last_pipeline = NULL;
+		gpu_buffer_t *indices      = o->data->_->index_buffer;
+		if (submesh) {
+			o->data->_->index_buffer = render_path_paint_fill_indices;
+		}
+		mesh_object_draw(o, make_material_paint_scon, _render_path_bind_params);
+		o->data->_->index_buffer = indices;
+	}
 	render_path_end();
 }
 
 void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) {
-	// Hide bullets to avoid self-painting
-	for (i32 _pi = 0; _pi < 32; ++_pi) {
-		if (g_context->particles[_pi].bullet != NULL) {
-			g_context->particles[_pi].bullet->visible = false;
-		}
-	}
 	// Paint pass per particle
 	for (i32 _pi = 0; _pi < 32; ++_pi) {
 		if (g_context->particles[_pi].timer == NULL || g_context->particles[_pi].hit_x == 0) {
@@ -171,12 +228,7 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 		if (g_context->colorid_picked) {
 			render_path_bind_target("texpaint_colorid", "texpaint_colorid");
 		}
-		render_path_draw_meshes("paint");
-	}
-	for (i32 _pi = 0; _pi < 32; ++_pi) {
-		if (g_context->particles[_pi].bullet != NULL) {
-			g_context->particles[_pi].bullet->visible = true;
-		}
+		render_path_paint_draw_target();
 	}
 }
 
@@ -223,6 +275,76 @@ static void render_path_paint_ref_snapshot(i32 tid, bool is_mask) {
 	render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 }
 
+// Clone source for the visible layers mode
+static void render_path_paint_clone_snapshot() {
+	layers_flatten(false, NULL);
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	render_path_paint_ref_target("texpaint_ref", format);
+	render_path_paint_ref_target("texpaint_nor_ref", format);
+	render_path_paint_ref_target("texpaint_pack_ref", format);
+	string_array_t *additional = any_array_create_from_raw_tmp(
+	    (void *[]){
+	        "texpaint_nor_ref",
+	        "texpaint_pack_ref",
+	    },
+	    2);
+	render_path_set_target("texpaint_ref", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target("expa", "tex0");
+	render_path_bind_target("expb", "tex1");
+	render_path_bind_target("expc", "tex2");
+	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : string_equals(format, "RGBA64") ? "copy_mrt3RGBA64_pass" : "copy_mrt3RGBA128_pass";
+	render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
+}
+
+// Renders object ids and returns the paint object under the cursor, NULL on a miss.
+// Expects the cursor tool with pick_object_id set, the paint material is parsed for it here.
+static mesh_object_t *render_path_paint_pick_object() {
+	viewport_mode_t _viewport_mode = g_context->viewport_mode;
+	g_context->viewport_mode       = VIEWPORT_MODE_OBJECT_ID;
+	make_material_parse_mesh_material();
+
+	// Objects with assigned material do not write object id
+	shader_data_t *base_material     = g_project->_->materials->buffer[0]->data;
+	any_array_t   *_object_materials = any_array_create(g_project->_->paint_objects->length);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o             = g_project->_->paint_objects->buffer[i];
+		_object_materials->buffer[i] = o->material;
+		o->material                  = base_material;
+	}
+
+	render_path_base_draw_gbuffer();
+
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		g_project->_->paint_objects->buffer[i]->material = _object_materials->buffer[i];
+	}
+
+	g_context->viewport_mode = _viewport_mode;
+	make_material_parse_mesh_material();
+
+	g_context->pdirty = 1;
+	make_material_parse_paint_material(false);
+	render_path_set_target("texpaint_picker", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target("gbuffer1", "gbuffer1");
+	render_path_bind_target("gbuffer2", "gbuffer2");
+	render_path_paint_draw_fullscreen_triangle();
+
+	render_target_t *rt    = any_map_get(render_path_render_targets, "texpaint_picker");
+	buffer_t        *pixel = gpu_get_texture_pixels(rt->_image);
+	if (buffer_get_u8(pixel, 3) > 0) {
+#ifdef IRON_BGRA
+		i32 r_byte = buffer_get_u8(pixel, 2);
+#else
+		i32 r_byte = buffer_get_u8(pixel, 0);
+#endif
+		i32 g_byte = buffer_get_u8(pixel, 1);
+		i32 index  = r_byte + g_byte * 256 - 1;
+		if (index >= 0 && index < g_project->_->paint_objects->length) {
+			return g_project->_->paint_objects->buffer[index];
+		}
+	}
+	return NULL;
+}
+
 void render_path_paint_commands_paint(bool dilation) {
 	i32 tid = g_context->layer->id;
 
@@ -240,7 +362,7 @@ void render_path_paint_commands_paint(bool dilation) {
 	if (g_context->tool == TOOL_TYPE_COLORID) {
 		render_path_set_target("texpaint_colorid", NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 		render_path_bind_target("gbuffer2", "gbuffer2");
-		render_path_paint_draw_fullscreen_triangle("paint");
+		render_path_paint_draw_fullscreen_triangle();
 		ui_header_handle->redraws = 2;
 	}
 	else if (g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL) {
@@ -253,7 +375,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				    },
 				    2);
 				render_path_set_target("gbuffer0", additional, "main", GPU_CLEAR_NONE, 0, 0.0);
-				render_path_draw_meshes("mesh");
+				render_path_base_draw_meshes(render_path_base_mesh_scon(0), true);
 			}
 			string_array_t *additional = any_array_create_from_raw(
 			    (void *[]){
@@ -263,7 +385,7 @@ void render_path_paint_commands_paint(bool dilation) {
 			render_path_set_target("texpaint_posnortex_picker0", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
 			render_path_bind_target("gbuffer2", "gbuffer2");
 			render_path_bind_target("main", "gbufferD");
-			render_path_draw_meshes("paint");
+			render_path_paint_draw_fullscreen_triangle();
 			render_target_t *picker0                    = any_map_get(render_path_render_targets, "texpaint_posnortex_picker0");
 			render_target_t *picker1                    = any_map_get(render_path_render_targets, "texpaint_posnortex_picker1");
 			gpu_texture_t   *texpaint_posnortex_picker0 = picker0->_image;
@@ -291,7 +413,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				render_path_set_target("texpaint_picker", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
 				render_path_bind_target("gbuffer2", "gbuffer2");
 				render_path_bind_target(string_tmp("texpaint%d", tid), "texpaint");
-				render_path_paint_draw_fullscreen_triangle("paint");
+				render_path_paint_draw_fullscreen_triangle();
 			}
 			else {
 				string_array_t *additional = any_array_create_from_raw(
@@ -310,13 +432,13 @@ void render_path_paint_commands_paint(bool dilation) {
 				render_path_bind_target(string_tmp("texpaint%d", tid), "texpaint");
 				render_path_bind_target(string_tmp("texpaint_nor%d", tid), "texpaint_nor");
 				render_path_bind_target(string_tmp("texpaint_pack%d", tid), "texpaint_pack");
-				render_path_paint_draw_fullscreen_triangle("paint");
+				render_path_paint_draw_fullscreen_triangle();
 				if (use_live_layer) {
 					render_path_paint_use_live_layer(false);
 				}
 			}
-			ui_header_handle->redraws         = 2;
-			ui_base_hwnds->buffer[2]->redraws = 2;
+			ui_header_handle->redraws = 2;
+			ui_dock_redraw(2);
 
 			render_target_t *texpaint_picker    = any_map_get(render_path_render_targets, "texpaint_picker");
 			render_target_t *texpaint_uv_picker = any_map_get(render_path_render_targets, "texpaint_uv_picker");
@@ -376,6 +498,10 @@ void render_path_paint_commands_paint(bool dilation) {
 				}
 			}
 
+			if (g_context->tool == TOOL_TYPE_PICKER && g_context->color_picker_callback == NULL && !g_context->picker_select_material) {
+				tab_materials_apply_picked_color(g_context->picked_color);
+			}
+
 			// Update fill layers which are using materials containing a PICKER node
 			slot_material_t *_material = g_context->material;
 			for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -392,7 +518,7 @@ void render_path_paint_commands_paint(bool dilation) {
 					g_context->material = m;
 					layers_update_fill_layers();
 					util_render_make_material_preview();
-					ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+					ui_dock_redraw(TAB_AREA_SIDEBAR1);
 				}
 			}
 			g_context->material = _material;
@@ -400,56 +526,34 @@ void render_path_paint_commands_paint(bool dilation) {
 	}
 	else if (g_context->tool == TOOL_TYPE_CURSOR) {
 		if (g_context->pick_object_id) {
-			viewport_mode_t _viewport_mode = g_context->viewport_mode;
-			g_context->viewport_mode       = VIEWPORT_MODE_OBJECT_ID;
-			make_material_parse_mesh_material();
-
-			// Objects with assigned material do not write object id
-			shader_data_t *base_material     = g_project->_->materials->buffer[0]->data;
-			any_array_t   *_object_materials = any_array_create(g_project->_->paint_objects->length);
-			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-				mesh_object_t *o             = g_project->_->paint_objects->buffer[i];
-				_object_materials->buffer[i] = o->material;
-				o->material                  = base_material;
-			}
-
-			render_path_base_draw_gbuffer();
-
-			for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-				g_project->_->paint_objects->buffer[i]->material = _object_materials->buffer[i];
-			}
-
-			g_context->viewport_mode = _viewport_mode;
-			make_material_parse_mesh_material();
-
-			g_context->pdirty = 1;
-			make_material_parse_paint_material(false);
-			render_path_set_target("texpaint_picker", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("gbuffer1", "gbuffer1");
-			render_path_bind_target("gbuffer2", "gbuffer2");
-			render_path_paint_draw_fullscreen_triangle("paint");
-
-			render_target_t *rt    = any_map_get(render_path_render_targets, "texpaint_picker");
-			buffer_t        *pixel = gpu_get_texture_pixels(rt->_image);
-			if (buffer_get_u8(pixel, 3) > 0) {
-#ifdef IRON_BGRA
-				i32 r_byte = buffer_get_u8(pixel, 2);
-#else
-				i32 r_byte = buffer_get_u8(pixel, 0);
-#endif
-				i32 index = r_byte - 1;
-				if (index >= 0 && index < g_project->_->paint_objects->length) {
-					g_context->paint_object   = g_project->_->paint_objects->buffer[index];
-					ui_header_handle->redraws = 2;
-					tab_meshes_reveal_slot(g_context->paint_object);
-
-					// g_context->layer->object_mask = index + 1;
-					// context_set_layer(g_context->layer);
-					// make_material_parse_mesh_material();
-					// layers_set_object_mask();
-
-					base_redraw_status();
+			mesh_object_t *o   = render_path_paint_pick_object();
+			bool           hit = o != NULL;
+			if (hit) {
+				if (keyboard_down("shift")) {
+					// Added to the selection, the clicked mesh becomes the active one
+					tab_meshes_add_objects(any_array_create_from_raw((void *[]){o}, 1));
+					g_context->paint_object = o;
 				}
+				else {
+					// Only the clicked mesh stays selected
+					g_context->paint_object = o;
+					tab_meshes_select_objects(any_array_create_from_raw((void *[]){o}, 1));
+				}
+				context_deselected_uid    = -1;
+				ui_header_handle->redraws = 2;
+				tab_meshes_reveal_slot(g_context->paint_object);
+
+				// g_context->layer->object_mask = index + 1;
+				// context_set_layer(g_context->layer);
+				// make_material_parse_mesh_material();
+				// layers_set_object_mask();
+
+				base_redraw_status();
+			}
+			if (!hit && !keyboard_down("shift")) {
+				// Nothing to outline, the mesh stays selected in the meshes tab
+				context_deselected_uid = g_context->paint_object->base->uid;
+				g_context->ddirty      = 2;
 			}
 
 			g_context->pick_object_id = false;
@@ -458,6 +562,24 @@ void render_path_paint_commands_paint(bool dilation) {
 		}
 	}
 	else {
+		bool mesh_fill = g_context->tool == TOOL_TYPE_FILL && (g_context->fill_type == FILL_TYPE_MESH || g_context->fill_type == FILL_TYPE_SUBMESH);
+		if (mesh_fill && render_path_paint_fill_pick) {
+			// Pick the clicked mesh once per stroke
+			render_path_paint_fill_pick   = false;
+			i32 _pdirty                   = g_context->pdirty;
+			g_context->tool               = TOOL_TYPE_CURSOR;
+			g_context->pick_object_id     = true;
+			render_path_paint_fill_object = render_path_paint_pick_object();
+			if (g_context->fill_type == FILL_TYPE_SUBMESH) {
+				render_path_paint_pick_fill_submesh();
+			}
+			g_context->pick_object_id = false;
+			g_context->tool           = TOOL_TYPE_FILL;
+			g_context->pdirty         = _pdirty;
+			make_material_parse_paint_material(false);
+			render_path_base_draw_gbuffer();
+		}
+
 		char *texpaint = string_tmp("texpaint%d", tid);
 		if (g_context->tool == TOOL_TYPE_BAKE && g_context->brush_time == sys_delta()) {
 			// Clear to black on bake start
@@ -519,14 +641,11 @@ void render_path_paint_commands_paint(bool dilation) {
 			if (sculpt_layer_count > 1) {
 				render_path_bind_target("texpaint_sculpt_base", "texpaint_sculpt_base");
 			}
-			object_t *bullet     = scene_get_child(".Bullet");
-			bool      bullet_vis = bullet != NULL && bullet->visible;
-			if (bullet != NULL) {
-				bullet->visible = false;
+			if (mesh_fill) {
+				render_path_paint_draw_fill_object();
 			}
-			render_path_draw_meshes("paint");
-			if (bullet != NULL) {
-				bullet->visible = bullet_vis;
+			else {
+				render_path_paint_draw_target();
 			}
 		}
 
@@ -779,6 +898,12 @@ void render_path_paint_draw_cursor_decal(f32 mx, f32 my, f32 radius, f32 opacity
 void render_path_paint_commands_cursor() {
 	bool        decal_mask = context_is_decal_mask();
 	tool_type_t tool       = g_context->tool;
+	if (tool >= TOOL_TYPE_PLUGIN) {
+		if (base_ui_enabled && !base_is_dragging && !base_paint_in_2d()) {
+			render_path_paint_draw_cursor(g_context->paint_vec.x, 1.0 - g_context->paint_vec.y, g_context->brush_radius / 3.4, 1.0, 1.0, 1.0);
+		}
+		return;
+	}
 	if (tool != TOOL_TYPE_BRUSH && tool != TOOL_TYPE_ERASER && tool != TOOL_TYPE_CLONE && tool != TOOL_TYPE_BLUR && tool != TOOL_TYPE_PARTICLE &&
 	    !context_is_decal() && !decal_mask) {
 		return;
@@ -787,6 +912,11 @@ void render_path_paint_commands_cursor() {
 	bool fill_layer  = g_context->layer->fill_material != NULL;
 	bool group_layer = slot_layer_is_group(g_context->layer);
 	if (!base_ui_enabled || base_is_dragging || fill_layer || group_layer) {
+		return;
+	}
+
+	// Paint coordinates point into the 2D view, it draws its own cursor
+	if (base_paint_in_2d()) {
 		return;
 	}
 
@@ -799,7 +929,7 @@ void render_path_paint_commands_cursor() {
 		brush_nodes_radius = 1.0;
 	}
 
-	if (context_is_decal() && !g_context->paint2d) {
+	if (context_is_decal()) {
 		f32            scale2d = (900 / (f32)base_h()) * g_config->window_scale;
 		f32            radius  = brush_nodes_radius * g_context->brush_radius / 15.0 * scale2d * 2.0;
 		f32            cmx     = decal_mask ? g_context->decal_x : mx;
@@ -817,6 +947,10 @@ void render_path_paint_commands_cursor() {
 }
 
 bool render_path_paint_paint_enabled() {
+	if (g_context->tool >= TOOL_TYPE_PLUGIN) {
+		return false; // Plugin tools handle the strokes themselves
+	}
+
 	if (g_context->tool == TOOL_TYPE_BAKE) {
 		return true;
 	}
@@ -867,6 +1001,9 @@ void render_path_paint_begin() {
 
 	if (history_push_undo && history_undo_layers != NULL) {
 		history_paint();
+		if (g_context->tool == TOOL_TYPE_CLONE && g_context->clone_layers == CLONE_LAYERS_VISIBLE) {
+			render_path_paint_clone_snapshot();
+		}
 	}
 
 	if (g_context->paint2d) {
@@ -896,11 +1033,42 @@ void render_path_paint_end() {
 	g_context->pdirty--;
 }
 
+static void render_path_paint_commands_low_poly() {
+	mesh_object_t *merged = g_context->merged_object;
+	if (merged == NULL || !merged->base->visible) {
+		render_path_paint_commands_paint(true);
+		return;
+	}
+	mesh_object_t *high_poly = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
+	i32            last      = -1;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != high_poly && p->base->visible) {
+			last = i;
+		}
+	}
+	if (last < 0) { // The high poly is the only mesh, it bakes onto itself
+		render_path_paint_commands_paint(true);
+		return;
+	}
+	mesh_object_t *_paint_object = g_context->paint_object;
+	merged->base->visible        = false;
+	for (i32 i = 0; i <= last; ++i) {
+		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
+		if (p != high_poly && p->base->visible) {
+			context_select_paint_object(p);
+			render_path_paint_commands_paint(i == last); // Dilate once all objects are drawn
+		}
+	}
+	merged->base->visible = true;
+	context_select_paint_object(_paint_object);
+}
+
 void _render_path_paint_final() {
 	g_context->bake_type = _render_path_paint_bake_type;
 	make_material_parse_paint_material(false);
 	g_context->pdirty = 1;
-	render_path_paint_commands_paint(true);
+	render_path_paint_commands_low_poly();
 	g_context->pdirty        = 0;
 	render_path_paint_baking = false;
 }
@@ -913,7 +1081,7 @@ void _render_path_paint_deriv() {
 	g_context->bake_type = BAKE_TYPE_HEIGHT;
 	make_material_parse_paint_material(false);
 	g_context->pdirty = 1;
-	render_path_paint_commands_paint(true);
+	render_path_paint_commands_low_poly();
 	g_context->pdirty = 0;
 	if (render_path_paint_push_undo_last) {
 		history_paint();
@@ -962,10 +1130,18 @@ void render_path_paint_draw() {
 					mesh_object_t *_paint_object = g_context->paint_object;
 					mesh_object_t *high_poly     = g_project->_->paint_objects->buffer[g_context->bake_high_poly];
 					bool           _visible      = high_poly->base->visible;
+					mesh_object_t *merged        = g_context->merged_object;
+					bool           _merged       = merged != NULL && merged->base->visible;
 					high_poly->base->visible     = true;
+					if (_merged) {
+						merged->base->visible = false; // Draw the high poly alone
+					}
 					context_select_paint_object(high_poly);
 					render_path_paint_commands_paint(true);
 					high_poly->base->visible = _visible;
+					if (_merged) {
+						merged->base->visible = true;
+					}
 					if (render_path_paint_push_undo_last) {
 						history_paint();
 					}
@@ -1001,8 +1177,15 @@ void render_path_paint_draw() {
 					g_context->merged_object->base->visible = _visible;
 			}
 			else if (render_path_paint_is_rt_bake()) {
-				render_path_raytrace_bake_commands(make_material_parse_paint_material);
-				render_path_paint_dilate(true, false);
+				bool dispatched = false;
+				if (!render_path_raytrace_bake_lightmap_busy()) {
+					dispatched = render_path_raytrace_bake_commands(make_material_parse_paint_material);
+					render_path_paint_dilate(true, false);
+				}
+				// The raytrace setup frame and frames waiting on a lightmap bake trace no rays, keep their sample
+				if (!dispatched && g_context->pdirty > 0) {
+					g_context->pdirty++;
+				}
 			}
 			else {
 				render_path_paint_commands_paint(true);
@@ -1039,25 +1222,28 @@ void render_path_paint_set_plane_mesh() {
 		g_context->merged_object->base->visible = false;
 	}
 
-	camera_object_t *cam        = scene_camera;
-	g_context->saved_camera     = cam->base->transform->local;
-	render_path_paint_saved_fov = cam->data->fov;
-	viewport_update_camera_type(CAMERA_TYPE_PERSPECTIVE);
-	mat4_t m = mat4_identity();
-	m        = mat4_translate(m, 0, 0, 0.5);
-	transform_set_matrix(cam->base->transform, m);
-	cam->data->fov = 0.69;
+	// Camera looks down at the layer plane, the ortho bounds place the plane where the 2D view shows the texture
+	camera_object_t *cam          = scene_camera;
+	g_context->saved_camera       = cam->base->transform->local;
+	render_path_paint_saved_ortho = cam->data->ortho;
+	transform_set_matrix(cam->base->transform, mat4_translate(mat4_identity(), 0, 0, 1));
+	f32 ratio = config_get_texture_res_y() / (float)config_get_texture_res_x();
+	f32 tx, ty, tw, th;
+	ui_view2d_tex_rect(ratio, &tx, &ty, &tw, &th);
+	f32                 s     = ui_view2d_world_scale();
+	f32                 cx    = tx + tw / 2.0;
+	f32                 cy    = ty + th / 2.0 - ui_view2d_top();
+	static f32_array_t *ortho = NULL;
+	if (ortho == NULL) {
+		ortho = f32_array_create(4);
+	}
+	ortho->buffer[0] = -cx / s;
+	ortho->buffer[1] = (base_w() - cx) / s;
+	ortho->buffer[2] = -(base_h() - cy) / s;
+	ortho->buffer[3] = cy / s;
+	cam->data->ortho = ortho;
 	camera_object_build_proj(cam, -1.0);
 	camera_object_build_mat(cam);
-	f32 tw    = 0.9 * ui_view2d_pan_scale * (fmin(ui_view2d_ww, ui_view2d_wh) / ui_view2d_ww);
-	f32 tx    = ui_view2d_pan_x / (float)ui_view2d_ww;
-	f32 ty    = ui_view2d_pan_y / (float)sys_h();
-	m         = mat4_identity();
-	m         = mat4_scale(m, (vec4_t){tw, tw, 1, 1.0});
-	m         = mat4_set_loc(m, (vec4_t){tx, ty, 0, 1.0});
-	mat4_t m2 = mat4_identity();
-	m2        = mat4_inv(scene_camera->vp);
-	m         = mat4_mult_mat(m, m2);
 
 	bool tiled = ui_view2d_tiled_show;
 	if (tiled && scene_get_child(".PlaneTiled") == NULL) {
@@ -1120,22 +1306,17 @@ void render_path_paint_set_plane_mesh() {
 
 	render_path_paint_planeo = scene_get_child(tiled ? ".PlaneTiled" : ".Plane")->ext;
 
-	render_path_paint_planeo->base->visible = true;
-	g_context->paint_object                 = render_path_paint_planeo;
-
-	vec4_t v                                         = (vec4_t){m.m00, m.m01, m.m02, 1.0};
-	f32    sx                                        = vec4_len(v);
+	render_path_paint_planeo->base->visible          = true;
+	g_context->paint_object                          = render_path_paint_planeo;
+	render_path_paint_planeo->base->transform->loc   = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	render_path_paint_planeo->base->transform->rot   = quat_from_euler(-math_pi() / 2.0, 0, 0);
-	render_path_paint_planeo->base->transform->scale = (vec4_t){sx, 1.0, sx, 1.0};
-	render_path_paint_planeo->base->transform->scale.z *= config_get_texture_res_y() / (float)config_get_texture_res_x();
-	render_path_paint_planeo->base->transform->loc = (vec4_t){m.m30, -m.m31, 0.0, 1.0};
+	render_path_paint_planeo->base->transform->scale = (vec4_t){2.0, 1.0, 2.0 * ratio, 1.0};
 	transform_build_matrix(render_path_paint_planeo->base->transform);
 }
 
 void render_path_paint_restore_plane_mesh() {
-	g_context->paint2d_view                        = false;
-	render_path_paint_planeo->base->visible        = false;
-	render_path_paint_planeo->base->transform->loc = (vec4_t){0.0, 0.0, 0.0, 1.0};
+	g_context->paint2d_view                 = false;
+	render_path_paint_planeo->base->visible = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		g_project->_->paint_objects->buffer[i]->base->visible = render_path_paint_visibles->buffer[i];
 	}
@@ -1144,10 +1325,10 @@ void render_path_paint_restore_plane_mesh() {
 	}
 	g_context->paint_object = render_path_paint_painto;
 	transform_set_matrix(scene_camera->base->transform, g_context->saved_camera);
-	scene_camera->data->fov = render_path_paint_saved_fov;
-	viewport_update_camera_type(g_context->camera_type);
+	scene_camera->data->ortho = render_path_paint_saved_ortho;
 	camera_object_build_proj(scene_camera, -1.0);
 	camera_object_build_mat(scene_camera);
+	g_context->ddirty = 2;
 
 	render_path_base_draw_gbuffer();
 }

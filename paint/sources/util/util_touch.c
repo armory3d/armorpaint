@@ -11,7 +11,7 @@ void util_touch_update() {
 		if (mouse_started("left") && string_equals(paint_key, rotate_key)) {
 			util_touch_action_paint_remap = string_copy(paint_key);
 			util_render_pick_pos_nor_tex();
-			bool is_mesh = math_abs(g_context->posx_picked) < 50 && math_abs(g_context->posy_picked) < 50 && math_abs(g_context->posz_picked) < 50;
+			bool is_mesh = util_render_picked_on_mesh();
 #ifdef IRON_ANDROID
 			// Allow rotating with both pen and touch, because hovering a pen prevents touch input on android
 			bool pen_only = false;

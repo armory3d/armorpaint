@@ -577,7 +577,7 @@ void *io_fbx_parse(char *buf, size_t size) {
 }
 
 buffer_t *util_skin_blob_create(char *name, int vc, float *pos, float *nor, float *tex, int ic, uint32_t *ind, uint16_t *joints, float *weights, int jc, int fc,
-                                float *mats);
+                                float *mats, int *parents, float *heads, float *tails);
 raw_mesh_t *util_skin_raw_mesh(buffer_t *blob);
 
 static void fbx_skin_mat(ufbx_matrix *m, float *out) {
@@ -708,7 +708,7 @@ void *io_fbx_parse_skinned(char *buf, size_t size) {
 				ufbx_free_scene(eval);
 		}
 
-		buffer_t *blob = util_skin_blob_create(mesh_node->name.data, vc, pos, nor, tex, vc, ind, joints, weights, jc, fc, mats);
+		buffer_t *blob = util_skin_blob_create(mesh_node->name.data, vc, pos, nor, tex, vc, ind, joints, weights, jc, fc, mats, NULL, NULL, NULL);
 		raw            = util_skin_raw_mesh(blob);
 		free(pos);
 		free(nor);

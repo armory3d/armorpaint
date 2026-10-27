@@ -15,6 +15,37 @@ f32       _layers_occlusion;
 f32       _layers_roughness;
 f32       _layers_metallic;
 
+static void util_layer_draw_preview(slot_layer_t *l, gpu_texture_t *target) {
+	paint_tex_t type = tab_layers_preview_tex;
+	if (slot_layer_is_mask(l) || (type == PAINT_TEX_NORMAL && l->texpaint_nor == NULL) ||
+	    (type >= PAINT_TEX_OCCLUSION && l->texpaint_pack == NULL)) {
+		type = PAINT_TEX_BASE;
+	}
+
+	if (type == PAINT_TEX_BASE) {
+		draw_begin(target, true, 0x00000000);
+		// draw_set_pipeline(l.is_mask() ? pipes_copy8 : pipes_copy);
+		draw_set_pipeline(pipes_copy); // texpaint_preview is always RGBA32 for now
+		draw_scaled_image(l->texpaint, 0, 0, target->width, target->height);
+		draw_set_pipeline(NULL);
+		draw_end();
+		return;
+	}
+
+	gpu_texture_t *source = type == PAINT_TEX_OPACITY ? l->texpaint : type == PAINT_TEX_NORMAL ? l->texpaint_nor : l->texpaint_pack;
+	i32            channel = type == PAINT_TEX_OCCLUSION   ? 1
+	                         : type == PAINT_TEX_ROUGHNESS ? 2
+	                         : type == PAINT_TEX_METALLIC  ? 3
+	                         : type == PAINT_TEX_NORMAL    ? 5
+	                                                       : 4; // Opacity, height
+	draw_begin(target, true, 0xff000000); // view2d pipe keeps dst alpha
+	draw_set_pipeline(ui_view2d_pipe);
+	gpu_set_int(ui_view2d_channel_loc, channel);
+	draw_scaled_image(source, 0, 0, target->width, target->height);
+	draw_set_pipeline(NULL);
+	draw_end();
+}
+
 void util_layer_update_preview() {
 	if (g_context->layers_preview_dirty) {
 		g_context->layers_preview_dirty = false;
@@ -32,15 +63,9 @@ void util_layer_update_preview() {
 				continue;
 			}
 
-			gpu_texture_t *source = l->texpaint;
-			draw_begin(target, true, 0x00000000);
-			// draw_set_pipeline(l.is_mask() ? pipes_copy8 : pipes_copy);
-			draw_set_pipeline(pipes_copy); // texpaint_preview is always RGBA32 for now
-			draw_scaled_image(source, 0, 0, target->width, target->height);
-			draw_set_pipeline(NULL);
-			draw_end();
+			util_layer_draw_preview(l, target);
 		}
-		ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+		ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	}
 
 	if (g_context->layer != NULL && g_context->layer_preview_dirty && !slot_layer_is_group(g_context->layer)) {
@@ -50,14 +75,8 @@ void util_layer_update_preview() {
 		slot_layer_t  *l      = g_context->layer;
 		gpu_texture_t *target = l->texpaint_preview;
 		if (target != NULL) {
-			gpu_texture_t *source = l->texpaint;
-			draw_begin(target, true, 0x00000000);
-			// draw_set_pipeline(raw.layer.is_mask() ? pipes_copy8 : pipes_copy);
-			draw_set_pipeline(pipes_copy); // texpaint_preview is always RGBA32 for now
-			draw_scaled_image(source, 0, 0, target->width, target->height);
-			draw_set_pipeline(NULL);
-			draw_end();
-			ui_base_hwnds->buffer[TAB_AREA_SIDEBAR0]->redraws = 2;
+			util_layer_draw_preview(l, target);
+			ui_dock_redraw(TAB_AREA_SIDEBAR0);
 		}
 	}
 }
@@ -79,9 +98,20 @@ void layers_resize() {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
 	}
-	for (i32 i = 0; i < history_undo_layers->length; ++i) {
-		slot_layer_t *l = history_undo_layers->buffer[i];
-		slot_layer_resize_and_set_bits(l);
+	layers_resize_targets();
+
+	render_path_raytrace_ready = false; // Rebuild baketex
+	g_context->ddirty          = 2;
+	layers_crop                = false;
+}
+
+// Undo layers, live layer and paint targets that follow the texture resolution
+void layers_resize_targets() {
+	if (history_undo_layers != NULL) {
+		for (i32 i = 0; i < history_undo_layers->length; ++i) {
+			slot_layer_t *l = history_undo_layers->buffer[i];
+			slot_layer_resize_and_set_bits(l);
+		}
 	}
 
 	any_map_t *rts = render_path_render_targets;
@@ -131,9 +161,6 @@ void layers_resize() {
 		sculpt_base->height = config_get_texture_res_y();
 		sculpt_base->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
 	}
-
-	render_path_raytrace_ready = false; // Rebuild baketex
-	g_context->ddirty          = 2;
 }
 
 void layers_set_bits() {
@@ -455,6 +482,7 @@ void layers_update_fill_layer(bool parse_paint) {
 }
 
 void layers_update_linked_layers() {
+	nodes_mesh_layer_changed(g_context->layer);
 	slot_material_t *_material  = g_context->material;
 	bool             any_linked = false;
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
@@ -472,6 +500,7 @@ void layers_update_linked_layers() {
 		}
 		any_linked          = true;
 		g_context->material = m;
+		make_material_bake_node_previews_linked();
 		layers_update_fill_layers();
 	}
 	g_context->material = _material;
@@ -519,7 +548,6 @@ void layers_set_object_mask() {
 		}
 		context_select_paint_object(context_main_object());
 		if (g_context->merged_object != NULL) {
-			g_context->paint_object->skip_context   = "paint";
 			g_context->merged_object->base->visible = true;
 		}
 	}
@@ -555,6 +583,12 @@ void tab_layers_apply_filter(i32 filter) {
 }
 
 void layers_new_layer_clear(slot_layer_t *l) {
+	if (array_index_of(g_project->_->layers, l) < 0) {
+		return;
+	}
+	if (slot_layer_is_path(l) && l->path_points->length > 0) {
+		return;
+	}
 	slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 }
 
@@ -641,6 +675,7 @@ static slot_layer_t *_layers_path_sculpt_layer = NULL;
 void layers_new_path_layer_sculpt_init(void *_) {
 	sculpt_init();
 	sculpt_init_sculpt_texture(_layers_path_sculpt_layer);
+	make_material_parse_mesh_material();
 }
 
 slot_layer_t *layers_new_path_layer(bool curved) {
@@ -659,7 +694,7 @@ slot_layer_t *layers_new_path_layer(bool curved) {
 	tab_stages_rename_layer(l->name, name);
 	l->name = name;
 
-	if (g_config->workflow == WORKFLOW_SCULPT) {
+	if (g_config->tools == TOOLS_SCULPT) {
 		_layers_path_sculpt_layer = l;
 		sys_notify_on_next_frame(&layers_new_path_layer_sculpt_init, NULL);
 	}
@@ -689,7 +724,7 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	}
 	l->object_mask = g_context->layer_filter;
 
-	if (g_config->workflow == WORKFLOW_SCULPT) {
+	if (g_config->tools == TOOLS_SCULPT) {
 		sculpt_init();
 		sculpt_init_sculpt_texture(l);
 	}
@@ -1063,7 +1098,7 @@ void layers_draw_mesh_materials() {
 	render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	render_path_bind_target("main", "gbufferD");
 	render_path_bind_target("texpaint_blend1", "paintmask");
-	render_path_draw_meshes("atlas");
+	render_path_base_draw_overrides(NULL);
 }
 
 static gpu_texture_t *layers_udim_a    = NULL;
@@ -1123,6 +1158,41 @@ i32 layers_udim_tile_slot(slot_layer_t *l) {
 	return tile < 0 ? -1 : util_mesh_udim_slot(tile);
 }
 
+static gpu_texture_t *layers_move_a    = NULL;
+static gpu_texture_t *layers_move_b    = NULL;
+static gpu_texture_t *layers_move_c    = NULL;
+static gpu_texture_t *layers_move_mask = NULL;
+
+static gpu_texture_t *_layers_move_copy(gpu_texture_t **target, gpu_texture_t *src, gpu_pipeline_t *pipe, i32 dx, i32 dy) {
+	gpu_texture_t *dst = _layers_udim_target(target, src);
+	draw_begin(dst, true, 0x00000000);
+	draw_set_pipeline(pipe);
+	draw_image(src, dx, dy);
+	draw_set_pipeline(NULL);
+	draw_end();
+	return dst;
+}
+
+// Layer with the pending 2D view move applied, the layer itself when it is not being moved
+static slot_layer_t *layers_move_preview(slot_layer_t *l) {
+	i32 dx, dy;
+	if (ui_view2d_move_layer(&dx, &dy) != l) {
+		return l;
+	}
+	static slot_layer_t moved;
+	moved = *l;
+	if (slot_layer_is_mask(l)) {
+		moved.texpaint = _layers_move_copy(&layers_move_mask, l->texpaint, pipes_copy8, dx, dy);
+	}
+	else {
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+		moved.texpaint       = _layers_move_copy(&layers_move_a, l->texpaint, pipe, dx, dy);
+		moved.texpaint_nor   = _layers_move_copy(&layers_move_b, l->texpaint_nor, pipe, dx, dy);
+		moved.texpaint_pack  = _layers_move_copy(&layers_move_c, l->texpaint_pack, pipe, dx, dy);
+	}
+	return &moved;
+}
+
 slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers) {
 	if (layers == NULL) {
 		layers = g_project->_->layers;
@@ -1149,7 +1219,7 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		if (!slot_layer_is_layer(l1)) {
 			continue;
 		}
-		if (slot_layer_get_filters(l1, false) != NULL) {
+		if (slot_layer_has_visible_filter(l1)) {
 			continue;
 		}
 
@@ -1161,10 +1231,12 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			draw_end();
 			slot_layer_t *l1 = ALLOC_INIT(slot_layer_t, {.texpaint = pipes_temp_mask_image});
 			for (i32 i = 0; i < l1masks->length; ++i) {
-				layers_merge_layer(l1, l1masks->buffer[i], false);
+				layers_merge_layer(l1, layers_move_preview(l1masks->buffer[i]), false);
 			}
 			mask = pipes_temp_mask_image;
 		}
+
+		l1 = layers_move_preview(l1);
 
 		// Flattened layers are in shared atlas space
 		i32 tile_slot = layers_udim_tile_slot(l1);
@@ -1321,6 +1393,18 @@ void tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *point
 				n->buttons->buffer[0]->default_value->buffer[0] = i32_imap_get(pointer_map, i);
 			}
 		}
+	}
+}
+
+// Material and mesh nodes, after layers were added, removed or moved
+void tab_layers_remap_all_layer_pointers(slot_layer_t_array_t *old_layers) {
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m = g_project->_->materials->buffer[i];
+		tab_layers_remap_layer_pointers(m->canvas->nodes, tab_layers_fill_layer_map(old_layers));
+	}
+	ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+	for (i32 i = 0; i < mesh_canvases->length; ++i) {
+		tab_layers_remap_layer_pointers(mesh_canvases->buffer[i]->nodes, tab_layers_fill_layer_map(old_layers));
 	}
 }
 

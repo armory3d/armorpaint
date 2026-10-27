@@ -34,6 +34,13 @@ struct vert_out {
 
 float3 get_pos(float2 uv) {
 	float depth = sample_lod(gbufferD, sampler_linear, float2(uv.x, 1.0 - uv.y), 0.0).r;
+	// Off the mesh, anchor at the depth of the world origin
+	if (depth >= 1.0) {
+		float4 o = constants.VP * float4(0.0, 0.0, 0.0, 1.0);
+		if (o.w > 0.0) {
+			depth = o.z / o.w;
+		}
+	}
 	float4 wpos = float4(uv * 2.0 - 1.0, depth, 1.0);
 	wpos = constants.invVP * wpos;
 	return wpos.xyz / wpos.w;
@@ -85,10 +92,11 @@ vert_out vert(vert_in input) {
 	float2 uv1 = constants.mouse + constants.tex_step * float2(4.0, 4.0);
 	float2 uv2 = constants.mouse - constants.tex_step * float2(4.0, 4.0);
 	float3 n = normalize(get_normal(constants.mouse) + get_normal(uv1) + get_normal(uv2));
+	float depth = sample_lod(gbufferD, sampler_linear, float2(constants.mouse.x, 1.0 - constants.mouse.y), 0.0).r;
 
 	float3 n_tan;
 	float3 n_bin;
-	if (constants.camera_align > 0.0) {
+	if (constants.camera_align > 0.0 || depth >= 1.0) {
 		n_tan = constants.camera_right;
 		n_bin = -constants.camera_up;
 	}

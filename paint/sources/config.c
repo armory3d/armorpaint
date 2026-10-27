@@ -8,6 +8,10 @@ typedef struct version {
 
 bool config_loaded = false;
 
+#ifdef IRON_MACOS
+float iron_display_backing_scale(void);
+#endif
+
 void config_load() {
 	char *path = "";
 	if (path_is_protected()) {
@@ -42,7 +46,7 @@ void config_load() {
 }
 
 void config_save() {
-	if (g_config->workspace == WORKSPACE_PLAYER) {
+	if (base_player) {
 		return;
 	}
 
@@ -94,14 +98,12 @@ void config_save() {
 	json_encode_i32("zoom_direction", g_config->zoom_direction);
 	json_encode_bool("wrap_mouse", g_config->wrap_mouse);
 	json_encode_bool("show_asset_names", g_config->show_asset_names);
+	json_encode_bool("material_params", g_config->material_params);
+	json_encode_bool("brush_params", g_config->brush_params);
+	json_encode_bool("mesh_params", g_config->mesh_params);
 	json_encode_bool("touch_ui", g_config->touch_ui);
 	json_encode_bool("splash_screen", g_config->splash_screen);
-	if (g_config->layout != NULL) {
-		json_encode_i32_array("layout", g_config->layout);
-	}
-	else {
-		json_encode_null("layout");
-	}
+	json_encode_bool("header_pinned", g_config->header_pinned);
 	if (g_config->layout_tabs != NULL) {
 		json_encode_i32_array("layout_tabs", g_config->layout_tabs);
 	}
@@ -129,12 +131,12 @@ void config_save() {
 	json_encode_i32("dilate_radius", g_config->dilate_radius);
 	json_encode_string("blender", g_config->blender);
 	json_encode_bool("grid_snap", g_config->grid_snap);
+	json_encode_bool("auto_run_scripts", g_config->auto_run_scripts);
 	json_encode_bool("experimental", g_config->experimental);
 	json_encode_i32("neural_res", g_config->neural_res);
 	json_encode_i32("console_model", g_config->console_model);
 	json_encode_i32("render_mode", g_config->render_mode);
-	json_encode_i32("workspace", g_config->workspace);
-	json_encode_i32("workflow", g_config->workflow);
+	json_encode_i32("tools", g_config->tools);
 	json_encode_bool("view2d_grid_show", g_config->view2d_grid_show);
 	json_encode_i32("view2d_grid_cell", g_config->view2d_grid_cell);
 	json_encode_bool("view2d_grid_snap", g_config->view2d_grid_snap);
@@ -160,8 +162,8 @@ void config_init() {
 		g_config->window_w           = 1720;
 		g_config->window_h           = 960;
 #ifdef IRON_MACOS
-		g_config->window_w *= 2;
-		g_config->window_h *= 2;
+		g_config->window_w *= iron_display_backing_scale();
+		g_config->window_h *= iron_display_backing_scale();
 #endif
 		g_config->window_x     = -1;
 		g_config->window_y     = -1;
@@ -169,8 +171,11 @@ void config_init() {
 		if (sys_display_width() >= 2560 && sys_display_height() >= 1600) {
 			g_config->window_scale = 2.0;
 		}
-#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
+#if defined(IRON_ANDROID) || defined(IRON_IOS)
 		g_config->window_scale = 2.0;
+#endif
+#ifdef IRON_MACOS
+		g_config->window_scale = iron_display_backing_scale();
 #endif
 #ifdef IRON_WASM
 		g_config->window_scale = sys_display_ppi() / 96.0;
@@ -238,9 +243,11 @@ void config_init() {
 		g_config->layer_res          = TEXTURE_RES_RES2048;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 		g_config->touch_ui      = true;
+		g_config->header_pinned = false;
 		g_config->splash_screen = true;
 #else
 		g_config->touch_ui      = false;
+		g_config->header_pinned = true;
 		g_config->splash_screen = false;
 #endif
 		g_config->node_previews     = false;
@@ -257,6 +264,9 @@ void config_init() {
 		g_config->brush_alpha_discard = 0.1;
 		g_config->brush_live          = false;
 		g_config->show_asset_names    = false;
+		g_config->material_params     = true;
+		g_config->brush_params        = true;
+		g_config->mesh_params         = false;
 		g_config->dilate_radius       = 2;
 		g_config->blender             = "";
 		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;
@@ -265,12 +275,16 @@ void config_init() {
 		g_config->view2d_grid_show    = false;
 		g_config->view2d_grid_cell    = 64;
 		g_config->view2d_grid_snap    = false;
+#ifdef NDEBUG
+		g_config->auto_run_scripts = false;
+#else
+		g_config->auto_run_scripts = true;
+#endif
 		g_config->experimental        = false;
 		g_config->neural_res          = 512;
 		g_config->console_model       = CONSOLE_MODEL_QWEN;
 		g_config->render_mode         = RENDER_MODE_DEFERRED;
-		g_config->workspace           = WORKSPACE_VIEW_3D;
-		g_config->workflow            = WORKFLOW_PBR;
+		g_config->tools               = TOOLS_PAINT;
 	}
 	else {
 		// Discard old config
@@ -291,45 +305,6 @@ void config_init() {
 	base_res = g_config->layer_res;
 	config_set_texture_res(g_config->layer_res);
 	keymap_load();
-}
-
-void config_init_layout() {
-	config_t    *raw        = g_config;
-	bool         show2d     = (ui_nodes_show || ui_view2d_show) && raw->layout != NULL;
-	i32_array_t *new_layout = i32_array_create_from_raw((i32[]){}, 0);
-
-	i32_array_push(new_layout, math_floor(ui_sidebar_default_w * raw->window_scale)); // LayoutSidebarW
-	i32_array_push(new_layout, math_floor(iron_window_height() / 2.0));               // LayoutSidebarH0
-	i32_array_push(new_layout, math_floor(iron_window_height() / 2.0));               // LayoutSidebarH1
-
-#ifdef IRON_IOS
-	i32_array_push(new_layout, show2d ? math_floor((sys_w() + raw->layout->buffer[LAYOUT_SIZE_NODES_W]) * 0.473) : math_floor(sys_w() * 0.473)); // LayoutNodesW
-#elif defined(IRON_ANDROID)
-	i32_array_push(new_layout, show2d ? math_floor((sys_w() + raw->layout->buffer[LAYOUT_SIZE_NODES_W]) * 0.473) : math_floor(sys_w() * 0.473));
-#else
-	i32_array_push(new_layout,
-	               show2d ? math_floor((sys_w() + raw->layout->buffer[LAYOUT_SIZE_NODES_W]) * 0.515)
-	                      : math_floor(sys_w() * 0.515)); // Align with ui header controls
-#endif
-
-	i32_array_push(new_layout, math_floor(sys_h() / 2.0));                              // LayoutNodesH
-	i32_array_push(new_layout, math_floor(ui_statusbar_default_h * raw->window_scale)); // LayoutStatusH
-
-#if defined(IRON_ANDROID) || defined(IRON_IOS)
-	i32_array_push(new_layout, 0); // LayoutHeader
-#else
-	i32_array_push(new_layout, 1);
-#endif
-
-	raw->layout_tabs = i32_array_create_from_raw(
-	    (i32[]){
-	        0,
-	        0,
-	        0,
-	    },
-	    3);
-
-	raw->layout = new_layout;
 }
 
 char *config_get_sha() {
@@ -376,11 +351,9 @@ iron_window_options_t *config_get_options() {
 }
 
 void config_restore() {
-	config_loaded        = false;
-	i32_array_t *_layout = g_config->layout;
+	config_loaded = false;
 	config_init();
-	g_config->layout = _layout;
-	config_init_layout();
+	ui_dock_reset();
 	translator_load_translations(g_config->locale);
 	config_apply();
 	config_load_theme(g_config->theme, true);
@@ -393,7 +366,7 @@ void config_import_from(config_t *from) {
 	g_config->sha     = string_copy(_sha);
 	g_config->version = string_copy(_version);
 	keymap_load();
-	config_init_layout();
+	base_set_workspace(WORKSPACE_PRESET_NONE);
 	translator_load_translations(g_config->locale);
 	config_apply();
 	config_load_theme(g_config->theme, true);

@@ -291,6 +291,8 @@ void iron_mouse_set_move_callback(void (*value)(int /*x*/, int /*y*/, int /*move
 void iron_mouse_set_scroll_callback(void (*value)(float /*delta*/, void * /*data*/), void *data);
 bool iron_mouse_can_lock(void);
 bool iron_mouse_is_locked(void);
+extern bool iron_mouse_trackpad_drag;
+extern bool iron_mouse_movement_only;
 void iron_mouse_lock();
 void iron_mouse_unlock(void);
 void iron_mouse_set_cursor(iron_cursor_t cursor);
@@ -302,6 +304,7 @@ void iron_internal_mouse_trigger_press(int button, int x, int y);
 void iron_internal_mouse_trigger_release(int button, int x, int y);
 void iron_internal_mouse_trigger_move(int x, int y);
 void iron_internal_mouse_trigger_scroll(float delta);
+void iron_internal_mouse_trigger_movement(int movement_x, int movement_y);
 void iron_internal_mouse_window_activated();
 void iron_internal_mouse_window_deactivated();
 void iron_pen_set_press_callback(void (*value)(int /*x*/, int /*y*/, float /*pressure*/));

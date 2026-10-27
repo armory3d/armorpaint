@@ -1333,6 +1333,7 @@ typedef struct skel_bone {
 	i32 parent;
 	f32 rest[12];  // Bone to object space, 3 rows of 4: columns are the x, y (head to tail), z axes and the head
 	f32 world[12]; // Posed bone to object space
+	f32 tail[3];
 	f32 rot[3];
 	f32 loc[3];
 } skel_bone_t;
@@ -1385,7 +1386,10 @@ i32 skel_bone(i32 parent, f32 hx, f32 hy, f32 hz, f32 tx, f32 ty, f32 tz, f32 zx
 	geom_normalize(z);
 	f32 x[3];
 	geom_cross(y, z, x);
-	f32 h[3] = {hx, hy, hz};
+	f32 h[3]   = {hx, hy, hz};
+	b->tail[0] = tx;
+	b->tail[1] = ty;
+	b->tail[2] = tz;
 	for (i32 r = 0; r < 3; ++r) {
 		b->rest[r * 4]     = x[r];
 		b->rest[r * 4 + 1] = y[r];
@@ -1508,7 +1512,18 @@ bool skel_write(geom_t *g, char *name, char *path) {
 			weights[o * 4 + k] = sum > 0 ? g->wt[v * 4 + k] / sum : 0;
 		}
 	}
-	buffer_t *blob = util_skin_blob_create(name, vc, pos, nor, tex, g->icount, ind, joints, weights, skel_bone_count, skel_frame_count, skel_mats);
+	i32 parents[SKEL_MAX_BONES];
+	f32 heads[SKEL_MAX_BONES * 3];
+	f32 tails[SKEL_MAX_BONES * 3];
+	for (i32 i = 0; i < skel_bone_count; ++i) {
+		parents[i] = skel_bones[i].parent;
+		for (i32 r = 0; r < 3; ++r) {
+			heads[i * 3 + r] = skel_bones[i].rest[r * 4 + 3];
+			tails[i * 3 + r] = skel_bones[i].tail[r];
+		}
+	}
+	buffer_t *blob =
+	    util_skin_blob_create(name, vc, pos, nor, tex, g->icount, ind, joints, weights, skel_bone_count, skel_frame_count, skel_mats, parents, heads, tails);
 	iron_file_save_bytes(path, blob, blob->length);
 	free(blob->buffer);
 	free(blob);
@@ -1548,7 +1563,9 @@ void geom_export_add(geom_t *g, char *name, bool flat) {
 	}
 	if (g->uv != NULL) {
 		for (i32 i = 0; i < g->icount; ++i) {
-			geom_write("vt %.6f %.6f\n", g->uv[i * 2], g->uv[i * 2 + 1], 0);
+			f32 u, v;
+			geom_tex(g, i, &u, &v);
+			geom_write("vt %.6f %.6f\n", u, 1.0f - v, 0);
 		}
 	}
 	f32 *n = geom_normals(g);
@@ -1590,7 +1607,7 @@ void geom_export_add(geom_t *g, char *name, bool flat) {
 	b[2] += flat ? g->icount / 3 : g->vcount;
 }
 
-void geom_export_write(char *path) {
+void geom_export_write_obj(char *path) {
 	if (geom_out == NULL) {
 		return;
 	}

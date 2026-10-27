@@ -72,7 +72,7 @@ void tab_textures_update_texture_pointers(ui_node_t_array_t *nodes, i32 index) {
 void tab_textures_delete_texture_on_next_frame(void *_) {
 	make_material_parse_paint_material(true);
 	util_render_make_material_preview();
-	ui_base_hwnds->buffer[TAB_AREA_SIDEBAR1]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_SIDEBAR1);
 }
 
 void tab_textures_delete_texture(asset_t *asset) {
@@ -80,7 +80,7 @@ void tab_textures_delete_texture(asset_t *asset) {
 	if (g_project->_->assets->length > 1) {
 		g_context->texture = g_project->_->assets->buffer[index == g_project->_->assets->length - 1 ? index - 1 : index + 1];
 	}
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
 
 	if (g_context->tool == TOOL_TYPE_COLORID && index == g_context->colorid) {
 		ui_header_handle->redraws  = 2;
@@ -120,6 +120,11 @@ void tab_textures_delete_texture(asset_t *asset) {
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 		slot_brush_t *b = g_project->_->brushes->buffer[i];
 		tab_textures_update_texture_pointers(b->canvas->nodes, index);
+	}
+
+	ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+	for (i32 i = 0; i < mesh_canvases->length; ++i) {
+		tab_textures_update_texture_pointers(mesh_canvases->buffer[i]->nodes, index);
 	}
 }
 
@@ -200,6 +205,13 @@ bool tab_textures_is_texture_used(i32 index) {
 		}
 	}
 
+	ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+	for (i32 i = 0; i < mesh_canvases->length; ++i) {
+		if (tab_textures_nodes_use_texture(mesh_canvases->buffer[i]->nodes, index)) {
+			return true;
+		}
+	}
+
 	return false;
 }
 
@@ -259,27 +271,28 @@ static void tab_textures_sort_by_name() {
 	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 		tab_textures_apply_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, new_indices);
 	}
+	ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+	for (i32 i = 0; i < mesh_canvases->length; ++i) {
+		tab_textures_apply_node_indices(mesh_canvases->buffer[i]->nodes, new_indices);
+	}
 	if (g_context->colorid >= 0 && g_context->colorid < new_indices->length) {
 		g_context->colorid = new_indices->buffer[g_context->colorid];
 	}
 
 	array_delete(new_indices);
 	array_delete(old_order);
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
 }
 
 void tab_textures_draw_edit() {
 	if (ui_menu_button(tr("Sort"), "", ICON_NONE)) {
 		tab_textures_sort_by_name();
 	}
-	if (ui_menu_button(tr("Delete Unused"), "", ICON_DELETE)) {
-		tab_textures_delete_unused();
-	}
 }
 
 void tab_textures_draw_import(char *path) {
 	import_asset_run(path, -1.0, -1.0, true, false, NULL);
-	ui_base_hwnds->buffer[TAB_AREA_STATUS]->redraws = 2;
+	ui_dock_redraw(TAB_AREA_STATUS);
 }
 
 char *tab_textures_search = "";
@@ -550,6 +563,10 @@ void tab_textures_accept_asset_drop(asset_t *asset) {
 		}
 		for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
 			tab_textures_remap_node_indices(g_project->_->brushes->buffer[i]->canvas->nodes, asset_pos, new_pos);
+		}
+		ui_node_canvas_t_array_t *mesh_canvases = nodes_mesh_canvases();
+		for (i32 i = 0; i < mesh_canvases->length; ++i) {
+			tab_textures_remap_node_indices(mesh_canvases->buffer[i]->nodes, asset_pos, new_pos);
 		}
 		if (g_context->colorid == asset_pos) {
 			g_context->colorid = new_pos;

@@ -558,6 +558,59 @@ void minic_tests() {
 	                  "  return 0;"
 	                  "}",
 	                  0.0f);
+	// Fused and typed instructions
+	MINIC_TEST_EXPECT(37,
+	                  "typedef struct { float x; int k; } t37_t;"
+	                  "void half(float a) { return a * 0.5; }"
+	                  "float main() {"
+	                  "  float a[12]; float *p = a; int n = 4; float s = 0.0;"
+	                  "  for (int i = 0; i < n; i++) { p[i * 3 + 1] = i * 0.5; }"
+	                  "  for (int i = 0; i < n; i++) { float v = p[i * 3 + 1]; s = s + v * v; }"
+	                  "  if (s != 3.5) { return 1; }"
+	                  "  if (a[4] != 0.5 || a[10] != 1.5) { return 9; }"
+	                  "  int q[3]; q[0] = 2; q[1] = 0; q[2] = 1; int *r = q;"
+	                  "  if (r[r[0]] != 1 || r[r[2]] != 0) { return 2; }"
+	                  "  int z = 0; int m = -1; int mn = 0 - 2147483647 - 1;"
+	                  "  if (7 / z != 0 || 7 % z != 0 || mn / m != mn) { return 3; }"
+	                  "  float f = 3.0; float zf = 0.0;"
+	                  "  if (f / zf != 0.0 || f * 2 != 6.0 || f + 16777217 != 16777220.0) { return 4; }"
+	                  "  t37_t st; t37_t *sp = &st; sp->x = 1.5; sp->k = 3;"
+	                  "  if (sp->x * sp->k != 4.5) { return 5; }"
+	                  "  if (half(3.0) + 1 != 2.5) { return 6; }"
+	                  "  int c = 0;"
+	                  "  for (int i = 0; i < 10; i++) { if (i > 6) { break; } if (i % 2 == 0) { continue; } c += i; }"
+	                  "  if (c != 9) { return 7; }"
+	                  "  float w = 0.25; if (w > 0.5 || w < 0.25 || w != 0.25) { return 8; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
+	// Register VM: operand reads, call arguments, read-modify-write, folded indexes
+	MINIC_TEST_EXPECT(38,
+	                  "typedef struct { float x; int k; } t38_t;"
+	                  "int g = 1;"
+	                  "int bump() { g = g + 10; return 1; }"
+	                  "int sub3(int a, int b, int c) { return a - b * c; }"
+	                  "int keep(t38_t v) { v.k = 99; return v.k; }"
+	                  "float main() {"
+	                  "  int a = g + bump(); if (a != 2 || g != 11) { return 1; }"
+	                  "  a = bump() + g; if (a != 22) { return 2; }"
+	                  "  if (sub3(sub3(9, 1, 2), 2, sub3(3, 1, 1)) != 3) { return 3; }"
+	                  "  int i = 5; int j = i++ + 1; if (j != 6 || i != 6 || ++i != 7 || i-- != 7 || i != 6) { return 4; }"
+	                  "  int x = 7; x += 2.9; if (x != 9) { return 5; }"
+	                  "  char ch = 250; int v = (ch += 10); if (v != 260 || ch != 4) { return 6; }"
+	                  "  float f = 2.0; if (-f != -2.0 || !f || !(f - 2.0) != 1 || ~5 != -6) { return 7; }"
+	                  "  int n = 0; for (int k = 0; k <= 10; k += 2) { if (k == 4) { continue; } n += k; } if (n != 26) { return 8; }"
+	                  "  int w = 0; while (w < 100) { w = w * 2 + 1; } if (w != 127) { return 9; }"
+	                  "  int k = 3; float m = k / 2.0 + 1 * 0.5; if (m != 2.0 || k > 2.5 == 0) { return 10; }"
+	                  "  float p[8]; for (int q = 0; q < 8; q++) { p[q] = q; }"
+	                  "  int r = 1; p[r * 3 + 1] += 0.5; p[2 + r * 2]++; if (p[4] != 5.5 || --p[5] != 4.0) { return 11; }"
+	                  "  float *pp = p; pp += 2; *pp++ = 9.0; if (p[2] != 9.0 || *pp != 3.0 || *--pp != 9.0) { return 12; }"
+	                  "  t38_t s; s.k = 5; s.x = 1.5; if (keep(s) != 99 || s.k != 5) { return 13; }"
+	                  "  t38_t *sp = &s; sp->k *= 3; sp->x -= sp->k; if (s.k != 15 || s.x != -13.5) { return 14; }"
+	                  "  int t = 2; t = (t = t + 1) * t; if (t != 9) { return 15; }"
+	                  "  return 0;"
+	                  "}",
+	                  0.0f);
 	MINIC_TEST_EXPECT(17, "float main() { int a[2]; return a[2]; }", -1.0f);
 	MINIC_TEST_EXPECT(18, "float main() { test_get_context()->buffer[2] = 99; return 0; }", -1.0f);
 	MINIC_TEST_EXPECT(19, "float main() { minic_test_context_t *p = NULL; return p->ddirty; }", -1.0f);

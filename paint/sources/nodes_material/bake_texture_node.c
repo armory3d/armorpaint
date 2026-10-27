@@ -1,56 +1,130 @@
 
 #include "../global.h"
 
-static tool_type_t      _bake_texture_node_tool;
-static render_target_t *_bake_texture_node_rt;
-static int              _bake_texture_node_bits;
+static tool_type_t      _bake_to_target_tool;
+static bake_type_t      _bake_to_target_type;
+static render_target_t *_bake_to_target_rt;
+static render_target_t *_bake_to_target_layer_rt;
+static int              _bake_to_target_bits;
+static void (*_bake_to_target_done)(void *);
+static void *_bake_to_target_data;
 
-static void bake_texture_node_clear(gpu_texture_t *t) {
+// Normal, Height and Derivative bake the high poly data first, RGBA128 prevents artifacts
+static bool bake_to_target_rgba128(bake_type_t type) {
+	return type == BAKE_TYPE_NORMAL || type == BAKE_TYPE_HEIGHT || type == BAKE_TYPE_DERIVATIVE;
+}
+
+static void bake_to_target_clear(gpu_texture_t *t) {
 	draw_begin(t, true, 0xff000000);
 	draw_end();
 }
 
-static void bake_texture_node_check_result(ui_node_t *node) {
-	ui_nodes_hwnd->redraws = 2;
+static void bake_to_target_check_result(void *_) {
+	ui_nodes_hwnd->redraws = 2; // Progress of the Bake Texture node
 
 	if (g_context->pdirty > 0 || render_path_paint_baking) {
 		return;
 	}
+	sys_remove_update(bake_to_target_check_result);
 
-	bool rgba128 = g_context->bake_type == BAKE_TYPE_NORMAL || g_context->bake_type == BAKE_TYPE_HEIGHT || g_context->bake_type == BAKE_TYPE_DERIVATIVE;
+	render_target_t *rt      = _bake_to_target_rt;
+	bool             rgba128 = bake_to_target_rgba128(_bake_to_target_type);
 	if (rgba128) {
-		char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
-		render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
-		gpu_texture_t   *_image  = rt->_image;
-		rt->format               = "RGBA32";
-		rt->_image               = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
+		gpu_texture_t *_image = rt->_image;
+		rt->format            = "RGBA32";
+		rt->_image            = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
 		draw_begin(rt->_image, false, 0);
 		draw_scaled_image(_image, 0, 0, _image->width, _image->height);
 		draw_end();
 		gpu_delete_texture(_image);
 	}
 
-	any_map_set(render_path_render_targets, string("texpaint%d", g_context->layer->id), _bake_texture_node_rt);
+	any_map_set(render_path_render_targets, string("texpaint%d", g_context->layer->id), _bake_to_target_layer_rt);
 	g_context->layer->texpaint = bake_texture_node_texpaint;
-	g_context->tool            = _bake_texture_node_tool;
+	g_context->tool            = _bake_to_target_tool;
 	ui_view2d_hwnd->redraws    = 2;
 	bake_texture_node_baking   = false;
 	make_material_parse_paint_material(true);
 
 	if (rgba128) {
-		base_bits = _bake_texture_node_bits;
+		base_bits = _bake_to_target_bits;
 		layers_set_bits();
 	}
 
 	layers_update_fill_layers();
 
-	sys_remove_update(bake_texture_node_check_result);
+	if (_bake_to_target_done != NULL) {
+		_bake_to_target_done(_bake_to_target_data);
+	}
 }
 
-static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) {
-	_bake_texture_node_tool = g_context->tool;
+// Bakes one map of the paint object into rt, drawn in place of the current layer.
+// Raytraced maps take g_context->bake_samples frames, the rest one frame (two from a high poly).
+// done(data) runs once the result is in rt as RGBA32. False while another bake runs.
+bool bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data) {
+	if (bake_texture_node_baking) {
+		return false;
+	}
+	_bake_to_target_tool = g_context->tool;
+	_bake_to_target_type = bake_type;
+	_bake_to_target_rt   = rt;
+	_bake_to_target_done = done;
+	_bake_to_target_data = data;
 
-	// Create dedicated RGBA32 render target
+	// Bake in lit mode for now
+	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
+		g_context->viewport_mode = VIEWPORT_MODE_LIT;
+	}
+
+	g_context->tool      = TOOL_TYPE_BAKE;
+	g_context->bake_type = bake_type;
+
+	if (bake_to_target_rgba128(bake_type)) {
+		gpu_delete_texture(rt->_image);
+		rt->format = "RGBA128";
+		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
+
+		_bake_to_target_bits   = base_bits;
+		base_bits              = TEXTURE_BITS_BITS32;
+		gpu_texture_t *current = _draw_current; // Called from the node ui or from an update
+		if (current != NULL) {
+			draw_end();
+		}
+		layers_set_bits();
+		if (current != NULL) {
+			draw_begin(current, false, 0);
+		}
+
+		// Requires 2 steps
+		history_push_undo = true;
+	}
+
+	// Set as current layer texpaint
+	i32 lid                  = g_context->layer->id;
+	_bake_to_target_layer_rt = any_map_get(render_path_render_targets, string_tmp("texpaint%d", lid));
+	any_map_set(render_path_render_targets, string("texpaint%d", lid), rt);
+	bake_texture_node_texpaint = g_context->layer->texpaint;
+
+	g_context->layer->texpaint               = rt->_image;
+	g_context->pdirty                        = render_path_paint_is_rt_bake() ? g_context->bake_samples : 1;
+	g_context->rtdirty                       = 1;
+	render_path_raytrace_bake_current_sample = 0;
+	render_path_raytrace_frame               = 0;
+	bake_texture_node_baking                 = true;
+	make_material_parse_paint_material(false);
+	// From an update or script the bake renders later in this frame, clear before it
+	if (_draw_current == NULL) {
+		bake_to_target_clear(rt->_image);
+	}
+	else {
+		sys_notify_on_next_frame(bake_to_target_clear, rt->_image);
+	}
+	sys_notify_on_update(bake_to_target_check_result, NULL);
+	return true;
+}
+
+static void bake_texture_node_run(ui_node_t *node, int bake_type) {
+	// Dedicated RGBA32 render target per node
 	char            *rt_name = string_tmp("bake_texture_node_%d", node->id);
 	render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
 	if (rt != NULL && rt->width != config_get_texture_res_x()) {
@@ -67,47 +141,7 @@ static void bake_texture_node_run(ui_node_t *node, int bake_type, bool rt_bake) 
 		rt->format = "RGBA32";
 		render_path_create_render_target(rt);
 	}
-
-	// Bake in lit mode for now
-	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) {
-		g_context->viewport_mode = VIEWPORT_MODE_LIT;
-	}
-
-	g_context->tool      = TOOL_TYPE_BAKE;
-	g_context->bake_type = bake_type;
-
-	if (g_context->bake_type == BAKE_TYPE_NORMAL || g_context->bake_type == BAKE_TYPE_HEIGHT || g_context->bake_type == BAKE_TYPE_DERIVATIVE) {
-		// Use RGBA128 texture format for high poly to low poly baking to prevent artifacts
-		gpu_delete_texture(rt->_image);
-		rt->format = "RGBA128";
-		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
-
-		_bake_texture_node_bits = base_bits;
-		base_bits               = TEXTURE_BITS_BITS32;
-		gpu_texture_t *current  = _draw_current;
-		draw_end();
-		layers_set_bits();
-		draw_begin(current, false, 0);
-
-		// Requires 2 steps
-		history_push_undo = true;
-	}
-
-	// Set as current layer texpaint
-	i32 lid               = g_context->layer->id;
-	_bake_texture_node_rt = any_map_get(render_path_render_targets, string_tmp("texpaint%d", lid));
-	any_map_set(render_path_render_targets, string("texpaint%d", lid), rt);
-	bake_texture_node_texpaint = g_context->layer->texpaint;
-
-	g_context->layer->texpaint               = rt->_image;
-	g_context->pdirty                        = rt_bake ? g_context->bake_samples : 1;
-	g_context->rtdirty                       = 1;
-	render_path_raytrace_bake_current_sample = 0;
-	render_path_raytrace_frame               = 0;
-	bake_texture_node_baking                 = true;
-	make_material_parse_paint_material(false);
-	sys_notify_on_next_frame(bake_texture_node_clear, rt->_image);
-	sys_notify_on_update(bake_texture_node_check_result, node);
+	bake_to_target(rt, bake_type, NULL, NULL);
 }
 
 static void bake_texture_node_button(i32 node_id) {
@@ -170,7 +204,7 @@ static void bake_texture_node_button(i32 node_id) {
 		}
 	}
 	else if (ui_icon_button(tr("Bake"), ICON_PLAY, UI_ALIGN_CENTER)) {
-		bake_texture_node_run(node, bake_type, rt_bake);
+		bake_texture_node_run(node, bake_type);
 	}
 	height++;
 

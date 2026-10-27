@@ -210,6 +210,17 @@ static vec4_t calc_normal(vec4_t a, vec4_t b, vec4_t c) {
 	return cb;
 }
 
+static bool quad_diagonal_valid(int i0, int i1, int i2, int i3) {
+	float *p0 = &pos_temp.buffer[i0 * 3];
+	float *p1 = &pos_temp.buffer[i1 * 3];
+	float *p2 = &pos_temp.buffer[i2 * 3];
+	float *p3 = &pos_temp.buffer[i3 * 3];
+	vec4_t d  = (vec4_t){p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2], 1.0f};
+	vec4_t c1 = vec4_cross(d, (vec4_t){p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2], 1.0f});
+	vec4_t c3 = vec4_cross(d, (vec4_t){p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2], 1.0f});
+	return vec4_dot(c1, c3) <= 0;
+}
+
 static void obj_shrink(i16_array_t *a, int length) {
 	a->length = a->capacity = length;
 	a->buffer               = realloc(a->buffer, length * sizeof(int16_t));
@@ -368,6 +379,18 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			reading_faces = true;
 			vi = ui = ni = 0;
 			full_attrib ? read_face_fast() : read_face();
+
+			if (vi == 4 && !quad_diagonal_valid(va[0], va[1], va[2], va[3])) { // Concave quad, split along the other diagonal
+				uint32_t v0 = va[0], u0 = ua[0], n0 = na[0];
+				for (int i = 0; i < 3; ++i) {
+					va[i] = va[i + 1];
+					ua[i] = ua[i + 1];
+					na[i] = na[i + 1];
+				}
+				va[3] = v0;
+				ua[3] = u0;
+				na[3] = n0;
+			}
 
 			if (vi <= 4) { // Convex, fan triangulation
 				i32_array_push(&pos_indices, va[0]);
