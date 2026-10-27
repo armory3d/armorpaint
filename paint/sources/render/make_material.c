@@ -205,58 +205,7 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 		parser_material_warp_passthrough = false;
 	}
 	else if (string_equals(node->type, "BAKE_CURVATURE")) {
-		if (g_context->merged_object == NULL) {
-			layers_set_object_mask();
-		}
-		char          *id    = make_material_node_preview_id(node, parents);
-		gpu_texture_t *image = any_map_get(g_context->node_previews, id);
-		any_array_push(g_context->node_previews_used, id);
-		i32 res_x = math_floor(config_get_texture_res_x());
-		i32 res_y = math_floor(config_get_texture_res_y());
-		if (image == NULL || image->width != res_x || image->height != res_y) {
-			if (image != NULL) {
-				gpu_delete_texture(image);
-			}
-			image = gpu_create_render_target(res_x, res_y, GPU_TEXTURE_FORMAT_R8);
-			any_map_set(g_context->node_previews, string_copy(id), image);
-		}
-		else if (make_material_bake_linked) {
-			return; // Curvature does not depend on painted layers, keep the existing bake
-		}
-
-		if (render_path_paint_live_layer == NULL) {
-			render_path_paint_live_layer = slot_layer_create("_live", LAYER_SLOT_TYPE_LAYER, NULL);
-		}
-
-		tool_type_t _tool      = g_context->tool;
-		bake_type_t _bake_type = g_context->bake_type;
-		g_context->tool        = TOOL_TYPE_BAKE;
-		g_context->bake_type   = BAKE_TYPE_CURVATURE;
-
-		parser_material_bake_passthrough = true;
-		parser_material_start_node       = node;
-		parser_material_start_group      = group;
-		parser_material_start_parents    = parents;
-		make_material_parse_paint_material(false);
-		parser_material_bake_passthrough = false;
-		parser_material_start_node       = NULL;
-		parser_material_start_group      = NULL;
-		parser_material_start_parents    = NULL;
-		g_context->pdirty                = 1;
-		render_path_paint_use_live_layer(true);
-		render_path_paint_commands_paint(false);
-		render_path_paint_dilate(true, false);
-		render_path_paint_use_live_layer(false);
-		g_context->pdirty = 0;
-
-		g_context->tool      = _tool;
-		g_context->bake_type = _bake_type;
-
-		any_map_t       *rts           = render_path_render_targets;
-		render_target_t *texpaint_live = any_map_get(rts, "texpaint_live");
-		draw_begin(image, false, 0);
-		draw_image(texpaint_live->_image, 0, 0);
-		draw_end();
+		make_curvature_bake(node, group, parents, make_material_node_preview_id(node, parents));
 	}
 }
 

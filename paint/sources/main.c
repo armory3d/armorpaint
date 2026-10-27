@@ -137,6 +137,7 @@
 #include "render/make_blur.c"
 #include "render/make_brush.c"
 #include "render/make_clone.c"
+#include "render/make_curvature.c"
 #include "render/make_depth.c"
 #include "render/make_discard.c"
 #include "render/make_material.c"

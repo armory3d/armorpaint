@@ -2,12 +2,6 @@
 #include "../global.h"
 
 char *curvature_bake_node_value(ui_node_t *node, ui_node_socket_t *socket) {
-	if (parser_material_bake_passthrough) {
-		parser_material_bake_passthrough_strength = string_copy(parser_material_parse_value_input(node->inputs->buffer[0], false));
-		parser_material_bake_passthrough_radius   = string_copy(parser_material_parse_value_input(node->inputs->buffer[1], false));
-		parser_material_bake_passthrough_offset   = string_copy(parser_material_parse_value_input(node->inputs->buffer[2], false));
-		return "0.0";
-	}
 	char *tex_name = string_tmp("texbake_%s", make_material_node_preview_id(node, NULL));
 	node_shader_add_texture(parser_material_kong, tex_name, string_tmp("_%s", tex_name));
 	char *store = parser_material_store_var_name(node);
@@ -72,7 +66,19 @@ void curvature_bake_node_init() {
 	                                                                 .display       = 0}),
 	                               },
 	                               1),
-	                           .buttons = any_array_create_from_raw((void *[]){}, 0),
+	                           .buttons = any_array_create_from_raw(
+	                               (void *[]){
+	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("Convex Only"),
+	                                                                 .type          = "BOOL",
+	                                                                 .output        = -1,
+	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .data          = NULL,
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .height        = 0}),
+	                               },
+	                               1),
 	                           .width   = 0,
 	                           .flags   = 0});
 

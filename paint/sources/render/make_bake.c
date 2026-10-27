@@ -12,13 +12,9 @@ char *make_bake_axis_string(i32 i) {
 
 void make_bake_run(node_shader_context_t *con, node_shader_t *kong) {
 	if (g_context->bake_type == BAKE_TYPE_CURVATURE) {
-		bool  pass     = parser_material_bake_passthrough;
-		char *strength = pass ? parser_material_bake_passthrough_strength : f32_to_string(g_context->bake_curv_strength);
-		char *radius   = pass ? parser_material_bake_passthrough_radius : f32_to_string(g_context->bake_curv_radius);
-		char *offset   = pass ? parser_material_bake_passthrough_offset : f32_to_string(g_context->bake_curv_offset);
-		strength       = string_tmp("float(%s)", strength);
-		radius         = string_tmp("float(%s)", radius);
-		offset         = string_tmp("float(%s)", offset);
+		char *strength = string_tmp("float(%s)", f32_to_string(g_context->bake_curv_strength));
+		char *radius   = string_tmp("float(%s)", f32_to_string(g_context->bake_curv_radius));
+		char *offset   = string_tmp("float(%s)", f32_to_string(g_context->bake_curv_offset));
 		kong->frag_n   = true;
 		node_shader_write_frag(kong, "float3 dx = ddx(n);");
 		node_shader_write_frag(kong, "float3 dy = ddy(n);");
