@@ -359,15 +359,16 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 	tab_stages_add_layer(l->name);
 
 	if (slot_layer_is_layer(raw)) {
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
 		draw_begin(l->texpaint, false, 0);
-		draw_set_pipeline(pipes_copy);
+		draw_set_pipeline(pipe);
 		draw_image(raw->texpaint, 0, 0);
 		draw_set_pipeline(NULL);
 		draw_end();
 
 		if (l->texpaint_nor != NULL) {
 			draw_begin(l->texpaint_nor, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(pipe);
 			draw_image(raw->texpaint_nor, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
@@ -375,7 +376,7 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 
 		if (l->texpaint_pack != NULL) {
 			draw_begin(l->texpaint_pack, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(pipe);
 			draw_image(raw->texpaint_pack, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
@@ -383,7 +384,7 @@ slot_layer_t *slot_layer_duplicate(slot_layer_t *raw) {
 	}
 	else if (slot_layer_is_mask(raw)) {
 		draw_begin(l->texpaint, false, 0);
-		draw_set_pipeline(pipes_copy8);
+		draw_set_pipeline(pipes_copy); // Masks are RGBA32
 		draw_image(raw->texpaint, 0, 0);
 		draw_set_pipeline(NULL);
 		draw_end();
