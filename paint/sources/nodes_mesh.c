@@ -88,6 +88,7 @@ void nodes_mesh_init() {
 	mesh_smooth_node_init();
 	mesh_decimate_node_init();
 	mesh_bevel_node_init();
+	mesh_displace_node_init();
 	mesh_script_node_init();
 
 	nodes_mesh_combine = any_array_create(0);
@@ -540,6 +541,10 @@ static u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
 			gpu_texture_t *texture = mesh_image_node_texture(n); // Reimported, replaced or swapped by undo
 			hash                   = nodes_mesh_hash_bytes(hash, &texture, sizeof(texture));
 		}
+		if (string_equals(n->type, "MESH_DISPLACE")) {
+			gpu_texture_t *texture = mesh_displace_node_texture(n);
+			hash                   = nodes_mesh_hash_bytes(hash, &texture, sizeof(texture));
+		}
 		for (i32 j = 0; j < n->inputs->length; ++j) {
 			f32_array_t *v = n->inputs->buffer[j]->default_value;
 			if (j > 0 && string_equals(n->type, "MESH_SCRIPT")) {
@@ -815,14 +820,13 @@ bool nodes_mesh_set_input(mesh_object_t *o, mesh_data_t *data) {
 	return true;
 }
 
-// Rebuilds meshes with layer mask nodes of a painted layer once the mouse is up
 void nodes_mesh_layer_changed(slot_layer_t *l) {
 	i32 index = g_project->_->layers != NULL ? array_index_of(g_project->_->layers, l) : -1;
 	for (i32 i = 0; index >= 0 && nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
 		mesh_nodes_t *slot = nodes_mesh_slots->buffer[i];
 		for (i32 j = 0; j < slot->canvas->nodes->length; ++j) {
 			ui_node_t *n = slot->canvas->nodes->buffer[j];
-			if (string_equals(n->type, "LAYER_MASK") && nodes_mesh_button(n, 0) == index) {
+			if ((string_equals(n->type, "LAYER_MASK") || string_equals(n->type, "MESH_DISPLACE")) && nodes_mesh_button(n, 0) == index) {
 				slot->dirty                = true;
 				nodes_mesh_refresh_pending = true;
 				break;
@@ -845,7 +849,8 @@ void nodes_mesh_refresh() {
 		mesh_nodes_t  *slot = nodes_mesh_slots->buffer[i];
 		mesh_object_t *o    = nodes_mesh_object(slot->uid);
 		// Undo swaps the textures of layers, which changes the hash of layer mask nodes
-		if (o != NULL && (slot->dirty || nodes_mesh_has_node(slot->canvas, "MESH_OBJECT") || nodes_mesh_has_node(slot->canvas, "LAYER_MASK"))) {
+		if (o != NULL && (slot->dirty || nodes_mesh_has_node(slot->canvas, "MESH_OBJECT") || nodes_mesh_has_node(slot->canvas, "LAYER_MASK") ||
+		                  nodes_mesh_has_node(slot->canvas, "MESH_DISPLACE"))) {
 			nodes_mesh_update(o, false);
 		}
 	}
@@ -1020,8 +1025,8 @@ char *nodes_mesh_reference() {
 	       "//     mesh_geo_t *path = mesh_geo_input_mesh(\"Path\"); it is in the space of the edited object, empty when not linked.\n"
 	       "//     TEX_IMAGE (Image Texture) node: button 0 is the index of a project texture (Textures tab), outputs Color (0) and\n"
 	       "//     Alpha (1). Link one into an RGBA or VALUE input and read its pixels with mesh_geo_image_t *img =\n"
-	       "//     mesh_geo_input_image(\"Mask\"); img->width, img->height, float img->pixels[width * height * 4] (rgba, 0 - 1, rows\n"
-	       "//     from v 0, at most 2048 pixels per side), mesh_geo_image_sample(img, u, v, channel) samples the nearest pixel at a mesh uv.\n"
+	       "//     mesh_geo_input_image(\"Mask\"); img->width, img->height, mesh_geo_image_sample(img, u, v,\n"
+	       "//     channel) samples the nearest pixel at a mesh uv (0 - 1, beyond for 16 and 32 bit layers).\n"
 	       "//     The Alpha output gives alpha in all channels. An input without an image gives a 1x1 image of its value.\n"
 	       "//     LAYER_MASK (Layer Mask) node: button 0 is the index of a project layer, reads like an image with the red channel\n"
 	       "//     in all four, mesh_geo_input_image() of a VALUE input linked to it.\n"

@@ -350,7 +350,7 @@ mesh_geo_image_t *mesh_geo_input_image(char *name) {
 		}
 		mesh_geo_image_t *img = mesh_image_create(1, 1);
 		for (i32 i = 0; i < 4; ++i) {
-			nodes_mesh_script_socket(name, i, &img->pixels[i]);
+			nodes_mesh_script_socket(name, i, (f32 *)img->pixels + i);
 		}
 		mesh_image_node_track(img);
 		return img;

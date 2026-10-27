@@ -876,7 +876,6 @@ void                      util_mesh_flip_normals(mesh_object_t_array_t *objects)
 void                      util_mesh_calc_normals(mesh_object_t_array_t *objects, bool smooth);
 void                      util_mesh_to_origin(mesh_object_t_array_t *objects);
 void                      util_mesh_origin_to_geometry(mesh_object_t_array_t *objects);
-void                      util_mesh_apply_displacement(mesh_object_t_array_t *objects, gpu_texture_t *texpaint_pack, f32 strength, f32 uv_scale);
 void                      util_mesh_equirect_unwrap(raw_mesh_t *mesh);
 void                      util_mesh_uv_unwrap(mesh_object_t_array_t *objects);
 void                      util_mesh_apply_transform(mesh_object_t *o);
@@ -1041,6 +1040,9 @@ f32                  mesh_geo_image_sample(mesh_geo_image_t *img, f32 u, f32 v, 
 mesh_geo_image_t    *mesh_image_node_get(ui_node_t *node, i32 socket);
 gpu_texture_t       *mesh_image_node_texture(ui_node_t *node);
 vec4_t               mesh_image_sample(mesh_geo_image_t *img, f32 u, f32 v);
+vec4_t               mesh_image_sample_bilinear(mesh_geo_image_t *img, f32 u, f32 v);
+vec4_t               mesh_image_texel(mesh_geo_image_t *img, i32 x, i32 y);
+mesh_geo_image_t    *mesh_image_texture_get(gpu_texture_t *texture, bool render_target, i32 channel);
 mesh_geo_image_t    *mesh_image_create(i32 width, i32 height);
 void                 mesh_image_node_clear();
 void                 mesh_image_node_track(mesh_geo_image_t *img);
@@ -1420,6 +1422,8 @@ void              mesh_subdivide_node_init();
 void              mesh_smooth_node_init();
 void              mesh_decimate_node_init();
 void              mesh_bevel_node_init();
+void              mesh_displace_node_init();
+gpu_texture_t    *mesh_displace_node_texture(ui_node_t *node);
 void              mesh_script_node_init();
 void              mesh_join_node_init();
 void              mesh_boolean_node_init();

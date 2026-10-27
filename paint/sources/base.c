@@ -853,7 +853,7 @@ string_array_t *base_combo_enum_texts(char *node_type) {
 		return &texts;
 	}
 
-	if (string_equals(node_type, "LAYER") || string_equals(node_type, "LAYER_MASK")) {
+	if (string_equals(node_type, "LAYER") || string_equals(node_type, "LAYER_MASK") || string_equals(node_type, "MESH_DISPLACE")) {
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 			slot_layer_t *l = g_project->_->layers->buffer[i];
 			string_array_push(&texts, l->name);
@@ -890,7 +890,7 @@ any_array_t *base_combo_enum_textures(char *node_type) {
 		return ar;
 	}
 
-	if (string_equals(node_type, "LAYER") || string_equals(node_type, "LAYER_MASK")) {
+	if (string_equals(node_type, "LAYER") || string_equals(node_type, "LAYER_MASK") || string_equals(node_type, "MESH_DISPLACE")) {
 		any_array_t *ar = any_array_create(0);
 		for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 			slot_layer_t *l = g_project->_->layers->buffer[i];

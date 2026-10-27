@@ -107,6 +107,7 @@
 #include "nodes_mesh/mesh_bevel_node.c"
 #include "nodes_mesh/mesh_boolean_node.c"
 #include "nodes_mesh/mesh_decimate_node.c"
+#include "nodes_mesh/mesh_displace_node.c"
 #include "nodes_mesh/mesh_image_node.c"
 #include "nodes_mesh/mesh_input_node.c"
 #include "nodes_mesh/mesh_join_node.c"

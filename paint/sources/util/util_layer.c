@@ -1387,7 +1387,7 @@ void layers_on_resized() {
 void tab_layers_remap_layer_pointers(ui_node_t_array_t *nodes, i32_imap_t *pointer_map) {
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *n = nodes->buffer[i];
-		if (string_equals(n->type, "LAYER") || string_equals(n->type, "LAYER_MASK")) {
+		if (string_equals(n->type, "LAYER") || string_equals(n->type, "LAYER_MASK") || string_equals(n->type, "MESH_DISPLACE")) {
 			i32 i = n->buttons->buffer[0]->default_value->buffer[0];
 			if (i32_imap_get(pointer_map, i) != -1) {
 				n->buttons->buffer[0]->default_value->buffer[0] = i32_imap_get(pointer_map, i);

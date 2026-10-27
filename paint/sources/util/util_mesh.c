@@ -1162,37 +1162,6 @@ void util_mesh_origin_to_geometry(mesh_object_t_array_t *objects) {
 	util_mesh_transform_changed();
 }
 
-static void _util_mesh_apply_displacement(mesh_object_t *o, buffer_t *height, i32 res, f32 strength, f32 uv_scale) {
-	mesh_data_t *g         = o->data;
-	i16_array_t *va0       = g->vertex_arrays->buffer[0]->values;
-	i16_array_t *va1       = g->vertex_arrays->buffer[1]->values;
-	i16_array_t *va2       = g->vertex_arrays->buffer[2]->values;
-	i32          num_verts = math_floor(va0->length / 4.0);
-	for (i32 i = 0; i < num_verts; ++i) {
-		i32 x  = math_floor(va2->buffer[i * 2] / 32767.0 * res);
-		i32 y  = math_floor(va2->buffer[i * 2 + 1] / 32767.0 * res);
-		i32 ix = math_floor(x * uv_scale);
-		i32 iy = math_floor(y * uv_scale);
-		i32 xx = ix % res;
-		i32 yy = iy % res;
-		f32 h  = (1.0 - buffer_get_u8(height, (yy * res + xx) * 4 + 3) / 255.0) * strength;
-		va0->buffer[i * 4] -= math_floor(va1->buffer[i * 2] * h);
-		va0->buffer[i * 4 + 1] -= math_floor(va1->buffer[i * 2 + 1] * h);
-		va0->buffer[i * 4 + 2] -= math_floor(va0->buffer[i * 4 + 3] * h);
-	}
-	mesh_data_build_vertices(g->_->vertex_buffer, o->data->vertex_arrays);
-}
-
-void util_mesh_apply_displacement(mesh_object_t_array_t *objects, gpu_texture_t *texpaint_pack, f32 strength, f32 uv_scale) {
-	if (objects == NULL) {
-		objects = util_mesh_get_unique_data();
-	}
-	buffer_t *height = gpu_get_texture_pixels(texpaint_pack);
-	for (i32 i = 0; i < objects->length; ++i) {
-		_util_mesh_apply_displacement(objects->buffer[i], height, texpaint_pack->width, strength, uv_scale);
-	}
-}
-
 void util_mesh_uv_unwrap(mesh_object_t_array_t *objects) {
 	if (objects == NULL) {
 		objects = g_project->_->paint_objects;

@@ -862,13 +862,23 @@ static void tab_meshes_draw_modifier_menu() {
 			ui_check(&b, tr(but->name), "");
 			v[0] = b ? 1 : 0;
 		}
-		else if (string_equals(but->type, "ENUM") && but->data != NULL) {
+		else if (string_equals(but->type, "ENUM") && but->data != NULL && but->data->length > 1) {
 			string_array_t *texts = string_split((char *)but->data->buffer, "\n");
 			i32             value = (i32)v[0];
 			ui_set_next_id((ui_id_t)but);
 			ui_combo(&value, texts, tr(but->name), true, UI_ALIGN_LEFT, false);
 			v[0] = value;
 			string_split_free(texts);
+		}
+		else if (string_equals(but->type, "ENUM")) {
+			// Items of the project, like layers
+			string_array_t *texts = base_combo_enum_texts(node->type);
+			if (texts != NULL) {
+				i32 value = (i32)v[0];
+				ui_set_next_id((ui_id_t)but);
+				ui_combo(&value, texts, tr(but->name), true, UI_ALIGN_LEFT, false);
+				v[0] = value;
+			}
 		}
 	}
 
@@ -1025,14 +1035,6 @@ void tab_meshes_draw_context_menu() {
 	}
 
 	tab_meshes_menu_modifiers(o);
-
-	if (ui_menu_button(tr("Apply Displacement"), "", ICON_NONE)) {
-		mesh_object_t_array_t *objects = util_mesh_get_hierarchy(o);
-		util_mesh_apply_displacement(objects, g_project->_->layers->buffer[0]->texpaint_pack, 0.1, 1.0);
-		util_mesh_calc_normals(objects, false);
-		g_context->ddirty = 2;
-		return;
-	}
 
 	if (ui_menu_button(tr("Apply Transform"), "", ICON_NONE)) {
 		mesh_object_t_array_t *objects = util_mesh_get_hierarchy(o);
