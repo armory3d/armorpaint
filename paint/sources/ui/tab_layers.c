@@ -767,19 +767,6 @@ void tab_layers_draw_layer_context_menu_draw() {
 		}
 	}
 
-	ui_menu_align();
-	f32 mask_opacity = l->mask_opacity;
-	ui_set_next_id((ui_id_t)&l->mask_opacity);
-	ui_slider(&mask_opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-	if (ui_item_changed()) {
-		if (g_ui->input_started) {
-			history_layer_opacity();
-		}
-		l->mask_opacity = mask_opacity;
-		make_material_parse_mesh_material();
-		ui_menu_keep_open = true;
-	}
-
 	if (!slot_layer_is_group(l)) {
 		ui_menu_align();
 		string_array_t *aruv = any_array_create_from_raw(
@@ -796,6 +783,19 @@ void tab_layers_draw_layer_context_menu_draw() {
 			make_material_parse_mesh_material();
 			ui_menu_keep_open = true;
 		}
+	}
+
+	ui_menu_align();
+	f32 mask_opacity = l->mask_opacity;
+	ui_set_next_id((ui_id_t)&l->mask_opacity);
+	ui_slider(&mask_opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	if (ui_item_changed()) {
+		if (g_ui->input_started) {
+			history_layer_opacity();
+		}
+		l->mask_opacity = mask_opacity;
+		make_material_parse_mesh_material();
+		ui_menu_keep_open = true;
 	}
 	if (l->fill_material != NULL) {
 		ui_menu_align();
