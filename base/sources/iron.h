@@ -787,6 +787,22 @@ bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 			LZ4_decompress_safe((char *)data->buffer + 12, (char *)texture_data, compressed_size, output_size);
 			texture_format = GPU_TEXTURE_FORMAT_RGBA32;
 		}
+		else if (strcmp(fourcc, "LZ4G") == 0) {
+			// Gray+alpha, decompress into the upper half and expand to rgba in place
+			int            pixels = width * height;
+			texture_data          = (unsigned char *)malloc(pixels * 4);
+			unsigned char *la     = texture_data + pixels * 2;
+			LZ4_decompress_safe((char *)data->buffer + 12, (char *)la, compressed_size, pixels * 2);
+			for (int i = 0; i < pixels; ++i) {
+				unsigned char l         = la[i * 2];
+				unsigned char a         = la[i * 2 + 1];
+				texture_data[i * 4]     = l;
+				texture_data[i * 4 + 1] = l;
+				texture_data[i * 4 + 2] = l;
+				texture_data[i * 4 + 3] = a;
+			}
+			texture_format = GPU_TEXTURE_FORMAT_RGBA32;
+		}
 		else { // "LZ4F"
 			int output_size = width * height * 8;
 			texture_data    = (unsigned char *)malloc(output_size);
