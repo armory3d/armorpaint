@@ -407,7 +407,7 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	}
 	f32 eye_x    = uix + 4;
 	f32 eye_w    = 18 * UI_SCALE();
-	f32 indent_x = eye_x + eye_w + 10 * UI_SCALE();
+	f32 indent_x = eye_x + eye_w + 4 * UI_SCALE();
 	i32 icon_h   = (UI_ELEMENT_H() - 3) * 2;
 	f32 icon_x   = indent_x + depth * 14 * UI_SCALE();
 	f32 name_x   = icon_x + icon_h + 8 * UI_SCALE();
