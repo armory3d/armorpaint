@@ -86,6 +86,10 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 		node_shader_write_frag(kong, "float dither = dither_bayer(fragcoord1 * float2(256.0, 256.0));");
 		node_shader_write_frag(kong, "if (opacity <= dither) { discard; }");
 	}
+	else if (viewport && !decal) {
+		// Override material without translucency - cut out pixels below the alpha discard threshold
+		node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(g_config->brush_alpha_discard)));
+	}
 
 	if (make_material_height_used) {
 		node_shader_write_frag(kong, "if (height > 0.0) {");
