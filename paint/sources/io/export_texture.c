@@ -340,7 +340,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, layers_udim_tile_slot(l1), false);
 		}
 
-		if (l1->paint_base) {
+		if (l1->paint_base || l1->paint_opac) {
 			draw_begin(layers_temp_image, false, 0); // Copy to temp
 			draw_set_pipeline(pipes_copy);
 			draw_image(layers_expa, 0, 0);
@@ -348,7 +348,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			draw_end();
 
 			_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(pipes_merge);
+			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_merge_a);
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
