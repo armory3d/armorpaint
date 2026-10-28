@@ -26,6 +26,11 @@ bool shader_node_is_live(ui_node_t *node) {
 	return false;
 }
 
+// Reads the timeline frame, its fill layers are refilled when the frame changes
+bool shader_node_reads_frame(ui_node_t *node) {
+	return string_index_of(shader_node_text(node), "constants.frame") != -1;
+}
+
 // Parameter name of an input: socket name in lower case, other characters replaced by _
 // NULL when the name is already taken
 char *shader_node_input_name(ui_node_t *node, i32 index) {
