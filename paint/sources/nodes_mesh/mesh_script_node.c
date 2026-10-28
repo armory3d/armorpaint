@@ -10,6 +10,17 @@ static i32          nodes_mesh_script_cap   = 0;
 static mesh_geo_t **nodes_mesh_script_inputs = NULL; // Meshes linked to the added mesh inputs, by socket
 
 static ui_node_t        *nodes_mesh_script_node  = NULL;
+
+// Memory a script node keeps between its runs, by object and node
+typedef struct {
+	i32   uid;
+	i32   node_id;
+	i32   size;
+	void *data;
+} nodes_mesh_script_state_t;
+static nodes_mesh_script_state_t *nodes_mesh_script_states       = NULL;
+static i32                        nodes_mesh_script_states_count = 0;
+static i32                        nodes_mesh_script_states_cap   = 0;
 static ui_node_button_t *nodes_mesh_script_dirty = NULL;
 static ui_node_t        *nodes_mesh_socket_node  = NULL;
 
@@ -368,6 +379,47 @@ mesh_geo_image_t *mesh_geo_input_image(char *name) {
 f32 mesh_geo_image_sample(mesh_geo_image_t *img, f32 u, f32 v, i32 channel) {
 	vec4_t c = mesh_image_sample(img, u, v);
 	return channel == 0 ? c.x : channel == 1 ? c.y : channel == 2 ? c.z : channel == 3 ? c.w : 0.0;
+}
+
+// Zeroed block of size bytes owned by the running script node, the same block on its next runs.
+// Asking for another size gives a new zeroed block. NULL outside of a script node.
+void *mesh_geo_state(i32 size) {
+	if (!nodes_mesh_script_running || nodes_mesh_script_node == NULL || nodes_mesh_eval_slot == NULL || size <= 0) {
+		return NULL;
+	}
+	i32 uid     = nodes_mesh_eval_slot->uid;
+	i32 node_id = nodes_mesh_script_node->id;
+	for (i32 i = 0; i < nodes_mesh_script_states_count; ++i) {
+		nodes_mesh_script_state_t *s = &nodes_mesh_script_states[i];
+		if (s->uid == uid && s->node_id == node_id) {
+			if (s->size != size) {
+				free(s->data);
+				s->data = calloc(1, size);
+				s->size = size;
+			}
+			return s->data;
+		}
+	}
+	if (nodes_mesh_script_states_count == nodes_mesh_script_states_cap) {
+		nodes_mesh_script_states_cap = nodes_mesh_script_states_cap == 0 ? 8 : nodes_mesh_script_states_cap * 2;
+		nodes_mesh_script_states     = realloc(nodes_mesh_script_states, nodes_mesh_script_states_cap * sizeof(nodes_mesh_script_state_t));
+	}
+	void *data = calloc(1, size);
+	nodes_mesh_script_states[nodes_mesh_script_states_count++] = (nodes_mesh_script_state_t){.uid = uid, .node_id = node_id, .size = size, .data = data};
+	return data;
+}
+
+// Frees the memory kept by the script nodes of an object, of all objects when uid is -1
+void mesh_script_node_state_free(i32 uid) {
+	for (i32 i = 0; i < nodes_mesh_script_states_count;) {
+		if (uid == -1 || nodes_mesh_script_states[i].uid == uid) {
+			free(nodes_mesh_script_states[i].data);
+			nodes_mesh_script_states[i] = nodes_mesh_script_states[--nodes_mesh_script_states_count];
+		}
+		else {
+			++i;
+		}
+	}
 }
 
 mesh_geo_t *mesh_script_node_eval(ui_node_t *node) {

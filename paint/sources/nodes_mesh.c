@@ -731,6 +731,7 @@ void nodes_mesh_remove(mesh_object_t *o) {
 			continue;
 		}
 		array_splice(nodes_mesh_slots, i, 1);
+		mesh_script_node_state_free(slot->uid);
 		mesh_data_t *input = slot->output != slot->input ? slot->input : NULL;
 		if (input != NULL && util_mesh_data_owner(input) == -1 && !nodes_mesh_holds(input)) {
 			sys_notify_on_next_frame(&util_mesh_delete_data_uncache, input);
@@ -870,6 +871,7 @@ void nodes_mesh_frame_changed() {
 }
 
 void nodes_mesh_reset() {
+	mesh_script_node_state_free(-1);
 	if (nodes_mesh_slots == NULL) {
 		return;
 	}
@@ -1021,6 +1023,9 @@ char *nodes_mesh_reference() {
 	       "//     mesh_geo_input_value(\"Height\") and mesh_geo_input_vector(\"Offset\", i), i is 0 - 2 for x y z, 0 - 3 for r g b a.\n"
 	       "//     Value, Math and Vector nodes can be linked into them.\n"
 	       "//     script_timeline_get_frame() returns the timeline frame, a script that calls it is rerun when the frame changes.\n"
+	       "//     Globals start over on every run. void *mesh_geo_state(int size) returns a zeroed block of size bytes that the\n"
+	       "//     node keeps between its runs, to cache work such as simulated frames. A different size gives a new zeroed block,\n"
+	       "//     store the inputs it was built from in it to tell when to start over.\n"
 	       "//     A \"MESH\" input takes a second mesh, such as a MESH_OBJECT node (button 0 is the scene mesh index), read with\n"
 	       "//     mesh_geo_t *path = mesh_geo_input_mesh(\"Path\"); it is in the space of the edited object, empty when not linked.\n"
 	       "//     TEX_IMAGE (Image Texture) node: button 0 is the index of a project texture (Textures tab), outputs Color (0) and\n"

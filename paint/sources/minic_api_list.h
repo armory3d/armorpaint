@@ -659,6 +659,7 @@ X2(mesh_geo_input_vector, "f(p:char name,i i)", f, p, i)
 X1(mesh_geo_input_mesh, "p:mesh_geo_t(p:char name)", p, p)
 X1(mesh_geo_input_image, "p:mesh_geo_image_t(p:char name)", p, p)
 X4(mesh_geo_image_sample, "f(p:mesh_geo_image_t img,f u,f v,i channel)", f, p, f, f, i)
+X1(mesh_geo_state, "p(i size)", p, i)
 
 X1(context_set_viewport_shader, "v(p viewport_shader)", v, p)
 X1(context_set_viewport_texture, "v(p:gpu_texture_t image)", v, p)

@@ -1047,6 +1047,8 @@ f32                  mesh_geo_input_vector(char *name, i32 i);
 mesh_geo_t          *mesh_geo_input_mesh(char *name);
 mesh_geo_image_t    *mesh_geo_input_image(char *name);
 f32                  mesh_geo_image_sample(mesh_geo_image_t *img, f32 u, f32 v, i32 channel);
+void                *mesh_geo_state(i32 size);
+void                 mesh_script_node_state_free(i32 uid);
 mesh_geo_image_t    *mesh_image_node_get(ui_node_t *node, i32 socket);
 gpu_texture_t       *mesh_image_node_texture(ui_node_t *node);
 vec4_t               mesh_image_sample(mesh_geo_image_t *img, f32 u, f32 v);
