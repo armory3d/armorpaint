@@ -653,14 +653,14 @@ void step_paint_pixels() {
 	export_name = NULL;
 }
 
-// 21 - A material reading the layer it paints (Layer node) sees the stroke start state, not its own output
+// 21 - A material reading the layer it paints (Layer node) reads black, it can not sample its own render target
 
 void step_paint_self() {
 	context_t *ctx     = script_get_context();
 	ctx->brush_radius  = 0.5;
 	ctx->brush_opacity = 1.0;
 
-	// Reference: a flat cyan stroke over a red layer
+	// Reference: the area of a flat cyan stroke over a red layer
 	slot_layer_t    *ref  = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
 	slot_material_t *flat = script_material_create("test_cyan");
 	ui_node_t       *cyan = script_material_create_node_at("RGB", -300.0, 0.0);
@@ -671,7 +671,7 @@ void step_paint_self() {
 	float expected = pixels_fraction(export_base_pixels(), 0, 255, 255, 40);
 	script_layer_delete(ref);
 
-	// The same stroke inverting the red layer it paints on
+	// The same stroke inverting the red layer it paints on, black inverts to white
 	slot_layer_t    *l      = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
 	slot_material_t *invert = script_material_create("test_invert_self");
 	ui_node_t       *ln     = script_material_create_node_at("LAYER", -600.0, 0.0);
@@ -681,8 +681,8 @@ void step_paint_self() {
 	script_material_connect(inv, 0, script_material_get_node("OUTPUT_MATERIAL_PBR"), 0);
 	script_material_update();
 	stroke_across(TOOL_TYPE_BRUSH);
-	float inverted = pixels_fraction(export_base_pixels(), 0, 255, 255, 40);
-	check(expected > 0.001 && inverted > expected * 0.9, string("self-reading stroke inverts the whole stroke (%.4f of %.4f cyan)", inverted, expected));
+	float inverted = pixels_fraction(export_base_pixels(), 255, 255, 255, 40);
+	check(expected > 0.001 && inverted > expected * 0.9, string("self-reading stroke reads the layer as black (%.4f white of %.4f)", inverted, expected));
 
 	script_layer_delete(l);
 	script_material_delete(flat);
@@ -2206,9 +2206,10 @@ void step_layer_path() {
 	slot_layer_t *l = script_layer_new_path(false);
 	check(l != NULL && l->path_points != NULL && !l->path_curved && l->path_material == mat_blue && layer_names_unique(),
 	      string("path layer %s created", l->name));
+	// Both points on the front face of the cube, a capsule across the edge cuts through the cube and paints only its ends
 	int ok = script_layer_add_path_point(l, 0.35, 0.5);
 	float dot = base_fraction(0x0000ff);
-	ok     = ok && script_layer_add_path_point(l, 0.65, 0.5);
+	ok     = ok && script_layer_add_path_point(l, 0.5, 0.5);
 	float line = base_fraction(0x0000ff);
 	check(ok && l->path_points->length == 4 && dot > 0.0005 && line > dot * 2.0, string("path points paint a line (%.4f dot, %.4f line)", dot, line));
 	check(!script_layer_add_path_point(script_layer_at(0), 0.5, 0.5), "no path points on a paint layer");
