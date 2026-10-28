@@ -619,6 +619,7 @@ X4(script_material_connect, "v(p:ui_node_t from,i from_socket,p:ui_node_t to,i t
 X2(script_material_disconnect, "v(p:ui_node_t to,i to_socket)", v, p, i)
 X1(script_material_remove_node, "v(p:ui_node_t node)", v, p)
 X3(script_material_add_input, "v(p:ui_node_t node,p:char type,p:char name)", v, p, p, p)
+X3(script_material_add_output, "v(p:ui_node_t node,p:char type,p:char name)", v, p, p, p)
 X4(script_material_set_float, "v(p:ui_node_t node,i is_input,i socket,f value)", v, p, i, i, f)
 X7(script_material_set_color, "v(p:ui_node_t node,i is_input,i socket,f r,f g,f b,f a)", v, p, i, i, f, f, f, f)
 X6(script_material_set_vector, "v(p:ui_node_t node,i is_input,i socket,f x,f y,f z)", v, p, i, i, f, f, f)

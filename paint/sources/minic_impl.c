@@ -1589,6 +1589,17 @@ void script_material_add_input(ui_node_t *node, char *type, char *name) {
 	}
 }
 
+void script_material_add_output(ui_node_t *node, char *type, char *name) {
+	ui_node_canvas_t *canvas = script_material_canvas();
+	if (canvas == NULL || node == NULL || type == NULL || !string_equals(node->type, "SHADER_GPU")) {
+		return;
+	}
+	nodes_mesh_script_add_socket_to(canvas, node, type, name, true);
+	if (ui_nodes_hwnd != NULL) {
+		ui_nodes_hwnd->redraws = 2;
+	}
+}
+
 static ui_node_socket_t *script_material_socket(ui_node_t *node, bool is_input, i32 socket) {
 	if (node == NULL) {
 		return NULL;

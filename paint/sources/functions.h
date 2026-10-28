@@ -646,6 +646,7 @@ void                   script_material_set_vector(ui_node_t *node, i32 is_input,
 void                   script_material_set_button(ui_node_t *node, i32 button, f32 value);
 void                   script_material_set_text(ui_node_t *node, i32 button, char *text);
 void                   script_material_add_input(ui_node_t *node, char *type, char *name);
+void                   script_material_add_output(ui_node_t *node, char *type, char *name);
 void                   script_material_update(void);
 void                   script_show_envmap(bool b);
 void                   script_set_tools(i32 tools);
@@ -1059,6 +1060,7 @@ ui_node_canvas_t_array_t *nodes_mesh_canvases();
 vec4_t               mesh_image_node_vector(ui_node_t *node);
 void                 nodes_mesh_layer_changed(slot_layer_t *l);
 ui_node_socket_t    *nodes_mesh_script_add_socket(ui_node_canvas_t *canvas, ui_node_t *node, char *type, char *name);
+ui_node_socket_t    *nodes_mesh_script_add_socket_to(ui_node_canvas_t *canvas, ui_node_t *node, char *type, char *name, bool is_output);
 ui_node_t           *nodes_mesh_def(ui_node_t_array_t *category, char *name, char *type, u32 color, char *output_type);
 void                 nodes_mesh_def_mesh(ui_node_t *n);
 void                 nodes_mesh_def_value(ui_node_t *n, char *name, f32 value, f32 min, f32 max, f32 precision);

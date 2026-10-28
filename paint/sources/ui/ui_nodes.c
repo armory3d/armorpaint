@@ -487,7 +487,7 @@ void ui_viewnodes_on_socket_released(i32 socket_id) {
 	ui_node_t        *node   = ui_get_node(canvas->nodes, socket->node_id);
 	if (g_ui->input_released_r) {
 		i32  input           = array_index_of(node->inputs, socket);
-		bool is_script_input = (string_equals(node->type, "MESH_SCRIPT") && input > 0) || (string_equals(node->type, "SHADER_GPU") && input > -1);
+		bool is_script_input = (string_equals(node->type, "MESH_SCRIPT") && input > 0) || string_equals(node->type, "SHADER_GPU"); // Shader node inputs and outputs
 		if (string_equals(node->type, "GROUP_INPUT") || string_equals(node->type, "GROUP_OUTPUT") || is_script_input) {
 
 			_ui_nodes_on_socket_released_socket = socket;

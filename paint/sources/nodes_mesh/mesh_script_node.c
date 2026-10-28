@@ -61,8 +61,10 @@ static void nodes_mesh_script_button(i32 node_id) {
 }
 
 // Inputs added to a script node are read by name with mesh_geo_input_value(), mesh_geo_input_vector() and mesh_geo_input_mesh()
-ui_node_socket_t *nodes_mesh_script_add_socket(ui_node_canvas_t *canvas, ui_node_t *node, char *type, char *name) {
-	bool is_mesh = string_equals(type, "MESH") && string_equals(node->type, "MESH_SCRIPT");
+// Output sockets (is_output) are added to Shader nodes only
+ui_node_socket_t *nodes_mesh_script_add_socket_to(ui_node_canvas_t *canvas, ui_node_t *node, char *type, char *name, bool is_output) {
+	ui_node_socket_array_t *sockets = is_output ? node->outputs : node->inputs;
+	bool                    is_mesh = string_equals(type, "MESH") && string_equals(node->type, "MESH_SCRIPT");
 	if (!string_equals(type, "RGBA") && !string_equals(type, "VECTOR") && !is_mesh) {
 		type = "VALUE";
 	}
@@ -72,8 +74,8 @@ ui_node_socket_t *nodes_mesh_script_add_socket(ui_node_canvas_t *canvas, ui_node
 		name       = base;
 		for (i32 i = 2; i < 999; ++i) {
 			bool found = false;
-			for (i32 j = 0; j < node->inputs->length; ++j) {
-				if (string_equals(node->inputs->buffer[j]->name, name)) {
+			for (i32 j = 0; j < sockets->length; ++j) {
+				if (string_equals(sockets->buffer[j]->name, name)) {
 					found = true;
 					break;
 				}
@@ -89,8 +91,12 @@ ui_node_socket_t *nodes_mesh_script_add_socket(ui_node_canvas_t *canvas, ui_node
 	if (is_mesh) {
 		soc->color = node->inputs->buffer[0]->color;
 	}
-	any_array_push(node->inputs, soc);
+	any_array_push(sockets, soc);
 	return soc;
+}
+
+ui_node_socket_t *nodes_mesh_script_add_socket(ui_node_canvas_t *canvas, ui_node_t *node, char *type, char *name) {
+	return nodes_mesh_script_add_socket_to(canvas, node, type, name, false);
 }
 
 static void nodes_mesh_script_add_menu_draw() {
