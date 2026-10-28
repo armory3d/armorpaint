@@ -587,9 +587,8 @@ void minic_register_builtins() {
 	           "GPU_TEXTURE_FORMAT_R16", "GPU_TEXTURE_FORMAT_R32", "GPU_TEXTURE_FORMAT_D32", "GPU_TEXTURE_FORMAT_RGBA32_BC7");
 	MINIC_ENUM("physics_shape_t", "PHYSICS_SHAPE_BOX", "PHYSICS_SHAPE_SPHERE", "PHYSICS_SHAPE_TERRAIN", "PHYSICS_SHAPE_MESH");
 	MINIC_ENUM("tools_t", "TOOLS_PAINT", "TOOLS_SCULPT", "TOOLS_OBJECT");
-	MINIC_ENUM("sculpt_type_t", "SCULPT_TYPE_DRAW", "SCULPT_TYPE_GRAB", "SCULPT_TYPE_INFLATE", "SCULPT_TYPE_FLATTEN", "SCULPT_TYPE_CLAY",
-	           "SCULPT_TYPE_PINCH", "SCULPT_TYPE_CREASE", "SCULPT_TYPE_CLOTH", "SCULPT_TYPE_TWIST", "SCULPT_TYPE_STRETCH", "SCULPT_TYPE_TRIM",
-	           "SCULPT_TYPE_PLATEAU");
+	MINIC_ENUM("sculpt_type_t", "SCULPT_TYPE_DRAW", "SCULPT_TYPE_GRAB", "SCULPT_TYPE_INFLATE", "SCULPT_TYPE_FLATTEN", "SCULPT_TYPE_CLAY", "SCULPT_TYPE_PINCH",
+	           "SCULPT_TYPE_CREASE", "SCULPT_TYPE_CLOTH", "SCULPT_TYPE_TWIST", "SCULPT_TYPE_STRETCH", "SCULPT_TYPE_TRIM", "SCULPT_TYPE_PLATEAU");
 	MINIC_ENUM("tool_type_t", "TOOL_TYPE_BRUSH", "TOOL_TYPE_ERASER", "TOOL_TYPE_FILL", "TOOL_TYPE_DECAL", "TOOL_TYPE_TEXT", "TOOL_TYPE_CLONE", "TOOL_TYPE_BLUR",
 	           "TOOL_TYPE_PARTICLE", "TOOL_TYPE_COLORID", "TOOL_TYPE_PICKER", "TOOL_TYPE_MATERIAL", "TOOL_TYPE_CURSOR", "TOOL_TYPE_SELECT", "TOOL_TYPE_EMPTY",
 	           "TOOL_TYPE_PLANE", "TOOL_TYPE_CUBE", "TOOL_TYPE_SPHERE", "TOOL_TYPE_CONE", "TOOL_TYPE_CYLINDER", "TOOL_TYPE_CAPSULE", "TOOL_TYPE_TORUS",
@@ -684,6 +683,17 @@ void minic_register_builtins() {
 	MINIC_B(path_text);
 	MINIC_O(path_material, slot_material_t);
 	MINIC_O(texpaint_sculpt, gpu_texture_t);
+	MINIC_B(paint_base);
+	MINIC_B(paint_opac);
+	MINIC_B(paint_occ);
+	MINIC_B(paint_rough);
+	MINIC_B(paint_met);
+	MINIC_B(paint_nor);
+	MINIC_B(paint_nor_blend);
+	MINIC_B(paint_height);
+	MINIC_B(paint_height_blend);
+	MINIC_B(paint_emis);
+	MINIC_B(paint_subs);
 	MINIC_END();
 
 	MINIC_STRUCT(slot_material_t);
@@ -691,7 +701,6 @@ void minic_register_builtins() {
 	MINIC_I(id);
 	MINIC_B(paint_base);
 	MINIC_B(paint_opac);
-	MINIC_I(paint_opac_mode);
 	MINIC_B(paint_occ);
 	MINIC_B(paint_rough);
 	MINIC_B(paint_met);

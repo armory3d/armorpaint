@@ -812,6 +812,9 @@ void script_layer_update(slot_layer_t *l) {
 	if (l->fill_material != NULL) {
 		script_layer_refill(l);
 	}
+	if (l == g_project->_->layers->buffer[0] && l->mask_opacity < 1.0) {
+		layers_enable_translucency();
+	}
 	make_material_parse_mesh_material();
 	script_gpu_end(current, in_use);
 	g_context->layers_preview_dirty = true;
@@ -987,6 +990,9 @@ void script_layer_clear(slot_layer_t *l) {
 		history_clear_layer();
 		slot_layer_clear(l, slot_layer_is_mask(l) ? 0xffffffff : 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 		util_layer_clear_path_points(l);
+	}
+	if (l == g_project->_->layers->buffer[0] || l == g_project->_->layers->buffer[0]->parent) {
+		layers_enable_translucency();
 	}
 	script_layer_op_end(current, in_use);
 }

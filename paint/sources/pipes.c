@@ -25,6 +25,7 @@ void pipes_init() {
 	pipes_merge_g = _pipes_make_merge(false, true, false, false);
 
 	pipes_merge_b  = _pipes_make_merge(false, false, true, false);
+	pipes_merge_a  = _pipes_make_merge(false, false, false, true);
 	pipes_tex0     = 0; // Always binding texpaint.a for blending
 	pipes_tex1     = 1;
 	pipes_texmask  = 2;

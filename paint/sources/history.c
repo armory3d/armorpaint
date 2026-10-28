@@ -958,6 +958,11 @@ void history_paint() {
 	history_push_undo    = false;
 	history_step_t *step = history_push(HISTORY_ACTION_PAINT);
 	step->name           = tr(ui_toolbar_tool_names->buffer[g_context->tool]);
+
+	// Erasing the bottom layer makes the mesh see-through
+	if (g_context->tool == TOOL_TYPE_ERASER && g_context->layer == g_project->_->layers->buffer[0]) {
+		layers_enable_translucency();
+	}
 }
 
 void history_new_layer() {

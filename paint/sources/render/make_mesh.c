@@ -298,6 +298,13 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 
 		bool last_pass = layer_pass == make_mesh_layer_pass_count - 1;
 
+		// Translucency: the bottom layer alpha is the surface opacity, layers above composite over it
+		bool transluc = g_project->_->translucency && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE && g_project->_->layers->length > 0 &&
+		                array_index_of(layers, g_project->_->layers->buffer[0]) >= 0;
+		if (transluc) {
+			node_shader_write_frag(kong, "float transluc_opac = 1.0;");
+		}
+
 		for (i32 i = 0; i < layers->length; ++i) {
 			slot_layer_t *l = layers->buffer[i];
 			if (slot_layer_get_object_mask(l) > 0) {
@@ -324,17 +331,6 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			node_shader_add_texture(kong, string_tmp("texpaint%s", i32_to_string(l->id)), NULL);
 			node_shader_write_frag(kong, string_tmp("texpaint_sample = sample_lod(texpaint%s, sampler_linear, %s, 0.0);", i32_to_string(l->id), tex_coord));
 			node_shader_write_frag(kong, "texpaint_opac = texpaint_sample.a;");
-
-			if (make_material_transluc_used && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE) {
-				con_mesh->data->cull_mode = "none";
-				kong->frag_wvpposition    = true;
-				node_shader_add_function(kong, str_dither_bayer);
-				node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
-				node_shader_write_frag(
-				    kong, "float2 fragcoord1 = float2(input.wvpposition.x / input.wvpposition.w, input.wvpposition.y / input.wvpposition.w) * 0.5 + 0.5;");
-				node_shader_write_frag(kong, "float dither = dither_bayer(fragcoord1 * constants.gbuffer_size);");
-				node_shader_write_frag(kong, "if (texpaint_opac <= dither) { discard; }");
-			}
 
 			slot_layer_t_array_t *masks = slot_layer_get_masks(l, true);
 			if (masks != NULL) {
@@ -371,6 +367,11 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			if (slot_layer_get_opacity(l) < 1) {
 				f32 opac = slot_layer_get_opacity(l);
 				node_shader_write_frag(kong, string_tmp("texpaint_opac *= float(%s);", f32_to_string(opac)));
+			}
+
+			if (transluc) {
+				node_shader_write_frag(kong, l == g_project->_->layers->buffer[0] ? "transluc_opac = texpaint_opac;"
+				                                                                  : "transluc_opac += texpaint_opac * (1.0 - transluc_opac);");
 			}
 
 			if (l->paint_base) {
@@ -455,6 +456,17 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 			}
 		}
 		array_delete(layers);
+
+		if (transluc) {
+			con_mesh->data->cull_mode = "none";
+			kong->frag_wvpposition    = true;
+			node_shader_add_function(kong, str_dither_bayer);
+			node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
+			node_shader_write_frag(
+			    kong, "float2 fragcoord1 = float2(input.wvpposition.x / input.wvpposition.w, input.wvpposition.y / input.wvpposition.w) * 0.5 + 0.5;");
+			node_shader_write_frag(kong, "float dither = dither_bayer(fragcoord1 * constants.gbuffer_size);");
+			node_shader_write_frag(kong, "if (transluc_opac <= dither) { discard; }");
+		}
 
 		if (last_pass && g_context->draw_texels) {
 			node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");

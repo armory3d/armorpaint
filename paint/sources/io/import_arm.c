@@ -319,8 +319,38 @@ void import_arm_make_pink(char *abs) {
 	any_map_set(data_cached_textures, abs, pink);
 }
 
-static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format) {
-	buffer_t      *pixels  = lz4_decode(b, size);
+static bool import_arm_has_alpha(buffer_t *pixels, i32 format) {
+	if (format == GPU_TEXTURE_FORMAT_RGBA64) {
+		u16 *p = (u16 *)pixels->buffer;
+		for (u32 i = 3; i < pixels->length / 2; i += 4) {
+			if (p[i] < 0x3c00) { // Half float 1.0
+				return true;
+			}
+		}
+	}
+	else if (format == GPU_TEXTURE_FORMAT_RGBA128) {
+		f32 *p = (f32 *)pixels->buffer;
+		for (u32 i = 3; i < pixels->length / 4; i += 4) {
+			if (p[i] < 1.0) {
+				return true;
+			}
+		}
+	}
+	else {
+		for (u32 i = 3; i < pixels->length; i += 4) {
+			if (pixels->buffer[i] < 255) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format, bool *has_alpha) {
+	buffer_t *pixels = lz4_decode(b, size);
+	if (has_alpha != NULL) {
+		*has_alpha = import_arm_has_alpha(pixels, format);
+	}
 	gpu_texture_t *texture = gpu_create_texture_from_bytes_raw(pixels, res, res, format);
 	array_free(pixels);
 	free(pixels);
@@ -1007,7 +1037,7 @@ void import_arm_run_project(char *path) {
 			gpu_texture_t *_texpaint_pack = NULL;
 
 			if (is_mask) {
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4, GPU_TEXTURE_FORMAT_RGBA32);
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4, GPU_TEXTURE_FORMAT_RGBA32, NULL);
 				draw_begin(l->texpaint, false, 0);
 				// draw_set_pipeline(pipes_copy8);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy); // Full bits for undo support, R8 is used
@@ -1017,21 +1047,23 @@ void import_arm_run_project(char *path) {
 			}
 			else { // Layer
 				// TODO: create render target from bytes
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
+				// See-through meshes when the bottom layer is not fully opaque
+				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format,
+				                                        i == 0 ? &g_project->_->translucency : NULL);
 				draw_begin(l->texpaint, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint, 0, 0);
 				draw_set_pipeline(NULL);
 				draw_end();
 
-				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
+				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
 				draw_begin(l->texpaint_nor, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint_nor, 0, 0);
 				draw_set_pipeline(NULL);
 				draw_end();
 
-				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format);
+				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
 				draw_begin(l->texpaint_pack, false, 0);
 				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
 				draw_image(_texpaint_pack, 0, 0);
@@ -1047,7 +1079,7 @@ void import_arm_run_project(char *path) {
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
 					gpu_texture_t *_texpaint_sculpt =
-					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128);
+					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
 					draw_begin(l->texpaint_sculpt, false, 0);
 					draw_set_pipeline(pipes_copy128);
 					draw_image(_texpaint_sculpt, 0, 0);
@@ -1065,8 +1097,11 @@ void import_arm_run_project(char *path) {
 				l->decal_mat = mat4_from_f32_array(ld->decal_mat, 0);
 			}
 			l->mask_opacity = ld->opacity_mask;
-			l->object_mask  = ld->object_mask;
-			l->blending     = ld->blending;
+			if (i == 0 && l->mask_opacity < 1.0) {
+				g_project->_->translucency = true;
+			}
+			l->object_mask = ld->object_mask;
+			l->blending    = ld->blending;
 
 			l->paint_base         = ld->paint_base;
 			l->paint_opac         = ld->paint_opac;
@@ -1123,17 +1158,16 @@ void import_arm_run_project(char *path) {
 		import_arm_init_nodes(n->nodes);
 		g_context->material = slot_material_create(m0, n);
 
-		material_data2_t *md                 = g_project->material_datas->buffer[i];
-		g_context->material->paint_base      = md->paint_base;
-		g_context->material->paint_opac      = md->paint_opac;
-		g_context->material->paint_occ       = md->paint_occ;
-		g_context->material->paint_rough     = md->paint_rough;
-		g_context->material->paint_met       = md->paint_met;
-		g_context->material->paint_nor       = md->paint_nor;
-		g_context->material->paint_height    = md->paint_height;
-		g_context->material->paint_emis      = md->paint_emis;
-		g_context->material->paint_subs      = md->paint_subs;
-		g_context->material->paint_opac_mode = md->opac_mode;
+		material_data2_t *md              = g_project->material_datas->buffer[i];
+		g_context->material->paint_base   = md->paint_base;
+		g_context->material->paint_opac   = md->paint_opac;
+		g_context->material->paint_occ    = md->paint_occ;
+		g_context->material->paint_rough  = md->paint_rough;
+		g_context->material->paint_met    = md->paint_met;
+		g_context->material->paint_nor    = md->paint_nor;
+		g_context->material->paint_height = md->paint_height;
+		g_context->material->paint_emis   = md->paint_emis;
+		g_context->material->paint_subs   = md->paint_subs;
 
 		any_array_push(g_project->_->materials, g_context->material);
 	}

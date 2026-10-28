@@ -33,7 +33,6 @@ slot_material_t *slot_material_create(shader_data_t *m, ui_node_canvas_t *c) {
 	raw->id              = 0;
 	raw->paint_base      = true;
 	raw->paint_opac      = true;
-	raw->paint_opac_mode = OPACITY_MODE_ALPHA;
 	raw->paint_occ       = true;
 	raw->paint_rough     = true;
 	raw->paint_met       = true;

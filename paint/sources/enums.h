@@ -580,7 +580,3 @@ typedef enum {
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
 
-typedef enum {
-	OPACITY_MODE_ALPHA,
-	OPACITY_MODE_TRANSLUC,
-} opacity_mode_t;

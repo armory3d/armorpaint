@@ -138,6 +138,7 @@ void project_new(bool reset_layers) {
 		g_project->_->filepath = "";
 	}
 	g_project->stages       = NULL;
+	g_project->_->translucency = false;
 	project_scripts_trusted = true;
 
 	if (g_project->_->layers->length == 0) {

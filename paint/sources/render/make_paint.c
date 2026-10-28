@@ -439,12 +439,15 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong, string_tmp("float3 nortan = %s;", nortan));
 		node_shader_write_frag(kong, string_tmp("float height = %s;", height));
 		node_shader_write_frag(kong, string_tmp("float mat_opacity = %s;", opac));
-		if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC) {
-			make_material_transluc_used = true;
-			node_shader_write_frag(kong, "float opacity = 1.0;");
-		}
-		else {
-			node_shader_write_frag(kong, "float opacity = mat_opacity;");
+		node_shader_write_frag(kong, "float opacity = mat_opacity;");
+
+		// Fill layers write the material opacity directly, anything but a constant 1.0 on the bottom layer makes it see-through
+		if (g_context->layer->fill_material != NULL && g_context->layer == g_project->_->layers->buffer[0] && g_context->material->paint_opac) {
+			char *end;
+			f32   v = strtof(opac, &end);
+			if (*end != '\0' || v < 1.0) {
+				layers_enable_translucency();
+			}
 		}
 
 		if (g_context->layer->fill_material == NULL) {
@@ -637,7 +640,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong,
 		                       "output[0] = float4((basecol * t_blur + sample_undo.rgb * sample_undo.a * (1.0 - t_blur)) / max(out_a, 0.0000001), out_a);");
 	}
-	else if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC || g_context->layer->fill_material != NULL) {
+	else if (g_context->layer->fill_material != NULL) {
 		node_shader_write_frag(kong, string_tmp("output[0] = float4(%s, %s);",
 		                                        make_material_blend_mode(kong, g_context->brush_blending, "sample_undo.rgb", "basecol", "str"), "mat_opacity"));
 	}

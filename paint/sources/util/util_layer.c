@@ -17,8 +17,7 @@ f32       _layers_metallic;
 
 static void util_layer_draw_preview(slot_layer_t *l, gpu_texture_t *target) {
 	paint_tex_t type = tab_layers_preview_tex;
-	if (slot_layer_is_mask(l) || (type == PAINT_TEX_NORMAL && l->texpaint_nor == NULL) ||
-	    (type >= PAINT_TEX_OCCLUSION && l->texpaint_pack == NULL)) {
+	if (slot_layer_is_mask(l) || (type == PAINT_TEX_NORMAL && l->texpaint_nor == NULL) || (type >= PAINT_TEX_OCCLUSION && l->texpaint_pack == NULL)) {
 		type = PAINT_TEX_BASE;
 	}
 
@@ -32,13 +31,13 @@ static void util_layer_draw_preview(slot_layer_t *l, gpu_texture_t *target) {
 		return;
 	}
 
-	gpu_texture_t *source = type == PAINT_TEX_OPACITY ? l->texpaint : type == PAINT_TEX_NORMAL ? l->texpaint_nor : l->texpaint_pack;
+	gpu_texture_t *source  = type == PAINT_TEX_OPACITY ? l->texpaint : type == PAINT_TEX_NORMAL ? l->texpaint_nor : l->texpaint_pack;
 	i32            channel = type == PAINT_TEX_OCCLUSION   ? 1
 	                         : type == PAINT_TEX_ROUGHNESS ? 2
 	                         : type == PAINT_TEX_METALLIC  ? 3
 	                         : type == PAINT_TEX_NORMAL    ? 5
 	                                                       : 4; // Opacity, height
-	draw_begin(target, true, 0xff000000); // view2d pipe keeps dst alpha
+	draw_begin(target, true, 0xff000000);                    // view2d pipe keeps dst alpha
 	draw_set_pipeline(ui_view2d_pipe);
 	gpu_set_int(ui_view2d_channel_loc, channel);
 	draw_scaled_image(source, 0, 0, target->width, target->height);
@@ -277,6 +276,21 @@ void layers_commands_merge_pack(gpu_pipeline_t *pipe, gpu_texture_t *i0, gpu_tex
 	gpu_end();
 }
 
+static void layers_enable_translucency_on_next_frame(void *_) {
+	make_material_parse_mesh_material();
+	make_material_parse_paint_material(false);
+	util_render_make_material_preview();
+}
+
+// The bottom layer alpha is the surface opacity - once something can lower it, meshes turn see-through and stay so
+void layers_enable_translucency() {
+	if (g_project->_->translucency) {
+		return;
+	}
+	g_project->_->translucency = true;
+	sys_notify_on_next_frame(&layers_enable_translucency_on_next_frame, NULL);
+}
+
 bool layers_is_fill_material() {
 	if (g_context->tool == TOOL_TYPE_MATERIAL) {
 		return true;
@@ -505,6 +519,48 @@ void layers_update_linked_layers() {
 	}
 	g_context->material = _material;
 	if (any_linked) {
+		make_material_parse_paint_material(false);
+	}
+}
+
+static i32 layers_filled_frame = -1;
+
+// Refill the layers and masks of materials with a shader node reading the timeline frame when the frame changes,
+// on playback, scrubbing or script_timeline_set_frame()
+void layers_update_frame_fill_layers() {
+	if (tab_timeline_selected_frame == layers_filled_frame || bake_texture_node_baking) {
+		return;
+	}
+	bool first          = layers_filled_frame < 0;
+	layers_filled_frame = tab_timeline_selected_frame;
+	if (first) {
+		// Layers were filled at this frame already
+		return;
+	}
+	slot_material_t *_material = g_context->material;
+	tool_type_t      _tool     = g_context->tool;
+	bool             any_frame = false;
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m         = g_project->_->materials->buffer[i];
+		bool             has_frame = false;
+		for (i32 j = 0; j < m->canvas->nodes->length; ++j) {
+			ui_node_t *node = m->canvas->nodes->buffer[j];
+			if (string_equals(node->type, "SHADER_GPU") && shader_node_reads_frame(node)) {
+				has_frame = true;
+				break;
+			}
+		}
+		if (!has_frame) {
+			continue;
+		}
+		any_frame           = true;
+		g_context->material = m;
+		g_context->tool     = TOOL_TYPE_FILL;
+		layers_update_fill_layers();
+		g_context->tool = _tool;
+	}
+	g_context->material = _material;
+	if (any_frame) {
 		make_material_parse_paint_material(false);
 	}
 }
@@ -1244,7 +1300,8 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			l1 = layers_udim_remap(l1, l1masks != NULL ? &mask : NULL, tile_slot, false);
 		}
 
-		if (l1->paint_base) {
+		// Opacity still counts without the base color channel, the path tracer and export read the alpha as opacity
+		if (l1->paint_base || l1->paint_opac) {
 			draw_begin(layers_temp_image, false, 0); // Copy to temp
 			draw_set_pipeline(pipes_copy);
 			draw_image(layers_expa, 0, 0);
@@ -1261,7 +1318,7 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			// }
 			// else {
 			_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(pipes_merge);
+			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_merge_a);
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);

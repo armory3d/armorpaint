@@ -189,19 +189,6 @@ void tab_materials_draw_slots_menu() {
 
 	ui_menu_separator();
 	ui_menu_align();
-	ui_menu_label(tr("Opacity Mode"), NULL);
-	ui_menu_align();
-	string_array_t *opac_mode_items = any_array_create_from_raw(
-	    (void *[]){
-	        tr("Alpha"),
-	        tr("Translucency"),
-	    },
-	    2);
-	ui_inline_radio(&m->paint_opac_mode, opac_mode_items, UI_ALIGN_LEFT);
-	bool opac_mode_changed = ui_item_changed();
-
-	ui_menu_separator();
-	ui_menu_align();
 	ui_menu_label(tr("Channels"), NULL);
 	ui_menu_align();
 	ui_row2();
@@ -231,11 +218,8 @@ void tab_materials_draw_slots_menu() {
 		channels_changed |= ui_item_changed();
 	}
 
-	if (channels_changed || opac_mode_changed) {
+	if (channels_changed) {
 		make_material_parse_paint_material(true);
-		if (opac_mode_changed) {
-			sys_notify_on_next_frame(util_render_make_material_preview, NULL);
-		}
 		ui_menu_keep_open = true;
 	}
 }

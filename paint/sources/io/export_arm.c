@@ -206,7 +206,6 @@ buffer_t *export_arm_encode_project(char *path) {
 			                                                       .paint_height = m->paint_height,
 			                                                       .paint_emis   = m->paint_emis,
 			                                                       .paint_subs   = m->paint_subs,
-			                                                       .opac_mode    = m->paint_opac_mode,
 			                                                   });
 			any_array_push(mdata2, d);
 		}
@@ -542,7 +541,6 @@ void export_arm_run_material(char *path) {
 	                                                                    .paint_height = m->paint_height,
 	                                                                    .paint_emis   = m->paint_emis,
 	                                                                    .paint_subs   = m->paint_subs,
-	                                                                    .opac_mode    = m->paint_opac_mode,
                                                          });
 	any_array_push(mdata2, md2);
 

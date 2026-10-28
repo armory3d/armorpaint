@@ -119,7 +119,7 @@ void make_material_parse_mesh_material() {
 	g_context->ddirty  = 2;
 	g_context->rtdirty = 1;
 
-	if (make_material_transluc_used) {
+	if (g_project->_->translucency) {
 		make_material_parse_depth_material();
 	}
 }

@@ -170,7 +170,6 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 			md->paint_height      = armpack_map_get_i32(old, "paint_height") > 0;
 			md->paint_emis        = armpack_map_get_i32(old, "paint_emis") > 0;
 			md->paint_subs        = armpack_map_get_i32(old, "paint_subs") > 0;
-			md->opac_mode         = armpack_map_get_i32(old, "opac_mode");
 			any_array_push(project->material_datas, md);
 		}
 	}
@@ -322,8 +321,13 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	return project;
 }
 
+project_t *import_arm_from_version_21(any_map_t *old) {
+	// slot_material_t->paint_opac_mode removed
+	return import_arm_from_map_to_arm(old);
+}
+
 project_t *import_arm_from_version_20(any_map_t *old) {
-	project_t *project              = import_arm_from_map_to_arm(old);
+	project_t *project              = import_arm_from_version_21(old);
 	project->camera_frustum_culling = false;
 	return project;
 }
@@ -465,7 +469,6 @@ project_t *import_arm_from_version_6(any_map_t *old) {
 		armpack_map_set_i32(m, "paint_height", 1);
 		armpack_map_set_i32(m, "paint_emis", 1);
 		armpack_map_set_i32(m, "paint_subs", 1);
-		armpack_map_set_i32(m, "opac_mode", 0);
 		any_array_push(mds, m);
 	}
 	any_map_set(old, "material_datas", mds);
@@ -528,7 +531,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
 	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14,
 	    import_arm_from_version_15, import_arm_from_version_16, import_arm_from_version_17, import_arm_from_version_18, import_arm_from_version_19,
-	    import_arm_from_version_20,
+	    import_arm_from_version_20, import_arm_from_version_21,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

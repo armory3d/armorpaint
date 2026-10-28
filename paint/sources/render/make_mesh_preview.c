@@ -78,7 +78,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	node_shader_add_function(kong, str_cotangent_frame);
 	node_shader_add_function(kong, str_octahedron_wrap);
 
-	if (g_context->material->paint_opac_mode == OPACITY_MODE_TRANSLUC) {
+	if (g_project->_->translucency) {
 		kong->frag_wvpposition = true;
 		node_shader_add_function(kong, str_dither_bayer);
 		node_shader_write_frag(kong,

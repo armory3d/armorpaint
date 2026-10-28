@@ -337,7 +337,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	if (raw->material_datas != NULL) {
 		armpack_encode_array(raw->material_datas->length);
 		for (i32 i = 0; i < raw->material_datas->length; ++i) {
-			armpack_encode_map(10);
+			armpack_encode_map(9);
 			armpack_encode_string("paint_base");
 			armpack_encode_bool(raw->material_datas->buffer[i]->paint_base);
 			armpack_encode_string("paint_opac");
@@ -356,8 +356,6 @@ buffer_t *util_encode_project(project_t *raw) {
 			armpack_encode_bool(raw->material_datas->buffer[i]->paint_emis);
 			armpack_encode_string("paint_subs");
 			armpack_encode_bool(raw->material_datas->buffer[i]->paint_subs);
-			armpack_encode_string("opac_mode");
-			armpack_encode_i32(raw->material_datas->buffer[i]->opac_mode);
 		}
 	}
 	else {

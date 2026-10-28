@@ -34,7 +34,7 @@ void make_brush_run(node_shader_t *kong) {
 		node_shader_write_frag(kong, "wn = normalize(wn);");
 		node_shader_write_frag(kong, "float plane_dist = dot(wn, winp.xyz - input.wposition);");
 
-		if (g_config->brush_angle_reject && !g_context->xray && !make_material_transluc_used) {
+		if (g_config->brush_angle_reject && !g_context->xray && !g_project->_->translucency) {
 			node_shader_write_frag(kong, "if (plane_dist < -0.03) { discard; }");
 			kong->frag_n = true;
 			f32 angle    = g_context->brush_angle_reject_dot;

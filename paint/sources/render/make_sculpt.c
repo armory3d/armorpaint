@@ -1287,7 +1287,7 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	// Reconstruct the faceted normal from the deformed world position
 	node_shader_write_attrib_frag(kong, "float3 n = normalize(cross(ddx(input.wposition), ddy(input.wposition)));");
 	bool culled =
-	    string_equals(kong->context->data->cull_mode, "clockwise") && !(make_material_transluc_used && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE);
+	    string_equals(kong->context->data->cull_mode, "clockwise") && !(g_project->_->translucency && g_context->viewport_mode != VIEWPORT_MODE_PATH_TRACE);
 	if (culled) {
 		node_shader_add_constant(kong, "float3 eye", "_camera_pos");
 		node_shader_write_attrib_frag(kong, "if (dot(n, constants.eye - input.wposition) < 0.0) { n = -n; }");

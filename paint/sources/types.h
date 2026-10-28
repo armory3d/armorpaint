@@ -200,7 +200,6 @@ typedef struct slot_material {
 	i32                    id;
 	bool                   paint_base;
 	bool                   paint_opac;
-	i32                    paint_opac_mode;
 	bool                   paint_occ;
 	bool                   paint_rough;
 	bool                   paint_met;
@@ -620,6 +619,7 @@ typedef struct {
 	char                         *filepath;
 	i32                           next_asset_id;
 	struct mesh_object_t_array   *paint_objects;
+	bool                          translucency; // See-through meshes, detected from the bottom layer and kept on
 } project_runtime_t;
 
 typedef struct project {
@@ -1016,7 +1016,6 @@ typedef struct material_data2 {
 	bool paint_height;
 	bool paint_emis;
 	bool paint_subs;
-	int  opac_mode;
 } material_data2_t;
 
 typedef struct material_data2_t_array {

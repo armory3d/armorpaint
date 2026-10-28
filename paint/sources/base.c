@@ -241,6 +241,10 @@ void base_draw_dashed_rect(f32 x, f32 y, f32 w, f32 h) {
 }
 
 void base_update(void *_) {
+	if (g_project->_->translucency && any_map_get(render_path_render_targets, "main_paint") == NULL) {
+		render_path_base_init_paint_depth();
+	}
+
 	if (mouse_movement_x != 0 || mouse_movement_y != 0) {
 		iron_mouse_set_cursor(IRON_CURSOR_ARROW);
 	}
@@ -425,6 +429,7 @@ void base_update(void *_) {
 	}
 	else {
 		tab_timeline_update();
+		layers_update_frame_fill_layers();
 	}
 
 	if (base_workspace_pending) {

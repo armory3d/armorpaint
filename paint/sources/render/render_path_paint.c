@@ -10,6 +10,11 @@ static string_array_t *render_path_paint_additional(char *nor, char *pack) {
 	return &ar;
 }
 
+// Translucent surfaces are discarded from "main", painting still needs to hit them
+static char *render_path_paint_depth() {
+	return render_path_base_has_paint_depth() ? "main_paint" : "main";
+}
+
 static bool render_path_paint_uses_gbuffer0() {
 	if (g_context->xray || g_config->brush_angle_reject || context_is_decal()) {
 		return true;
@@ -220,7 +225,7 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 
 		render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
 		                       GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target("main", "gbufferD");
+		render_path_bind_target(render_path_paint_depth(), "gbufferD");
 		if (render_path_paint_uses_gbuffer0()) {
 			render_path_bind_target("gbuffer0", "gbuffer0");
 		}
@@ -619,7 +624,7 @@ void render_path_paint_commands_paint(bool dilation) {
 				render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
 				                       GPU_CLEAR_NONE, 0, 0.0);
 			}
-			render_path_bind_target("main", "gbufferD");
+			render_path_bind_target(render_path_paint_depth(), "gbufferD");
 			if (render_path_paint_uses_gbuffer0()) {
 				render_path_bind_target("gbuffer0", "gbuffer0");
 			}
@@ -828,7 +833,7 @@ void render_path_paint_draw_cursor(f32 mx, f32 my, f32 radius, f32 tint_r, f32 t
 
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	gpu_set_pipeline(pipes_cursor);
-	render_target_t *rt   = any_map_get(render_path_render_targets, "main");
+	render_target_t *rt   = any_map_get(render_path_render_targets, render_path_paint_depth());
 	gpu_texture_t   *main = rt->_image;
 	gpu_set_texture(pipes_cursor_gbufferd, main);
 	gpu_set_float2(pipes_cursor_mouse, mx, my);
@@ -867,7 +872,7 @@ void render_path_paint_draw_cursor_decal(f32 mx, f32 my, f32 radius, f32 opacity
 
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	gpu_set_pipeline(pipes_cursor_decal);
-	render_target_t *rt   = any_map_get(render_path_render_targets, "main");
+	render_target_t *rt   = any_map_get(render_path_render_targets, render_path_paint_depth());
 	gpu_texture_t   *main = rt->_image;
 	gpu_set_texture(pipes_cursor_decal_gbufferd, main);
 	gpu_set_texture(pipes_cursor_decal_texdecal, image);

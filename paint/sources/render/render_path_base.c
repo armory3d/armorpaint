@@ -240,6 +240,21 @@ void render_path_base_init_ssao() {
 	render_path_load_shader("Scene/ssao_blur_pass/ssao_blur_pass_y");
 }
 
+// Depth with translucent surfaces included, read by painting - created once translucency gets enabled and kept
+void render_path_base_init_paint_depth() {
+	render_target_t *t = render_target_create();
+	t->name            = "main_paint";
+	t->width           = 0;
+	t->height          = 0;
+	t->format          = "D32";
+	t->scale           = render_path_base_get_super_sampling();
+	render_path_create_render_target(t);
+}
+
+bool render_path_base_has_paint_depth() {
+	return g_project->_->translucency && any_map_get(render_path_render_targets, "main_paint") != NULL;
+}
+
 char *render_path_base_ssao_target() {
 	return scene_camera->frame % 2 == 0 ? "singlea" : "singlec";
 }
@@ -520,7 +535,7 @@ void render_path_base_draw_outline() {
 
 void render_path_base_draw_gbuffer() {
 
-	if (make_material_transluc_used) {
+	if (g_project->_->translucency) {
 		render_path_set_target("gbuffer0", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
 		render_path_set_target("gbuffer1", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
 	}
@@ -561,8 +576,9 @@ void render_path_base_draw_gbuffer() {
 		}
 	}
 
-	if (make_material_transluc_used) {
-		render_path_set_target("gbuffer0", NULL, "main", GPU_CLEAR_NONE, 0, 1.0);
+	// Depth with the translucent surfaces included, for painting only - "main" keeps them see-through for the world pass
+	if (render_path_base_has_paint_depth()) {
+		render_path_set_target("gbuffer0", NULL, "main_paint", GPU_CLEAR_DEPTH, 0, 1.0);
 		render_path_base_draw_meshes(make_material_depth_scon, false);
 	}
 
