@@ -455,15 +455,50 @@ void step_material_nodes() {
 	script_material_set(mat_noise);
 }
 
-// 11 - Shader node with a custom input
+// 11 - Shader node with a custom input, then one text writing several outputs
+
+void step_shader_node_outputs() {
+	slot_material_t *m  = script_material_create("test_shader_outputs");
+	ui_node_t       *sh = script_material_create_node_at("SHADER_GPU", -400.0, 0.0);
+	if (sh == NULL) {
+		check(0, "shader node outputs");
+		return;
+	}
+	// Early exit inside an if, the text ends with its own return
+	script_material_set_text(
+	    sh, 0,
+	    "if (tex_coord.x < -1.0) {\nreturn output;\n}\noutput.color = float3(0.0, 1.0, 0.0);\noutput.value = 1.0;\noutput.height = 0.5;\nreturn output;");
+	int ok = sh->outputs->length == 1; // Color only by default
+	script_material_add_output(sh, "VALUE", NULL);
+	script_material_add_output(sh, "VALUE", "Height");
+	ui_node_socket_t *value  = sh->outputs->length == 3 ? sh->outputs->buffer[1] : NULL;
+	ui_node_socket_t *height = sh->outputs->length == 3 ? sh->outputs->buffer[2] : NULL;
+	ok                       = ok && value != NULL && string_equals(value->name, "Value") && string_equals(height->name, "Height");
+	ui_node_t        *out    = script_material_get_node("OUTPUT_MATERIAL_PBR");
+	script_material_connect(sh, 0, out, 0); // Base Color
+	script_material_connect(sh, 1, out, 3); // Roughness
+	script_material_connect(sh, 2, out, 7); // Height
+	script_material_update();
+	slot_layer_t *l     = script_layer_new_fill();
+	float         green = pixels_fraction(export_base_pixels(), 0, 255, 0, 40);
+	float         rough = pixels_fraction(export_channel_pixels("_rough"), 255, 255, 255, 20);
+	check(ok && green > 0.5 && rough > 0.5, string("shader node outputs (%.2f green, %.2f rough)", green, rough));
+	script_layer_delete(l);
+	script_material_delete(m);
+	script_material_set(mat_noise);
+}
 
 void step_shader_node() {
+	if (sub == 1) {
+		step_shader_node_outputs();
+		return;
+	}
 	ui_node_t *sh = script_material_create_node_at("SHADER_GPU", -400.0, 200.0);
 	if (sh == NULL) {
 		check(0, "shader node");
 		return;
 	}
-	script_material_set_text(sh, 0, "float2 c = frac(tex_coord * 8.0);\nreturn lerp(float3(1.0, 0.8, 0.2), float3(0.1, 0.1, 0.3), step(dot_size, length(c - float2(0.5, 0.5))));");
+	script_material_set_text(sh, 0, "float2 c = frac(tex_coord * 8.0);\noutput.color = lerp(float3(1.0, 0.8, 0.2), float3(0.1, 0.1, 0.3), step(dot_size, length(c - float2(0.5, 0.5))));");
 	script_material_add_input(sh, "VALUE", "Dot Size");
 	script_material_set_float(sh, 1, 0, 0.3);
 	int ok = sh->inputs->length == 1;
@@ -476,6 +511,7 @@ void step_shader_node() {
 	script_material_connect(script_material_get_node("MIX_RGB"), 0, script_material_get_node("OUTPUT_MATERIAL_PBR"), 0);
 	script_material_update();
 	check(ok, "shader node with input");
+	step_again = 1;
 }
 
 // 12 - Color layer
@@ -2454,7 +2490,7 @@ void run_step(int s) {
 }
 
 int step_count      = 82;
-int expected_checks = 223;
+int expected_checks = 224;
 
 void next_frame() {
 	if (sub == 0) {
