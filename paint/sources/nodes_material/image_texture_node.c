@@ -15,6 +15,35 @@ bind_tex_t *parser_material_make_texture(ui_node_t *image_node, char *tex_name) 
 	return parser_material_make_bind_tex(tex_name, filepath);
 }
 
+#ifdef WITH_MIPMAPS
+static bool parser_material_alpha_to_opacity(ui_node_t *tex_node, ui_node_t *node, i32 socket, i32 depth) {
+	for (i32 i = 0; i < parser_material_links->length; ++i) {
+		ui_node_link_t *l = parser_material_links->buffer[i];
+		if (l->to_id != node->id || l->to_socket != socket) {
+			continue;
+		}
+		if (l->from_id == tex_node->id) {
+			return l->from_socket == 1;
+		}
+		ui_node_t *from = parser_material_get_node(l->from_id);
+		if (from == NULL || depth >= 4) {
+			return false;
+		}
+		for (i32 j = 0; j < from->inputs->length; ++j) {
+			if (parser_material_alpha_to_opacity(tex_node, from, j, depth + 1)) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+static bool parser_material_is_cutout(ui_node_t *tex_node) {
+	ui_node_t *out = parser_material_node_by_type(parser_material_nodes, "OUTPUT_MATERIAL_PBR");
+	return out != NULL && parser_material_alpha_to_opacity(tex_node, out, 1, 0); // Opacity
+}
+#endif
+
 char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_name, i32 color_space) {
 	any_array_push(parser_material_con->data->bind_textures, tex);
 	node_shader_context_add_elem(parser_material_kong->context, "tex", "short2norm");
@@ -62,7 +91,12 @@ char *parser_material_texture_store(ui_node_t *node, bind_tex_t *tex, char *tex_
 		else {
 			parser_material_write(parser_material_kong, string_tmp("float4 %s = sample_lod(%s, sampler_linear, %s.xy, 0.0);", tex_store, tex_name, uv_name));
 		}
-		if (!path_has_ext(tex->file, "jpg") && !path_has_ext(tex->file, "jpeg")) { // Pre-mult alpha
+#ifdef WITH_MIPMAPS
+		bool premultiply = !(parser_material_straight_cutouts && parser_material_is_cutout(node));
+#else
+		bool premultiply = true;
+#endif
+		if (premultiply && !path_has_ext(tex->file, "jpg") && !path_has_ext(tex->file, "jpeg")) { // Pre-mult alpha
 			parser_material_write(parser_material_kong, string_tmp("%s.rgb = %s.rgb * %s.a;", tex_store, tex_store, tex_store));
 		}
 	}

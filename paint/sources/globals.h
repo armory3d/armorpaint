@@ -240,107 +240,110 @@ f32                       parser_material_eps = 0.000001;
 any_map_t                *parser_material_node_values;
 any_map_t                *parser_material_node_vectors;
 any_map_t                *parser_material_custom_nodes;
-bool                      parser_material_parse_height          = false;
-bool                      parser_material_parse_emission        = false;
-bool                      parser_material_parse_subsurface      = false;
-bool                      parser_material_parsing_basecolor     = false;
-bool                      parser_material_triplanar             = false; // Sample using tex_coord/1/2 & tex_coord_blend
-bool                      parser_material_sample_keep_aspect    = false; // Adjust uvs to preserve texture aspect ratio
-char                     *parser_material_sample_uv_scale       = "1.0";
-bool                      parser_material_transform_color_space = true;
-bool                      parser_material_blur_passthrough      = false;
-bool                      parser_material_warp_passthrough      = false;
-ui_node_canvas_t         *parser_material_start_group           = NULL;
-ui_node_t_array_t        *parser_material_start_parents         = NULL;
-ui_node_t                *parser_material_start_node            = NULL;
-char                     *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
-any_map_t                *parser_material_script_links      = NULL;
-bool                      project_scripts_trusted           = true;
-bool                      import_arm_keep_script_trust      = false;
-bool                      parser_material_is_frag           = true;
-bool                      args_player                       = false;
-bool                      args_background                   = false;
-bool                      agent_running                     = false;
-i32                       util_render_material_preview_size = 256;
-f32                       util_render_brush_wave_strip      = 0.25; // Wave preview height relative to its width
-i32                       util_render_node_preview_size     = 512;
-i32                       util_render_decal_preview_size    = 512;
-i32                       util_render_layer_preview_size    = 200;
-i32                       util_render_font_preview_size     = 200;
-char                     *util_render_default_envmap_name   = "World_default";
-i32                       util_render_default_envmap_w      = 512;
-char                     *tab_browser_path                  = "";
-char                     *tab_browser_search                = "";
-bool                      tab_browser_refresh               = false;
-extern i32                ui_files_selected;
-extern i32                path_point_dragging;
-extern i32                path_layer_last_active;
-extern float              util_uv_unwrap_margin;
-i32                       ui_header_default_h = 30;
-i32                       ui_header_h;
-ui_window_t              *ui_header_handle;
-ui_window_t              *ui_header_split_handle;
-any_map_t                *parser_logic_custom_nodes;
-any_map_t                *resource_bundled;
-i32                       render_path_raytrace_bake_rays_pix       = 0;
-i32                       render_path_raytrace_bake_rays_sec       = 0;
-i32                       render_path_raytrace_bake_current_sample = 0;
-bool                      bake_texture_node_baking                 = false;
-gpu_texture_t            *bake_texture_node_texpaint               = NULL;
-shader_context_t         *make_material_paint_scon                 = NULL; // Texture space paint pass
-shader_context_t         *make_material_depth_scon                 = NULL;
-any_array_t              *make_material_mesh_scons                 = NULL; // shader_context_t[], one per mesh layer pass
-bool                      make_material_height_used                = false;
-bool                      make_material_emis_used                  = false;
-bool                      make_material_subs_used                  = false;
-bool                      ui_nodes_show                            = false;
-i32                       ui_nodes_wx;
-i32                       ui_nodes_wy;
-i32                       ui_nodes_ww;
-i32                       ui_nodes_wh;
-canvas_type_t             ui_nodes_canvas_type       = CANVAS_TYPE_MATERIAL;
-bool                      ui_nodes_grid_redraw       = true;
-i32                       ui_nodes_grid_cell_w       = 200;
-i32                       ui_nodes_grid_small_cell_w = 40;
-ui_window_t              *ui_nodes_hwnd;
-node_group_t_array_t     *ui_nodes_group_stack;
-f32                       ui_nodes_last_zoom = 1.0;
-i32                       _ui_nodes_type; // Group socket edit box
-char                     *_ui_nodes_name = "";
-f32                       _ui_nodes_min;
-f32                       _ui_nodes_max;
-f32                       _ui_nodes_vals[4];
-ui_node_t_array_t        *nodes_brush_category0;
-string_array_t           *nodes_brush_categories;
-node_list_t_array_t      *nodes_brush_list;
-any_map_t                *nodes_brush_creates;
-string_array_t           *nodes_material_categories;
-ui_node_t_array_t        *nodes_material_input;
-ui_node_t_array_t        *nodes_material_texture;
-ui_node_t_array_t        *nodes_material_color;
-ui_node_t_array_t        *nodes_material_utilities;
-ui_node_t_array_t        *nodes_material_neural;
-ui_node_t_array_t        *nodes_material_group;
-node_list_t_array_t      *nodes_material_list   = NULL;
-string_array_t           *nodes_mesh_categories = NULL;
-ui_node_t_array_t        *nodes_mesh_input;
-ui_node_t_array_t        *nodes_mesh_modifier;
-ui_node_t_array_t        *nodes_mesh_combine;
-ui_node_t_array_t        *nodes_mesh_utilities;
-node_list_t_array_t      *nodes_mesh_list = NULL;
-ui_node_t                *nodes_mesh_input_def;
-ui_node_t                *nodes_mesh_output_def;
-any_map_t                *nodes_mesh_node_evals;
-any_map_t                *nodes_mesh_node_vectors;
-i32                       context_deselected_uid = -1; // Paint object with no outline and gizmo in the viewport
-ui_node_canvas_t         *nodes_mesh_eval_canvas;
-mesh_nodes_t             *nodes_mesh_eval_slot;
-mesh_object_t            *nodes_mesh_eval_object;
-bool                      nodes_mesh_eval_unwrap;
-i32                       nodes_mesh_vector_socket; // Output socket of the node evaluated by nodes_mesh_vector
-bool                      nodes_mesh_script_running = false;
-bool                      nodes_mesh_eval_reads_frame;
-i32                       make_mesh_layer_pass_count = 1;
+bool                      parser_material_parse_height       = false;
+bool                      parser_material_parse_emission     = false;
+bool                      parser_material_parse_subsurface   = false;
+bool                      parser_material_parsing_basecolor  = false;
+bool                      parser_material_triplanar          = false; // Sample using tex_coord/1/2 & tex_coord_blend
+bool                      parser_material_sample_keep_aspect = false; // Adjust uvs to preserve texture aspect ratio
+#ifdef WITH_MIPMAPS
+bool parser_material_straight_cutouts = false;
+#endif
+char                 *parser_material_sample_uv_scale       = "1.0";
+bool                  parser_material_transform_color_space = true;
+bool                  parser_material_blur_passthrough      = false;
+bool                  parser_material_warp_passthrough      = false;
+ui_node_canvas_t     *parser_material_start_group           = NULL;
+ui_node_t_array_t    *parser_material_start_parents         = NULL;
+ui_node_t            *parser_material_start_node            = NULL;
+char                 *parser_material_out_normaltan; // Raw tangent space normal parsed from normal map
+any_map_t            *parser_material_script_links      = NULL;
+bool                  project_scripts_trusted           = true;
+bool                  import_arm_keep_script_trust      = false;
+bool                  parser_material_is_frag           = true;
+bool                  args_player                       = false;
+bool                  args_background                   = false;
+bool                  agent_running                     = false;
+i32                   util_render_material_preview_size = 256;
+f32                   util_render_brush_wave_strip      = 0.25; // Wave preview height relative to its width
+i32                   util_render_node_preview_size     = 512;
+i32                   util_render_decal_preview_size    = 512;
+i32                   util_render_layer_preview_size    = 200;
+i32                   util_render_font_preview_size     = 200;
+char                 *util_render_default_envmap_name   = "World_default";
+i32                   util_render_default_envmap_w      = 512;
+char                 *tab_browser_path                  = "";
+char                 *tab_browser_search                = "";
+bool                  tab_browser_refresh               = false;
+extern i32            ui_files_selected;
+extern i32            path_point_dragging;
+extern i32            path_layer_last_active;
+extern float          util_uv_unwrap_margin;
+i32                   ui_header_default_h = 30;
+i32                   ui_header_h;
+ui_window_t          *ui_header_handle;
+ui_window_t          *ui_header_split_handle;
+any_map_t            *parser_logic_custom_nodes;
+any_map_t            *resource_bundled;
+i32                   render_path_raytrace_bake_rays_pix       = 0;
+i32                   render_path_raytrace_bake_rays_sec       = 0;
+i32                   render_path_raytrace_bake_current_sample = 0;
+bool                  bake_texture_node_baking                 = false;
+gpu_texture_t        *bake_texture_node_texpaint               = NULL;
+shader_context_t     *make_material_paint_scon                 = NULL; // Texture space paint pass
+shader_context_t     *make_material_depth_scon                 = NULL;
+any_array_t          *make_material_mesh_scons                 = NULL; // shader_context_t[], one per mesh layer pass
+bool                  make_material_height_used                = false;
+bool                  make_material_emis_used                  = false;
+bool                  make_material_subs_used                  = false;
+bool                  ui_nodes_show                            = false;
+i32                   ui_nodes_wx;
+i32                   ui_nodes_wy;
+i32                   ui_nodes_ww;
+i32                   ui_nodes_wh;
+canvas_type_t         ui_nodes_canvas_type       = CANVAS_TYPE_MATERIAL;
+bool                  ui_nodes_grid_redraw       = true;
+i32                   ui_nodes_grid_cell_w       = 200;
+i32                   ui_nodes_grid_small_cell_w = 40;
+ui_window_t          *ui_nodes_hwnd;
+node_group_t_array_t *ui_nodes_group_stack;
+f32                   ui_nodes_last_zoom = 1.0;
+i32                   _ui_nodes_type; // Group socket edit box
+char                 *_ui_nodes_name = "";
+f32                   _ui_nodes_min;
+f32                   _ui_nodes_max;
+f32                   _ui_nodes_vals[4];
+ui_node_t_array_t    *nodes_brush_category0;
+string_array_t       *nodes_brush_categories;
+node_list_t_array_t  *nodes_brush_list;
+any_map_t            *nodes_brush_creates;
+string_array_t       *nodes_material_categories;
+ui_node_t_array_t    *nodes_material_input;
+ui_node_t_array_t    *nodes_material_texture;
+ui_node_t_array_t    *nodes_material_color;
+ui_node_t_array_t    *nodes_material_utilities;
+ui_node_t_array_t    *nodes_material_neural;
+ui_node_t_array_t    *nodes_material_group;
+node_list_t_array_t  *nodes_material_list   = NULL;
+string_array_t       *nodes_mesh_categories = NULL;
+ui_node_t_array_t    *nodes_mesh_input;
+ui_node_t_array_t    *nodes_mesh_modifier;
+ui_node_t_array_t    *nodes_mesh_combine;
+ui_node_t_array_t    *nodes_mesh_utilities;
+node_list_t_array_t  *nodes_mesh_list = NULL;
+ui_node_t            *nodes_mesh_input_def;
+ui_node_t            *nodes_mesh_output_def;
+any_map_t            *nodes_mesh_node_evals;
+any_map_t            *nodes_mesh_node_vectors;
+i32                   context_deselected_uid = -1; // Paint object with no outline and gizmo in the viewport
+ui_node_canvas_t     *nodes_mesh_eval_canvas;
+mesh_nodes_t         *nodes_mesh_eval_slot;
+mesh_object_t        *nodes_mesh_eval_object;
+bool                  nodes_mesh_eval_unwrap;
+i32                   nodes_mesh_vector_socket; // Output socket of the node evaluated by nodes_mesh_vector
+bool                  nodes_mesh_script_running = false;
+bool                  nodes_mesh_eval_reads_frame;
+i32                   make_mesh_layer_pass_count = 1;
 
 i32             ui_sidebar_default_w_mini = 56;
 i32             ui_sidebar_default_w_full = 280;
@@ -391,8 +394,8 @@ bool            render_path_raytrace_is_bake       = false;
 bool            render_path_raytrace_override_pass = false;
 bool            render_path_raytrace_moving        = false;
 
-bool  sculpt_push_undo                          = false;
-i32   ui_statusbar_default_h                    = 33;
+bool sculpt_push_undo       = false;
+i32  ui_statusbar_default_h = 33;
 
 any_imap_t                  *neural_node_results;
 ui_node_t                   *neural_node_current;

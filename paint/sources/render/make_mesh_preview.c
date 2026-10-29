@@ -44,8 +44,15 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	parser_material_sample_keep_aspect = decal;
 	parser_material_sample_uv_scale    = brush_scale;
 	parser_material_parse_height       = make_material_height_used;
-	shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_mesh, kong);
-	parser_material_parse_height       = false;
+#ifdef WITH_MIPMAPS
+	bool cutout_only                 = viewport && !decal;
+	parser_material_straight_cutouts = cutout_only;
+#endif
+	shader_out_t *sout           = parser_material_parse(g_context->material->canvas, con_mesh, kong);
+	parser_material_parse_height = false;
+#ifdef WITH_MIPMAPS
+	parser_material_straight_cutouts = false;
+#endif
 	parser_material_sample_keep_aspect = false;
 	char *base                         = sout->out_basecol;
 	char *rough                        = sout->out_roughness;
@@ -123,6 +130,12 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 		node_shader_write_frag(kong, "output[0] = float4(n.x, n.y, roughness, pack_f32_i16(metallic, uint(0)));"); // metallic/matid
 		node_shader_write_frag(kong, "output[1] = float4(basecol, occlusion);");
 	}
+#ifdef WITH_MIPMAPS
+	else if (cutout_only) {
+		node_shader_write_frag(kong, "output[0] = float4(n.x, n.y, roughness, pack_f32_i16(metallic, uint(0)));"); // metallic/matid
+		node_shader_write_frag(kong, "output[1] = float4(basecol, occlusion);");
+	}
+#endif
 	else {
 		node_shader_write_frag(
 		    kong, "output[0] = float4(n.x, n.y, lerp(1.0, roughness, opacity), pack_f32_i16(lerp(1.0, metallic, opacity), uint(0)));"); // metallic/matid
