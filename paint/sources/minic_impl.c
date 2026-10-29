@@ -2055,6 +2055,24 @@ vec4_t script_pick_terrain() {
 	return hit;
 }
 
+// Where the ray from origin along dir hits the terrain body, nan on a miss
+vec4_t script_physics_terrain_raycast(vec4_t origin, vec4_t dir) {
+	vec4_t hit = vec4_nan();
+	if (!physics_terrain_raycast(origin, dir, &hit)) {
+		return vec4_nan();
+	}
+	return hit;
+}
+
+// Where the ray from origin along dir first hits a static box body within max_dist, nan on a miss
+vec4_t script_physics_box_raycast(vec4_t origin, vec4_t dir, f32 max_dist) {
+	vec4_t hit = vec4_nan();
+	if (!physics_box_raycast(origin, dir, max_dist, &hit)) {
+		return vec4_nan();
+	}
+	return hit;
+}
+
 typedef struct script_click {
 	i32 x;
 	i32 y;

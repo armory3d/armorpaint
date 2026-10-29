@@ -298,6 +298,8 @@ static float minic_arg_float(minic_val_t *a, int c, int i) {
 	X(V4, script_physics_get_velocity, "s:vec4_t(p:object_t o)", script_physics_get_velocity((object_t *)AP(0)))                      \
 	X(VOID, script_physics_set_rotation, "v(p:object_t o,s:quat_t rot)", script_physics_set_rotation((object_t *)AP(0), QT(1)))       \
 	X(V4, script_pick_terrain, "s:vec4_t()", script_pick_terrain())                                                                   \
+	X(V4, script_physics_terrain_raycast, "s:vec4_t(s:vec4_t origin,s:vec4_t dir)", script_physics_terrain_raycast(V4(0), V4(1)))     \
+	X(V4, script_physics_box_raycast, "s:vec4_t(s:vec4_t origin,s:vec4_t dir,f max_dist)", script_physics_box_raycast(V4(0), V4(1), AF(2))) \
 	X(V4, camera_object_look_world, "s:vec4_t(p:camera_object_t raw)", camera_object_look_world(AP(0)))                               \
 	X(VOID, line_draw_render, "v(s:mat4_t matrix)", line_draw_render(M4(0)))                                                          \
 	X(VOID, line_draw_bounds, "v(s:mat4_t mat,s:vec4_t dim)", line_draw_bounds(M4(0), V4(1)))                                         \
