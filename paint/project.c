@@ -20,6 +20,7 @@ project_t *main() {
 	flags->export_version_info = true;
 	flags->export_data_list    = platform == PLATFORM_ANDROID; // .apk contents
 	bool with_tcc              = false;                        // Compile scripts with libtcc
+	bool with_mipmaps          = false;
 
 	if (platform == PLATFORM_WASM) {
 		flags->with_nfd         = false;
@@ -56,6 +57,9 @@ project_t *main() {
 	}
 	if (!flags->embed) {
 		add_assets(project, "../base/assets/extra/*", "data/{name}", 0); // font_cjk.ttc
+	}
+	if (with_mipmaps) {
+		add_define(project, "WITH_MIPMAPS");
 	}
 	return project;
 }
