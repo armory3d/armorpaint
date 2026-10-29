@@ -369,6 +369,9 @@ static void create_descriptors(void) {
 	    .borderColor   = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 	    .compareOp     = VK_COMPARE_OP_ALWAYS,
 	    .mipmapMode    = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+#ifdef WITH_MIPMAPS
+	    .maxLod = VK_LOD_CLAMP_NONE,
+#endif
 	};
 	vkCreateSampler(device, &sampler_info, NULL, &linear_sampler);
 	sampler_info.magFilter  = VK_FILTER_NEAREST;
@@ -1824,6 +1827,189 @@ static void bc7_compute_encode(uint32_t width, uint32_t height, VkDeviceSize pix
 
 #endif
 
+#ifdef WITH_MIPMAPS
+#define MIPMAP_ALPHA_REF     102
+#define MIPMAP_ALPHA_SHARPEN 8.0f
+
+static uint32_t mipmap_levels(uint32_t width, uint32_t height) {
+	uint32_t levels = 1;
+	while (width > 1 || height > 1) {
+		width  = width > 1 ? width / 2 : 1;
+		height = height > 1 ? height / 2 : 1;
+		levels++;
+	}
+	return levels;
+}
+
+static uint32_t mipmap_coverage(const uint8_t *pixels, uint32_t count, float scale) {
+	uint32_t covered = 0;
+	for (uint32_t i = 0; i < count; ++i) {
+		if (pixels[i * 4 + 3] * scale > MIPMAP_ALPHA_REF) {
+			covered++;
+		}
+	}
+	return covered;
+}
+
+static void mipmap_dilate(uint8_t *pixels, uint32_t width, uint32_t height) {
+	uint32_t count  = width * height;
+	uint8_t *filled = malloc(count);
+	for (uint32_t i = 0; i < count; ++i) {
+		filled[i] = pixels[i * 4 + 3] > 0;
+	}
+	uint8_t *next = malloc(count);
+	for (int pass = 0; pass < 8; ++pass) {
+		memcpy(next, filled, count);
+		bool changed = false;
+		for (uint32_t y = 0; y < height; ++y) {
+			for (uint32_t x = 0; x < width; ++x) {
+				uint32_t i = y * width + x;
+				if (filled[i]) {
+					continue;
+				}
+				float rgb[3] = {0};
+				int   n      = 0;
+				for (int dy = -1; dy <= 1; ++dy) {
+					for (int dx = -1; dx <= 1; ++dx) {
+						int nx = (int)x + dx, ny = (int)y + dy;
+						if (nx < 0 || ny < 0 || nx >= (int)width || ny >= (int)height || !filled[ny * width + nx]) {
+							continue;
+						}
+						const uint8_t *p = pixels + ((size_t)ny * width + nx) * 4;
+						rgb[0] += p[0];
+						rgb[1] += p[1];
+						rgb[2] += p[2];
+						n++;
+					}
+				}
+				if (n > 0) {
+					for (int c = 0; c < 3; ++c) {
+						pixels[(size_t)i * 4 + c] = (uint8_t)(rgb[c] / n + 0.5f);
+					}
+					next[i] = 1;
+					changed = true;
+				}
+			}
+		}
+		memcpy(filled, next, count);
+		if (!changed) {
+			break;
+		}
+	}
+	free(next);
+	free(filled);
+}
+
+static float mipmap_edge_alpha(const uint8_t *pixels, uint32_t width, uint32_t height, uint32_t index, bool vertical) {
+	uint32_t n   = vertical ? height : width;
+	float    sum = 0.0f;
+	for (uint32_t i = 0; i < n; ++i) {
+		sum += pixels[((size_t)(vertical ? i : index) * width + (vertical ? index : i)) * 4 + 3];
+	}
+	return sum / n;
+}
+
+static uint8_t *mipmap_chain_rgba8(const uint8_t *src, uint32_t width, uint32_t height, uint32_t levels, VkDeviceSize *size) {
+	VkDeviceSize total = 0;
+	uint32_t     w = width, h = height;
+	for (uint32_t l = 0; l < levels; ++l) {
+		total += (VkDeviceSize)w * h * 4;
+		w = w > 1 ? w / 2 : 1;
+		h = h > 1 ? h / 2 : 1;
+	}
+	uint8_t *chain = malloc(total);
+	memcpy(chain, src, (size_t)width * height * 4);
+
+	uint32_t transparent = 0;
+	for (uint32_t i = 0; i < width * height; ++i) {
+		if (src[i * 4 + 3] < 128) {
+			transparent++;
+		}
+	}
+	float target     = mipmap_coverage(src, width * height, 1.0f) / (float)(width * height);
+	bool  cutout     = transparent * 100 >= width * height && target > 0.0f;
+	bool  clear_rows = false;
+	bool  clear_cols = false;
+	if (cutout) {
+		mipmap_dilate(chain, width, height);
+		float top = mipmap_edge_alpha(src, width, height, 0, false), bottom = mipmap_edge_alpha(src, width, height, height - 1, false);
+		float left = mipmap_edge_alpha(src, width, height, 0, true), right = mipmap_edge_alpha(src, width, height, width - 1, true);
+		clear_rows = (top < 8.0f) != (bottom < 8.0f);
+		clear_cols = (left < 8.0f) != (right < 8.0f);
+	}
+
+	uint8_t *prev = chain;
+	uint8_t *dst  = chain + (size_t)width * height * 4;
+	uint32_t pw = width, ph = height;
+	for (uint32_t l = 1; l < levels; ++l) {
+		uint32_t dw = pw > 1 ? pw / 2 : 1;
+		uint32_t dh = ph > 1 ? ph / 2 : 1;
+		for (uint32_t y = 0; y < dh; ++y) {
+			for (uint32_t x = 0; x < dw; ++x) {
+				uint32_t xs[2]  = {x * 2 < pw ? x * 2 : pw - 1, x * 2 + 1 < pw ? x * 2 + 1 : pw - 1};
+				uint32_t ys[2]  = {y * 2 < ph ? y * 2 : ph - 1, y * 2 + 1 < ph ? y * 2 + 1 : ph - 1};
+				float    rgb[3] = {0}, flat[3] = {0}, a = 0;
+				for (int j = 0; j < 2; ++j) {
+					for (int i = 0; i < 2; ++i) {
+						const uint8_t *p  = prev + ((size_t)ys[j] * pw + xs[i]) * 4;
+						float          pa = p[3];
+						for (int c = 0; c < 3; ++c) {
+							rgb[c] += p[c] * pa;
+							flat[c] += p[c];
+						}
+						a += pa;
+					}
+				}
+				uint8_t *d = dst + ((size_t)y * dw + x) * 4;
+				for (int c = 0; c < 3; ++c) {
+					d[c] = (uint8_t)(a > 0 ? rgb[c] / a + 0.5f : flat[c] / 4 + 0.5f);
+				}
+				d[3] = (uint8_t)(a / 4 + 0.5f);
+			}
+		}
+		if (cutout) {
+			uint32_t count = dw * dh;
+			float    lo = 0.0f, hi = 8.0f;
+			for (int k = 0; k < 16; ++k) {
+				float mid = (lo + hi) * 0.5f;
+				if (mipmap_coverage(dst, count, mid) / (float)count < target) {
+					lo = mid;
+				}
+				else {
+					hi = mid;
+				}
+			}
+			float scale = (lo + hi) * 0.5f;
+			for (uint32_t i = 0; i < count; ++i) {
+				float v        = MIPMAP_ALPHA_REF + (dst[i * 4 + 3] * scale - MIPMAP_ALPHA_REF) * MIPMAP_ALPHA_SHARPEN;
+				dst[i * 4 + 3] = (uint8_t)(v > 255.0f ? 255.0f : v < 0.0f ? 0.0f : v + 0.5f);
+			}
+		}
+		if (clear_rows && dh > 2) {
+			for (uint32_t x = 0; x < dw; ++x) {
+				dst[(size_t)x * 4 + 3]                   = 0;
+				dst[((size_t)(dh - 1) * dw + x) * 4 + 3] = 0;
+			}
+		}
+		if (clear_cols && dw > 2) {
+			for (uint32_t y = 0; y < dh; ++y) {
+				dst[(size_t)y * dw * 4 + 3]            = 0;
+				dst[((size_t)y * dw + dw - 1) * 4 + 3] = 0;
+			}
+		}
+		if (cutout) {
+			mipmap_dilate(dst, dw, dh);
+		}
+		prev = dst;
+		dst += (size_t)dw * dh * 4;
+		pw = dw;
+		ph = dh;
+	}
+	*size = total;
+	return chain;
+}
+#endif
+
 void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t width, uint32_t height, gpu_texture_format_t format, bool compress) {
 	texture->width  = width;
 	texture->height = height;
@@ -1850,6 +2036,16 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 			data         = gpu_bc7_compress(data, width, height);
 			_upload_size = blocks_size;
 		}
+	}
+#endif
+
+	uint32_t levels = 1;
+#ifdef WITH_MIPMAPS
+	void *mip_data = NULL;
+	if (compress && texture->format == GPU_TEXTURE_FORMAT_RGBA32) {
+		levels   = mipmap_levels(width, height);
+		mip_data = mipmap_chain_rgba8(data, width, height, levels, &_upload_size);
+		data     = mip_data;
 	}
 #endif
 
@@ -1895,7 +2091,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	    .extent.width  = (uint32_t)width,
 	    .extent.height = (uint32_t)height,
 	    .extent.depth  = 1,
-	    .mipLevels     = 1,
+	    .mipLevels     = levels,
 	    .arrayLayers   = 1,
 	    .samples       = VK_SAMPLE_COUNT_1_BIT,
 	    .tiling        = VK_IMAGE_TILING_OPTIMAL,
@@ -1917,8 +2113,15 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 		gpu_execute_and_wait();
 		gpu_cleanup_internal();
 		gpu_cleanup();
+#ifdef WITH_MIPMAPS
+		if (mip_data != NULL) {
+			free(mip_data);
+			mip_data = NULL;
+			data     = NULL;
+		}
+#endif
 #ifdef WITH_BC7
-		if (data != original_data) {
+		if (data != NULL && data != original_data) {
 			free(data);
 		}
 #endif
@@ -1941,7 +2144,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	    .image                           = texture->impl.image,
 	    .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
 	    .subresourceRange.baseMipLevel   = 0,
-	    .subresourceRange.levelCount     = 1,
+	    .subresourceRange.levelCount     = levels,
 	    .subresourceRange.baseArrayLayer = 0,
 	    .subresourceRange.layerCount     = 1,
 	};
@@ -1967,6 +2170,20 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 #endif
 	vkCmdCopyBufferToImage(command_buffer, copy_src, texture->impl.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
 
+#ifdef WITH_MIPMAPS
+	VkDeviceSize mip_offset = (VkDeviceSize)width * height * 4;
+	uint32_t     mip_w = width, mip_h = height;
+	for (uint32_t l = 1; l < levels; ++l) {
+		mip_w                                 = mip_w > 1 ? mip_w / 2 : 1;
+		mip_h                                 = mip_h > 1 ? mip_h / 2 : 1;
+		copy_region.bufferOffset              = mip_offset;
+		copy_region.imageSubresource.mipLevel = l;
+		copy_region.imageExtent               = (VkExtent3D){mip_w, mip_h, 1};
+		vkCmdCopyBufferToImage(command_buffer, copy_src, texture->impl.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+		mip_offset += (VkDeviceSize)mip_w * mip_h * 4;
+	}
+#endif
+
 	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 	barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 	barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -1987,7 +2204,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	        },
 	    .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
 	    .subresourceRange.baseMipLevel   = 0,
-	    .subresourceRange.levelCount     = 1,
+	    .subresourceRange.levelCount     = levels,
 	    .subresourceRange.baseArrayLayer = 0,
 	    .subresourceRange.layerCount     = 1,
 	};
@@ -1998,6 +2215,13 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	}
 
 	gpu_execute_and_wait(); ////
+
+#ifdef WITH_MIPMAPS
+	if (mip_data != NULL) {
+		free(mip_data);
+		data = original_data;
+	}
+#endif
 
 #ifdef WITH_BC7
 	if (data != original_data) {
