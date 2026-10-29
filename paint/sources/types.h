@@ -242,6 +242,13 @@ typedef struct dock_node {
 	i32  h;
 } dock_node_t;
 
+typedef struct render_pass {
+	i32                 id;
+	render_pass_stage_t stage;
+	char               *handle;
+	shader_context_t   *scon;
+} render_pass_t;
+
 typedef struct context {
 	struct asset        *texture;
 	struct mesh_object  *paint_object;

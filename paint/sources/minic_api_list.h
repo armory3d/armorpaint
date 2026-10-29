@@ -662,6 +662,9 @@ X4(mesh_geo_image_sample, "f(p:mesh_geo_image_t img,f u,f v,i channel)", f, p, f
 X1(mesh_geo_state, "p(i size)", p, i)
 
 X1(context_set_viewport_shader, "v(p viewport_shader)", v, p)
+X2(render_pass_create, "p:render_pass_t(p:char frag,i stage)", p, p, i)
+X6(render_pass_set_vec4, "v(p:render_pass_t p,p:char name,f x,f y,f z,f w)", v, p, p, f, f, f, f)
+X1(render_pass_remove, "v(p:render_pass_t p)", v, p)
 X1(context_set_viewport_texture, "v(p:gpu_texture_t image)", v, p)
 X1(context_set_viewport_mode, "v(i mode)", v, i)
 X1(context_set_camera_controls, "v(i i)", v, i)

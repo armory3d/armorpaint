@@ -113,6 +113,7 @@ void render_path_deferred_draw_deferred() {
 	render_path_bind_target("buf", "tex");
 	// render_path_bind_target("histogram", "histogram");
 	render_path_draw_shader("Scene/compositor_pass/compositor_pass");
+	render_pass_draw(RENDER_PASS_POST, "gbuffer1");
 
 	render_path_set_target("gbuffer1", NULL, "main", GPU_CLEAR_NONE, 0, 0.0);
 	render_grid();

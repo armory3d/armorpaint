@@ -77,6 +77,11 @@ typedef enum {
 	VIEWPORT_MODE_PLUGIN        = 17,
 } viewport_mode_t;
 
+typedef enum {
+	RENDER_PASS_LIGHT,
+	RENDER_PASS_POST,
+} render_pass_stage_t;
+
 // Layouts to reset the docked tabs to
 typedef enum {
 	WORKSPACE_PRESET_NONE    = -1, // Saved layout
@@ -579,4 +584,3 @@ typedef enum {
 	HISTORY_ACTION_EDIT_SWATCH,
 	HISTORY_ACTION_OBJECT_TRANSFORM,
 } history_action_t;
-

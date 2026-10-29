@@ -299,6 +299,7 @@ void render_path_base_draw_deferred_light() {
 	}
 
 	render_path_draw_shader("Scene/deferred_light/deferred_light");
+	render_pass_draw(RENDER_PASS_LIGHT, "buf");
 
 	render_path_set_target("buf", NULL, "main", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_draw_skydome("Scene/world_pass/world_pass");

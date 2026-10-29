@@ -306,7 +306,7 @@ vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) 
 		return (vec4_t){g_context->select_x1, g_context->select_y1, g_context->select_x2, g_context->select_y2};
 	}
 
-	return vec4_nan();
+	return render_pass_get_vec4(link);
 }
 
 mat4_t uniforms_ext_mat4_link(object_t *object, shader_data_t *mat, char *link) {

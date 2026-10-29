@@ -153,6 +153,7 @@
 #include "render/render_envsphere.c"
 #include "render/render_gizmo.c"
 #include "render/render_grid.c"
+#include "render/render_pass.c"
 #include "render/render_path_base.c"
 #include "render/render_path_deferred.c"
 #include "render/render_path_forward.c"

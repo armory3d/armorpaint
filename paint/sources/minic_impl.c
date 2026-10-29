@@ -2461,6 +2461,7 @@ void script_draw_particles(gpu_texture_t *texture, float x, float y, float w, fl
 
 void script_reset_runtime(void) {
 	script_stop();
+	render_pass_remove_all();
 	tween_reset();
 	sys_remove_update(script_message_draw);
 	_script_message = NULL;
