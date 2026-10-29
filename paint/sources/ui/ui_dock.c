@@ -117,6 +117,14 @@ static i32 dock_leaf_open_index(dock_node_t *l, i32 id) {
 }
 
 static i32 dock_leaf_active_tab(dock_node_t *l) {
+	if (base_player) {
+		for (i32 i = 0; i < l->tab_count; ++i) {
+			if (l->tabs[i] == TAB_VIEW3D) {
+				return TAB_VIEW3D;
+			}
+		}
+		return -1;
+	}
 	return dock_leaf_open_tab(l, l->active);
 }
 
