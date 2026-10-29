@@ -718,6 +718,43 @@ static int ray_clip_slab(float origin, float dir, float lo, float hi, float *t0,
 	return *t0 <= *t1;
 }
 
+// Nearest static box
+int physics_box_raycast(vec4_t origin, vec4_t dir, float max_dist, vec4_t *hit) {
+	float len = vec4_len(dir);
+	if (len == 0.0f) {
+		return 0;
+	}
+	vec4_t d    = vec4_mult(dir, 1.0f / len);
+	float  best = max_dist;
+	int    got  = 0;
+	for (int i = 0; i < box_count; i++) {
+		box_t *b = &boxes[i];
+		if (!b->active || b->mass > 0.0f) {
+			continue;
+		}
+		quat_t inv = quat_conj(b->rotation);
+		vec4_t o   = vec4_apply_quat(vec4_sub(origin, b->position), inv);
+		vec4_t ld  = vec4_apply_quat(d, inv);
+		float  t0  = 0.0f;
+		float  t1  = best;
+		if (!ray_clip_slab(o.x, ld.x, -b->half.x, b->half.x, &t0, &t1) || !ray_clip_slab(o.y, ld.y, -b->half.y, b->half.y, &t0, &t1) ||
+		    !ray_clip_slab(o.z, ld.z, -b->half.z, b->half.z, &t0, &t1)) {
+			continue;
+		}
+		if (t0 <= 0.0f) {
+			continue;
+		}
+		if (t0 < best) {
+			best = t0;
+			got  = 1;
+		}
+	}
+	if (got) {
+		*hit = vec4_add(origin, vec4_mult(d, best));
+	}
+	return got;
+}
+
 int physics_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit) {
 	if (!terrain.active) {
 		return 0;

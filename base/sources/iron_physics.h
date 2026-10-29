@@ -68,6 +68,7 @@ void            physics_body_update(physics_body_t *body);
 void            physics_body_remove(physics_body_t *body);
 float           physics_body_get_speed(physics_body_t *body);
 int             physics_terrain_raycast(vec4_t origin, vec4_t dir, vec4_t *hit);
+int             physics_box_raycast(vec4_t origin, vec4_t dir, float max_dist, vec4_t *hit);
 void            physics_set_friction(float v);
 void            physics_set_bounciness(float v);
 void            physics_set_gravity(float x, float y, float z);
