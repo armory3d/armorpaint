@@ -4,19 +4,9 @@
 #include <CoreAudio/AudioHardware.h>
 #include <CoreServices/CoreServices.h>
 #include <iron_audio.h>
-#include BACKEND_VIDEO_H
 #include <iron_system.h>
 #include <stdio.h>
-
-static iron_internal_video_sound_stream_t *video = NULL;
-
-void macPlayVideoSoundStream(iron_internal_video_sound_stream_t *v) {
-	video = v;
-}
-
-void macStopVideoSoundStream(void) {
-	video = NULL;
-}
+#include <stdlib.h>
 
 static void affirm(OSStatus err) {
 	if (err != kAudioHardwareNoError) {
@@ -94,7 +84,7 @@ void iron_a2_init(void) {
 	size              = sizeof(AudioDeviceID);
 	address.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
 	address.mScope    = kAudioObjectPropertyScopeGlobal;
-	address.mElement  = kAudioObjectPropertyElementMaster;
+	address.mElement  = kAudioObjectPropertyElementMain;
 	affirm(AudioObjectGetPropertyData(kAudioObjectSystemObject, &address, 0, NULL, &size, &device));
 
 	size              = sizeof(UInt32);
