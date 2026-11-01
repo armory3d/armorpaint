@@ -1,6 +1,10 @@
 
 #include "global.h"
 
+#ifdef IRON_ANDROID
+#include "backends/android_system.h"
+#endif
+
 i32     base_drag_tint          = 0xffffffff;
 i32     base_drag_size          = -1;
 rect_t *base_drag_rect          = NULL;
@@ -621,6 +625,13 @@ void base_init() {
 
 #ifdef IRON_WASM
 	start_arm = "./start.arm";
+#endif
+
+#ifdef IRON_ANDROID
+	start_arm = string("%s/start.arm", iron_android_get_activity()->externalDataPath);
+	if (!iron_file_exists(start_arm)) {
+		start_arm = "./start.arm"; // Bundled in apk assets
+	}
 #endif
 
 	if (iron_file_exists(start_arm)) {
