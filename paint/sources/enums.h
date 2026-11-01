@@ -98,6 +98,15 @@ typedef enum {
 } tools_t;
 
 typedef enum {
+	PLATFORM_WINDOWS = 0,
+	PLATFORM_LINUX   = 1,
+	PLATFORM_MACOS   = 2,
+	PLATFORM_IOS     = 3,
+	PLATFORM_ANDROID = 4,
+	PLATFORM_WASM    = 5,
+} platform_t;
+
+typedef enum {
 	RENDER_MODE_DEFERRED   = 0,
 	RENDER_MODE_FORWARD    = 1,
 	RENDER_MODE_PATH_TRACE = 2,

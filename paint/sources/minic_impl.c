@@ -356,6 +356,21 @@ context_t *script_get_context() {
 config_t *script_get_config() {
 	return g_config;
 }
+platform_t script_get_platform() {
+#if defined(IRON_WINDOWS)
+	return PLATFORM_WINDOWS;
+#elif defined(IRON_MACOS)
+	return PLATFORM_MACOS;
+#elif defined(IRON_IOS)
+	return PLATFORM_IOS;
+#elif defined(IRON_ANDROID)
+	return PLATFORM_ANDROID;
+#elif defined(IRON_WASM)
+	return PLATFORM_WASM;
+#else
+	return PLATFORM_LINUX;
+#endif
+}
 project_t *script_get_project() {
 	return g_project;
 }

@@ -670,6 +670,7 @@ void                   script_screenshot(char *path);
 camera_object_t       *script_get_camera();
 context_t             *script_get_context();
 config_t              *script_get_config();
+platform_t             script_get_platform();
 project_t             *script_get_project();
 world_data_t          *script_get_world();
 object_t              *script_get_object(char *s);
