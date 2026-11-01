@@ -1,5 +1,8 @@
 #include "ios_system.h"
 #import <Foundation/Foundation.h>
+#ifdef IRON_AUDIO
+#import <AVFoundation/AVFoundation.h>
+#endif
 #import <UIKit/UIKit.h>
 #include <iron_gpu.h>
 #include <iron_math.h>
