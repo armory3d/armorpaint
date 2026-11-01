@@ -899,6 +899,7 @@ void minic_register_builtins() {
 	MINIC_I(window_h);
 	MINIC_F(window_scale);
 	MINIC_F(rp_supersample);
+	MINIC_F(rp_ssao);
 	MINIC_O(recent_projects, string_array_t);
 	MINIC_O(plugins, string_array_t);
 	MINIC_S(keymap);
