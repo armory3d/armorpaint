@@ -1017,9 +1017,16 @@ mesh_object_t *mesh_object_create(mesh_data_t *data, shader_data_t *material) {
 }
 
 void mesh_object_set_data(mesh_object_t *raw, mesh_data_t *data) {
-	raw->data = data;
+	bool changed = raw->data != NULL && raw->data != data;
+	raw->data    = data;
 	// Scale-up packed (-1,1) mesh coords
-	raw->base->transform->scale_world = data->scale_pos;
+	transform_t *t = raw->base->transform;
+	t->scale_world = data->scale_pos;
+	if (changed && t->measured) {
+		t->has_dim  = false;
+		t->measured = false;
+		transform_compute_dim(t);
+	}
 }
 
 void mesh_object_remove(mesh_object_t *raw) {
