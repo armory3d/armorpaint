@@ -15,7 +15,7 @@ project_t *main() {
 	flags->with_kong           = true;
 	flags->with_raytrace       = true;
 	flags->with_bc7            = true;
-	flags->with_audio          = platform == PLATFORM_LINUX || platform == PLATFORM_WINDOWS || platform == PLATFORM_WASM || platform == PLATFORM_MACOS;
+	flags->with_audio          = platform == PLATFORM_LINUX || platform == PLATFORM_WINDOWS || platform == PLATFORM_WASM || platform == PLATFORM_MACOS || platform == PLATFORM_ANDROID;
 	flags->idle_sleep          = !has_arg("--debug");
 	flags->export_version_info = true;
 	flags->export_data_list    = platform == PLATFORM_ANDROID; // .apk contents

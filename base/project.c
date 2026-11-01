@@ -97,6 +97,7 @@ project_t *main() {
 		add_lib(project, "android");
 		if (flags->with_audio) {
 			add_lib(project, "OpenSLES");
+			add_cfiles(project, "sources/backends/android_audio.c");
 		}
 		project->android.package      = flags->package;
 		project->android.permissions  = "android.permission.INTERNET";

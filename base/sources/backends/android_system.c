@@ -787,6 +787,11 @@ static int32_t input(struct android_app *app, AInputEvent *event) {
 	return 0;
 }
 
+#ifdef IRON_AUDIO
+void pauseAudio();
+void resumeAudio();
+#endif
+
 static void cmd(struct android_app *app, int32_t cmd) {
 	switch (cmd) {
 	case APP_CMD_SAVE_STATE:
@@ -828,9 +833,15 @@ static void cmd(struct android_app *app, int32_t cmd) {
 		break;
 	case APP_CMD_RESUME:
 		paused = false;
+#ifdef IRON_AUDIO
+		resumeAudio();
+#endif
 		break;
 	case APP_CMD_PAUSE:
 		paused = true;
+#ifdef IRON_AUDIO
+		pauseAudio();
+#endif
 		break;
 	case APP_CMD_STOP:
 		updateAppForegroundStatus(displayIsInitialized, false);
@@ -1168,6 +1179,8 @@ static bool iron_aasset_reader_seek(iron_file_reader_t *reader, size_t pos) {
 static bool iron_aasset_reader_open(iron_file_reader_t *reader, const char *filename, int type) {
 	if (type != IRON_FILE_TYPE_ASSET)
 		return false;
+	if (filename[0] == '.' && filename[1] == '/')
+		filename += 2;
 	reader->data = AAssetManager_open(iron_android_get_asset_manager(), filename, AASSET_MODE_RANDOM);
 	if (reader->data == NULL)
 		return false;
