@@ -87,7 +87,8 @@ typedef enum {
 	GPU_COMPARE_MODE_ALWAYS,
 	GPU_COMPARE_MODE_NEVER,
 	GPU_COMPARE_MODE_LESS,
-	GPU_COMPARE_MODE_EQUAL
+	GPU_COMPARE_MODE_EQUAL,
+	GPU_COMPARE_MODE_GREATER
 } gpu_compare_mode_t;
 
 typedef struct gpu_texture {

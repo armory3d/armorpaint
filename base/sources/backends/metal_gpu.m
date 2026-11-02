@@ -54,6 +54,8 @@ static MTLCompareFunction convert_compare_mode(gpu_compare_mode_t compare) {
 		return MTLCompareFunctionNever;
 	case GPU_COMPARE_MODE_EQUAL:
 		return MTLCompareFunctionEqual;
+	case GPU_COMPARE_MODE_GREATER:
+		return MTLCompareFunctionGreater;
 	case GPU_COMPARE_MODE_LESS:
 		return MTLCompareFunctionLess;
 	}

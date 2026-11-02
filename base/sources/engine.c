@@ -763,6 +763,8 @@ gpu_compare_mode_t shader_context_get_compare_mode(char *s) {
 		return GPU_COMPARE_MODE_NEVER;
 	if (strcmp(s, "equal") == 0)
 		return GPU_COMPARE_MODE_EQUAL;
+	if (strcmp(s, "greater") == 0)
+		return GPU_COMPARE_MODE_GREATER;
 	return GPU_COMPARE_MODE_LESS;
 }
 

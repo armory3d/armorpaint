@@ -84,6 +84,8 @@ static WGPUCompareFunction convert_compare_mode(gpu_compare_mode_t compare) {
 		return WGPUCompareFunction_Never;
 	case GPU_COMPARE_MODE_EQUAL:
 		return WGPUCompareFunction_Equal;
+	case GPU_COMPARE_MODE_GREATER:
+		return WGPUCompareFunction_Greater;
 	case GPU_COMPARE_MODE_LESS:
 		return WGPUCompareFunction_Less;
 	}

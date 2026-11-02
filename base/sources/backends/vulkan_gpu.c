@@ -116,6 +116,8 @@ static VkCompareOp convert_compare_mode(gpu_compare_mode_t compare) {
 		return VK_COMPARE_OP_NEVER;
 	case GPU_COMPARE_MODE_EQUAL:
 		return VK_COMPARE_OP_EQUAL;
+	case GPU_COMPARE_MODE_GREATER:
+		return VK_COMPARE_OP_GREATER;
 	case GPU_COMPARE_MODE_LESS:
 		return VK_COMPARE_OP_LESS;
 	}
