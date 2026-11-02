@@ -5,6 +5,12 @@ bool                     _box_export_bake_material;
 export_preset_texture_t *_box_export_t;
 i32                      _box_export_tab            = 0;
 char                    *box_export_new_preset_name = "new_preset";
+char                    *box_export_preset_template = "{\
+\"textures\": [\
+	{ \"name\": \"base\", \"channels\": [\"base_r\", \"base_g\", \"base_b\", \"1.0\"], \"color_space\": \"linear\" }\
+]\
+}\
+";
 
 void box_export_tab_export_textures_run(void *_) {
 	if (g_context->export_padding) {
@@ -205,6 +211,9 @@ char *box_export_preset_to_json(export_preset_t *p) {
 }
 
 void box_export_save_preset() {
+	if (box_export_preset_index < 0 || box_export_preset_index >= box_export_files->length) {
+		return; // Fallback preset has no file
+	}
 	char *name = box_export_files->buffer[box_export_preset_index];
 	if (string_equals(name, "generic")) {
 		return; // generic is const
@@ -245,17 +254,11 @@ void box_export_tab_presets_import(char *path) {
 }
 
 void box_export_new_preset(char *name) {
-	char *template = "{\
-\"textures\": [\
-	{ \"name\": \"base\", \"channels\": [\"base_r\", \"base_g\", \"base_b\", \"1.0\"], \"color_space\": \"linear\" }\
-]\
-}\
-";
 	if (!ends_with(name, ".json")) {
 		name = string("%s.json", name);
 	}
 	char *path = string("%s%sexport_presets%s%s", path_data(), PATH_SEP, PATH_SEP, name);
-	iron_file_save_bytes(path, sys_string_to_buffer(template), 0);
+	iron_file_save_bytes(path, sys_string_to_buffer(box_export_preset_template), 0);
 }
 
 void box_export_tab_presets_new_box() {
@@ -276,8 +279,16 @@ void box_export_tab_presets_new_box() {
 }
 
 void box_export_parse_preset() {
-	char     *file    = string("export_presets/%s.json", box_export_files->buffer[box_export_preset_index]);
-	buffer_t *blob    = data_get_blob(file);
+	buffer_t *blob = NULL;
+	char     *file = NULL;
+	if (box_export_preset_index >= 0 && box_export_preset_index < box_export_files->length) {
+		file = string("export_presets/%s.json", box_export_files->buffer[box_export_preset_index]);
+		blob = data_get_blob(file);
+	}
+	if (blob == NULL) {
+		box_export_preset = json_parse(box_export_preset_template);
+		return;
+	}
 	box_export_preset = json_parse(sys_buffer_to_string(blob));
 	data_delete_blob(file);
 }
