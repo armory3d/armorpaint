@@ -336,7 +336,8 @@ char *iron_read_directory(char *path) {
 		strcpy(file_path, path);
 		strcat(file_path, "\\");
 		strcat(file_path, f.name);
-		if (FILE_ATTRIBUTE_HIDDEN & GetFileAttributesA(file_path)) {
+		MultiByteToWideChar(CP_UTF8, 0, file_path, -1, temp_wstring, 1024);
+		if (FILE_ATTRIBUTE_HIDDEN & GetFileAttributesW(temp_wstring)) {
 			continue; // Skip hidden files
 		}
 #endif
@@ -372,7 +373,8 @@ void iron_create_directory(char *path) {
 
 bool iron_is_directory(char *path) {
 #ifdef IRON_WINDOWS
-	DWORD attribs = GetFileAttributesA(path);
+	MultiByteToWideChar(CP_UTF8, 0, path, -1, temp_wstring, 1024);
+	DWORD attribs = GetFileAttributesW(temp_wstring);
 	return attribs != INVALID_FILE_ATTRIBUTES && (attribs & FILE_ATTRIBUTE_DIRECTORY);
 #elif defined(IRON_WASM)
 	return false;

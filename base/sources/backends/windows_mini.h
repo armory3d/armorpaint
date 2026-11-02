@@ -84,7 +84,7 @@ WINBASEAPI DWORD WINAPI  GetFileType(HANDLE hFile);
 WINBASEAPI HANDLE WINAPI CreateFileW(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes,
                                      DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
 WINBASEAPI DWORD WINAPI  GetFileSize(HANDLE hFile, LPDWORD lpFileSizeHigh);
-WINBASEAPI DWORD WINAPI  GetFileAttributesA(LPCSTR lpFileName);
+WINBASEAPI DWORD WINAPI  GetFileAttributesW(LPCWSTR lpFileName);
 WINBASEAPI BOOL WINAPI   ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
 WINBASEAPI DWORD WINAPI  SetFilePointer(HANDLE hFile, LONG lDistanceToMove, PLONG lpDistanceToMoveHigh, DWORD dwMoveMethod);
 WINBASEAPI BOOL WINAPI   CloseHandle(HANDLE hObject);

@@ -12,22 +12,26 @@ directory open_dir(const char *dirname) {
 	strcpy(pattern, dirname);
 	strcat(pattern, "\\*");
 
-	WIN32_FIND_DATAA data;
+	wchar_t wpattern[1024];
+	MultiByteToWideChar(CP_UTF8, 0, pattern, -1, wpattern, 1024);
+
+	WIN32_FIND_DATAW data;
 	directory        dir;
-	dir.handle = FindFirstFileA(pattern, &data);
+	dir.handle = FindFirstFileW(wpattern, &data);
 	if (dir.handle == INVALID_HANDLE_VALUE) {
 		return dir;
 	}
-	FindNextFileA(dir.handle, &data);
+	FindNextFileW(dir.handle, &data);
 	return dir;
 }
 
 file read_next_file(directory *dir) {
-	WIN32_FIND_DATAA data;
+	WIN32_FIND_DATAW data;
 	file             file;
-	file.valid = FindNextFileA(dir->handle, &data) != 0;
+	file.valid = FindNextFileW(dir->handle, &data) != 0;
 	if (file.valid) {
-		strcpy(file.name, data.cFileName);
+		WideCharToMultiByte(CP_UTF8, 0, data.cFileName, -1, file.name, sizeof(file.name), NULL, NULL);
+		file.name[sizeof(file.name) - 1] = 0;
 	}
 	else {
 		file.name[0] = 0;
