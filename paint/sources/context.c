@@ -173,9 +173,8 @@ void context_init() {
 	g_context->project_type                 = -1;
 }
 
-bool context_use_deferred() {
-	return g_config->render_mode != RENDER_MODE_FORWARD &&
-	       (g_context->viewport_mode == VIEWPORT_MODE_LIT || g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) && g_context->tool != TOOL_TYPE_COLORID;
+bool context_use_lit() {
+	return (g_context->viewport_mode == VIEWPORT_MODE_LIT || g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE) && g_context->tool != TOOL_TYPE_COLORID;
 }
 
 void context_select_material(i32 i) {
@@ -443,11 +442,11 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 	viewport_mode_t prev_viewport_mode = g_context->viewport_mode;
 	g_context->viewport_mode           = mode;
 
-	if (context_use_deferred()) {
-		render_path_commands = render_path_deferred_commands;
+	if (context_use_lit()) {
+		render_path_commands = render_path_lit_commands;
 	}
 	else {
-		render_path_commands = render_path_forward_commands;
+		render_path_commands = render_path_unlit_commands;
 	}
 	make_material_parse_mesh_material();
 
@@ -545,11 +544,11 @@ void context_set_render_path_on_next_frame(void *_) {
 }
 
 void context_set_render_path() {
-	if (context_use_deferred()) {
-		render_path_commands = render_path_deferred_commands;
+	if (context_use_lit()) {
+		render_path_commands = render_path_lit_commands;
 	}
 	else {
-		render_path_commands = render_path_forward_commands;
+		render_path_commands = render_path_unlit_commands;
 	}
 	sys_notify_on_next_frame(&context_set_render_path_on_next_frame, NULL);
 }

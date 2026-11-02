@@ -1,9 +1,7 @@
 
 #include "../global.h"
 
-void render_path_forward_init() {}
-
-void render_path_forward_draw_forward() {
+void render_path_unlit_draw() {
 	render_path_set_target("gbuffer1", NULL, "main", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_draw_skydome("Scene/world_pass/world_pass");
 
@@ -22,6 +20,6 @@ void render_path_forward_draw_forward() {
 	render_path_base_draw_taa("buf", "gbuffer1");
 }
 
-void render_path_forward_commands() {
-	render_path_base_commands(render_path_forward_draw_forward);
+void render_path_unlit_commands() {
+	render_path_base_commands(render_path_unlit_draw);
 }

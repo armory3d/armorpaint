@@ -547,21 +547,8 @@ static void box_preferences_section(char *title) {
 void box_preferences_viewport_tab() {
 	box_preferences_section(tr("Display"));
 
-	ui_row2();
-
 	string_array_t *mode_combo = base_get_viewport_modes();
 	ui_combo(&g_config->viewport_mode, mode_combo, tr("Default Mode"), true, UI_ALIGN_LEFT, true);
-
-	string_array_t *render_mode_combo = any_array_create_from_raw_tmp(
-	    (void *[]){
-	        tr("Desktop"),
-	        tr("Mobile"),
-	    },
-	    2);
-	ui_combo((int *)&g_config->render_mode, render_mode_combo, tr("Renderer"), true, UI_ALIGN_LEFT, true);
-	if (ui_item_changed()) {
-		context_set_render_path();
-	}
 
 	ui_row2();
 
@@ -634,13 +621,11 @@ void box_preferences_viewport_tab() {
 
 	bool post_changed = false;
 
-	if (g_config->render_mode == RENDER_MODE_DEFERRED) {
-		ui_row2();
-		ui_slider(&g_config->rp_ssao, tr("SSAO"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		post_changed |= ui_item_changed();
-		ui_slider(&g_config->rp_bloom, tr("Bloom"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		post_changed |= ui_item_changed();
-	}
+	ui_row2();
+	ui_slider(&g_config->rp_ssao, tr("SSAO"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	post_changed |= ui_item_changed();
+	ui_slider(&g_config->rp_bloom, tr("Bloom"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	post_changed |= ui_item_changed();
 
 	ui_row2();
 	ui_slider(&g_config->rp_contrast, tr("Contrast"), 0.0, 2.0, true, 100.0, true, UI_ALIGN_RIGHT, true);

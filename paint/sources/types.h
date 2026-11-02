@@ -183,7 +183,6 @@ typedef struct config {
 	bool                 experimental;
 	i32                  neural_res;
 	i32                  console_model;
-	render_mode_t        render_mode;
 	tools_t              tools;
 	bool                 view2d_grid_show;
 	i32                  view2d_grid_cell;

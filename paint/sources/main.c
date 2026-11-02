@@ -155,8 +155,8 @@
 #include "render/render_grid.c"
 #include "render/render_pass.c"
 #include "render/render_path_base.c"
-#include "render/render_path_deferred.c"
-#include "render/render_path_forward.c"
+#include "render/render_path_lit.c"
+#include "render/render_path_unlit.c"
 #include "render/render_path_paint.c"
 #include "render/render_path_preview.c"
 #include "render/render_path_raytrace.c"
@@ -432,16 +432,8 @@ void _kickstart() {
 	util_render_make_default_world();
 
 	uniforms_ext_init();
-	render_path_base_init();
-	render_path_deferred_init(); // Allocate gbuffer
-	if (g_config->render_mode == RENDER_MODE_FORWARD) {
-		render_path_forward_init();
-		render_path_commands = render_path_forward_commands;
-	}
-	else {
-
-		render_path_commands = render_path_deferred_commands;
-	}
+	render_path_base_init(); // Allocate gbuffer
+	render_path_commands = render_path_lit_commands;
 
 	if (!string_equals(g_config->lut_path, "") && iron_file_exists(g_config->lut_path)) {
 		import_lut_run(g_config->lut_path);

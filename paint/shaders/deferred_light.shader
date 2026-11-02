@@ -4,8 +4,6 @@ cbuffer constants {
 	float3 eye;
 	float4 envmap_data; // angle, sin(angle), cos(angle), strength
 	int envmap_num_mipmaps;
-	float2 camera_proj;
-	float3 eye_look;
 	float4 shirr0;
 	float4 shirr1;
 	float4 shirr2;
@@ -16,8 +14,6 @@ cbuffer constants {
 };
 
 sampler sampler_linear;
-
-tex2d gbufferD;
 
 tex2d gbuffer0;
 
@@ -54,7 +50,7 @@ vert_out vert(vert_in input) {
 	vert_out output;
 	output.tex = input.pos.xy * 0.5 + 0.5;
 	output.tex.y = 1.0 - output.tex.y;
-	output.pos = float4(input.pos.xy, 0.0, 1.0);
+	output.pos = float4(input.pos.xy, 1.0, 1.0); // At the far plane, the greater depth test rejects the background
 
 	// NDC (at the back of cube)
 	float4 v = float4(input.pos.xy, 1.0, 1.0);
@@ -115,14 +111,6 @@ float3 surface_albedo(float3 base_color, float metalness) {
 
 float3 surface_f0(float3 base_color, float metalness) {
 	return lerp(float3(0.04, 0.04, 0.04), base_color, metalness);
-}
-
-float3 get_pos(float3 eye, float3 eye_look, float3 view_ray, float depth, float2 camera_proj) {
-	// eye_look, view_ray should be normalized
-	float linear_depth = camera_proj.y / (depth - camera_proj.x);
-	float view_z_dist = dot(eye_look, view_ray);
-	float3 wposition = eye + view_ray * (linear_depth / view_z_dist);
-	return wposition;
 }
 
 const float c1 = 0.429043;
@@ -231,9 +219,7 @@ float4 frag(vert_out input) {
 	float3 albedo = surface_albedo(g1.rgb, metallic);
 	float3 f0 = surface_f0(g1.rgb, metallic);
 
-	float depth = sample_lod(gbufferD, sampler_linear, input.tex, 0.0).r;
-	float3 p = get_pos(constants.eye, constants.eye_look, normalize(input.view_ray), depth, constants.camera_proj);
-	float3 v = normalize(constants.eye - p);
+	float3 v = normalize(-input.view_ray);
 
 	float dotnv = dot(n, v);
 	if (dotnv < 0.05) {

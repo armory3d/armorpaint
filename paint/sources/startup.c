@@ -1876,13 +1876,14 @@ scene_t *startup_get_scene(void) {
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
 			sc->name                         = "deferred_light";
 			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
+			sc->compare_mode                 = "greater";
 			sc->cull_mode                    = "none";
 			sc->vertex_shader                = "deferred_light.vert";
 			sc->fragment_shader              = "deferred_light.frag";
 			sc->shader_from_source           = false;
 			sc->color_attachments            = string_array_create(1);
 			sc->color_attachments->buffer[0] = "RGBA64";
+			sc->depth_attachment             = "D32";
 			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
 			{
 				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
@@ -1890,7 +1891,7 @@ scene_t *startup_get_scene(void) {
 				ve->data                       = "float2";
 				sc->vertex_elements->buffer[0] = ve;
 			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(13);
+			sc->constants = (shader_const_t_array_t *)any_array_create(11);
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "invVP";
@@ -1921,123 +1922,104 @@ scene_t *startup_get_scene(void) {
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "camera_proj";
-				c->type                  = "float2";
-				c->link                  = "_camera_plane_proj";
-				sc->constants->buffer[4] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "eye_look";
-				c->type                  = "float3";
-				c->link                  = "_camera_look";
-				sc->constants->buffer[5] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "shirr0";
 				c->type                  = "float4";
 				c->link                  = "_envmap_irradiance0";
-				sc->constants->buffer[6] = c;
+				sc->constants->buffer[4] = c;
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "shirr1";
 				c->type                  = "float4";
 				c->link                  = "_envmap_irradiance1";
-				sc->constants->buffer[7] = c;
+				sc->constants->buffer[5] = c;
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "shirr2";
 				c->type                  = "float4";
 				c->link                  = "_envmap_irradiance2";
-				sc->constants->buffer[8] = c;
+				sc->constants->buffer[6] = c;
 			}
 			{
 				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                  = "shirr3";
 				c->type                  = "float4";
 				c->link                  = "_envmap_irradiance3";
+				sc->constants->buffer[7] = c;
+			}
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "shirr4";
+				c->type                  = "float4";
+				c->link                  = "_envmap_irradiance4";
+				sc->constants->buffer[8] = c;
+			}
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "shirr5";
+				c->type                  = "float4";
+				c->link                  = "_envmap_irradiance5";
 				sc->constants->buffer[9] = c;
-			}
-			{
-				shader_const_t *c         = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                   = "shirr4";
-				c->type                   = "float4";
-				c->link                   = "_envmap_irradiance4";
-				sc->constants->buffer[10] = c;
-			}
-			{
-				shader_const_t *c         = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                   = "shirr5";
-				c->type                   = "float4";
-				c->link                   = "_envmap_irradiance5";
-				sc->constants->buffer[11] = c;
 			}
 			{
 				shader_const_t *c         = (shader_const_t *)calloc(1, sizeof(shader_const_t));
 				c->name                   = "shirr6";
 				c->type                   = "float4";
 				c->link                   = "_envmap_irradiance6";
-				sc->constants->buffer[12] = c;
+				sc->constants->buffer[10] = c;
 			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(10);
+			sc->texture_units = (tex_unit_t_array_t *)any_array_create(9);
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "gbufferD";
+				tu->name                     = "gbuffer0";
 				sc->texture_units->buffer[0] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "gbuffer0";
-				sc->texture_units->buffer[1] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "gbuffer1";
-				sc->texture_units->buffer[2] = tu;
+				sc->texture_units->buffer[1] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance";
 				tu->link                     = "_envmap_radiance";
-				sc->texture_units->buffer[3] = tu;
+				sc->texture_units->buffer[2] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance0";
 				tu->link                     = "_envmap_radiance0";
-				sc->texture_units->buffer[4] = tu;
+				sc->texture_units->buffer[3] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance1";
 				tu->link                     = "_envmap_radiance1";
-				sc->texture_units->buffer[5] = tu;
+				sc->texture_units->buffer[4] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance2";
 				tu->link                     = "_envmap_radiance2";
-				sc->texture_units->buffer[6] = tu;
+				sc->texture_units->buffer[5] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance3";
 				tu->link                     = "_envmap_radiance3";
-				sc->texture_units->buffer[7] = tu;
+				sc->texture_units->buffer[6] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "senvmap_radiance4";
 				tu->link                     = "_envmap_radiance4";
-				sc->texture_units->buffer[8] = tu;
+				sc->texture_units->buffer[7] = tu;
 			}
 			{
 				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
 				tu->name                     = "ssaotex";
-				sc->texture_units->buffer[9] = tu;
+				sc->texture_units->buffer[8] = tu;
 			}
 			sd->contexts->buffer[0] = sc;
 		}

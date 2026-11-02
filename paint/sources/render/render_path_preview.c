@@ -77,8 +77,7 @@ void render_path_preview_commands_preview() {
 	render_path_base_draw_meshes(render_path_base_mesh_scon(0), true);
 
 	// Deferred light
-	render_path_set_target("mtex", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	render_path_bind_target("mmain", "gbufferD");
+	render_path_set_target("mtex", NULL, "mmain", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_bind_target("mgbuffer0", "gbuffer0");
 	render_path_bind_target("mgbuffer1", "gbuffer1");
 	render_path_bind_target("empty_white", "ssaotex");
@@ -115,8 +114,7 @@ void render_path_preview_commands_decal() {
 
 	// Deferred light
 	char *output = "mtex";
-	render_path_set_target(output, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	render_path_bind_target("mmain", "gbufferD");
+	render_path_set_target(output, NULL, "mmain", GPU_CLEAR_NONE, 0, 0.0);
 	render_path_bind_target("mgbuffer0", "gbuffer0");
 	render_path_bind_target("mgbuffer1", "gbuffer1");
 	render_path_bind_target("empty_white", "ssaotex");

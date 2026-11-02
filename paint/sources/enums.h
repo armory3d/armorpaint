@@ -107,12 +107,6 @@ typedef enum {
 } platform_t;
 
 typedef enum {
-	RENDER_MODE_DEFERRED   = 0,
-	RENDER_MODE_FORWARD    = 1,
-	RENDER_MODE_PATH_TRACE = 2,
-} render_mode_t;
-
-typedef enum {
 	EXPORT_MODE_VISIBLE       = 0,
 	EXPORT_MODE_SELECTED      = 1,
 	EXPORT_MODE_PER_OBJECT    = 2,
