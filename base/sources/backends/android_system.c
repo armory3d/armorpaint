@@ -129,8 +129,17 @@ iron_display_mode_t iron_display_current_mode(int display) {
 	return mode;
 }
 
+static void wait_for_window() {
+	while (app->window == NULL) {
+		iron_internal_handle_messages();
+		if (app->destroyRequested) {
+			exit(0);
+		}
+	}
+}
+
 VkResult iron_vulkan_create_surface(VkInstance instance, VkSurfaceKHR *surface) {
-	assert(app->window != NULL);
+	wait_for_window();
 	VkAndroidSurfaceCreateInfoKHR createInfo = {0};
 	createInfo.sType                         = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
 	createInfo.pNext                         = NULL;
@@ -808,6 +817,7 @@ static void cmd(struct android_app *app, int32_t cmd) {
 		}
 		break;
 	case APP_CMD_TERM_WINDOW:
+		iron_vulkan_surface_destroyed();
 		updateAppForegroundStatus(false, appIsForeground);
 		break;
 	case APP_CMD_GAINED_FOCUS:
@@ -953,6 +963,7 @@ int iron_android_width() {
 	if (iron_vulkan_get_size(&width, &height)) {
 		return width;
 	}
+	wait_for_window();
 	return ANativeWindow_getWidth(app->window);
 }
 
@@ -961,6 +972,7 @@ int iron_android_height() {
 	if (iron_vulkan_get_size(&width, &height)) {
 		return height;
 	}
+	wait_for_window();
 	return ANativeWindow_getHeight(app->window);
 }
 
