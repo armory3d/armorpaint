@@ -62,7 +62,7 @@ void gpu_begin(gpu_texture_t **targets, int count, gpu_texture_t *depth_buffer, 
 		current_depth_buffer         = NULL;
 	}
 	else if (targets == NULL) {
-#ifdef IRON_VULKAN
+#if defined(IRON_VULKAN) || defined(IRON_METAL)
 		gpu_acquire_framebuffer();
 #endif
 		current_render_targets[0]    = &framebuffers[framebuffer_index];

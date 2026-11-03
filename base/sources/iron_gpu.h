@@ -29,7 +29,7 @@
 #define GPU_FRAMEBUFFER_COUNT 3
 #endif
 
-#ifdef IRON_VULKAN
+#if defined(IRON_VULKAN) || defined(IRON_METAL)
 #define GPU_FRAMES_IN_FLIGHT 2
 #else
 #define GPU_FRAMES_IN_FLIGHT 1
