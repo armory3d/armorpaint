@@ -109,6 +109,7 @@ void tab_swatches_draw_edit_menu() {
 	               &tab_swatches_draw_color_picker, NULL);
 
 	ui_slider(&g_context->swatch->opacity, "Opacity", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	g_context->swatch->opacity = math_max(0.0, math_min(1.0, g_context->swatch->opacity));
 
 	if (g_config->tools != TOOLS_SCULPT) {
 		ui_slider(&g_context->swatch->occlusion, "Occlusion", 0, 1, true, 100.0, true, UI_ALIGN_RIGHT, true);

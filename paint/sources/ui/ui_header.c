@@ -250,6 +250,7 @@ void ui_header_draw_tool_properties() {
 		}
 
 		ui_slider(&g_context->picked_color->opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		g_context->picked_color->opacity = math_max(0.0, math_min(1.0, g_context->picked_color->opacity));
 
 		ui_check(&g_context->picker_select_material, tr("Select Material"), "");
 
@@ -338,6 +339,7 @@ void ui_header_draw_tool_properties() {
 		}
 
 		ui_slider(&g_context->brush_opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		g_context->brush_opacity = math_max(0.0, math_min(1.0, g_context->brush_opacity));
 		if (g_ui->is_hovered) {
 			any_map_t *vars = any_map_create();
 			any_map_set(vars, "brush_opacity", any_map_get(g_keymap, "brush_opacity"));
