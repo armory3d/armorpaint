@@ -7,6 +7,7 @@ render_target_t_array_t *render_path_base_bloom_mipmaps;
 void render_path_base_init() {
 	pipes_init();
 	const_data_create_screen_aligned_data();
+	const_data_create_skydome_data();
 	render_path_base_super_sample = g_config->rp_supersample;
 
 	{
