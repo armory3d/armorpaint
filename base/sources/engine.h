@@ -605,6 +605,7 @@ void                 render_path_end(void);
 void                 render_path_draw_skydome(char *handle);
 void                 render_path_bind_target(char *target, char *uniform);
 void                 render_path_draw_shader(char *handle);
+void                 render_path_draw_shader_keep_target(char *handle);
 void                 render_path_load_shader(char *handle);
 void                 render_path_resize(void);
 render_target_t     *render_path_create_render_target(render_target_t *t);
