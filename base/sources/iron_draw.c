@@ -179,14 +179,19 @@ void draw_flush(void) {
 		return;
 	}
 
-	gpu_vertex_buffer_unlock(&draw_vbs[gpu_frame_index * DRAW_VB_COUNT + draw_vb_index]);
+	gpu_buffer_t *vb = &draw_vbs[gpu_frame_index * DRAW_VB_COUNT + draw_vb_index];
+	if (vb->version != 0) {
+		vb->count = draw_batch_count * 4;
+	}
+	gpu_vertex_buffer_unlock(vb);
+	vb->count        = DRAW_BATCH_QUADS * 4;
 	draw_batch_verts = NULL;
 
 	gpu_set_pipeline(draw_batch_pipeline);
 	if (draw_batch_texture != NULL) {
 		gpu_set_texture(0, draw_batch_texture);
 	}
-	gpu_set_vertex_buffer(&draw_vbs[gpu_frame_index * DRAW_VB_COUNT + draw_vb_index]);
+	gpu_set_vertex_buffer(vb);
 	gpu_set_index_buffer(&draw_ib);
 	draw_ib.count = draw_batch_count * 6;
 	gpu_draw();
