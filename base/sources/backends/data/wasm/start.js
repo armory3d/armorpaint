@@ -323,6 +323,10 @@ function id_to_blend_factor(id) {
 		return "one-minus-dst-alpha";
 }
 
+function id_to_compare_function(id) {
+	return [ undefined, "never", "less", "equal", "less-equal", "greater", "not-equal", "greater-equal", "always" ][id];
+}
+
 function id_to_filter_mode(id) {
 	if (id === 0x00000001)
 		return "nearest";
@@ -799,11 +803,7 @@ async function init() {
 		        // WGPUDepthStencilState
 		        let pds = read_u32(pdescriptor + 72);
 		        if (pds != 0) {
-			        let ds = {format : id_to_texture_format(read_u32(pds + 4)), depthWriteEnabled : read_u32(pds + 8), depthCompare : read_u32(pds + 12)};
-			        if (ds.depthCompare === 0x00000002)
-				        ds.depthCompare = "less";
-			        else if (ds.depthCompare === 0x00000008)
-				        ds.depthCompare = "always";
+			        let ds = {format : id_to_texture_format(read_u32(pds + 4)), depthWriteEnabled : read_u32(pds + 8), depthCompare : id_to_compare_function(read_u32(pds + 12))};
 			        desc.depthStencil = ds;
 		        }
 

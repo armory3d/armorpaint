@@ -341,6 +341,10 @@ void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
 	}
 
 	if (!framebuffer_acquired && current_render_targets[0] == &framebuffers[framebuffer_index]) {
+		if (framebuffers[0].impl.view != NULL) {
+			wgpuTextureViewRelease(framebuffers[0].impl.view);
+			wgpuTextureRelease(framebuffers[0].impl.texture);
+		}
 		WGPUSurfaceTexture surface_texture;
 		wgpuSurfaceGetCurrentTexture(surface, &surface_texture);
 		framebuffers[0].impl.texture        = surface_texture.texture;
@@ -568,12 +572,81 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 	}
 }
 
+#define BIND_GROUP_CACHE_SIZE   1024
+#define BIND_GROUP_CACHE_PROBES 4
+
+typedef struct {
+	WGPUBindGroupLayout layout;
+	WGPUSampler         sampler;
+	WGPUBuffer          buffer;
+	WGPUTextureView     views[GPU_MAX_TEXTURES];
+} bind_group_key_t;
+
+typedef struct {
+	bind_group_key_t key;
+	WGPUBindGroup    group;
+} bind_group_cache_entry_t;
+
+static bind_group_cache_entry_t bind_group_cache[BIND_GROUP_CACHE_SIZE];
+static uint32_t                 bind_group_cache_victim = 0;
+
+static uint32_t bind_group_key_hash(const bind_group_key_t *key) {
+	const uintptr_t *words = (const uintptr_t *)key;
+	uint32_t         hash  = 2166136261u;
+	for (size_t i = 0; i < sizeof(bind_group_key_t) / sizeof(uintptr_t); ++i) {
+		hash = (hash ^ (uint32_t)words[i]) * 16777619u;
+	}
+	return hash ^ (hash >> 16);
+}
+
+static void bind_group_cache_evict_view(WGPUTextureView view) {
+	for (int i = 0; i < BIND_GROUP_CACHE_SIZE; ++i) {
+		bind_group_cache_entry_t *entry = &bind_group_cache[i];
+		if (entry->group == NULL) {
+			continue;
+		}
+		for (int j = 0; j < GPU_MAX_TEXTURES; ++j) {
+			if (entry->key.views[j] == view) {
+				wgpuBindGroupRelease(entry->group);
+				entry->group = NULL;
+				break;
+			}
+		}
+	}
+}
+
 static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
+	bool             unfilterable = unfilterable_texture_bound();
+	bind_group_key_t key;
+	key.layout  = unfilterable ? descriptor_layout_unfilterable : descriptor_layout;
+	key.sampler = (linear_sampling && !unfilterable) ? linear_sampler : point_sampler;
+	key.buffer  = buffer;
+	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
+		key.views[i] = current_textures[i] ? current_textures[i]->impl.view : dummy_view;
+	}
+
+	uint32_t                  hash = bind_group_key_hash(&key);
+	bind_group_cache_entry_t *slot = NULL;
+	for (uint32_t i = 0; i < BIND_GROUP_CACHE_PROBES; ++i) {
+		bind_group_cache_entry_t *entry = &bind_group_cache[(hash + i) & (BIND_GROUP_CACHE_SIZE - 1)];
+		if (entry->group == NULL) {
+			if (slot == NULL) {
+				slot = entry;
+			}
+		}
+		else if (memcmp(&entry->key, &key, sizeof(key)) == 0) {
+			return entry->group;
+		}
+	}
+	if (slot == NULL) {
+		slot = &bind_group_cache[(hash + bind_group_cache_victim++ % BIND_GROUP_CACHE_PROBES) & (BIND_GROUP_CACHE_SIZE - 1)];
+		wgpuBindGroupRelease(slot->group);
+	}
+
 	WGPUBindGroupEntry entries[18];
 	memset(entries, 0, sizeof(entries));
 
-	bool unfilterable            = unfilterable_texture_bound();
-	int  entry_count             = 0;
+	int entry_count              = 0;
 	entries[entry_count].binding = 0;
 	entries[entry_count].buffer  = buffer;
 	entries[entry_count].offset  = 0;
@@ -581,28 +654,29 @@ static WGPUBindGroup get_descriptor_set(WGPUBuffer buffer) {
 	entry_count++;
 
 	entries[entry_count].binding = 1;
-	entries[entry_count].sampler = (linear_sampling && !unfilterable) ? linear_sampler : point_sampler;
+	entries[entry_count].sampler = key.sampler;
 	entry_count++;
 
 	for (int i = 0; i < GPU_MAX_TEXTURES; ++i) {
 		entries[entry_count].binding     = 2 + i;
-		entries[entry_count].textureView = current_textures[i] ? current_textures[i]->impl.view : dummy_view;
+		entries[entry_count].textureView = key.views[i];
 		entry_count++;
 	}
 
 	WGPUBindGroupDescriptor desc = {
-	    .layout     = unfilterable ? descriptor_layout_unfilterable : descriptor_layout,
+	    .layout     = key.layout,
 	    .entryCount = entry_count,
 	    .entries    = entries,
 	};
-	return wgpuDeviceCreateBindGroup(device, &desc);
+	slot->key   = key;
+	slot->group = wgpuDeviceCreateBindGroup(device, &desc);
+	return slot->group;
 }
 
 void gpu_set_constant_buffer(gpu_buffer_t *buffer, uint32_t offset, size_t size) {
 	WGPUBindGroup bind_group = get_descriptor_set(buffer->impl.buf);
 	uint32_t      offsets[1] = {(uint32_t)offset};
 	wgpuRenderPassEncoderSetBindGroup(render_pass_encoder, 0, bind_group, 1, offsets);
-	wgpuBindGroupRelease(bind_group);
 }
 
 void gpu_set_texture(uint32_t unit, gpu_texture_t *texture) {
@@ -844,6 +918,7 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 }
 
 void gpu_texture_destroy_internal(gpu_texture_t *target) {
+	bind_group_cache_evict_view(target->impl.view);
 	wgpuTextureDestroy(target->impl.texture);
 	wgpuTextureRelease(target->impl.texture);
 	wgpuTextureViewRelease(target->impl.view);
