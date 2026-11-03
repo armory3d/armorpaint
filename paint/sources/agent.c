@@ -609,7 +609,7 @@ static void agent_restore(void (*done)(void)) {
 	agent_restore_capture = console_capture != NULL ? console_capture : "";
 	console_capture       = NULL;
 	player_runtime_reset();
-	agent_reload_frames = GPU_FRAMEBUFFER_COUNT + 1;
+	agent_reload_frames = GPU_FRAMES_IN_FLIGHT + 1;
 	sys_notify_on_next_frame(agent_restore_reload, NULL);
 }
 

@@ -22,7 +22,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
                                                                 2),
 	                                                             .depth_attachment = "D32"});
 
-	if (viewport) {
+	if (viewport && render_path_base_gbuffer_uv()) {
 		string_array_push(props->color_attachments, "RGBA64");
 	}
 
@@ -78,7 +78,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 		node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(opac)));
 	}
 
-	kong->frag_out = viewport ? "float4[3]" : "float4[2]";
+	kong->frag_out = viewport && render_path_base_gbuffer_uv() ? "float4[3]" : "float4[2]";
 	kong->frag_n   = true;
 
 	node_shader_add_function(kong, str_pack_float_int16);
@@ -142,7 +142,7 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 		node_shader_write_frag(kong, "output[1] = float4(lerp(float3(0.0, 0.0, 0.0), basecol, opacity), occlusion);");
 	}
 
-	if (viewport) {
+	if (viewport && render_path_base_gbuffer_uv()) {
 		node_shader_write_frag(kong, "output[2] = float4(0.0, 0.0, 0.0, 0.0);");
 	}
 

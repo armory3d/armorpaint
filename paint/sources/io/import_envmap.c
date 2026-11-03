@@ -13,6 +13,9 @@ void import_envmap_get_radiance_mip(gpu_texture_t *mip, i32 level, gpu_texture_t
 #ifdef IRON_METAL
 	i32 pass_count         = 8; // 32;
 	import_envmap_params.y = 512;
+#elif defined(IRON_ANDROID)
+	i32 pass_count         = 1;
+	import_envmap_params.y = 1024;
 #else
 	i32 pass_count         = 1;
 	import_envmap_params.y = 1024 * 16;

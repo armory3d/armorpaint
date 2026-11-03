@@ -122,6 +122,10 @@ void brush_output_node_run() {
 		return;
 	}
 
+	if (args_player) {
+		return;
+	}
+
 	bool picking_object = g_context->tool == TOOL_TYPE_CURSOR;
 
 	// Do not paint over fill layer

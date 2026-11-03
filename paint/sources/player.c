@@ -212,6 +212,6 @@ void player_stop() {
 	}
 	player_stopping = true;
 	player_runtime_reset();
-	player_reload_frames = GPU_FRAMEBUFFER_COUNT + 1;
+	player_reload_frames = GPU_FRAMES_IN_FLIGHT + 1;
 	sys_notify_on_next_frame(player_stop_reload, NULL);
 }

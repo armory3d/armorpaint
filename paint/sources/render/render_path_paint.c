@@ -831,6 +831,7 @@ void render_path_paint_draw_cursor(f32 mx, f32 my, f32 radius, f32 tint_r, f32 t
 	mesh_object_t *plane = scene_get_child(".Plane")->ext;
 	mesh_data_t   *geom  = plane->data;
 
+	gpu_vertex_textures = true;
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	gpu_set_pipeline(pipes_cursor);
 	render_target_t *rt   = any_map_get(render_path_render_targets, render_path_paint_depth());
@@ -870,6 +871,7 @@ void render_path_paint_draw_cursor_decal(f32 mx, f32 my, f32 radius, f32 opacity
 		brush_nodes_angle   = 0.0;
 	}
 
+	gpu_vertex_textures = true;
 	render_path_set_target("", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 	gpu_set_pipeline(pipes_cursor_decal);
 	render_target_t *rt   = any_map_get(render_path_render_targets, render_path_paint_depth());
@@ -952,6 +954,10 @@ void render_path_paint_commands_cursor() {
 }
 
 bool render_path_paint_paint_enabled() {
+	if (args_player) {
+		return false;
+	}
+
 	if (g_context->tool >= TOOL_TYPE_PLUGIN) {
 		return false; // Plugin tools handle the strokes themselves
 	}

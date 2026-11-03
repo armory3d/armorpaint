@@ -465,6 +465,8 @@ void                   render_path_preview_commands_decal();
 node_shader_context_t *make_paint_run(material_t *data);
 node_shader_context_t *make_paint_run_context(material_t *data, char *context_id);
 node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport);
+bool                   render_pass_any();
+bool                   render_path_base_gbuffer_uv();
 shader_data_t         *make_mesh_preview_viewport(slot_material_t *slot);
 void                   import_sound_run(char *path);
 void                   import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool keep_camera);

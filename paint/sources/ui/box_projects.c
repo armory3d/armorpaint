@@ -35,7 +35,7 @@ void box_projects_load_on_next_frame(void *_) {
 void box_projects_load(char *path) {
 	ui_box_hide();
 	_box_projects_load_path   = string_copy(path);
-	_box_projects_load_frames = GPU_FRAMEBUFFER_COUNT + 1;
+	_box_projects_load_frames = GPU_FRAMES_IN_FLIGHT + 1;
 	sys_notify_on_next_frame(&box_projects_load_on_next_frame, NULL);
 }
 

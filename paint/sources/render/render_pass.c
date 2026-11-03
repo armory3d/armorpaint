@@ -159,6 +159,10 @@ void render_pass_remove_all() {
 	}
 }
 
+bool render_pass_any() {
+	return render_pass_list != NULL && render_pass_list->length > 0;
+}
+
 void render_pass_draw(render_pass_stage_t stage, char *target) {
 	if (render_pass_list == NULL) {
 		return;

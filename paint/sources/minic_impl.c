@@ -444,7 +444,7 @@ static bool script_paint_active = false;
 static bool script_paint_first  = true;
 
 static bool script_paint_allowed(void) {
-	if (g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
+	if (args_player || g_context == NULL || g_context->layer == NULL || g_context->material == NULL) {
 		return false;
 	}
 	if (slot_layer_is_group(g_context->layer)) {
@@ -1119,7 +1119,7 @@ slot_layer_t *script_layer_new_text(char *text) {
 
 bool script_layer_add_path_point(slot_layer_t *l, f32 x, f32 y) {
 	// x, y in 0..1 viewport space like script_paint(), a curve takes anchor, control, anchor, control, ...
-	if (!script_layer_valid(l) || !slot_layer_is_path(l)) {
+	if (args_player || !script_layer_valid(l) || !slot_layer_is_path(l)) {
 		return false;
 	}
 	gpu_texture_t *current;
@@ -1142,7 +1142,7 @@ bool script_layer_add_path_point(slot_layer_t *l, f32 x, f32 y) {
 
 void script_layer_repaint_path(slot_layer_t *l) {
 	// Repaints with the current path material, after its nodes or the path points changed
-	if (!script_layer_valid(l) || !slot_layer_is_path(l)) {
+	if (args_player || !script_layer_valid(l) || !slot_layer_is_path(l)) {
 		return;
 	}
 	gpu_texture_t *current;

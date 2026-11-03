@@ -108,7 +108,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
                                                                     "RGBA64",
                                                                     "RGBA64",
                                                                 },
-                                                                3),
+                                                                render_path_base_gbuffer_uv() ? 3 : 2),
 	                                                                  .depth_attachment = "D32"});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);
 
@@ -148,7 +148,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	}
 	char *tex_coord_layer = util_mesh_udim_layer(g_context->layer) ? "tex_coord_atlas" : "tex_coord";
 
-	kong->frag_out = "float4[3]";
+	kong->frag_out = render_path_base_gbuffer_uv() ? "float4[3]" : "float4[2]";
 	kong->frag_n   = true;
 	node_shader_add_function(kong, str_pack_float_int16);
 
@@ -641,8 +641,10 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	}
 
 	// Half floats, split the texcoord into a coarse part and a residual
-	node_shader_write_frag(kong, string_tmp("float2 tex_coord_hi = floor(%s.xy * 256.0) / 256.0;", tex_coord_layer));
-	node_shader_write_frag(kong, string_tmp("output[2] = float4(%s.xy - tex_coord_hi, tex_coord_hi);", tex_coord_layer));
+	if (render_path_base_gbuffer_uv()) {
+		node_shader_write_frag(kong, string_tmp("float2 tex_coord_hi = floor(%s.xy * 256.0) / 256.0;", tex_coord_layer));
+		node_shader_write_frag(kong, string_tmp("output[2] = float4(%s.xy - tex_coord_hi, tex_coord_hi);", tex_coord_layer));
+	}
 
 	parser_material_finalize(con_mesh);
 
