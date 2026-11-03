@@ -294,7 +294,10 @@ void gpu_draw_internal() {
 	                            indexCount:current_ib->count
 	                             indexType:MTLIndexTypeUInt32
 	                           indexBuffer:index_buffer
-	                     indexBufferOffset:0];
+	                     indexBufferOffset:0
+	                         instanceCount:1
+	                            baseVertex:current_vb->start
+	                          baseInstance:0];
 }
 
 void gpu_viewport(int x, int y, int width, int height) {
@@ -691,6 +694,7 @@ void gpu_render_target_init(gpu_texture_t *target, uint32_t width, uint32_t heig
 
 void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_structure_t *structure) {
 	buffer->count = count;
+	buffer->start = 0;
 	for (int i = 0; i < structure->size; ++i) {
 		gpu_vertex_element_t element = structure->elements[i];
 		buffer->stride += gpu_vertex_data_size(element.data);

@@ -11,7 +11,7 @@
 #include <string.h>
 
 #define DRAW_BATCH_QUADS         512
-#define DRAW_VB_COUNT            64
+#define DRAW_VB_QUADS            8192
 #define DRAW_FONT_FLATNESS       0.1f
 #define DRAW_FONT_COVERAGE_GAMMA 0.8f
 #define DRAW_FONT_BEARING_LOSS   0.2f
@@ -25,7 +25,7 @@ static uint32_t        draw_color           = 0;
 static gpu_pipeline_t *draw_custom_pipeline = NULL;
 
 int                           draw_vb_index = 0;
-static gpu_buffer_t           draw_vbs[DRAW_VB_COUNT * GPU_FRAMES_IN_FLIGHT];
+static gpu_buffer_t           draw_vbs[GPU_FRAMES_IN_FLIGHT];
 static gpu_buffer_t           draw_ib;
 static gpu_vertex_structure_t draw_structure;
 
@@ -95,8 +95,8 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 	gpu_vertex_structure_add(&draw_structure, "tex", GPU_VERTEX_DATA_F32_2X);
 	gpu_vertex_structure_add(&draw_structure, "col", GPU_VERTEX_DATA_F32_4X);
 
-	for (int i = 0; i < DRAW_VB_COUNT * GPU_FRAMES_IN_FLIGHT; ++i) {
-		gpu_vertex_buffer_init(&draw_vbs[i], DRAW_BATCH_QUADS * 4, &draw_structure);
+	for (int i = 0; i < GPU_FRAMES_IN_FLIGHT; ++i) {
+		gpu_vertex_buffer_init(&draw_vbs[i], DRAW_VB_QUADS * 4, &draw_structure);
 		draw_vbs[i].cpu_write = true;
 	}
 
@@ -179,12 +179,11 @@ void draw_flush(void) {
 		return;
 	}
 
-	gpu_buffer_t *vb = &draw_vbs[gpu_frame_index * DRAW_VB_COUNT + draw_vb_index];
-	if (vb->version != 0) {
-		vb->count = draw_batch_count * 4;
-	}
+	gpu_buffer_t *vb = &draw_vbs[gpu_frame_index];
+	vb->start        = draw_vb_index * 4;
+	vb->count        = draw_batch_count * 4;
 	gpu_vertex_buffer_unlock(vb);
-	vb->count        = DRAW_BATCH_QUADS * 4;
+	vb->count        = DRAW_VB_QUADS * 4;
 	draw_batch_verts = NULL;
 
 	gpu_set_pipeline(draw_batch_pipeline);
@@ -196,10 +195,14 @@ void draw_flush(void) {
 	draw_ib.count = draw_batch_count * 6;
 	gpu_draw();
 
-	if (++draw_vb_index == DRAW_VB_COUNT) {
+	draw_vb_index += draw_batch_count;
+#ifdef IRON_WASM
+	static int flushes = 0;
+	if (++flushes == 64) {
+		flushes = 0;
 		gpu_execute_and_wait();
-		draw_vb_index = 0;
 	}
+#endif
 	draw_batch_count    = 0;
 	draw_batch_pipeline = NULL;
 	draw_batch_texture  = NULL;
@@ -218,7 +221,11 @@ static void draw_push(gpu_pipeline_t *pipeline, gpu_texture_t *tex, float x0, fl
 	draw_batch_texture  = tex;
 
 	if (draw_batch_verts == NULL) {
-		draw_batch_verts = (float *)gpu_vertex_buffer_lock(&draw_vbs[gpu_frame_index * DRAW_VB_COUNT + draw_vb_index]);
+		if (draw_vb_index + DRAW_BATCH_QUADS > DRAW_VB_QUADS) {
+			gpu_execute_and_wait();
+			draw_vb_index = 0;
+		}
+		draw_batch_verts = (float *)gpu_vertex_buffer_lock(&draw_vbs[gpu_frame_index]) + draw_vb_index * 4 * 8;
 	}
 
 	float *vp = draw_batch_verts + draw_batch_count * 4 * 8;

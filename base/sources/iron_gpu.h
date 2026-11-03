@@ -115,6 +115,7 @@ typedef struct gpu_buffer {
 	uint8_t          *data; // constant buffer data
 	bool              cpu_write;
 	uint32_t          version;
+	uint32_t          start;
 	gpu_buffer_impl_t impl;
 } gpu_buffer_t;
 

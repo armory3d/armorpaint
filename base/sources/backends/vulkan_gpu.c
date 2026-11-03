@@ -1248,7 +1248,7 @@ void gpu_present_internal() {
 }
 
 void gpu_draw_internal() {
-	vkCmdDrawIndexed(command_buffer, current_ib->count, 1, 0, 0, 0);
+	vkCmdDrawIndexed(command_buffer, current_ib->count, 1, 0, current_vb->start, 0);
 }
 
 void gpu_viewport(int x, int y, int width, int height) {
@@ -2349,6 +2349,7 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 		gpu_vertex_element_t element = structure->elements[i];
 		buffer->stride += gpu_vertex_data_size(element.data);
 	}
+	buffer->start        = 0;
 	buffer->cpu_write    = false;
 	buffer->impl.buf     = NULL;
 	buffer->impl.cpu_buf = NULL;

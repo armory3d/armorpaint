@@ -592,7 +592,7 @@ void gpu_internal_set_textures() {
 void gpu_draw_internal() {
 	gpu_internal_set_textures();
 	command_list->lpVtbl->IASetPrimitiveTopology(command_list, D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	command_list->lpVtbl->DrawIndexedInstanced(command_list, current_ib->count, 1, 0, 0, 0);
+	command_list->lpVtbl->DrawIndexedInstanced(command_list, current_ib->count, 1, 0, current_vb->start, 0);
 }
 
 void gpu_viewport(int x, int y, int width, int height) {
@@ -1302,6 +1302,7 @@ void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_str
 	for (int i = 0; i < structure->size; ++i) {
 		buffer->stride += gpu_vertex_data_size(structure->elements[i].data);
 	}
+	buffer->start                                 = 0;
 	buffer->cpu_write                             = false;
 	buffer->impl.vertex_buffer_view.SizeInBytes   = buffer->stride * buffer->count;
 	buffer->impl.vertex_buffer_view.StrideInBytes = buffer->stride;
@@ -1325,9 +1326,13 @@ void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 
 void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->version = ++gpu_buffer_versions;
-	if (!buffer->cpu_write || buffer->impl.buffer == NULL) {
-		_gpu_buffer_init(&buffer->impl.buffer, gpu_buffer_alloc_size(buffer->count, buffer->stride), D3D12_HEAP_TYPE_DEFAULT);
+	if (buffer->cpu_write) {
+		buffer->impl.cpu_buffer->lpVtbl->Unmap(buffer->impl.cpu_buffer, 0, NULL);
+		buffer->impl.vertex_buffer_view.BufferLocation = buffer->impl.cpu_buffer->lpVtbl->GetGPUVirtualAddress(buffer->impl.cpu_buffer);
+		return;
 	}
+
+	_gpu_buffer_init(&buffer->impl.buffer, gpu_buffer_alloc_size(buffer->count, buffer->stride), D3D12_HEAP_TYPE_DEFAULT);
 
 	D3D12_RANGE range = {
 	    .Begin = 0,
@@ -1340,11 +1345,8 @@ void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	                                       gpu_buffer_alloc_size(buffer->count, buffer->stride));
 	_gpu_barrier(buffer->impl.buffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	buffer->impl.vertex_buffer_view.BufferLocation = buffer->impl.buffer->lpVtbl->GetGPUVirtualAddress(buffer->impl.buffer);
-
-	if (!buffer->cpu_write) {
-		queue_resource_destroy(buffer->impl.cpu_buffer);
-		buffer->impl.cpu_buffer = NULL;
-	}
+	queue_resource_destroy(buffer->impl.cpu_buffer);
+	buffer->impl.cpu_buffer = NULL;
 }
 
 void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {

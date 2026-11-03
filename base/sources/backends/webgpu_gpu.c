@@ -474,7 +474,7 @@ void gpu_draw_internal() {
 	if (unfilterable_texture_bound()) {
 		wgpuRenderPassEncoderSetPipeline(render_pass_encoder, current_pipeline->impl.pipeline_unfilterable);
 	}
-	wgpuRenderPassEncoderDrawIndexed(render_pass_encoder, current_ib->count, 1, 0, 0, 0);
+	wgpuRenderPassEncoderDrawIndexed(render_pass_encoder, current_ib->count, 1, 0, current_vb->start, 0);
 }
 
 void gpu_viewport(int x, int y, int width, int height) {
@@ -939,6 +939,7 @@ static void _gpu_buffer_copy(WGPUBuffer dest, WGPUBuffer source, uint32_t size) 
 
 void gpu_vertex_buffer_init(gpu_buffer_t *buffer, uint32_t count, gpu_vertex_structure_t *structure) {
 	buffer->count  = count;
+	buffer->start  = 0;
 	buffer->stride = 0;
 	for (int i = 0; i < structure->size; ++i) {
 		buffer->stride += gpu_vertex_data_size(structure->elements[i].data);
@@ -957,7 +958,8 @@ void *gpu_vertex_buffer_lock(gpu_buffer_t *buffer) {
 
 void gpu_vertex_buffer_unlock(gpu_buffer_t *buffer) {
 	buffer->version = ++gpu_buffer_versions;
-	wgpuQueueWriteBuffer(queue, buffer->impl.buf, 0, buffer->impl.mem, buffer->count * buffer->stride);
+	uint32_t start  = buffer->start * buffer->stride;
+	wgpuQueueWriteBuffer(queue, buffer->impl.buf, start, (uint8_t *)buffer->impl.mem + start, buffer->count * buffer->stride);
 }
 
 void gpu_index_buffer_init(gpu_buffer_t *buffer, uint32_t count) {
