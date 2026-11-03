@@ -1104,9 +1104,9 @@ void gpu_begin_internal(gpu_clear_t flags, uint32_t color, float depth) {
 		    .imageLayout        = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		    .resolveMode        = VK_RESOLVE_MODE_NONE,
 		    .resolveImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		    .loadOp             = (flags & GPU_CLEAR_COLOR)           ? VK_ATTACHMENT_LOAD_OP_CLEAR
-		                          : (flags & GPU_CLEAR_DISCARD_COLOR) ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
-		                                                              : VK_ATTACHMENT_LOAD_OP_LOAD,
+		    .loadOp             = (flags & GPU_CLEAR_COLOR)             ? VK_ATTACHMENT_LOAD_OP_CLEAR
+		                          : (flags & GPU_CLEAR_DONT_LOAD_COLOR) ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
+		                                                                : VK_ATTACHMENT_LOAD_OP_LOAD,
 		    .storeOp            = VK_ATTACHMENT_STORE_OP_STORE,
 		    .clearValue         = clear_value,
 		};
@@ -1120,7 +1120,7 @@ void gpu_begin_internal(gpu_clear_t flags, uint32_t color, float depth) {
 		    .resolveMode        = VK_RESOLVE_MODE_NONE,
 		    .resolveImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		    .loadOp             = (flags & GPU_CLEAR_DEPTH) ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD,
-		    .storeOp            = (flags & GPU_DISCARD_DEPTH_STORE) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE,
+		    .storeOp            = (flags & GPU_CLEAR_DONT_STORE_DEPTH) ? VK_ATTACHMENT_STORE_OP_DONT_CARE : VK_ATTACHMENT_STORE_OP_STORE,
 		    .clearValue         = depth,
 		};
 	}
