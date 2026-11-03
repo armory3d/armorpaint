@@ -27,6 +27,8 @@ gpu_texture_t   framebuffers[GPU_FRAMEBUFFER_COUNT];
 gpu_texture_t   framebuffer_depth;
 gpu_texture_t  *gpu_framebuffer_redirect = NULL;
 uint32_t        framebuffer_index        = 0;
+int             gpu_frame_index          = 0;
+bool            gpu_vertex_textures      = true;
 #ifndef NDEBUG
 uint32_t gpu_debug_draw_calls       = 0;
 uint32_t gpu_debug_draw_calls_frame = 0;
@@ -60,6 +62,9 @@ void gpu_begin(gpu_texture_t **targets, int count, gpu_texture_t *depth_buffer, 
 		current_depth_buffer         = NULL;
 	}
 	else if (targets == NULL) {
+#ifdef IRON_VULKAN
+		gpu_acquire_framebuffer();
+#endif
 		current_render_targets[0]    = &framebuffers[framebuffer_index];
 		current_render_targets_count = 1;
 		current_depth_buffer         = framebuffer_depth.width > 0 ? &framebuffer_depth : NULL;
@@ -367,6 +372,9 @@ static const int                    rt_constant_buffer_size = 24;
 
 void _gpu_raytrace_init(buffer_t *shader) {
 	if (rt_created) {
+		if (GPU_FRAMES_IN_FLIGHT > 1) {
+			gpu_execute_and_wait();
+		}
 		gpu_buffer_destroy(&rt_constant_buffer);
 		gpu_raytrace_pipeline_destroy(&rt_pipeline);
 	}
@@ -395,6 +403,9 @@ void _gpu_raytrace_as_build() {
 }
 
 void _gpu_raytrace_dispatch_rays(gpu_texture_t *render_target, buffer_t *buffer) {
+	if (GPU_FRAMES_IN_FLIGHT > 1) {
+		gpu_execute_and_wait();
+	}
 	float *cb = (float *)buffer->buffer;
 	gpu_constant_buffer_lock(&rt_constant_buffer, 0, rt_constant_buffer.count);
 	for (int i = 0; i < rt_constant_buffer_size; ++i) {
