@@ -215,7 +215,6 @@ f32                       ui_view2d_pan_x            = 0.0;
 f32                       ui_view2d_pan_y            = 0.0;
 f32                       ui_view2d_pan_scale        = 1.0;
 bool                      ui_view2d_tiled_show       = false;
-bool                      ui_view2d_grid_redraw      = true;
 sound_t                  *ui_view2d_sound_playing    = NULL;
 bool                      player_running             = false;
 bool                      player_in_editor           = false;

@@ -848,8 +848,7 @@ void base_resize() {
 
 	g_context->ddirty = 2;
 
-	ui_nodes_grid_redraw  = true;
-	ui_view2d_grid_redraw = true;
+	ui_nodes_grid_redraw = true;
 
 	base_redraw_ui();
 }

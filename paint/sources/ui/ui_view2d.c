@@ -11,7 +11,7 @@ f32                  _ui_view2d_render_x;
 f32                  _ui_view2d_render_y;
 f32                  _ui_view2d_render_tw;
 f32                  _ui_view2d_render_th;
-gpu_texture_t       *ui_view2d_grid            = NULL;
+i32                  _ui_view2d_tex_w          = 0;
 bool                 ui_view2d_layer_touched   = false;
 gpu_texture_t       *ui_view2d_tex             = NULL;
 i32                  ui_view2d_tex_channel     = 0;
@@ -423,24 +423,24 @@ void ui_view2d_update(void *_) {
 		ui_view2d_pan_y += control->pan_y;
 		ui_view2d_controls_down = control->controls_down;
 		if (control->zoom != 0.0) {
-			f32 _pan_x = ui_view2d_pan_x / (float)ui_view2d_pan_scale;
-			f32 _pan_y = ui_view2d_pan_y / (float)ui_view2d_pan_scale;
-			ui_view2d_pan_scale += control->zoom;
+			f32 old_scale = ui_view2d_pan_scale;
+			f32 max_scale = _ui_view2d_tex_w > 0 ? fmax(16.0 * _ui_view2d_tex_w / (fmin(ui_view2d_ww, ui_view2d_wh) * 0.9), old_scale) : 6.0;
+			ui_view2d_pan_scale *= math_exp(control->zoom);
 			if (ui_view2d_pan_scale < 0.1) {
 				ui_view2d_pan_scale = 0.1;
 			}
-			if (ui_view2d_pan_scale > 6.0) {
-				ui_view2d_pan_scale = 6.0;
+			if (ui_view2d_pan_scale > max_scale) {
+				ui_view2d_pan_scale = max_scale;
 			}
-			ui_view2d_pan_x = _pan_x * ui_view2d_pan_scale;
-			ui_view2d_pan_y = _pan_y * ui_view2d_pan_scale;
+			f32 ratio = ui_view2d_pan_scale / old_scale;
+			ui_view2d_pan_x *= ratio;
+			ui_view2d_pan_y *= ratio;
 
 			if (ui_touch_control) {
 				// Zoom to finger location
-				ui_view2d_pan_x -= (g_ui->input_x - ui_view2d_wx - ui_view2d_ww / 2.0) * control->zoom;
-				ui_view2d_pan_y -= (g_ui->input_y - ui_view2d_wy - ui_view2d_wh / 2.0) * control->zoom;
+				ui_view2d_pan_x -= (g_ui->input_x - ui_view2d_wx - ui_view2d_ww / 2.0) * (ratio - 1.0);
+				ui_view2d_pan_y -= (g_ui->input_y - ui_view2d_wy - ui_view2d_wh / 2.0) * (ratio - 1.0);
 			}
-			ui_view2d_grid_redraw = true;
 		}
 
 		bool decal_mask = context_is_decal_mask_paint();
@@ -546,15 +546,6 @@ void ui_view2d_update(void *_) {
 		ui_view2d_hwnd->redraws = 2;
 	}
 
-	// Cache grid
-	if (ui_view2d_grid_redraw) {
-		if (ui_view2d_grid != NULL) {
-			gpu_delete_texture(ui_view2d_grid);
-		}
-		ui_view2d_grid        = ui_nodes_draw_grid(ui_view2d_pan_scale);
-		ui_view2d_grid_redraw = false;
-	}
-
 	// Ensure UV map is drawn
 	if (ui_view2d_uvmap_show || ui_view2d_type == VIEW_2D_TYPE_UVMAP) {
 		util_uv_cache_uv_map();
@@ -575,12 +566,6 @@ void ui_view2d_update(void *_) {
 			ui_dock_view_tabs(TAB_VIEW2D);
 		}
 
-		// Grid
-		// draw_set_color(0xffffffff);
-		// let step: f32 = ui_nodes_grid_cell_w * ui_view2d_pan_scale;
-		// let x: f32    = math_fmod(ui_view2d_pan_x, step) - step;
-		// let y: f32    = math_fmod(ui_view2d_pan_y, step) - step;
-		// draw_image(ui_view2d_grid, x, y);
 		draw_set_color(g_theme->SEPARATOR_COL + 0x00020202);
 		draw_filled_rect(0, 0, ui_view2d_ww, ui_view2d_wh);
 		draw_set_color(0xffffffff);
@@ -660,6 +645,8 @@ void ui_view2d_update(void *_) {
 			ui_view2d_draw_waveform(g_context->sound->sound, ui_view2d_ww / 2.0 - sw / 2.0 + ui_view2d_pan_x, apph / 2.0 - sh / 2.0 + ui_view2d_pan_y, sw, sh);
 		}
 #endif
+
+		_ui_view2d_tex_w = tex != NULL ? tex->width : 0;
 
 		f32 tx, ty, tw, th;
 		ui_view2d_tex_rect(tex != NULL ? tex->height / (float)tex->width : 1.0, &tx, &ty, &tw, &th);
@@ -750,6 +737,27 @@ void ui_view2d_update(void *_) {
 			}
 			for (f32 gy = ty; gy <= ty + th + 0.5; gy += stepy) {
 				draw_filled_rect(tx, math_floor(gy), tw, 1);
+			}
+			draw_set_color(0xffffffff);
+		}
+
+		if (tex != NULL && math_round(tw / (float)tex->width * 100) >= 1600) {
+			f32 stepx = tw / (float)tex->width;
+			f32 stepy = th / (float)tex->height;
+			f32 x0    = fmax(tx, 0);
+			f32 y0    = fmax(ty, 0);
+			f32 x1    = fmin(tx + tw, ui_view2d_ww);
+			f32 y1    = fmin(ty + th, ui_view2d_wh);
+			i32 i0    = math_ceil((x0 - tx) / stepx);
+			i32 i1    = math_floor((x1 - tx) / stepx);
+			i32 j0    = math_ceil((y0 - ty) / stepy);
+			i32 j1    = math_floor((y1 - ty) / stepy);
+			draw_set_color(0x55ffffff);
+			for (i32 i = i0; i <= i1; ++i) {
+				draw_filled_rect(math_floor(tx + i * stepx), y0, 1, y1 - y0);
+			}
+			for (i32 j = j0; j <= j1; ++j) {
+				draw_filled_rect(x0, math_floor(ty + j * stepy), x1 - x0, 1);
 			}
 			draw_set_color(0xffffffff);
 		}
