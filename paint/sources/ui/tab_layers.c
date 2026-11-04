@@ -795,6 +795,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 	f32 mask_opacity = l->mask_opacity;
 	ui_set_next_id((ui_id_t)&l->mask_opacity);
 	ui_slider(&mask_opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	mask_opacity = math_max(0.0, math_min(1.0, mask_opacity));
 	if (ui_item_changed()) {
 		if (g_ui->input_started) {
 			history_layer_opacity();

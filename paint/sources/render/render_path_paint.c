@@ -888,7 +888,7 @@ void render_path_paint_draw_cursor_decal(f32 mx, f32 my, f32 radius, f32 opacity
 	vec4_t up = vec4_norm(camera_object_up_world(scene_camera));
 	gpu_set_float3(pipes_cursor_decal_camera_up, up.x, up.y, up.z);
 	gpu_set_float(pipes_cursor_decal_camera_align, context_is_brush_camera_align() ? 1.0f : 0.0f);
-	f32 opacity = g_context->brush_opacity * brush_nodes_opacity * opacity_scale;
+	f32 opacity = math_max(0.0, math_min(1.0, g_context->brush_opacity * brush_nodes_opacity * opacity_scale));
 	gpu_set_float(pipes_cursor_decal_opacity, opacity);
 	f32 angle = (g_context->brush_angle + brush_nodes_angle) * (math_pi() / 180.0);
 	gpu_set_float2(pipes_cursor_decal_angle, math_cos(angle), math_sin(angle));
