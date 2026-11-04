@@ -650,9 +650,15 @@ void ui_view2d_update(void *_) {
 
 		f32 tx, ty, tw, th;
 		ui_view2d_tex_rect(tex != NULL ? tex->height / (float)tex->width : 1.0, &tx, &ty, &tw, &th);
+		bool pixel_view = tex != NULL && math_round(tw / (float)tex->width * 100) >= 1600;
 		if (tex != NULL) {
 			if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
 				draw_set_pipeline(ui_view2d_pipe);
+			}
+
+			if (pixel_view) {
+				draw_flush();
+				gpu_use_linear_sampling(false);
 			}
 
 			f32 ox, oy;
@@ -670,6 +676,11 @@ void ui_view2d_update(void *_) {
 				ui_view2d_draw_image(tex, mx + tw, my + th, tw, th, channel);
 				ui_view2d_draw_image(tex, mx, my - th, tw, th, channel);
 				ui_view2d_draw_image(tex, mx, my + th, tw, th, channel);
+			}
+
+			if (pixel_view) {
+				draw_flush();
+				gpu_use_linear_sampling(g_config->texture_filter);
 			}
 
 			if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
@@ -741,23 +752,25 @@ void ui_view2d_update(void *_) {
 			draw_set_color(0xffffffff);
 		}
 
-		if (tex != NULL && math_round(tw / (float)tex->width * 100) >= 1600) {
-			f32 stepx = tw / (float)tex->width;
-			f32 stepy = th / (float)tex->height;
-			f32 x0    = fmax(tx, 0);
-			f32 y0    = fmax(ty, 0);
-			f32 x1    = fmin(tx + tw, ui_view2d_ww);
-			f32 y1    = fmin(ty + th, ui_view2d_wh);
-			i32 i0    = math_ceil((x0 - tx) / stepx);
-			i32 i1    = math_floor((x1 - tx) / stepx);
-			i32 j0    = math_ceil((y0 - ty) / stepy);
-			i32 j1    = math_floor((y1 - ty) / stepy);
+		if (pixel_view) {
+			i32 ix    = (i32)tx;
+			i32 iy    = (i32)ty;
+			f32 stepx = (i32)tw / (float)tex->width;
+			f32 stepy = (i32)th / (float)tex->height;
+			f32 x0    = fmax(ix, 0);
+			f32 y0    = fmax(iy, 0);
+			f32 x1    = fmin(ix + (i32)tw, ui_view2d_ww);
+			f32 y1    = fmin(iy + (i32)th, ui_view2d_wh);
+			i32 i0    = math_ceil((x0 - ix) / stepx);
+			i32 i1    = math_floor((x1 - ix) / stepx);
+			i32 j0    = math_ceil((y0 - iy) / stepy);
+			i32 j1    = math_floor((y1 - iy) / stepy);
 			draw_set_color(0x55ffffff);
 			for (i32 i = i0; i <= i1; ++i) {
-				draw_filled_rect(math_floor(tx + i * stepx), y0, 1, y1 - y0);
+				draw_filled_rect(math_floor(ix + i * stepx), y0, 1, y1 - y0);
 			}
 			for (i32 j = j0; j <= j1; ++j) {
-				draw_filled_rect(x0, math_floor(ty + j * stepy), x1 - x0, 1);
+				draw_filled_rect(x0, math_floor(iy + j * stepy), x1 - x0, 1);
 			}
 			draw_set_color(0xffffffff);
 		}
