@@ -512,6 +512,7 @@ void pen_down_listener(i32 x, i32 y, f32 pressure) {
 	pen_x                          = (f32)x;
 	pen_y                          = (f32)y;
 	pen_pressure                   = pressure;
+	pen_connected                  = true;
 
 #if !defined(IRON_ANDROID) && !defined(IRON_IOS)
 	mouse_down_listener(0, x, y);
