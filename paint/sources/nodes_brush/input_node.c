@@ -162,7 +162,12 @@ void input_node_update(float_node_t *self) {
 logic_node_value_t *input_node_get(input_node_t *self, i32 from) {
 	g_context->brush_lazy_radius = logic_node_input_get(self->base->inputs->buffer[0])->_f32;
 	g_context->brush_lazy_step   = logic_node_input_get(self->base->inputs->buffer[1])->_f32;
-	logic_node_value_t *v        = TMP_ALLOC_INIT(logic_node_value_t, {._vec4 = input_node_coords});
+	if (from == 1) {
+		f32                 pressure = (pen_down("tip") || pen_released("tip")) ? pen_pressure * g_config->pressure_sensitivity : 1.0;
+		logic_node_value_t *v        = TMP_ALLOC_INIT(logic_node_value_t, {._f32 = pressure});
+		return v;
+	}
+	logic_node_value_t *v = TMP_ALLOC_INIT(logic_node_value_t, {._vec4 = input_node_coords});
 	return v;
 }
 
@@ -223,8 +228,18 @@ void input_node_init() {
 	                                                                 .max           = 1.0,
 	                                                                 .precision     = 100,
 	                                                                 .display       = 0}),
+	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
+	                                                                 .node_id       = 0,
+	                                                                 .name          = _tr("Pressure"),
+	                                                                 .type          = "VALUE",
+	                                                                 .color         = 0xffa1a1a1,
+	                                                                 .default_value = f32_array_create_x(1.0),
+	                                                                 .min           = 0.0,
+	                                                                 .max           = 1.0,
+	                                                                 .precision     = 100,
+	                                                                 .display       = 0}),
 	                               },
-	                               1),
+	                               2),
 	                           .buttons = any_array_create_from_raw((void *[]){}, 0),
 	                           .width   = 0,
 	                           .flags   = 0});
