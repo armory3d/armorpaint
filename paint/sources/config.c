@@ -36,10 +36,8 @@ void config_load() {
 
 	if (blob != NULL) {
 		char *config_string = sys_buffer_to_string(blob);
-		if (starts_with(config_string, "{\"version\":")) { // Ensure valid config
-			config_loaded = true;
-			g_config      = json_parse(config_string);
-		}
+		g_config            = config_from_json(config_string);
+		config_loaded       = g_config != NULL;
 		free(config_string);
 	}
 	free(path);
@@ -149,150 +147,150 @@ void config_save() {
 	free(config_json);
 }
 
-void config_init() {
-	if (!config_loaded || g_config == NULL) {
-		g_config                     = ALLOC_INIT(config_t, {0});
-		g_config->version            = string_copy(manifest_version_config);
-		g_config->sha                = string_copy(config_get_sha());
-		g_config->locale             = "en"; // "system";
-		g_config->window_mode        = 0;
-		g_config->window_resizable   = true;
-		g_config->window_minimizable = true;
-		g_config->window_maximizable = true;
-		g_config->window_w           = 1720;
-		g_config->window_h           = 960;
+config_t *config_create_default() {
+	config_t *c           = ALLOC_INIT(config_t, {0});
+	c->version            = string_copy(manifest_version_config);
+	c->sha                = string_copy(config_get_sha());
+	c->locale             = "en"; // "system";
+	c->window_mode        = 0;
+	c->window_resizable   = true;
+	c->window_minimizable = true;
+	c->window_maximizable = true;
+	c->window_w           = 1720;
+	c->window_h           = 960;
 #ifdef IRON_MACOS
-		g_config->window_w *= iron_display_backing_scale();
-		g_config->window_h *= iron_display_backing_scale();
+	c->window_w *= iron_display_backing_scale();
+	c->window_h *= iron_display_backing_scale();
 #endif
-		g_config->window_x     = -1;
-		g_config->window_y     = -1;
-		g_config->window_scale = 1.0;
-		if (sys_display_width() >= 2560 && sys_display_height() >= 1600) {
-			g_config->window_scale = 2.0;
-		}
+	c->window_x     = -1;
+	c->window_y     = -1;
+	c->window_scale = 1.0;
+	if (sys_display_width() >= 2560 && sys_display_height() >= 1600) {
+		c->window_scale = 2.0;
+	}
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->window_scale = 2.0;
+	c->window_scale = 2.0;
 #endif
 #ifdef IRON_MACOS
-		g_config->window_scale = iron_display_backing_scale();
+	c->window_scale = iron_display_backing_scale();
 #endif
 #ifdef IRON_WASM
-		g_config->window_scale = sys_display_ppi() / 96.0;
-		if (g_config->window_scale < 1.0) {
-			g_config->window_scale = 1.0;
-		}
+	c->window_scale = sys_display_ppi() / 96.0;
+	if (c->window_scale < 1.0) {
+		c->window_scale = 1.0;
+	}
 #endif
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		if (sys_display_ppi() > 330) {
-			g_config->window_scale = 2.5;
-		}
-		if (sys_display_ppi() > 400) {
-			g_config->window_scale = 3.0;
-		}
+	if (sys_display_ppi() > 330) {
+		c->window_scale = 2.5;
+	}
+	if (sys_display_ppi() > 400) {
+		c->window_scale = 3.0;
+	}
 #endif
-		g_config->window_vsync     = true;
-		g_config->window_frequency = sys_display_frequency();
-		g_config->rp_bloom         = 0.0;
-		g_config->rp_vignette      = 1.0;
-		g_config->rp_grain         = 0.09;
-		g_config->rp_contrast      = 1.0;
-		g_config->rp_gamma         = 1.0;
-		g_config->lut_path         = "";
-		g_config->texture_filter   = true;
-		g_config->rp_ssao          = 1.0;
-		g_config->rp_supersample   = 1.0;
+	c->window_vsync     = true;
+	c->window_frequency = sys_display_frequency();
+	c->rp_bloom         = 0.0;
+	c->rp_vignette      = 1.0;
+	c->rp_grain         = 0.09;
+	c->rp_contrast      = 1.0;
+	c->rp_gamma         = 1.0;
+	c->lut_path         = "";
+	c->texture_filter   = true;
+	c->rp_ssao          = 1.0;
+	c->rp_supersample   = 1.0;
 #ifdef IRON_ANDROID
-		if (sys_display_width() >= 3200 && sys_display_height() >= 2136) {
-			g_config->window_scale   = 2.5;
-			g_config->rp_supersample = 0.5;
-		}
+	if (sys_display_width() >= 3200 && sys_display_height() >= 2136) {
+		c->window_scale   = 2.5;
+		c->rp_supersample = 0.5;
+	}
 #endif
-		g_config->recent_projects = any_array_create_from_raw((void *[]){}, 0);
-		g_config->bookmarks       = any_array_create_from_raw((void *[]){}, 0);
-		g_config->plugins         = any_array_create_from_raw((void *[]){}, 0);
+	c->recent_projects = any_array_create_from_raw((void *[]){}, 0);
+	c->bookmarks       = any_array_create_from_raw((void *[]){}, 0);
+	c->plugins         = any_array_create_from_raw((void *[]){}, 0);
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->keymap = "touch.json";
+	c->keymap = "touch.json";
 #else
-		g_config->keymap = "default.json";
+	c->keymap = "default.json";
 #endif
-		g_config->theme  = "default.json";
-		g_config->server = "https://cloud.armory3d.com";
+	c->theme  = "default.json";
+	c->server = "https://cloud.armory3d.com";
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->undo_steps = 4;
+	c->undo_steps = 4;
 #else
-		g_config->undo_steps = 6;
+	c->undo_steps = 6;
 #endif
-		g_config->pressure_radius      = true;
-		g_config->pressure_sensitivity = 2.0;
-		g_config->camera_fov           = 0.69;
+	c->pressure_radius      = true;
+	c->pressure_sensitivity = 2.0;
+	c->camera_fov           = 0.69;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->camera_zoom_speed     = 0.5;
-		g_config->camera_pan_speed      = 0.5;
-		g_config->camera_rotation_speed = 0.5;
+	c->camera_zoom_speed     = 0.5;
+	c->camera_pan_speed      = 0.5;
+	c->camera_rotation_speed = 0.5;
 #else
-		g_config->camera_zoom_speed     = 1.0;
-		g_config->camera_pan_speed      = 1.0;
-		g_config->camera_rotation_speed = 1.0;
+	c->camera_zoom_speed     = 1.0;
+	c->camera_pan_speed      = 1.0;
+	c->camera_rotation_speed = 1.0;
 #endif
-		g_config->camera_upside_down = false;
-		g_config->zoom_direction     = ZOOM_DIRECTION_VERTICAL;
-		g_config->wrap_mouse         = false;
-		g_config->camera_pivot       = CAMERA_PIVOT_CENTER;
-		g_config->camera_controls    = CAMERA_CONTROLS_ORBIT;
-		g_config->layer_res          = TEXTURE_RES_RES2048;
+	c->camera_upside_down = false;
+	c->zoom_direction     = ZOOM_DIRECTION_VERTICAL;
+	c->wrap_mouse         = false;
+	c->camera_pivot       = CAMERA_PIVOT_CENTER;
+	c->camera_controls    = CAMERA_CONTROLS_ORBIT;
+	c->layer_res          = TEXTURE_RES_RES2048;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
-		g_config->touch_ui      = true;
-		g_config->header_pinned = false;
-		g_config->splash_screen = true;
+	c->touch_ui      = true;
+	c->header_pinned = false;
+	c->splash_screen = true;
 #else
-		g_config->touch_ui      = false;
-		g_config->header_pinned = true;
-		g_config->splash_screen = false;
+	c->touch_ui      = false;
+	c->header_pinned = true;
+	c->splash_screen = false;
 #endif
-		g_config->node_previews     = false;
-		g_config->pressure_hardness = false;
-		g_config->pressure_angle    = false;
-		g_config->pressure_opacity  = false;
+	c->node_previews     = false;
+	c->pressure_hardness = false;
+	c->pressure_angle    = false;
+	c->pressure_opacity  = false;
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
-		g_config->material_live = false;
+	c->material_live = false;
 #else
-		g_config->material_live = true;
+	c->material_live = true;
 #endif
-		g_config->brush_depth_reject  = true;
-		g_config->brush_angle_reject  = true;
-		g_config->brush_alpha_discard = 0.1;
-		g_config->brush_live          = false;
-		g_config->show_asset_names    = false;
-		g_config->material_params     = true;
-		g_config->brush_params        = true;
-		g_config->mesh_params         = false;
-		g_config->dilate_radius       = 2;
-		g_config->blender             = "";
-		g_config->pathtrace_mode      = PATHTRACE_MODE_FAST;
-		g_config->pathtrace_frames    = 8;
-		g_config->grid_snap           = false;
-		g_config->view2d_grid_show    = false;
-		g_config->view2d_grid_cell    = 64;
-		g_config->view2d_grid_snap    = false;
-		g_config->pixel_snap          = false;
+	c->brush_depth_reject  = true;
+	c->brush_angle_reject  = true;
+	c->brush_alpha_discard = 0.1;
+	c->brush_live          = false;
+	c->show_asset_names    = false;
+	c->material_params     = true;
+	c->brush_params        = true;
+	c->mesh_params         = false;
+	c->dilate_radius       = 2;
+	c->blender             = "";
+	c->pathtrace_mode      = PATHTRACE_MODE_FAST;
+	c->pathtrace_frames    = 8;
+	c->grid_snap           = false;
+	c->view2d_grid_show    = false;
+	c->view2d_grid_cell    = 64;
+	c->view2d_grid_snap    = false;
+	c->pixel_snap          = false;
 #ifdef NDEBUG
-		g_config->auto_run_scripts = false;
+	c->auto_run_scripts = false;
 #else
-		g_config->auto_run_scripts = true;
+	c->auto_run_scripts = true;
 #endif
-		g_config->experimental        = false;
-		g_config->neural_res          = 512;
-		g_config->console_model       = CONSOLE_MODEL_QWEN;
-		g_config->tools               = TOOLS_PAINT;
+	c->experimental  = false;
+	c->neural_res    = 512;
+	c->console_model = CONSOLE_MODEL_QWEN;
+	c->tools         = TOOLS_PAINT;
+	return c;
+}
+
+void config_init() {
+	if (!config_loaded || g_config == NULL) {
+		g_config = config_create_default();
 	}
 	else {
-		// Discard old config
-		if (!string_equals(g_config->sha, config_get_sha())) {
-			config_loaded = false;
-			config_init();
-			return;
-		}
+		g_config->sha = string_copy(config_get_sha());
 	}
 
 	ui_touch_control = g_config->touch_ui;
@@ -305,6 +303,130 @@ void config_init() {
 	base_res = g_config->layer_res;
 	config_set_texture_res(g_config->layer_res);
 	keymap_load();
+}
+
+config_t *config_from_map_to_config(any_map_t *old) {
+	config_t *c              = ALLOC_INIT(config_t, {0});
+	c->version               = string_copy(manifest_version_config);
+	c->sha                   = string_copy(config_get_sha());
+	c->locale                = string_copy(any_map_get(old, "locale"));
+	c->window_mode           = armpack_map_get_i32(old, "window_mode");
+	c->window_w              = armpack_map_get_i32(old, "window_w");
+	c->window_h              = armpack_map_get_i32(old, "window_h");
+	c->window_x              = armpack_map_get_i32(old, "window_x");
+	c->window_y              = armpack_map_get_i32(old, "window_y");
+	c->window_resizable      = armpack_map_get_i32(old, "window_resizable") > 0;
+	c->window_maximizable    = armpack_map_get_i32(old, "window_maximizable") > 0;
+	c->window_minimizable    = armpack_map_get_i32(old, "window_minimizable") > 0;
+	c->window_vsync          = armpack_map_get_i32(old, "window_vsync") > 0;
+	c->window_frequency      = armpack_map_get_i32(old, "window_frequency");
+	c->window_scale          = armpack_map_get_f32(old, "window_scale");
+	c->rp_supersample        = armpack_map_get_f32(old, "rp_supersample");
+	c->rp_ssao               = armpack_map_get_f32(old, "rp_ssao");
+	c->rp_bloom              = armpack_map_get_f32(old, "rp_bloom");
+	c->rp_vignette           = armpack_map_get_f32(old, "rp_vignette");
+	c->rp_grain              = armpack_map_get_f32(old, "rp_grain");
+	c->rp_contrast           = armpack_map_get_f32(old, "rp_contrast");
+	c->rp_gamma              = armpack_map_get_f32(old, "rp_gamma");
+	c->lut_path              = string_copy(any_map_get(old, "lut_path"));
+	c->texture_filter        = armpack_map_get_i32(old, "texture_filter") > 0;
+	c->recent_projects       = any_map_get(old, "recent_projects");
+	c->bookmarks             = any_map_get(old, "bookmarks");
+	c->plugins               = any_map_get(old, "plugins");
+	c->keymap                = string_copy(any_map_get(old, "keymap"));
+	c->theme                 = string_copy(any_map_get(old, "theme"));
+	c->undo_steps            = armpack_map_get_i32(old, "undo_steps");
+	c->camera_fov            = armpack_map_get_f32(old, "camera_fov");
+	c->camera_pan_speed      = armpack_map_get_f32(old, "camera_pan_speed");
+	c->camera_zoom_speed     = armpack_map_get_f32(old, "camera_zoom_speed");
+	c->camera_rotation_speed = armpack_map_get_f32(old, "camera_rotation_speed");
+	c->camera_upside_down    = armpack_map_get_i32(old, "camera_upside_down") > 0;
+	c->zoom_direction        = armpack_map_get_i32(old, "zoom_direction");
+	c->wrap_mouse            = armpack_map_get_i32(old, "wrap_mouse") > 0;
+	c->show_asset_names      = armpack_map_get_i32(old, "show_asset_names") > 0;
+	c->material_params       = armpack_map_get_i32(old, "material_params") > 0;
+	c->brush_params          = armpack_map_get_i32(old, "brush_params") > 0;
+	c->mesh_params           = armpack_map_get_i32(old, "mesh_params") > 0;
+	c->touch_ui              = armpack_map_get_i32(old, "touch_ui") > 0;
+	c->splash_screen         = armpack_map_get_i32(old, "splash_screen") > 0;
+	c->header_pinned         = armpack_map_get_i32(old, "header_pinned") > 0;
+	c->layout_tabs           = any_map_get(old, "layout_tabs");
+	c->camera_pivot          = armpack_map_get_i32(old, "camera_pivot");
+	c->camera_controls       = armpack_map_get_i32(old, "camera_controls");
+	c->server                = string_copy(any_map_get(old, "server"));
+	c->viewport_mode         = armpack_map_get_i32(old, "viewport_mode");
+	c->pathtrace_mode        = armpack_map_get_i32(old, "pathtrace_mode");
+	c->pathtrace_frames      = armpack_map_get_i32(old, "pathtrace_frames");
+	c->pressure_radius       = armpack_map_get_i32(old, "pressure_radius") > 0;
+	c->pressure_sensitivity  = armpack_map_get_f32(old, "pressure_sensitivity");
+	c->layer_res             = armpack_map_get_i32(old, "layer_res");
+	c->brush_live            = armpack_map_get_i32(old, "brush_live") > 0;
+	c->node_previews         = armpack_map_get_i32(old, "node_previews") > 0;
+	c->pressure_hardness     = armpack_map_get_i32(old, "pressure_hardness") > 0;
+	c->pressure_angle        = armpack_map_get_i32(old, "pressure_angle") > 0;
+	c->pressure_opacity      = armpack_map_get_i32(old, "pressure_opacity") > 0;
+	c->material_live         = armpack_map_get_i32(old, "material_live") > 0;
+	c->brush_depth_reject    = armpack_map_get_i32(old, "brush_depth_reject") > 0;
+	c->brush_angle_reject    = armpack_map_get_i32(old, "brush_angle_reject") > 0;
+	c->brush_alpha_discard   = armpack_map_get_f32(old, "brush_alpha_discard");
+	c->dilate_radius         = armpack_map_get_i32(old, "dilate_radius");
+	c->blender               = string_copy(any_map_get(old, "blender"));
+	c->grid_snap             = armpack_map_get_i32(old, "grid_snap") > 0;
+	c->auto_run_scripts      = armpack_map_get_i32(old, "auto_run_scripts") > 0;
+	c->experimental          = armpack_map_get_i32(old, "experimental") > 0;
+	c->neural_res            = armpack_map_get_i32(old, "neural_res");
+	c->console_model         = armpack_map_get_i32(old, "console_model");
+	c->tools                 = armpack_map_get_i32(old, "tools");
+	c->view2d_grid_show      = armpack_map_get_i32(old, "view2d_grid_show") > 0;
+	c->view2d_grid_cell      = armpack_map_get_i32(old, "view2d_grid_cell");
+	c->view2d_grid_snap      = armpack_map_get_i32(old, "view2d_grid_snap") > 0;
+	c->pixel_snap            = armpack_map_get_i32(old, "pixel_snap") > 0;
+	return c;
+}
+
+config_t *config_from_version_1(any_map_t *old) {
+	config_t *def = config_create_default();
+	armpack_map_set_i32(old, "material_params", def->material_params);
+	armpack_map_set_i32(old, "brush_params", def->brush_params);
+	armpack_map_set_i32(old, "mesh_params", def->mesh_params);
+	armpack_map_set_i32(old, "header_pinned", def->header_pinned);
+	armpack_map_set_i32(old, "auto_run_scripts", def->auto_run_scripts);
+	armpack_map_set_i32(old, "tools", def->tools);
+	armpack_map_set_i32(old, "pixel_snap", def->pixel_snap);
+
+	any_map_set(old, "layout_tabs", def->layout_tabs);
+	armpack_map_set_f32(old, "rp_vignette", def->rp_vignette);
+	armpack_map_set_i32(old, "viewport_mode", def->viewport_mode);
+	armpack_map_set_i32(old, "pathtrace_mode", def->pathtrace_mode);
+
+	return config_from_map_to_config(old);
+}
+
+static bool config_is_version(char *s, char *version) {
+	char *prefix = string("{\"version\":\"%s\"", version);
+	bool  r      = starts_with(s, prefix);
+	free(prefix);
+	return r;
+}
+
+config_t *config_from_old(char *s) {
+	config_t *(*fns[])(any_map_t *) = {
+	    config_from_version_1,
+	};
+	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
+		if (config_is_version(s, i32_to_string(v + 1))) {
+			buffer_t *b = json_encode_to_armpack(s);
+			return b != NULL ? fns[v](armpack_decode_to_map(b)) : NULL;
+		}
+	}
+	return NULL;
+}
+
+config_t *config_from_json(char *s) {
+	if (config_is_version(s, manifest_version_config)) {
+		return json_parse(s);
+	}
+	return config_from_old(s);
 }
 
 char *config_get_sha() {

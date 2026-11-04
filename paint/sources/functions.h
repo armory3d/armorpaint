@@ -123,6 +123,7 @@ void                   account_open_browser();
 void                   config_load();
 void                   config_save();
 void                   config_init();
+config_t              *config_from_json(char *s);
 char                  *config_get_sha();
 char                  *config_get_date();
 iron_window_options_t *config_get_options();

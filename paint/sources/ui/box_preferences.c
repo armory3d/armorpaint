@@ -49,8 +49,10 @@ void box_preferences_interface_tab_restore_menu_import_on_next_frame(config_t *r
 
 void box_preferences_interface_tab_restore_menu_import(char *path) {
 	buffer_t *b   = data_get_blob(path);
-	config_t *raw = json_parse(sys_buffer_to_string(b));
-	sys_notify_on_next_frame(&box_preferences_interface_tab_restore_menu_import_on_next_frame, raw);
+	config_t *raw = config_from_json(sys_buffer_to_string(b));
+	if (raw != NULL) {
+		sys_notify_on_next_frame(&box_preferences_interface_tab_restore_menu_import_on_next_frame, raw);
+	}
 }
 
 void box_preferences_interface_tab_restore_menu_confirm(void *_) {
