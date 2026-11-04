@@ -1,6 +1,10 @@
 
 #include "../global.h"
 
+static f32 util_cursor_radius_2d(f32 radius) {
+	return context_is_pixel_snap() ? radius * 100.0 / config_get_texture_res_x() : radius / 15.0 * 2.0;
+}
+
 void util_cursor_draw_2d(f32 cx, f32 cy, f32 radius, i32 color) {
 	f32 half = math_min(1.5 * UI_SCALE(), math_max(0.2, radius * 0.06));
 	f32 r    = radius + half + 1.0;
@@ -85,7 +89,7 @@ void util_cursor_render(void *_) {
 	// Clone source cursor
 	if (g_context->tool == TOOL_TYPE_CLONE && !keyboard_down("alt") && (mouse_down("left") || pen_down("tip"))) {
 		f32 radius =
-		    in_2d ? g_context->brush_radius / 15.0 * 2.0 * g_context->brush_nodes_radius * world2d : util_layer_brush_screen_radius() * base_paint_view_h();
+		    in_2d ? util_cursor_radius_2d(g_context->brush_radius) * g_context->brush_nodes_radius * world2d : util_layer_brush_screen_radius() * base_paint_view_h();
 		util_cursor_draw_2d(mx + g_context->clone_delta_x * base_paint_view_w(), my + g_context->clone_delta_y * base_paint_view_h(), radius, 0x66ffffff);
 	}
 
@@ -118,10 +122,11 @@ void util_cursor_render(void *_) {
 				draw_set_color(0xffffffff);
 			}
 		}
-		if (g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_CLONE ||
-		    g_context->tool == TOOL_TYPE_BLUR || g_context->tool == TOOL_TYPE_PARTICLE || (decal_mask && in_2d)) {
+		bool brush_tool = g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_CLONE ||
+		                  g_context->tool == TOOL_TYPE_BLUR || g_context->tool == TOOL_TYPE_PARTICLE;
+		if ((brush_tool && !g_config->brush_live) || (decal_mask && in_2d)) {
 			// The 3D view draws its own cursor
-			f32 radius = decal_mask ? g_context->brush_decal_mask_radius * 2.0 / 15.0 * scale2d : g_context->brush_radius / 15.0 * 2.0;
+			f32 radius = decal_mask ? g_context->brush_decal_mask_radius * 2.0 / 15.0 * scale2d : util_cursor_radius_2d(g_context->brush_radius);
 			util_cursor_draw_2d(mx, my, radius * g_context->brush_nodes_radius * world2d, 0x99ffffff);
 		}
 	}

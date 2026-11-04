@@ -407,6 +407,10 @@ bool context_in_nodes() {
 	return ui_nodes_show && mouse_x > ui_nodes_wx && mouse_x < ui_nodes_wx + ui_nodes_ww && mouse_y > ui_nodes_wy && mouse_y < ui_nodes_wy + ui_nodes_wh;
 }
 
+bool context_is_pixel_snap() {
+	return g_config->pixel_snap && !context_is_decal() && !slot_layer_is_path(g_context->layer);
+}
+
 bool context_is_decal() {
 	return g_context->tool == TOOL_TYPE_DECAL || g_context->tool == TOOL_TYPE_TEXT;
 }

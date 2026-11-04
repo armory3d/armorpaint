@@ -598,7 +598,7 @@ void render_path_paint_commands_paint(bool dilation) {
 
 		// Read texcoords from gbuffer
 		bool read_tc = (g_context->tool == TOOL_TYPE_FILL && g_context->fill_type == FILL_TYPE_FACE) || g_context->tool == TOOL_TYPE_CLONE ||
-		               g_context->tool == TOOL_TYPE_BLUR;
+		               g_context->tool == TOOL_TYPE_BLUR || context_is_pixel_snap();
 
 		if (g_context->tool == TOOL_TYPE_BLUR) {
 			render_path_paint_ref_snapshot(tid, is_mask);

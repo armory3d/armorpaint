@@ -139,6 +139,7 @@ void config_save() {
 	json_encode_bool("view2d_grid_show", g_config->view2d_grid_show);
 	json_encode_i32("view2d_grid_cell", g_config->view2d_grid_cell);
 	json_encode_bool("view2d_grid_snap", g_config->view2d_grid_snap);
+	json_encode_bool("pixel_snap", g_config->pixel_snap);
 	char *config_json = json_encode_end();
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
@@ -274,6 +275,7 @@ void config_init() {
 		g_config->view2d_grid_show    = false;
 		g_config->view2d_grid_cell    = 64;
 		g_config->view2d_grid_snap    = false;
+		g_config->pixel_snap          = false;
 #ifdef NDEBUG
 		g_config->auto_run_scripts = false;
 #else

@@ -59,27 +59,60 @@ void make_brush_run(node_shader_t *kong) {
 	node_shader_add_constant(kong, "float aspect_ratio", "_aspect_ratio_window");
 	node_shader_add_constant(kong, "float camera_align", "_brush_camera_align");
 
-	node_shader_write_frag(kong, "if (constants.camera_align > 0.0) {");
-	node_shader_write_frag(kong, "float vp_up_y = (constants.VP * float4(constants.camera_up, 0.0)).y;");
-	node_shader_write_frag(kong, "float ca_scale = (1.0 / winp.w) / (vp_up_y * constants.brush_radius);");
-	node_shader_write_frag(kong, "float2 sa = sp.xy - constants.inp.xy;");
-	node_shader_write_frag(kong, "sa.x *= constants.aspect_ratio;");
-	node_shader_write_frag(kong, "sa = sa * ca_scale;");
-	// Capsule
-	node_shader_write_frag(kong, "float2 sb = constants.inplast.xy - constants.inp.xy;");
-	node_shader_write_frag(kong, "sb.x *= constants.aspect_ratio;");
-	node_shader_write_frag(kong, "sb = sb * ca_scale;");
-	node_shader_write_frag(kong, "float sh = clamp(dot(sa, sb) / dot(sb, sb), 0.0, 1.0);");
-	node_shader_write_frag(kong, "dist = length(sa - sb * sh) * 2.0 * constants.brush_radius;");
-	node_shader_write_frag(kong, "}");
-
-	node_shader_write_frag(kong, "else {");
-	// Capsule
-	node_shader_write_frag(kong, "float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);");
-	node_shader_write_frag(kong, "dist = length(pa - ba * h);");
-	node_shader_write_frag(kong, "}");
-
-	node_shader_write_frag(kong, "if (dist > constants.brush_radius) { discard; }");
+	if (context_is_pixel_snap()) {
+		node_shader_add_texture(kong, "gbuffer2", NULL);
+		node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
+		node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");
+		node_shader_add_constant(kong, "float pixel_snap_2d", "_pixel_snap_2d");
+		node_shader_add_constant(kong, "float4 pixel_snap_uv", "_pixel_snap_uv");
+		node_shader_write_frag(kong, "float2 pixel_inp = constants.pixel_snap_uv.xy;");
+		node_shader_write_frag(kong, "float2 pixel_last = constants.pixel_snap_uv.zw;");
+		node_shader_write_frag(kong, "if (constants.pixel_snap_2d == 0.0) {");
+		node_shader_write_frag(kong, "if (depth >= 1.0) { discard; }");
+		node_shader_write_frag(kong, "float4 pg = gbuffer2[uint2(uint(constants.inp.x * constants.gbuffer_size.x), uint(constants.inp.y * "
+		                             "constants.gbuffer_size.y))];");
+		node_shader_write_frag(kong, "pixel_inp = pg.ba + pg.rg;");
+		node_shader_write_frag(kong, "float4 pgl = gbuffer2[uint2(uint(constants.inplast.x * constants.gbuffer_size.x), uint(constants.inplast.y * "
+		                             "constants.gbuffer_size.y))];");
+		node_shader_write_frag(kong, "pixel_last = pgl.ba + pgl.rg;");
+		node_shader_write_frag(kong, "if (depthlast >= 1.0 || length(pixel_last - pixel_inp) > 0.1) { pixel_last = pixel_inp; }");
+		node_shader_write_frag(kong, "}");
+		node_shader_write_frag(kong, "float pixel_width = max(floor(constants.brush_radius * 750.0 + 0.5), 1.0);");
+		node_shader_write_frag(kong, "float pixel_radius = pixel_width * 0.5;");
+		node_shader_write_frag(kong, "float2 pixel_off = float2(0.5, 0.5);");
+		node_shader_write_frag(kong, "if (floor(pixel_radius) == pixel_radius) { pixel_off = float2(0.0, 0.0); }");
+		node_shader_write_frag(kong, "float2 pixel_a = floor(pixel_inp * constants.texpaint_size + float2(0.5, 0.5) - pixel_off) + pixel_off;");
+		node_shader_write_frag(kong, "float2 pixel_b = floor(pixel_last * constants.texpaint_size + float2(0.5, 0.5) - pixel_off) + pixel_off;");
+		node_shader_write_frag(kong, "float2 pixel_frac = input.pixel_uv - floor(input.pixel_uv);");
+		node_shader_write_frag(kong, "float2 pixel_p = floor(pixel_frac * constants.texpaint_size) + float2(0.5, 0.5);");
+		node_shader_write_frag(kong, "float2 pixel_pa = pixel_p - pixel_a;");
+		node_shader_write_frag(kong, "float2 pixel_ba = pixel_b - pixel_a;");
+		node_shader_write_frag(kong, "float pixel_h = clamp(dot(pixel_pa, pixel_ba) / max(dot(pixel_ba, pixel_ba), 0.000001), 0.0, 1.0);");
+		node_shader_write_frag(kong, "float pixel_dist = length(pixel_pa - pixel_ba * pixel_h);");
+		node_shader_write_frag(kong, "if (pixel_dist > pixel_radius) { discard; }");
+		node_shader_write_frag(kong, "dist = pixel_dist / pixel_radius * constants.brush_radius;");
+		node_shader_write_frag(kong, "pixel_pa = pixel_pa / pixel_radius * constants.brush_radius;");
+	}
+	else {
+		node_shader_write_frag(kong, "if (constants.camera_align > 0.0) {");
+		node_shader_write_frag(kong, "float vp_up_y = (constants.VP * float4(constants.camera_up, 0.0)).y;");
+		node_shader_write_frag(kong, "float ca_scale = (1.0 / winp.w) / (vp_up_y * constants.brush_radius);");
+		node_shader_write_frag(kong, "float2 sa = sp.xy - constants.inp.xy;");
+		node_shader_write_frag(kong, "sa.x *= constants.aspect_ratio;");
+		node_shader_write_frag(kong, "sa = sa * ca_scale;");
+		// Capsule
+		node_shader_write_frag(kong, "float2 sb = constants.inplast.xy - constants.inp.xy;");
+		node_shader_write_frag(kong, "sb.x *= constants.aspect_ratio;");
+		node_shader_write_frag(kong, "sb = sb * ca_scale;");
+		node_shader_write_frag(kong, "float sh = clamp(dot(sa, sb) / dot(sb, sb), 0.0, 1.0);");
+		node_shader_write_frag(kong, "dist = length(sa - sb * sh) * 2.0 * constants.brush_radius;");
+		node_shader_write_frag(kong, "}");
+		node_shader_write_frag(kong, "else {");
+		node_shader_write_frag(kong, "float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);");
+		node_shader_write_frag(kong, "dist = length(pa - ba * h);");
+		node_shader_write_frag(kong, "}");
+		node_shader_write_frag(kong, "if (dist > constants.brush_radius) { discard; }");
+	}
 
 	if (decal && !fill_layer) {
 		node_shader_write_frag(kong, "}");

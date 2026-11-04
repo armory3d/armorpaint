@@ -431,6 +431,14 @@ void box_preferences_usage_tab() {
 	if (ui_item_changed()) {
 		make_material_parse_paint_material(true);
 	}
+
+	ui_check(&g_config->pixel_snap, tr("Pixel Snap"), "");
+	if (ui_item_changed()) {
+		make_material_parse_paint_material(true);
+	}
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Snap painting to texture pixels, a radius of 0.01 paints 1 pixel"));
+	}
 }
 
 //  ██████╗ █████╗ ███╗   ███╗███████╗██████╗  █████╗

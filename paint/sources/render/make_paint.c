@@ -275,6 +275,11 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_vert(kong, string_tmp("output.select_uv = %s;", tuv));
 	}
 
+	if (context_is_pixel_snap()) {
+		node_shader_add_out(kong, "float2 pixel_uv");
+		node_shader_write_vert(kong, string_tmp("output.pixel_uv = %s;", tuv));
+	}
+
 	bool decal_layer = g_context->layer->fill_material != NULL && g_context->layer->uv_type == UV_TYPE_PROJECT;
 	if (decal_layer) {
 		node_shader_add_constant(kong, "float4x4 WVP", "_decal_layer_matrix");
@@ -538,6 +543,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong, "else {");
 		node_shader_write_frag(kong, "pa_mask = float2(dot(pa_mask_3d, mt), dot(pa_mask_3d, mb));");
 		node_shader_write_frag(kong, "}");
+		if (context_is_pixel_snap()) {
+			node_shader_write_frag(kong, "pa_mask = pixel_pa;");
+		}
 		if (g_context->brush_directional) {
 			node_shader_add_constant(kong, "float3 brush_direction", "_brush_direction");
 			node_shader_write_frag(kong, "if (constants.brush_direction.z == 0.0) { discard; }");

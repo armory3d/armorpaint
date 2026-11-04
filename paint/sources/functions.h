@@ -351,6 +351,7 @@ bool                   context_in_sounds();
 bool                   context_in_textures();
 bool                   context_in_browser();
 bool                   context_is_decal();
+bool                   context_is_pixel_snap();
 bool                   context_is_decal_mask();
 bool                   context_is_decal_mask_paint();
 bool                   context_is_decal_mask_paint_pass();

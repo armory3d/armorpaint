@@ -167,7 +167,7 @@ void render_path_base_begin() {
 
 	// Match projection matrix jitter
 	bool skip_taa = g_context->split_view || render_path_base_path_trace() || g_context->camera_type == CAMERA_TYPE_ORTHOGRAPHIC ||
-	                ((g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) && g_context->pdirty > 0);
+	                ((g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR || context_is_pixel_snap()) && g_context->pdirty > 0);
 
 	if (skip_taa || g_config->brush_live) {
 		scene_camera->frame = 0;

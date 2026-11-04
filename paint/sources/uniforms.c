@@ -34,6 +34,9 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 		}
 		return val;
 	}
+	else if (string_equals(link, "_pixel_snap_2d")) {
+		return g_context->paint2d_view ? 1.0f : 0.0f;
+	}
 	else if (string_equals(link, "_vignette_strength")) {
 		return g_config->rp_vignette * 0.1;
 	}
@@ -267,6 +270,16 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 }
 
 vec4_t uniforms_ext_vec4_link(object_t *object, shader_data_t *mat, char *link) {
+	if (string_equals(link, "_pixel_snap_uv")) {
+		if (!g_context->paint2d_view) {
+			return (vec4_t){0.0, 0.0, 0.0, 0.0};
+		}
+		f32 tx, ty, tw, th;
+		ui_view2d_tex_rect(config_get_texture_res_y() / (float)config_get_texture_res_x(), &tx, &ty, &tw, &th);
+		f32 top = ui_view2d_top();
+		return (vec4_t){(g_context->paint_vec.x * base_w() - tx) / tw, (g_context->paint_vec.y * base_h() + top - ty) / th,
+		                (g_context->last_paint_vec_x * base_w() - tx) / tw, (g_context->last_paint_vec_y * base_h() + top - ty) / th};
+	}
 	if (string_equals(link, "_input_brush")) {
 		bool   down = mouse_down("left") || pen_down("tip");
 		vec4_t v    = (vec4_t){g_context->paint_vec.x, g_context->paint_vec.y, down ? 1.0 : 0.0, 0.0};

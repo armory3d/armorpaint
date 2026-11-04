@@ -24,7 +24,8 @@ static void input_node_grid_snap() {
 	if (!in_2d && !in_3d) {
 		return;
 	}
-	if (!snap_shortcut && !(g_config->view2d_grid_snap && in_2d)) {
+	bool pixel_snap = g_config->pixel_snap && in_2d;
+	if (!snap_shortcut && !(g_config->view2d_grid_snap && in_2d) && !pixel_snap) {
 		return;
 	}
 
@@ -57,7 +58,7 @@ static void input_node_grid_snap() {
 	// Snap to nearest cell center
 	f32 u    = (sx - tx) / tw;
 	f32 v    = (sy - ty) / th;
-	i32 cell = g_config->view2d_grid_cell;
+	i32 cell = pixel_snap ? 1 : g_config->view2d_grid_cell;
 	f32 px   = (math_floor(u * tex->width / cell) + 0.5) * cell;
 	f32 py   = (math_floor(v * tex->height / cell) + 0.5) * cell;
 	sx       = tx + (px / tex->width) * tw;
