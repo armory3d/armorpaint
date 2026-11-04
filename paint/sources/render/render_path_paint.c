@@ -368,7 +368,22 @@ void render_path_paint_commands_paint(bool dilation) {
 		render_path_set_target("texpaint_colorid", NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 		render_path_bind_target("gbuffer2", "gbuffer2");
 		render_path_paint_draw_fullscreen_triangle();
-		ui_header_handle->redraws = 2;
+		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
+		buffer_t        *a  = gpu_get_texture_pixels(rt->_image);
+#ifdef IRON_BGRA
+		i32 i0 = 2;
+		i32 i1 = 1;
+		i32 i2 = 0;
+#else
+		i32 i0 = 0;
+		i32 i1 = 1;
+		i32 i2 = 2;
+#endif
+		g_context->colorid_picked_color = color_set_rb(g_context->colorid_picked_color, buffer_get_u8(a, i0));
+		g_context->colorid_picked_color = color_set_gb(g_context->colorid_picked_color, buffer_get_u8(a, i1));
+		g_context->colorid_picked_color = color_set_bb(g_context->colorid_picked_color, buffer_get_u8(a, i2));
+		ui_header_handle->redraws       = 2;
+		ui_toolbar_handle->redraws      = 1;
 	}
 	else if (g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL) {
 		if (g_context->pick_pos_nor_tex) {
