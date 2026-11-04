@@ -197,13 +197,14 @@ void project_new(bool reset_layers) {
 	any_array_push(g_project->_->materials, slot_material_create(m, NULL));
 	tab_meshes_reset_overrides();
 
-	g_context->picker_paint_mask    = false;
-	g_context->picker_viewport_mask = false;
-	g_context->material             = g_project->_->materials->buffer[0];
-	ui_nodes_hwnd->redraws          = 2;
-	ui_nodes_group_stack            = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->material_groups   = any_array_create_from_raw((void *[]){}, 0);
-	g_project->_->brushes           = any_array_create_from_raw((void *[]){}, 0);
+	g_context->picker_material_mask        = false;
+	g_context->picker_color_mask           = false;
+	g_context->picker_hide_other_materials = false;
+	g_context->material                    = g_project->_->materials->buffer[0];
+	ui_nodes_hwnd->redraws                 = 2;
+	ui_nodes_group_stack                   = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->material_groups          = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->brushes                  = any_array_create_from_raw((void *[]){}, 0);
 	any_array_push(g_project->_->brushes, slot_brush_create(NULL));
 	g_context->brush    = g_project->_->brushes->buffer[0];
 	g_project->_->fonts = any_array_create_from_raw(

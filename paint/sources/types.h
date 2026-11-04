@@ -341,6 +341,7 @@ typedef struct context {
 	struct gpu_texture         *mask_preview_rgba32;
 	struct slot_layer          *mask_preview_last;
 	bool                        colorid_picked;
+	u32                         colorid_picked_color;
 	bool                        colorid_viewport_mask;
 	bool                        material_preview;
 	mat4_t                      saved_camera;
@@ -349,8 +350,10 @@ typedef struct context {
 	f32                         uvx_picked;
 	f32                         uvy_picked;
 	bool                        picker_select_material;
-	bool                        picker_paint_mask;
-	bool                        picker_viewport_mask;
+	bool                        picker_material_mask;
+	bool                        picker_color_mask;
+	f32                         picker_color_mask_tolerance;
+	bool                        picker_hide_other_materials;
 	bool                        pick_pos_nor_tex;
 	bool                        pick_object_id;
 	f32                         posx_picked;

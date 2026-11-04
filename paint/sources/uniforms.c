@@ -66,6 +66,9 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_brush_scale_x")) {
 		return 1 / (float)g_context->brush_scale_x;
 	}
+	else if (string_equals(link, "_picker_color_mask_tolerance")) {
+		return g_context->picker_color_mask_tolerance;
+	}
 	else if (string_equals(link, "_brush_opacity")) {
 		f32 val = g_context->brush_opacity * g_context->brush_nodes_opacity;
 		if (g_config->pressure_opacity && (pen_down("tip") || pen_released("tip")) && !slot_layer_is_path(g_context->layer)) {

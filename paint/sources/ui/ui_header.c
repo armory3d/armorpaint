@@ -163,13 +163,50 @@ void ui_header_draw_tool_properties_color_picker_normal() {
 }
 
 void ui_header_draw_tool_properties_color_picker_base() {
+	g_ui->changed = false;
+	ui_color_wheel((u32 *)&g_context->picked_color->base, &ui_header_color_state, false, -1, 11 * g_theme->ELEMENT_H * UI_SCALE(), true, NULL, NULL);
+	g_context->picked_color->base = color_set_ab(g_context->picked_color->base, 255);
+
+	ui_slider(&g_context->picked_color->opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	g_context->picked_color->opacity = math_max(0.0, math_min(1.0, g_context->picked_color->opacity));
+
+	if (g_config->tools != TOOLS_SCULPT) {
+		ui_row2();
+		ui_text(tr("Normal"), UI_ALIGN_LEFT, 0x00000000);
+		ui_state_t state = ui_swatch(g_context->picked_color->normal);
+		if (state == UI_STATE_RELEASED && g_ui->combo_selected_id == 0) {
+			ui_menu_draw(&ui_header_draw_tool_properties_color_picker_normal, -1, -1);
+		}
+
+		ui_slider(&g_context->picked_color->occlusion, tr("Occlusion"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->picked_color->roughness, tr("Roughness"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->picked_color->metallic, tr("Metallic"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		ui_slider(&g_context->picked_color->height, tr("Height"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	}
+
+	if (g_ui->changed || g_ui->is_typing) {
+		ui_header_handle->redraws = 2;
+		ui_menu_keep_open         = true;
+	}
+}
+
+void ui_header_draw_tool_properties_colorid_write(void *_) {
+	render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
+	draw_begin(rt->_image, true, g_context->colorid_picked_color);
+	draw_end();
+}
+
+void ui_header_draw_tool_properties_color_picker_colorid() {
 	ui_fill(0, 0, g_ui->_w / (float)UI_SCALE(), g_theme->ELEMENT_H * 9, g_theme->SEPARATOR_COL);
 	g_ui->changed = false;
-	ui_color_wheel((u32 *)&g_context->picked_color->base, &ui_header_color_state, false, -1, 10 * g_theme->ELEMENT_H * UI_SCALE(), false, NULL, NULL);
+	ui_color_wheel(&g_context->colorid_picked_color, &ui_header_color_state, false, -1, 10 * g_theme->ELEMENT_H * UI_SCALE(), false, NULL, NULL);
 	if (g_ui->changed) {
-		g_context->picked_color->base = color_set_ab(g_context->picked_color->base, 255);
-		ui_header_handle->redraws     = 2;
-		ui_menu_keep_open             = true;
+		g_context->colorid_picked_color = color_set_ab(g_context->colorid_picked_color, 255);
+		sys_notify_on_next_frame(&ui_header_draw_tool_properties_colorid_write, NULL);
+		g_context->ddirty          = 2;
+		ui_header_handle->redraws  = 2;
+		ui_toolbar_handle->redraws = 1;
+		ui_menu_keep_open          = true;
 	}
 }
 
@@ -229,10 +266,11 @@ static void ui_header_crop_layers() {
 
 void ui_header_draw_tool_properties() {
 	if (g_context->tool == TOOL_TYPE_COLORID) {
-		ui_text(tr("Picked Color"), UI_ALIGN_LEFT, 0x00000000);
 		if (g_context->colorid_picked) {
-			render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
-			ui_image(rt->_image, 0xffffffff, 64);
+			ui_swatch(g_context->colorid_picked_color);
+			if (g_ui->is_hovered && g_ui->input_released && g_ui->combo_selected_id == 0) {
+				ui_menu_draw(&ui_header_draw_tool_properties_color_picker_colorid, -1, -1);
+			}
 		}
 		g_ui->enabled = g_context->colorid_picked;
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
@@ -303,42 +341,34 @@ void ui_header_draw_tool_properties() {
 			ui_tooltip(tr("Add picked color to swatches"));
 		}
 
-		if (g_config->tools != TOOLS_SCULPT) {
-
-			i32 _w = g_ui->_w;
-			g_ui->_w /= 2;
-
-			ui_swatch(g_context->picked_color->normal);
-			if (g_ui->is_hovered && g_ui->input_released && g_ui->combo_selected_id == 0) {
-				ui_menu_draw(&ui_header_draw_tool_properties_color_picker_normal, -1, -1);
-			}
-			ui_text(tr("Normal"), UI_ALIGN_LEFT, 0x00000000);
-			g_ui->_w = _w;
-
-			ui_slider(&g_context->picked_color->occlusion, tr("Occlusion"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-			ui_slider(&g_context->picked_color->roughness, tr("Roughness"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-			ui_slider(&g_context->picked_color->metallic, tr("Metallic"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-			ui_slider(&g_context->picked_color->height, tr("Height"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		}
-
-		ui_slider(&g_context->picked_color->opacity, tr("Opacity"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
-		g_context->picked_color->opacity = math_max(0.0, math_min(1.0, g_context->picked_color->opacity));
-
 		ui_check(&g_context->picker_select_material, tr("Select Material"), "");
 
-		ui_check(&g_context->picker_paint_mask, tr("Paint Mask"), "");
+		ui_check(&g_context->picker_material_mask, tr("Material Mask"), "");
 		if (ui_item_changed()) {
 			make_material_parse_paint_material(false);
 		}
 
-		ui_check(&g_context->picker_viewport_mask, tr("Viewport Mask"), "");
+		ui_check(&g_context->picker_color_mask, tr("Color Mask"), "");
+		if (ui_item_changed()) {
+			make_material_parse_paint_material(false);
+		}
+
+		g_ui->enabled = g_context->picker_color_mask;
+		ui_slider(&g_context->picker_color_mask_tolerance, tr("Tolerance"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+		g_ui->enabled = true;
+
+		i32 _w = g_ui->_w;
+		g_ui->_w *= 1.4;
+		ui_check(&g_context->picker_hide_other_materials, tr("Hide Other Materials"), "");
+		g_ui->_w = _w;
 		if (ui_item_changed()) {
 			make_material_parse_mesh_material();
 		}
 
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
-			g_context->picker_viewport_mask = false;
-			g_context->picker_paint_mask    = false;
+			g_context->picker_hide_other_materials = false;
+			g_context->picker_material_mask        = false;
+			g_context->picker_color_mask           = false;
 			make_material_parse_mesh_material();
 			make_material_parse_paint_material(false);
 		}

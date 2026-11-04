@@ -1013,6 +1013,7 @@ void                      make_discard_color_id(node_shader_t *kong, char *tex_c
 void                      make_discard_face(node_shader_t *kong);
 void                      make_discard_uv_island(node_shader_t *kong);
 void                      make_discard_material_id(node_shader_t *kong, char *tex_coord);
+void                      make_discard_picked_color(node_shader_t *kong, char *tex_src, char *tex_src_link);
 bool                      import_arm_is_old(buffer_t *b);
 project_t                *import_arm_from_old(buffer_t *b);
 void                      nodes_brush_init();

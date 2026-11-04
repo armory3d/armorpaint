@@ -52,3 +52,17 @@ void make_discard_material_id(node_shader_t *kong, char *tex_coord) {
 	node_shader_write_frag(kong, "float picker_sample_id = floor(floor(picker_sample_a * 255.0 + 0.5) / 3.0);");
 	node_shader_write_frag(kong, string_tmp("if (abs(picker_sample_id - %s) > 0.5) { discard; }", f32_to_string_with_zeros((f32)g_context->materialid_picked)));
 }
+
+void make_discard_picked_color(node_shader_t *kong, char *tex_src, char *tex_src_link) {
+	kong->frag_wvpposition = true;
+	node_shader_add_constant(kong, "float3 picker_base", "_picker_base");
+	node_shader_add_constant(kong, "float picker_color_mask_tolerance", "_picker_color_mask_tolerance");
+	node_shader_add_texture(kong, tex_src, tex_src_link);
+	node_shader_write_frag(
+	    kong, "float2 picker_color_tc = float2(input.wvpposition.x / input.wvpposition.w, input.wvpposition.y / input.wvpposition.w) * 0.5 + 0.5;");
+	node_shader_write_frag(kong, "picker_color_tc.y = 1.0 - picker_color_tc.y;");
+	node_shader_write_frag(kong, string_tmp("float3 picker_sample_col = sample_lod(%s, sampler_linear, picker_color_tc, 0.0).rgb;", tex_src));
+	node_shader_write_frag(kong, "if (abs(picker_sample_col.r - constants.picker_base.r) > constants.picker_color_mask_tolerance || "
+	                             "abs(picker_sample_col.g - constants.picker_base.g) > constants.picker_color_mask_tolerance || "
+	                             "abs(picker_sample_col.b - constants.picker_base.b) > constants.picker_color_mask_tolerance) { discard; }");
+}

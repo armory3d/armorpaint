@@ -171,7 +171,7 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 		make_discard_color_id(kong, tex_coord_layer);
 	}
 
-	if (g_context->picker_viewport_mask && g_context->tool != TOOL_TYPE_PICKER) {
+	if (g_context->picker_hide_other_materials && g_context->tool != TOOL_TYPE_PICKER) {
 		make_discard_material_id(kong, tex_coord_layer);
 	}
 
