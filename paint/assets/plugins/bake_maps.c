@@ -19,8 +19,8 @@ int   res_index       = 1;
 float rays            = 64;
 int   device          = 0;  // Raytraced maps on the GPU 0 or CPU 1
 float gpu_samples     = 16; // 64 rays each
-int   axis            = 0; // XYZ, X, Y, Z, -X, -Y, -Z
-int   up_axis         = 0; // Z, Y
+int   axis            = 0;  // XYZ, X, Y, Z, -X, -Y, -Z
+int   up_axis         = 0;  // Z, Y
 float ao_strength     = 1.0;
 float ao_radius       = 1.0;
 float ao_offset       = 1.0;
@@ -356,8 +356,8 @@ void inpaint_header() {
 }
 
 // Baked map preview in the plugin viewport mode
-char *view_suffix = NULL; // Map shown, NULL when not viewing
-char *view_start  = NULL; // Clicked, switched in on_update outside of the ui pass
+char *view_suffix = NULL;  // Map shown, NULL when not viewing
+char *view_start  = NULL;  // Clicked, switched in on_update outside of the ui pass
 bool  add_layer   = false; // Add Baked Layer clicked
 
 char *map_name() {
@@ -375,7 +375,8 @@ void gray_shader(void *shader) {
 
 // Tangent space map decoded like the layer normals, shown in world space
 void normal_shader(void *shader) {
-	node_shader_write_frag(shader, "float3 view_n = sample_lod(texviewport, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
+	node_shader_write_frag(shader,
+	                       "float3 view_n = sample_lod(texviewport, sampler_linear, tex_coord, 0.0).rgb * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);");
 	node_shader_write_frag(shader, "if (dot(view_n, view_n) < 0.25) { view_n = float3(0.0, 0.0, 1.0); }"); // Empty texels
 	node_shader_write_frag(shader, "view_n.y = 0.0 - view_n.y;");
 	node_shader_write_frag(shader, "view_n = normalize(TBN * view_n);");

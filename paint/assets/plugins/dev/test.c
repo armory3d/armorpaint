@@ -31,11 +31,11 @@ int              export_count = 0;
 char            *export_name  = NULL;
 int              saved_layers = 0;
 
-char *material_node_types = "ATTRIBUTE,RGB,NEW_GEOMETRY,LAYER,LAYER_MASK,MATERIAL,OBJECT_INFO,PICKER,TEX_COORD,TILESHEET_ANIM,TILESHEET,UVMAP,"
-                            "VALUE,WIREFRAME,TEX_BRICK,TEX_CHECKER,BAKE_CURVATURE,TEX_GABOR,TEX_GRADIENT,TEX_IMAGE,TEX_MAGIC,TEX_NOISE,"
-                            "TEX_TEXT,TEX_VORONOI,TEX_WAVE,BLUR,BRIGHTCONTRAST,COLMASK,VALTORGB,COMBINE_COLOR,GAMMA,HUE_SAT,INVERT_COLOR,"
-                            "MIX_RGB,QUANTIZE,CURVE_RGB,RGBTOBW,REPLACECOL,SEPARATE_COLOR,DIRECT_WARP,BUMP,CLAMP,COMBXYZ,FLOAT_CURVE,"
-                            "MAPRANGE,MAPPING,MATH,MIX_NORMAL_MAP,NORMAL,NORMAL_MAP,SEPXYZ,CURVE_VEC,VECT_MATH,VECT_ROTATE,VECT_TRANSFORM";
+char        *material_node_types = "ATTRIBUTE,RGB,NEW_GEOMETRY,LAYER,LAYER_MASK,MATERIAL,OBJECT_INFO,PICKER,TEX_COORD,TILESHEET_ANIM,TILESHEET,UVMAP,"
+                                   "VALUE,WIREFRAME,TEX_BRICK,TEX_CHECKER,BAKE_CURVATURE,TEX_GABOR,TEX_GRADIENT,TEX_IMAGE,TEX_MAGIC,TEX_NOISE,"
+                                   "TEX_TEXT,TEX_VORONOI,TEX_WAVE,BLUR,BRIGHTCONTRAST,COLMASK,VALTORGB,COMBINE_COLOR,GAMMA,HUE_SAT,INVERT_COLOR,"
+                                   "MIX_RGB,QUANTIZE,CURVE_RGB,RGBTOBW,REPLACECOL,SEPARATE_COLOR,DIRECT_WARP,BUMP,CLAMP,COMBXYZ,FLOAT_CURVE,"
+                                   "MAPRANGE,MAPPING,MATH,MIX_NORMAL_MAP,NORMAL,NORMAL_MAP,SEPXYZ,CURVE_VEC,VECT_MATH,VECT_ROTATE,VECT_TRANSFORM";
 any_array_t *node_types;
 int          sweep_ok = 1; // Result of a step that repeats
 
@@ -474,7 +474,7 @@ void step_shader_node_outputs() {
 	ui_node_socket_t *value  = sh->outputs->length == 3 ? sh->outputs->buffer[1] : NULL;
 	ui_node_socket_t *height = sh->outputs->length == 3 ? sh->outputs->buffer[2] : NULL;
 	ok                       = ok && value != NULL && string_equals(value->name, "Value") && string_equals(height->name, "Height");
-	ui_node_t        *out    = script_material_get_node("OUTPUT_MATERIAL_PBR");
+	ui_node_t *out           = script_material_get_node("OUTPUT_MATERIAL_PBR");
 	script_material_connect(sh, 0, out, 0); // Base Color
 	script_material_connect(sh, 1, out, 3); // Roughness
 	script_material_connect(sh, 2, out, 7); // Height
@@ -498,7 +498,9 @@ void step_shader_node() {
 		check(0, "shader node");
 		return;
 	}
-	script_material_set_text(sh, 0, "float2 c = frac(tex_coord * 8.0);\noutput.color = lerp(float3(1.0, 0.8, 0.2), float3(0.1, 0.1, 0.3), step(dot_size, length(c - float2(0.5, 0.5))));");
+	script_material_set_text(
+	    sh, 0,
+	    "float2 c = frac(tex_coord * 8.0);\noutput.color = lerp(float3(1.0, 0.8, 0.2), float3(0.1, 0.1, 0.3), step(dot_size, length(c - float2(0.5, 0.5))));");
 	script_material_add_input(sh, "VALUE", "Dot Size");
 	script_material_set_float(sh, 1, 0, 0.3);
 	int ok = sh->inputs->length == 1;
@@ -859,8 +861,8 @@ void step_mesh_modifiers() {
 int mesh_nodes_original = 0;
 
 void step_mesh_nodes() {
-	object_t      *o   = script_shape_add("sphere");
-	mesh_object_t *mo  = o->ext;
+	object_t      *o    = script_shape_add("sphere");
+	mesh_object_t *mo   = o->ext;
 	mesh_nodes_original = index_count(o);
 	script_object_set_name(o, "test_nodes_sphere");
 
@@ -882,7 +884,7 @@ void step_mesh_nodes() {
 
 	ui_node_t *bool_node = script_mesh_create_node_at(mo, "MESH_BOOLEAN", 400.0, 0.0);
 	ui_node_t *torus     = script_mesh_create_node_at(mo, "MESH_SHAPE", 200.0, 200.0);
-	script_material_set_button(torus, 0, 4.0); // Torus
+	script_material_set_button(torus, 0, 4.0);     // Torus
 	script_material_set_button(bool_node, 0, 1.0); // Difference
 	script_mesh_connect(mo, subd, 0, bool_node, 0);
 	script_mesh_connect(mo, torus, 0, bool_node, 1);
@@ -919,7 +921,7 @@ void step_mesh_script() {
 	// Group shared by two group nodes with their own Count
 	char *grp = "test_mesh_group";
 	check(script_mesh_group_create(grp) && !script_mesh_group_create(grp), "mesh group created once");
-	ui_node_t *gin = script_mesh_group_get_node(grp, "GROUP_INPUT");
+	ui_node_t *gin  = script_mesh_group_get_node(grp, "GROUP_INPUT");
 	ui_node_t *gout = script_mesh_group_get_node(grp, "GROUP_OUTPUT");
 	script_mesh_group_add_input(grp, gin, "VALUE", "Count");
 	ui_node_t *gs = script_mesh_group_create_node_at(grp, "MESH_SCRIPT", 250.0, 200.0);
@@ -1130,7 +1132,7 @@ void step_bake_cancel() {
 // 32 - Every viewport mode, one per frame, path trace last for a few frames
 
 void step_viewport_modes() {
-	context_t *ctx = script_get_context();
+	context_t *ctx  = script_get_context();
 	int        mode = sub;
 	if (mode > 16) {
 		mode = 16;
@@ -1394,10 +1396,10 @@ void step_sculpt_layer() {
 // 47 - Draw pushes the surface out
 
 void step_sculpt_draw() {
-	context_t *ctx      = script_get_context();
-	ctx->brush_sculpt   = SCULPT_TYPE_DRAW;
-	ctx->brush_radius   = 0.5;
-	ctx->brush_opacity  = 1.0;
+	context_t *ctx     = script_get_context();
+	ctx->brush_sculpt  = SCULPT_TYPE_DRAW;
+	ctx->brush_radius  = 0.5;
+	ctx->brush_opacity = 1.0;
 	sculpt_stroke(TOOL_TYPE_BRUSH, 0.5);
 	f32_array_t *now = sculpt_positions();
 	int          ok  = sculpt_diff(now, sculpt_prev) && diff_moved > 0 && diff_radial > 0.0;
@@ -1501,8 +1503,8 @@ slot_material_t *flat_material(char *name, float r, float g, float b) {
 
 // Paints a blue stroke over a fresh red layer and returns the fraction of the expected color, the layer is deleted again
 float blend_fraction(int blending, float opacity, int r, int g, int b) {
-	context_t    *ctx  = script_get_context();
-	slot_layer_t *l    = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
+	context_t    *ctx   = script_get_context();
+	slot_layer_t *l     = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
 	ctx->brush_blending = blending;
 	ctx->brush_opacity  = opacity;
 	ctx->brush_radius   = 0.5;
@@ -1518,7 +1520,7 @@ float blend_fraction(int blending, float opacity, int r, int g, int b) {
 
 void step_blend_colors() {
 	script_project_new();
-	mat_blue  = flat_material("test_blue", 0.0, 0.0, 1.0);
+	mat_blue     = flat_material("test_blue", 0.0, 0.0, 1.0);
 	float mix    = blend_fraction(0, 1.0, 0, 0, 255);
 	mix_fraction = mix;
 	check(mix > 0.005 && mix < 0.6, string("mix stroke (%.3f blue)", mix));
@@ -1710,8 +1712,7 @@ void step_packed_assets() {
 	check(saved && iron_file_exists(file_packed), "packed asset saved to a file");
 	check(script_packed_assets_remove("test_draw.png") == 1, "packed asset removed");
 	int removed = script_assets_remove("test_draw");
-	check(removed == 2 && script_get_texture("test_draw.png") == NULL && script_get_texture("test_draw.jpg") == NULL,
-	      string("assets removed (%d)", removed));
+	check(removed == 2 && script_get_texture("test_draw.png") == NULL && script_get_texture("test_draw.jpg") == NULL, string("assets removed (%d)", removed));
 }
 
 // 62 - Custom mesh, texture and text importers
@@ -1878,12 +1879,12 @@ void step_mesh_geo() {
 	ok                = diff->index_count > 0 && inter->index_count > 0 && diff->index_count != box->index_count;
 	check(ok, string("mesh geo boolean (%d difference, %d intersect)", diff->index_count, inter->index_count));
 
-	mesh_geo_t  *dst = mesh_geo_create(box->vertex_count * 2, box->index_count * 2);
-	f32_array_t *m   = f32_array_create(12);
-	m->buffer[0]     = 1.0;
-	m->buffer[4]     = 1.0;
-	m->buffer[8]     = 1.0;
-	m->buffer[9]     = 3.0;
+	mesh_geo_t  *dst  = mesh_geo_create(box->vertex_count * 2, box->index_count * 2);
+	f32_array_t *m    = f32_array_create(12);
+	m->buffer[0]      = 1.0;
+	m->buffer[4]      = 1.0;
+	m->buffer[8]      = 1.0;
+	m->buffer[9]      = 3.0;
 	dst->vertex_count = 0;
 	dst->index_count  = 0;
 	ok                = mesh_geo_append(dst, box, m->buffer) && mesh_geo_append(dst, box, m->buffer) && !mesh_geo_append(dst, box, m->buffer);
@@ -1916,7 +1917,8 @@ void step_geom_more() {
 
 	geom_t *half = geom_copy(ell);
 	geom_keep(half, 2, 0.0, 10.0);
-	check(geom_vertex_count(half) < geom_vertex_count(ell) && geom_vertex_count(half) > 0, string("geom keep (%d of %d)", geom_vertex_count(half), geom_vertex_count(ell)));
+	check(geom_vertex_count(half) < geom_vertex_count(ell) && geom_vertex_count(half) > 0,
+	      string("geom keep (%d of %d)", geom_vertex_count(half), geom_vertex_count(ell)));
 
 	geom_sdf_begin(0.05);
 	geom_sdf_box(-0.3, -0.3, -0.3, 0.3, 0.3, 0.3, 0.05, 0);
@@ -1961,9 +1963,9 @@ void step_geom_more() {
 // 66 - Skinned mesh: bones, weights and a clip, written as .skin, imported and reskinned
 
 float mesh_max_x(object_t *o) {
-	mesh_object_t  *mo  = o->ext;
-	vertex_array_t *va  = mesh_data_get_vertex_array(mo->data, "pos");
-	float           mx  = -100000.0;
+	mesh_object_t  *mo = o->ext;
+	vertex_array_t *va = mesh_data_get_vertex_array(mo->data, "pos");
+	float           mx = -100000.0;
 	for (int i = 0; i < va->values->length; i += 4) {
 		float x = va->values->buffer[i] / 32767.0 * mo->data->scale_pos;
 		if (x > mx) {
@@ -2018,9 +2020,9 @@ void step_skin() {
 // 70 - Duplicate and merge paint objects
 
 void step_duplicate_merge() {
-	context_t      *ctx    = script_get_context();
-	mesh_object_t  *before = ctx->paint_object;
-	int             count  = index_count(before->base);
+	context_t     *ctx    = script_get_context();
+	mesh_object_t *before = ctx->paint_object;
+	int            count  = index_count(before->base);
 	util_mesh_duplicate();
 	mesh_object_t *dup = ctx->paint_object;
 	check(dup != before && index_count(dup->base) == count, "paint object duplicated");
@@ -2117,8 +2119,8 @@ float base_fraction(int color) {
 
 void step_layer_duplicate() {
 	script_project_new();
-	mat_blue           = flat_material("test_blue", 0.0, 0.0, 1.0);
-	slot_layer_t *red  = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
+	mat_blue          = flat_material("test_blue", 0.0, 0.0, 1.0);
+	slot_layer_t *red = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
 	script_layer_set_name(red, "test_red");
 	stroke_across(TOOL_TYPE_BRUSH);
 	float stroke = base_fraction(0x0000ff);
@@ -2142,7 +2144,7 @@ void step_layer_duplicate() {
 	script_layer_move(blue, script_layer_index(red));
 	red->blending = 2; // Multiply
 	script_layer_update(red);
-	float black = base_fraction(0x000000);
+	float black   = base_fraction(0x000000);
 	red->blending = 0;
 	script_layer_update(red);
 	float red_again = base_fraction(0xff0000);
@@ -2176,7 +2178,7 @@ void step_layer_merge_down() {
 // 74 - Invert and apply masks
 
 void step_layer_mask_ops() {
-	slot_layer_t *red  = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
+	slot_layer_t *red   = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
 	int           count = script_layer_count();
 	slot_layer_t *mask  = script_layer_new_mask(red, 0);
 	check(base_fraction(0xff0000) < 0.05, "black mask hides the layer");
@@ -2198,8 +2200,8 @@ void step_layer_mask_ops() {
 	script_layer_delete(red);
 
 	// A white mask with a black stroke cuts the stroke out of the layer
-	red  = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
-	mask = script_layer_new_mask(red, 1);
+	red                    = script_layer_new_color(0xffff0000, 1.0, 0.5, 0.0);
+	mask                   = script_layer_new_mask(red, 1);
 	slot_material_t *black = flat_material("test_black", 0.0, 0.0, 0.0);
 	script_layer_set(mask);
 	stroke_across(TOOL_TYPE_BRUSH);
@@ -2258,7 +2260,7 @@ void step_layer_merge_group() {
 	check(script_layer_merge_group(red) == NULL, "a layer is not merged as a group");
 	slot_layer_t *merged = script_layer_merge_group(group);
 	ok                   = merged != NULL && merged->parent == NULL && script_layer_count() == count - 2;
-	ok = ok && string_equals(merged->name, "test_merge_group") && layer_names_unique();
+	ok                   = ok && string_equals(merged->name, "test_merge_group") && layer_names_unique();
 	check(ok, string("group merged into one layer %s (%d -> %d layers)", merged->name, count, script_layer_count()));
 	float merged_purple = base_fraction(0x800080);
 	check(purple > 0.5 && fabs(merged_purple - purple) < 0.02, string("group merge keeps the result (%.2f of %.2f purple)", merged_purple, purple));
@@ -2272,16 +2274,16 @@ char *file_paths;
 
 void step_layer_path() {
 	script_project_new();
-	mat_blue        = flat_material("test_blue", 0.0, 0.0, 1.0);
-	context_t *ctx  = script_get_context();
+	mat_blue          = flat_material("test_blue", 0.0, 0.0, 1.0);
+	context_t *ctx    = script_get_context();
 	ctx->brush_radius = 0.5;
-	slot_layer_t *l = script_layer_new_path(false);
+	slot_layer_t *l   = script_layer_new_path(false);
 	check(l != NULL && l->path_points != NULL && !l->path_curved && l->path_material == mat_blue && layer_names_unique(),
 	      string("path layer %s created", l->name));
 	// Both points on the front face of the cube, a capsule across the edge cuts through the cube and paints only its ends
-	int ok = script_layer_add_path_point(l, 0.35, 0.5);
-	float dot = base_fraction(0x0000ff);
-	ok     = ok && script_layer_add_path_point(l, 0.5, 0.5);
+	int   ok   = script_layer_add_path_point(l, 0.35, 0.5);
+	float dot  = base_fraction(0x0000ff);
+	ok         = ok && script_layer_add_path_point(l, 0.5, 0.5);
 	float line = base_fraction(0x0000ff);
 	check(ok && l->path_points->length == 4 && dot > 0.0005 && line > dot * 2.0, string("path points paint a line (%.4f dot, %.4f line)", dot, line));
 	check(!script_layer_add_path_point(script_layer_at(0), 0.5, 0.5), "no path points on a paint layer");
