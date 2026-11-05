@@ -10,6 +10,7 @@ f32                      ui_nodes_popup_y         = 0.0;
 i32                      ui_nodes_node_search_x;
 i32                      ui_nodes_node_search_y;
 bool                     ui_nodes_uichanged_last        = false;
+static bool              ui_nodes_popup_changed         = false;
 bool                     ui_nodes_recompile_mat         = false; // Mat preview
 bool                     ui_nodes_recompile_mat_final   = false;
 ui_node_t               *ui_nodes_node_search_spawn     = NULL;
@@ -1021,6 +1022,11 @@ void ui_nodes_update(void *_) {
 		ui_node_canvas(ui_nodes, c);
 		g_ui->input_enabled = _input_enabled;
 
+		if (ui_nodes_popup_changed) {
+			ui_nodes_popup_changed = false;
+			g_ui->changed          = true;
+		}
+
 		if (ui_nodes->color_picker_callback != NULL) {
 			g_context->color_picker_previous_tool = g_context->tool;
 			context_select_tool(TOOL_TYPE_PICKER);
@@ -1207,6 +1213,24 @@ void ui_nodes_update(void *_) {
 	}
 
 	g_ui->input_enabled = true;
+}
+
+void ui_nodes_render_popup() {
+	if (!ui_nodes_show || !ui_nodes_popup_open()) {
+		return;
+	}
+	if (g_ui->input_started || g_ui->is_key_pressed) {
+		ui_nodes_last_canvas = util_clone_canvas(ui_nodes_get_canvas(true));
+	}
+	draw_begin(NULL, false, 0);
+	g_ui->input_enabled = g_ui->combo_selected_id == 0 && !ui_box_show && !ui_menu_show;
+	ui_nodes_popup_render(ui_nodes_get_canvas(true));
+	g_ui->input_enabled = true;
+	draw_end();
+	if (g_ui->changed) {
+		ui_nodes_popup_changed = true;
+		ui_nodes_hwnd->redraws = 2;
+	}
 }
 
 void ui_nodes_accept_asset_drop(i32 index) {

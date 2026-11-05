@@ -520,7 +520,7 @@ void base_update(void *_) {
 	}
 
 	bool using_menu = ui_menu_show && mouse_y > ui_header_h;
-	base_ui_enabled = !ui_box_show && !using_menu && g_ui->combo_selected_id == 0 && !agent_running;
+	base_ui_enabled = !ui_box_show && !using_menu && g_ui->combo_selected_id == 0 && !agent_running && !(ui_nodes_show && ui_nodes_popup_hovered());
 
 	if (viewport_recording) {
 		viewport_capture_video_draw();
@@ -528,6 +528,7 @@ void base_update(void *_) {
 	if (!ui_base_show && !player_in_editor && !base_player_lock && gpu_framebuffer_redirect == NULL) {
 		base_draw_console_lines();
 	}
+	ui_nodes_render_popup();
 	if (ui_box_show) {
 		ui_box_render();
 	}

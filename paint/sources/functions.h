@@ -987,6 +987,7 @@ void                      ui_nodes_code_end();
 bool                      ui_nodes_code_panel(ui_node_t *node);
 void                      ui_nodes_update_rect();
 void                      ui_nodes_update(void *_);
+void                      ui_nodes_render_popup();
 void                      ui_nodes_canvas_changed();
 gpu_texture_t            *ui_nodes_draw_grid(f32 zoom);
 gpu_texture_t            *ui_nodes_get_node_preview_image(ui_node_t *n);
