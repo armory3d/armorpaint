@@ -388,8 +388,8 @@ static void rgba_popup_commands(ui_t *ui, void *data, void *data2) {
 
 void ui_nodes_rgba_popup(ui_color_state_t *state, float *val, int x, int y) {
 	ui_t *current = ui_get_current();
-	ui_popup(x + current->_window_x, y + current->_window_y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands, state,
-	         val);
+	ui_popup(x + current->_window_x, y + current->_window_y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands,
+	         state, val);
 }
 
 bool ui_nodes_popup_open() {

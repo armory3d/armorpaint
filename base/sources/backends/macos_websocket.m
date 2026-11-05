@@ -14,12 +14,12 @@
 
 @implementation IronWebSocket {
 @public
-	_Atomic int                   state;
-	NSURLSession                 *session;
-	NSURLSessionWebSocketTask    *task;
-	NSMutableArray<NSData *>     *messages;
-	char                         *msg;
-	time_t                        last_send;
+	_Atomic int                state;
+	NSURLSession              *session;
+	NSURLSessionWebSocketTask *task;
+	NSMutableArray<NSData *>  *messages;
+	char                      *msg;
+	time_t                     last_send;
 }
 
 - (void)receiveNext {
@@ -47,7 +47,7 @@
 }
 
 - (void)URLSession:(NSURLSession *)session
-         webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask
+       webSocketTask:(NSURLSessionWebSocketTask *)webSocketTask
     didCloseWithCode:(NSURLSessionWebSocketCloseCode)closeCode
               reason:(NSData *)reason {
 	state = IRON_WEBSOCKET_CLOSED;
@@ -80,14 +80,14 @@ i32 iron_websocket_open(char *url) {
 	if (nsurl == nil) {
 		return -1;
 	}
-	IronWebSocket *ws = [[IronWebSocket alloc] init];
-	ws->state         = IRON_WEBSOCKET_CONNECTING;
-	ws->messages      = [NSMutableArray array];
-	ws->last_send     = time(NULL);
-	NSOperationQueue *queue      = [[NSOperationQueue alloc] init];
+	IronWebSocket *ws                 = [[IronWebSocket alloc] init];
+	ws->state                         = IRON_WEBSOCKET_CONNECTING;
+	ws->messages                      = [NSMutableArray array];
+	ws->last_send                     = time(NULL);
+	NSOperationQueue *queue           = [[NSOperationQueue alloc] init];
 	queue.maxConcurrentOperationCount = 1;
-	ws->session                 = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:ws delegateQueue:queue];
-	ws->task                    = [ws->session webSocketTaskWithURL:nsurl];
+	ws->session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:ws delegateQueue:queue];
+	ws->task    = [ws->session webSocketTaskWithURL:nsurl];
 	ws->task.maximumMessageSize = MAX_MESSAGE;
 	[ws->task resume];
 	[ws receiveNext];
@@ -115,7 +115,7 @@ void iron_websocket_send(i32 handle, char *text) {
 		    if (error != nil && w != nil) {
 			    w->state = IRON_WEBSOCKET_CLOSED;
 		    }
-		}];
+	    }];
 	ws->last_send = time(NULL);
 }
 
@@ -125,7 +125,7 @@ char *iron_websocket_receive(i32 handle) {
 		return NULL;
 	}
 	if (time(NULL) - ws->last_send >= PING_SECONDS) {
-		[ws->task sendPingWithPongReceiveHandler:^(NSError *error) {
+		[ws->task sendPingWithPongReceiveHandler:^(NSError *error){
 		}];
 		ws->last_send = time(NULL);
 	}

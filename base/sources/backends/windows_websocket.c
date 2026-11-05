@@ -75,9 +75,9 @@ static bool websocket_connect(websocket_t *ws) {
 
 	ws->hsession = WinHttpOpen(L"Iron/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
 	ws->hconnect = ws->hsession ? WinHttpConnect(ws->hsession, host, port, 0) : NULL;
-	ws->hrequest = ws->hconnect ? WinHttpOpenRequest(ws->hconnect, L"GET", path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
-	                                                 tls ? WINHTTP_FLAG_SECURE : 0)
-	                            : NULL;
+	ws->hrequest = ws->hconnect
+	                   ? WinHttpOpenRequest(ws->hconnect, L"GET", path, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, tls ? WINHTTP_FLAG_SECURE : 0)
+	                   : NULL;
 	if (ws->hrequest == NULL || !WinHttpSetOption(ws->hrequest, WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, NULL, 0) ||
 	    !WinHttpSendRequest(ws->hrequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, NULL, 0, 0, 0) || !WinHttpReceiveResponse(ws->hrequest, NULL)) {
 		return false;
@@ -89,8 +89,7 @@ static bool websocket_connect(websocket_t *ws) {
 static DWORD WINAPI receive_thread(LPVOID arg) {
 	websocket_t *ws = arg;
 	bool         ok = websocket_connect(ws);
-	if (InterlockedCompareExchange(&ws->state, ok ? IRON_WEBSOCKET_OPEN : IRON_WEBSOCKET_CLOSED, IRON_WEBSOCKET_CONNECTING) !=
-	        IRON_WEBSOCKET_CONNECTING ||
+	if (InterlockedCompareExchange(&ws->state, ok ? IRON_WEBSOCKET_OPEN : IRON_WEBSOCKET_CLOSED, IRON_WEBSOCKET_CONNECTING) != IRON_WEBSOCKET_CONNECTING ||
 	    !ok) {
 		websocket_release(ws);
 		return 0;
@@ -106,8 +105,7 @@ static DWORD WINAPI receive_thread(LPVOID arg) {
 		}
 		DWORD                          n    = 0;
 		WINHTTP_WEB_SOCKET_BUFFER_TYPE type = 0;
-		if (WinHttpWebSocketReceive(ws->hws, msg + msg_len, msg_cap - msg_len - 1, &n, &type) != NO_ERROR ||
-		    type == WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE) {
+		if (WinHttpWebSocketReceive(ws->hws, msg + msg_len, msg_cap - msg_len - 1, &n, &type) != NO_ERROR || type == WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE) {
 			break;
 		}
 		msg_len += n;

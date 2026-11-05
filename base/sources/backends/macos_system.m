@@ -325,11 +325,11 @@ static int get_mouse_y(NSEvent *event) {
 	iron_internal_mouse_trigger_move(get_mouse_x(theEvent), get_mouse_y(theEvent));
 }
 
-static bool   trackpad_drag    = false;
-static int    trackpad_button  = 1;
-static double trackpad_lift    = 0.0; // Fingers lifted, waiting for momentum scrolling
-static float  trackpad_x       = 0.0f; // Movement remainder
-static float  trackpad_y       = 0.0f;
+static bool   trackpad_drag   = false;
+static int    trackpad_button = 1;
+static double trackpad_lift   = 0.0;  // Fingers lifted, waiting for momentum scrolling
+static float  trackpad_x      = 0.0f; // Movement remainder
+static float  trackpad_y      = 0.0f;
 
 static void trackpad_release(void) {
 	trackpad_drag = false;
@@ -351,8 +351,7 @@ static void trackpad_release(void) {
 	// Two finger trackpad drag - right mouse button, shift - middle mouse button, continues with momentum scrolling
 	NSEventPhase phase    = [theEvent phase];
 	NSEventPhase momentum = [theEvent momentumPhase];
-	if ([theEvent hasPreciseScrollingDeltas] &&
-	    (trackpad_drag || (phase == NSEventPhaseBegan && iron_mouse_trackpad_drag && !iron_mouse_is_locked()))) {
+	if ([theEvent hasPreciseScrollingDeltas] && (trackpad_drag || (phase == NSEventPhaseBegan && iron_mouse_trackpad_drag && !iron_mouse_is_locked()))) {
 		if (phase == NSEventPhaseBegan || phase == NSEventPhaseMayBegin) { // Fingers down, stops momentum
 			trackpad_lift = 0.0;
 			if (!trackpad_drag) {
@@ -644,9 +643,7 @@ id get_metal_queue(void) {
 
 bool iron_internal_handle_messages(void) {
 	NSEvent *event;
-	while ((event = [myapp nextEventMatchingMask:NSAnyEventMask
-	                                   untilDate:[NSDate distantPast]
-	                                      inMode:NSDefaultRunLoopMode
+	while ((event = [myapp nextEventMatchingMask:NSAnyEventMask untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode
 	                                     dequeue:YES]) != nil) { // distantPast: non-blocking
 		// Key up is not delivered to the view while cmd is held, keys would stay down
 		if ([event type] == NSEventTypeKeyUp && ([event modifierFlags] & NSEventModifierFlagCommand)) {
@@ -657,7 +654,7 @@ bool iron_internal_handle_messages(void) {
 		}
 	}
 	[myapp updateWindows];
-	
+
 	if (trackpad_lift > 0.0 && [[NSProcessInfo processInfo] systemUptime] - trackpad_lift > 0.1) {
 		trackpad_release();
 	}
