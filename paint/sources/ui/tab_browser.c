@@ -1,10 +1,11 @@
 
 #include "../global.h"
 
-bool  tab_browser_known     = false;
 char *tab_browser_last_path = "";
 char *_tab_browser_draw_file;
 char *_tab_browser_draw_b;
+bool  tab_browser_scroll_reset = false;
+char *tab_browser_scroll_path  = "";
 
 void tab_browser_show_directory(char *directory) {
 	tab_browser_path   = string_copy(directory);
@@ -128,15 +129,22 @@ void tab_browser_draw_context_menu(char *file) {
 }
 
 void tab_browser_go_to_cloud() {
-	tab_browser_path = "cloud";
+	tab_browser_path         = "cloud";
+	tab_browser_scroll_reset = true;
 }
 
 void tab_browser_go_to_disk() {
+	tab_browser_scroll_reset = true;
 #ifdef IRON_ANDROID
 	tab_browser_path = string_copy(iron_internal_save_path());
 #else
 	tab_browser_path = string_copy(ui_files_default_path);
 #endif
+}
+
+static void tab_browser_go_up() {
+	ui_files_go_up(&tab_browser_path);
+	tab_browser_scroll_path = string_copy(tab_browser_path);
 }
 
 void tab_browser_draw_side_menu() {
@@ -247,7 +255,7 @@ void tab_browser_draw(i32 *htab) {
 #endif
 		g_ui->enabled = nested;
 		if (ui_icon_button("", ICON_CHEVRON_LEFT, UI_ALIGN_CENTER)) {
-			ui_files_go_up(&tab_browser_path);
+			tab_browser_go_up();
 		}
 		g_ui->enabled = true;
 		if (g_ui->is_hovered) {
@@ -301,20 +309,20 @@ void tab_browser_draw(i32 *htab) {
 
 		tab_browser_refresh = false;
 
-		if (tab_browser_known) {
+		char *hpath_text = tab_browser_path;
+		bool  known      = string_index_of(substring(tab_browser_path, string_last_index_of(tab_browser_path, PATH_SEP), string_length(hpath_text)), ".") > 0;
+#ifdef IRON_ANDROID
+		if (ends_with(tab_browser_path, string(".%s", to_lower_case(manifest_title)))) {
+			known = false;
+		}
+#endif
+		if (known && iron_is_directory(tab_browser_path)) {
+			known = false;
+		}
+		if (known) {
 			char *path = tab_browser_path;
 			sys_notify_on_next_frame(&tab_browser_draw_import_asset, path);
 			tab_browser_path = string_copy(substring(tab_browser_path, 0, string_last_index_of(tab_browser_path, PATH_SEP)));
-		}
-		char *hpath_text  = tab_browser_path;
-		tab_browser_known = string_index_of(substring(tab_browser_path, string_last_index_of(tab_browser_path, PATH_SEP), string_length(hpath_text)), ".") > 0;
-#ifdef IRON_ANDROID
-		if (ends_with(tab_browser_path, string(".%s", to_lower_case(manifest_title)))) {
-			tab_browser_known = false;
-		}
-#endif
-		if (tab_browser_known && iron_is_directory(tab_browser_path)) {
-			tab_browser_known = false;
 		}
 
 		if (show_full) {
@@ -341,6 +349,7 @@ void tab_browser_draw(i32 *htab) {
 #ifdef IRON_WINDOWS
 					tab_browser_path = string_copy(string_replace_all(tab_browser_path, "/", "\\"));
 #endif
+					tab_browser_scroll_reset = true;
 				}
 
 				if (g_ui->is_hovered && g_ui->input_released_r) {
@@ -349,6 +358,17 @@ void tab_browser_draw(i32 *htab) {
 				}
 			}
 			g_ui->_y = bottom_y; // Scroll range follows the file view only
+		}
+
+		if (!string_equals(tab_browser_scroll_path, tab_browser_path)) {
+			tab_browser_scroll_path  = string_copy(tab_browser_path);
+			tab_browser_scroll_reset = true;
+		}
+
+		if (tab_browser_scroll_reset) {
+			g_ui->current_window->scroll_offset = 0;
+			g_ui->current_window->redraws       = 2;
+			tab_browser_scroll_reset            = false;
 		}
 
 		if (in_focus && !g_ui->is_typing) {
@@ -363,7 +383,7 @@ void tab_browser_draw(i32 *htab) {
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_RETURN)
 				ui_files_enter_selected(&tab_browser_path);
 			if (g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_BACKSPACE && nested)
-				ui_files_go_up(&tab_browser_path);
+				tab_browser_go_up();
 			if (g_ui->is_escape_down)
 				ui_files_selected = -1;
 			if (g_ui->is_key_pressed && g_ui->key_code >= KEY_CODE_A && g_ui->key_code <= KEY_CODE_Z && !g_ui->is_ctrl_down && !g_ui->is_alt_down)

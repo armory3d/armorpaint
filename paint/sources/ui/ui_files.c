@@ -617,6 +617,7 @@ void ui_files_select_letter(char c) {
 void ui_files_go_up(char **path) {
 	i32 sep                 = string_last_index_of(*path, PATH_SEP);
 	ui_files_select_pending = string_copy(substring(*path, sep + 1, string_length(*path)));
+	ui_files_scroll_pending = true;
 	*path                   = string_copy(substring(*path, 0, sep));
 	// Drive root
 	if (string_length(*path) == 2 && string_equals(char_at(*path, 1), ":")) {
