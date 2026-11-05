@@ -279,7 +279,6 @@ void ui_header_draw_tool_properties() {
 			ui_toolbar_handle->redraws       = 1;
 		}
 		g_ui->enabled = true;
-		ui_text(tr("Color ID Map"), UI_ALIGN_LEFT, 0x00000000);
 		if (g_project->_->assets->length > 0) {
 			ui_combo(&g_context->colorid, base_combo_enum_texts("TEX_IMAGE"), tr("Color ID"), false, UI_ALIGN_LEFT, true);
 			bool colorid_changed = ui_item_changed();
