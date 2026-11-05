@@ -251,11 +251,11 @@ void viewport_capture_video_end() {
 	iron_mp4_end();
 #endif
 	gpu_delete_texture(viewport_video_frame);
-	viewport_video_frame  = NULL;
+	viewport_video_frame   = NULL;
 	viewport_recording     = false;
 	viewport_video_stepped = false;
 	viewport_video_time    = -1.0;
 	g_config->rp_vignette  = viewport_video_vignette;
-	g_config->rp_grain    = viewport_video_grain;
-	g_context->ddirty     = 2;
+	g_config->rp_grain     = viewport_video_grain;
+	g_context->ddirty      = 2;
 }

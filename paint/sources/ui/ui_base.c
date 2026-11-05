@@ -82,7 +82,7 @@ void ui_base_init() {
 
 	ui_picker_button = ui_base_picker_button;
 
-	g_context->gizmo             = scene_get_child(".Gizmo");
+	g_context->gizmo = scene_get_child(".Gizmo");
 	array_remove(scene_meshes, g_context->gizmo->ext); // Drawn by render_gizmo_draw()
 	g_context->gizmo_translate_x = object_get_child(g_context->gizmo, ".TranslateX");
 	g_context->gizmo_translate_y = object_get_child(g_context->gizmo, ".TranslateY");
@@ -245,7 +245,7 @@ void ui_base_init_tabs() {
 	// Views draw their own windows
 	_draw_callback_create(tab_view3d_draw, TAB_VIEW3D, "3D View", -1);
 	_draw_callback_create(tab_view2d_draw, TAB_VIEW2D, "2D View", -1)->closed_default = true;
-	_draw_callback_create(tab_nodes_draw, TAB_NODES, "Nodes", -1)->closed_default    = true;
+	_draw_callback_create(tab_nodes_draw, TAB_NODES, "Nodes", -1)->closed_default     = true;
 
 #ifdef IRON_IOS
 	if (config_is_iphone()) {

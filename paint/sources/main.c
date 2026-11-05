@@ -156,11 +156,11 @@
 #include "render/render_pass.c"
 #include "render/render_path_base.c"
 #include "render/render_path_lit.c"
-#include "render/render_path_unlit.c"
 #include "render/render_path_paint.c"
 #include "render/render_path_preview.c"
 #include "render/render_path_raytrace.c"
 #include "render/render_path_raytrace_bake.c"
+#include "render/render_path_unlit.c"
 #include "render/render_pathsphere.c"
 
 #include "slots/slot_brush.c"

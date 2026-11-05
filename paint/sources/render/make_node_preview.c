@@ -50,7 +50,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	if (parser_material_blur_passthrough && string_equals(node->type, "BLUR")) {
 		socket_preview = 0; // Blur texture holds the color, opacity goes to alpha
 	}
-	ui_node_link_t         *link =
+	ui_node_link_t *link =
 	    ALLOC_INIT(ui_node_link_t,
 	               {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
 	any_array_push(links, link);

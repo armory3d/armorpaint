@@ -487,15 +487,15 @@ void tab_materials_apply_picked_color(swatch_color_t *swatch) {
 	if (canvas->nodes->length != 1 || !string_equals(canvas->nodes->buffer[0]->type, "OUTPUT_MATERIAL_PBR")) {
 		return;
 	}
-	ui_node_t *node                                   = canvas->nodes->buffer[0];
-	node->inputs->buffer[0]->default_value            = f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0,
-	                                                                          color_get_bb(swatch->base) / 255.0, 1.0);
+	ui_node_t *node = canvas->nodes->buffer[0];
+	node->inputs->buffer[0]->default_value =
+	    f32_array_create_xyzw(color_get_rb(swatch->base) / 255.0, color_get_gb(swatch->base) / 255.0, color_get_bb(swatch->base) / 255.0, 1.0);
 	node->inputs->buffer[1]->default_value->buffer[0] = swatch->opacity;
 	node->inputs->buffer[2]->default_value->buffer[0] = swatch->occlusion;
 	node->inputs->buffer[3]->default_value->buffer[0] = swatch->roughness;
 	node->inputs->buffer[4]->default_value->buffer[0] = swatch->metallic;
-	node->inputs->buffer[5]->default_value            = f32_array_create_xyz(color_get_rb(swatch->normal) / 255.0, color_get_gb(swatch->normal) / 255.0,
-	                                                                         color_get_bb(swatch->normal) / 255.0);
+	node->inputs->buffer[5]->default_value =
+	    f32_array_create_xyz(color_get_rb(swatch->normal) / 255.0, color_get_gb(swatch->normal) / 255.0, color_get_bb(swatch->normal) / 255.0);
 	node->inputs->buffer[7]->default_value->buffer[0] = swatch->height;
 	tab_materials_update_material();
 	if (layers_is_fill_material()) {

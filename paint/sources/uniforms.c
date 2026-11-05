@@ -213,10 +213,10 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 		// Discard first paint for directional brush (no prev position yet)
 		bool allow_paint = g_context->prev_paint_vec_x > 0 && g_context->prev_paint_vec_y > 0 &&
 		                   (g_context->prev_paint_vec_x != g_context->paint_vec.x || g_context->prev_paint_vec_y != g_context->paint_vec.y);
-		f32 x     = g_context->paint_vec.x;
-		f32 y     = g_context->paint_vec.y;
-		f32 lastx = g_context->prev_paint_vec_x;
-		f32 lasty = g_context->prev_paint_vec_y;
+		f32 x                       = g_context->paint_vec.x;
+		f32 y                       = g_context->paint_vec.y;
+		f32 lastx                   = g_context->prev_paint_vec_x;
+		f32 lasty                   = g_context->prev_paint_vec_y;
 		f32 angle                   = math_atan2(-y + lasty, x - lastx) - math_pi() / 2.0;
 		v                           = (vec4_t){math_cos(angle), math_sin(angle), allow_paint ? 1 : 0, 1.0};
 		g_context->prev_paint_vec_x = g_context->last_paint_vec_x;

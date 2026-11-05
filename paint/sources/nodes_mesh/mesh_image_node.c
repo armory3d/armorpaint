@@ -164,8 +164,7 @@ vec4_t mesh_image_texel(mesh_geo_image_t *img, i32 x, i32 y) {
 	}
 	default: {
 		u8 *p = img->pixels + i * 4;
-		c     = img->bgra ? (vec4_t){p[2] / 255.0, p[1] / 255.0, p[0] / 255.0, p[3] / 255.0}
-		                  : (vec4_t){p[0] / 255.0, p[1] / 255.0, p[2] / 255.0, p[3] / 255.0};
+		c     = img->bgra ? (vec4_t){p[2] / 255.0, p[1] / 255.0, p[0] / 255.0, p[3] / 255.0} : (vec4_t){p[0] / 255.0, p[1] / 255.0, p[2] / 255.0, p[3] / 255.0};
 		break;
 	}
 	}
@@ -199,18 +198,18 @@ vec4_t mesh_image_sample_bilinear(mesh_geo_image_t *img, f32 u, f32 v) {
 	if (!mesh_image_valid(img, u, v)) {
 		return (vec4_t){0.0, 0.0, 0.0, 0.0};
 	}
-	f32    x  = (u - math_floor(u)) * img->width - 0.5;
-	f32    y  = (v - math_floor(v)) * img->height - 0.5;
-	i32    x0 = (i32)math_floor(x);
-	i32    y0 = (i32)math_floor(y);
-	f32    fx = x - x0;
-	f32    fy = y - y0;
-	i32    x1 = (x0 + 1) % img->width;
-	i32    y1 = (y0 + 1) % img->height;
-	x0        = (x0 + img->width) % img->width;
-	y0        = (y0 + img->height) % img->height;
-	vec4_t a  = mesh_image_lerp(mesh_image_texel(img, x0, y0), mesh_image_texel(img, x1, y0), fx);
-	vec4_t b  = mesh_image_lerp(mesh_image_texel(img, x0, y1), mesh_image_texel(img, x1, y1), fx);
+	f32 x    = (u - math_floor(u)) * img->width - 0.5;
+	f32 y    = (v - math_floor(v)) * img->height - 0.5;
+	i32 x0   = (i32)math_floor(x);
+	i32 y0   = (i32)math_floor(y);
+	f32 fx   = x - x0;
+	f32 fy   = y - y0;
+	i32 x1   = (x0 + 1) % img->width;
+	i32 y1   = (y0 + 1) % img->height;
+	x0       = (x0 + img->width) % img->width;
+	y0       = (y0 + img->height) % img->height;
+	vec4_t a = mesh_image_lerp(mesh_image_texel(img, x0, y0), mesh_image_texel(img, x1, y0), fx);
+	vec4_t b = mesh_image_lerp(mesh_image_texel(img, x0, y1), mesh_image_texel(img, x1, y1), fx);
 	return mesh_image_lerp(a, b, fy);
 }
 

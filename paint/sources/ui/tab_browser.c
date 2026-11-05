@@ -7,8 +7,8 @@ char *_tab_browser_draw_file;
 char *_tab_browser_draw_b;
 
 void tab_browser_show_directory(char *directory) {
-	tab_browser_path                               = string_copy(directory);
-	tab_browser_search                             = "";
+	tab_browser_path   = string_copy(directory);
+	tab_browser_search = "";
 	ui_base_show_tab(TAB_BROWSER);
 }
 

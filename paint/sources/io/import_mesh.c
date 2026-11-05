@@ -73,11 +73,11 @@ void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool
 }
 
 static mesh_object_t *import_mesh_make_root() {
-	char          *name = string_copy(_import_mesh_unique_name("Root"));
-	mesh_data_t   *md   = util_shape_make_data("empty");
-	md->name            = name;
-	mesh_object_t *mo   = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
-	mo->base->name      = name;
+	char        *name = string_copy(_import_mesh_unique_name("Root"));
+	mesh_data_t *md   = util_shape_make_data("empty");
+	md->name          = name;
+	mesh_object_t *mo = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
+	mo->base->name    = name;
 	tab_stages_add_object(name);
 	return mo;
 }
@@ -274,10 +274,10 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	ui_dock_redraw(TAB_AREA_SIDEBAR1);
-	util_uv_uvmap_cached                              = false;
-	util_uv_trianglemap_cached                        = false;
-	util_uv_seammap_cached                            = false;
-	util_uv_dilatemap_cached                          = false;
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
+	util_uv_dilatemap_cached   = false;
 
 	if (import_mesh_clear_layers) {
 		while (g_project->_->layers->length > 0) {
@@ -330,10 +330,10 @@ void import_mesh_add_mesh(raw_mesh_t *mesh) {
 	g_context->ddirty = 4;
 
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
-	util_uv_uvmap_cached                              = false;
-	util_uv_trianglemap_cached                        = false;
-	util_uv_seammap_cached                            = false;
-	util_uv_dilatemap_cached                          = false;
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
+	util_uv_dilatemap_cached   = false;
 }
 
 mesh_data_t *import_mesh_raw_mesh(raw_mesh_t *mesh) {

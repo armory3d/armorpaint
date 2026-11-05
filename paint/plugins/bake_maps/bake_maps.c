@@ -1635,10 +1635,10 @@ static bool bake_maps_gpu_last; // Defined with the gpu bake below
 
 static minic_val_t bake_maps_start(minic_val_t *a, int n) {
 	bake_maps_gpu_last = false;
-	i32  type     = bake_maps_arg_i(a, n, 0);
-	bool use_high = bake_maps_arg_i(a, n, 4) != 0 && bake_rays_hp.count > 0;
-	i32  w        = bake_maps_arg_i(a, n, 5);
-	i32  h        = bake_maps_arg_i(a, n, 6);
+	i32  type          = bake_maps_arg_i(a, n, 0);
+	bool use_high      = bake_maps_arg_i(a, n, 4) != 0 && bake_rays_hp.count > 0;
+	i32  w             = bake_maps_arg_i(a, n, 5);
+	i32  h             = bake_maps_arg_i(a, n, 6);
 	bake_rays_join();
 	if (w <= 0 || h <= 0) {
 		return minic_val_int(0);
@@ -1952,10 +1952,10 @@ static minic_val_t bake_maps_end_images(minic_val_t *a, int n) {
 // void bake_maps_end(): releases everything, the high poly can take gigabytes
 static minic_val_t bake_maps_end(minic_val_t *a, int n) {
 	free(bake_maps_gpu_out);
-	bake_maps_gpu_out  = NULL;
-	bake_maps_gpu_w    = 0;
-	bake_maps_gpu_h    = 0;
-	bake_maps_gpu_last = false;
+	bake_maps_gpu_out   = NULL;
+	bake_maps_gpu_w     = 0;
+	bake_maps_gpu_h     = 0;
+	bake_maps_gpu_last  = false;
 	bake_rays_cancelled = true;
 	bake_rays_join();
 	bake_rays_free_images();

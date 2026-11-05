@@ -79,8 +79,8 @@ void curvature_bake_node_init() {
 	                                                                 .height        = 0}),
 	                               },
 	                               1),
-	                           .width   = 0,
-	                           .flags   = 0});
+	                           .width = 0,
+	                           .flags = 0});
 
 	any_array_push(nodes_material_texture, curvature_bake_node_def);
 	any_map_set(parser_material_node_values, "BAKE_CURVATURE", curvature_bake_node_value);

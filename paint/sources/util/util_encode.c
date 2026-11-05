@@ -202,8 +202,8 @@ buffer_t *util_encode_project(project_t *raw) {
 	i32 size = 32 * 1024 * 1024 + util_encode_layer_data_size(raw->layer_datas) + util_encode_mesh_data_size(raw->mesh_datas) +
 	           util_encode_packed_assets_size(raw->packed_assets) + util_encode_buffers_size(raw->brush_icons) + util_encode_buffers_size(raw->material_icons) +
 	           util_encode_buffers_size(raw->mesh_icons) + util_encode_buffers_size(raw->mesh_skins) + util_encode_f32_arrays_size(raw->mesh_transforms) +
-	           util_encode_f32_arrays_size(raw->mesh_paths) +
-	           util_encode_timeline_layers_size(raw->timeline_layers) + util_encode_timeline_meshes_size(raw->timeline_meshes);
+	           util_encode_f32_arrays_size(raw->mesh_paths) + util_encode_timeline_layers_size(raw->timeline_layers) +
+	           util_encode_timeline_meshes_size(raw->timeline_meshes);
 	buffer_t *encoded = buffer_create(size);
 
 	armpack_encode_start(encoded->buffer);

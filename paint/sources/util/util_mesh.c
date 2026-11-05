@@ -500,9 +500,9 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 		any_array_push(util_mesh_merged_objects, paint_objects->buffer[i]);
 	}
 
-	mesh_data_t *md                           = mesh_data_create(raw);
-	md->_->owns_arrays                        = true;
-	shader_data_t *paint_material             = g_project->_->materials->buffer[0]->data;
+	mesh_data_t *md                         = mesh_data_create(raw);
+	md->_->owns_arrays                      = true;
+	shader_data_t *paint_material           = g_project->_->materials->buffer[0]->data;
 	g_context->merged_object                = mesh_object_create(md, paint_material);
 	g_context->merged_object->base->name    = string("%s_merged", g_context->paint_object->base->name);
 	g_context->merged_object->base->visible = merged_visible; // Painted instead of the objects when visible

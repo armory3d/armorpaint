@@ -116,7 +116,7 @@ void ui_files_file_browser_on_cache_cloud_done(char *abs) {
 
 void ui_files_file_browser_on_init_cloud_done() {
 	ui_dock_redraw(TAB_AREA_STATUS);
-	tab_browser_refresh                             = true;
+	tab_browser_refresh = true;
 }
 
 static void ui_files_clear_icon_map(void) {
@@ -554,8 +554,8 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 	// Scroll the keyboard selection into view
 	if (ui_files_scroll_pending && selected_row >= 0) {
 		// Icon plus two label lines, the gap to the next row is left out
-		f32 selected_bot = selected_top + slotw * 0.75 + UI_ELEMENT_H() + UI_ELEMENT_OFFSET() + draw_font_height(g_font, g_ui->font_size);
-		ui_window_t *handle = g_ui->current_window;
+		f32          selected_bot = selected_top + slotw * 0.75 + UI_ELEMENT_H() + UI_ELEMENT_OFFSET() + draw_font_height(g_font, g_ui->font_size);
+		ui_window_t *handle       = g_ui->current_window;
 		if (selected_row == 0) {
 			handle->scroll_offset = 0;
 			handle->redraws       = 2;

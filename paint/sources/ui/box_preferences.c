@@ -18,7 +18,7 @@ char            *box_preferences_new_plugin     = "new_plugin";
 void box_preferences_set_scale() {
 	f32 scale = g_config->window_scale;
 	ui_set_scale(scale);
-	ui_header_h                                    = math_floor(ui_header_default_h * scale);
+	ui_header_h = math_floor(ui_header_default_h * scale);
 	ui_dock_set_size(DOCK_ROLE_STATUS, math_floor(ui_statusbar_default_h * scale));
 	ui_menubar_w = math_floor(ui_menubar_default_w * scale);
 	ui_base_set_icon_scale();

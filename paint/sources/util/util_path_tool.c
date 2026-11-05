@@ -116,13 +116,14 @@ static void _path_tool_sample(i32 *count, vec4_t p) {
 
 // Appends the chain from node `from` through `next`, following the first child of each node
 static void _path_tool_chain(i32 *count, i32 *chains, i32 *first_child, i32 from, i32 next) {
-	i32 start                    = *count;
+	i32 start                      = *count;
 	_path_tool_samples[(*count)++] = _path_tool_points[from];
 	for (i32 j = next; j >= 0; j = first_child[j]) {
 		i32 p = _path_tool_parent(j);
 		if (_path_tool_curved()) {
 			for (i32 k = 1; k <= PATH_TOOL_CURVE_STEPS; ++k) {
-				_path_tool_sample(count, _path_tool_bezier(_path_tool_points[p], _path_tool_points[j - 1], _path_tool_points[j], k / (f32)PATH_TOOL_CURVE_STEPS));
+				_path_tool_sample(count,
+				                  _path_tool_bezier(_path_tool_points[p], _path_tool_points[j - 1], _path_tool_points[j], k / (f32)PATH_TOOL_CURVE_STEPS));
 			}
 		}
 		else {
@@ -138,7 +139,7 @@ static void _path_tool_chain(i32 *count, i32 *chains, i32 *first_child, i32 from
 
 // Splits the point tree into chains of samples, a branch starts a new chain at its parent
 static i32 _path_tool_sample_chains() {
-	i32  n             = _path_tool_count;
+	i32 n              = _path_tool_count;
 	_path_tool_samples = realloc(_path_tool_samples, (n * (PATH_TOOL_CURVE_STEPS + 1) + 1) * sizeof(vec4_t));
 	_path_tool_chains  = realloc(_path_tool_chains, (n + 1) * sizeof(i32));
 	i32 *first_child   = malloc((n + 1) * sizeof(i32));
@@ -708,9 +709,9 @@ void util_path_tool_render() {
 
 	draw_scissor(base_x(), base_y(), base_w(), base_h());
 	draw_set_color(0xffffffff);
-	bool curved = _path_tool_curved();
-	i32  next   = _path_tool_count; // Index of the next point, an even one is an anchor ending a curve
-	i32  parent = _path_tool_next_parent();
+	bool   curved = _path_tool_curved();
+	i32    next   = _path_tool_count; // Index of the next point, an even one is an anchor ending a curve
+	i32    parent = _path_tool_next_parent();
 	vec4_t p;
 	if (_path_tool_active >= 0 && _path_tool_dragging < 0 && util_tool_input_enabled() && util_tool_plane_point(&p)) {
 		if (curved && next % 2 == 0 && parent >= 0) {

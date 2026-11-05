@@ -317,7 +317,7 @@ static void ui_toolbar_draw_window(ui_window_t *handle, i32 x, i32 y, i32 h) {
 
 		// Menu icon
 		if (!context_is_floating_toolbar()) {
-			i32 _w   = g_ui->_w;
+			i32 _w = g_ui->_w;
 			g_ui->_x += 2;
 			g_ui->_y += 2;
 			g_ui->_w = ui_toolbar_w(false) - 4;
