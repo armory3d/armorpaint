@@ -573,6 +573,9 @@ typedef struct ui_nodes {
 void ui_nodes_init(ui_nodes_t *nodes);
 void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas);
 void ui_nodes_rgba_popup(ui_color_state_t *state, float *val, int x, int y);
+bool ui_nodes_popup_open();
+bool ui_nodes_popup_hovered();
+void ui_nodes_popup_render(ui_node_canvas_t *canvas);
 
 void ui_remove_node(ui_node_t *n, ui_node_canvas_t *canvas);
 

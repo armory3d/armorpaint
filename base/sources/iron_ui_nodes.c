@@ -388,7 +388,36 @@ static void rgba_popup_commands(ui_t *ui, void *data, void *data2) {
 
 void ui_nodes_rgba_popup(ui_color_state_t *state, float *val, int x, int y) {
 	ui_t *current = ui_get_current();
-	ui_popup(x, y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands, state, val);
+	ui_popup(x + current->_window_x, y + current->_window_y, 140.0 * current_nodes->scale_factor, current->ops->theme->ELEMENT_H * 10.0, &rgba_popup_commands, state,
+	         val);
+}
+
+bool ui_nodes_popup_open() {
+	return ui_popup_commands != NULL;
+}
+
+bool ui_nodes_popup_hovered() {
+	ui_t *current = ui_get_current();
+	return ui_popup_commands != NULL && current->input_x >= ui_popup_x - 6 && current->input_x <= ui_popup_x + ui_popup_w + 6 &&
+	       current->input_y >= ui_popup_y - 6 && current->input_y <= ui_popup_y + ui_popup_h * UI_SCALE() + 6;
+}
+
+void ui_nodes_popup_render(ui_node_canvas_t *canvas) {
+	ui_t *current = ui_get_current();
+	ui_begin_region(current, ui_popup_x, ui_popup_y, ui_popup_w);
+
+	ui_draw_shadow(current->_x - 5, current->_y - 5, current->_w + 10, ui_popup_h * UI_SCALE() + 10);
+	draw_set_color(current->ops->theme->SEPARATOR_COL);
+	ui_draw_rect(true, true, current->_x - 5, current->_y - 5, current->_w + 10, ui_popup_h * UI_SCALE() + 10);
+	(*ui_popup_commands)(current, ui_popup_data, ui_popup_data2);
+
+	bool hide = (current->input_started || current->input_started_r) && !ui_nodes_popup_hovered();
+	if (hide || current->is_escape_down) {
+		ui_popup_commands = NULL;
+		ui_nodes_on_node_changed(ui_get_node(canvas->nodes, ui_popup_handle_node_id));
+		current->changed = false;
+	}
+	ui_end_region();
 }
 
 static ui_color_state_t *ui_nodes_color_state(ui_node_t *node) {
@@ -1360,26 +1389,6 @@ void ui_node_canvas(ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
 	ui_set_scale(current_nodes->scale_factor); // Restore non-zoomed scale
 	current->elements_baked = true;
 	current->input_enabled  = _input_enabled;
-
-	if (ui_popup_commands != NULL) {
-		current->_x = ui_popup_x;
-		current->_y = ui_popup_y;
-		current->_w = ui_popup_w;
-
-		ui_draw_shadow(current->_x - 5, current->_y - 5, current->_w + 10, ui_popup_h * UI_SCALE() + 10);
-		draw_set_color(current->ops->theme->SEPARATOR_COL);
-		ui_draw_rect(true, true, current->_x - 5, current->_y - 5, current->_w + 10, ui_popup_h * UI_SCALE() + 10);
-		(*ui_popup_commands)(current, ui_popup_data, ui_popup_data2);
-
-		bool hide = (current->input_started || current->input_started_r) &&
-		            (current->input_x - wx < ui_popup_x - 6 || current->input_x - wx > ui_popup_x + ui_popup_w + 6 || current->input_y - wy < ui_popup_y - 6 ||
-		             current->input_y - wy > ui_popup_y + ui_popup_h * UI_SCALE() + 6);
-		if (hide || current->is_escape_down) {
-			ui_popup_commands = NULL;
-			ui_nodes_on_node_changed(ui_get_node(canvas->nodes, ui_popup_handle_node_id));
-			current->changed = false;
-		}
-	}
 }
 
 void ui_node_canvas_encode(ui_node_canvas_t *canvas) {
