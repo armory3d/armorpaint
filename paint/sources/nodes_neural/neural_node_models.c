@@ -4,6 +4,18 @@
 void neural_node_models_init() {
 	neural_node_models = any_array_create_from_raw(
 	    (void *[]){
+	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
+	                                         .memory = "20GB",
+	                                         .size   = "15.3GB",
+	                                         .nodes  = "Console",
+	                                         .urls   = any_array_create_from_raw(
+                                                 (void *[]){
+                                                     "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf",
+                                                 },
+                                                 1),
+	                                         .web     = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
+	                                         .license = "apache-2.0"}),
+
 	        ALLOC_INIT(neural_node_model_t, {.name   = "FLUX 2 klein",
 	                                         .memory = "4GB",
 	                                         .size   = "8.7GB",
@@ -42,18 +54,6 @@ void neural_node_models_init() {
                                                  1),
 	                                         .web     = "https://huggingface.co/armory3d/Real-ESRGAN",
 	                                         .license = "bsd-3-clause"}),
-
-	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
-	                                         .memory = "20GB",
-	                                         .size   = "15.3GB",
-	                                         .nodes  = "Console",
-	                                         .urls   = any_array_create_from_raw(
-                                                 (void *[]){
-                                                     "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-Q4_K_M.gguf",
-                                                 },
-                                                 1),
-	                                         .web     = "https://huggingface.co/unsloth/Qwen3.8-27B-GGUF",
-	                                         .license = "apache-2.0"}),
 	    },
 	    4);
 }

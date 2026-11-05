@@ -788,6 +788,16 @@ void box_preferences_model_panel(neural_node_model_t *m) {
 }
 
 void box_preferences_neural_tab() {
+	string_array_t *console_model_combo = any_array_create_from_raw_tmp(
+	    (void *[]){
+	        "Qwen",
+	        "Claude",
+	        "Grok",
+	        "Codex",
+	    },
+	    4);
+	ui_combo(&g_config->console_model, console_model_combo, tr("Console Model"), true, UI_ALIGN_LEFT, true);
+
 	i32             neural_res       = g_config->neural_res == 2048 ? 2 : (g_config->neural_res == 1024 ? 1 : 0);
 	string_array_t *neural_res_combo = any_array_create_from_raw_tmp(
 	    (void *[]){
@@ -799,16 +809,6 @@ void box_preferences_neural_tab() {
 	ui_set_next_id((ui_id_t)&g_config->neural_res);
 	ui_combo(&neural_res, neural_res_combo, tr("Resolution"), true, UI_ALIGN_LEFT, true);
 	g_config->neural_res = neural_res == 2 ? 2048 : (neural_res == 1 ? 1024 : 512);
-
-	string_array_t *console_model_combo = any_array_create_from_raw_tmp(
-	    (void *[]){
-	        "Qwen",
-	        "Claude",
-	        "Grok",
-	        "Codex",
-	    },
-	    4);
-	ui_combo(&g_config->console_model, console_model_combo, tr("Console Model"), true, UI_ALIGN_LEFT, true);
 
 	ui_text(tr("Models"), UI_ALIGN_LEFT, 0x00000000);
 
