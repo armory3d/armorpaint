@@ -182,6 +182,18 @@ void ui_toolbar_draw_sculpt_tool(sculpt_type_t mode, gpu_texture_t *img, i32 ico
 	g_ui->_y += 2;
 }
 
+static u32 ui_toolbar_last_picker_mask_color = 0;
+
+static u32 ui_toolbar_picker_mask_color() {
+	if (g_context->picker_color_mask) {
+		return color_set_ab(g_context->picked_color->base, 255);
+	}
+	if (g_context->picker_material_mask) {
+		return g_theme->LABEL_COL;
+	}
+	return 0;
+}
+
 void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 	g_ui->_x += 2;
 
@@ -204,7 +216,13 @@ void ui_toolbar_draw_tool(i32 tool, gpu_texture_t *img, i32 icon_accent) {
 
 	if (tool == TOOL_TYPE_COLORID && g_context->colorid_picked) {
 		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
-		draw_scaled_sub_image(rt->_image, 0, 0, 1, 1, 0, _y + 1.5 * UI_SCALE(), 5 * UI_SCALE(), 34 * UI_SCALE());
+		draw_scaled_sub_image(rt->_image, 0, 0, 1, 1, 0, _y + 2, 5 * UI_SCALE(), ui_toolbar_w(false) - 2);
+	}
+
+	if (tool == TOOL_TYPE_PICKER && ui_toolbar_picker_mask_color() != 0) {
+		draw_set_color(ui_toolbar_picker_mask_color());
+		draw_filled_rect(0, _y + 2, 5 * UI_SCALE(), ui_toolbar_w(false) - 2);
+		draw_set_color(0xffffffff);
 	}
 
 	if (g_ui->is_hovered) {
@@ -387,6 +405,12 @@ void ui_toolbar_render_ui() {
 			y += ui_toolbar_w(false);
 		}
 #endif
+	}
+
+	u32 picker_mask_color = ui_toolbar_picker_mask_color();
+	if (picker_mask_color != ui_toolbar_last_picker_mask_color) {
+		ui_toolbar_last_picker_mask_color = picker_mask_color;
+		ui_toolbar_handle->redraws        = 1;
 	}
 
 	// One toolbar per 3D view
