@@ -311,14 +311,10 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 
 	// Select tool mask
 	if (g_context->select_active && g_context->select_2d) {
-		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
-		node_shader_write_frag(kong, "if (input.select_uv.x < constants.select_mask.x || input.select_uv.x > constants.select_mask.z || input.select_uv.y < "
-		                             "constants.select_mask.y || input.select_uv.y > constants.select_mask.w) { discard; }");
+		util_select_shader_mask(kong, "input.select_uv");
 	}
 	else if (g_context->select_active) {
-		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
-		node_shader_write_frag(kong, "if (sp.x < constants.select_mask.x || sp.x > constants.select_mask.z || sp.y < constants.select_mask.y || sp.y > "
-		                             "constants.select_mask.w) { discard; }");
+		util_select_shader_mask(kong, "sp.xy");
 	}
 
 	node_shader_add_texture(kong, "gbufferD", NULL);

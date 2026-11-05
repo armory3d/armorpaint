@@ -659,6 +659,18 @@ void ui_header_draw_tool_properties() {
 		plugin_tool_call(t, t->on_header);
 	}
 	else if (g_context->tool == TOOL_TYPE_SELECT) {
+		string_array_t *select_mode_combo = any_array_create_from_raw_tmp(
+		    (void *[]){
+		        tr("Rectangle"),
+		        tr("Ellipse"),
+		        tr("Polygon"),
+		    },
+		    3);
+		i32 select_mode = g_context->select_mode;
+		ui_combo(&select_mode, select_mode_combo, tr("Mode"), false, UI_ALIGN_LEFT, true);
+		if (ui_item_changed()) {
+			util_select_set_mode(select_mode);
+		}
 		g_ui->enabled = g_context->select_active;
 		if (ui_icon_button(tr("Clear"), ICON_ERASE, UI_ALIGN_CENTER)) {
 			g_context->select_active = false;

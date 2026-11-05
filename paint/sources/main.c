@@ -207,6 +207,7 @@
 #include "util/util_clone.c"
 #include "util/util_csg.c"
 #include "util/util_cursor.c"
+#include "util/util_draw.c"
 #include "util/util_encode.c"
 #include "util/util_env.c"
 #include "util/util_geom.c"

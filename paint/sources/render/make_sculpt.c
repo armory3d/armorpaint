@@ -867,13 +867,11 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 
 	if (g_context->select_active && !g_context->select_2d && has_wposition) {
 		node_shader_add_constant(kong, "float4x4 VP", "_view_proj_matrix");
-		node_shader_add_constant(kong, "float4 select_mask", "_select_mask");
 		node_shader_write_frag(kong, "float4 select_sp4 = constants.VP * float4(wposition.xyz, 1.0);");
 		node_shader_write_frag(kong, "float2 select_sp = select_sp4.xy / select_sp4.w;");
 		node_shader_write_frag(kong, "select_sp.x = select_sp.x * 0.5 + 0.5;");
 		node_shader_write_frag(kong, "select_sp.y = 1.0 - (select_sp.y * 0.5 + 0.5);");
-		node_shader_write_frag(kong, "if (select_sp.x < constants.select_mask.x || select_sp.x > constants.select_mask.z || select_sp.y < "
-		                             "constants.select_mask.y || select_sp.y > constants.select_mask.w) { discard; }");
+		util_select_shader_mask(kong, "select_sp");
 	}
 
 	if (g_context->brush_stencil_image != NULL && has_wposition) {

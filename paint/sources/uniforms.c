@@ -456,6 +456,9 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 	else if (string_equals(link, "_texbrushmask")) {
 		return g_context->brush_mask_image;
 	}
+	else if (string_equals(link, "_texselectmask")) {
+		return g_context->select_mask_image;
+	}
 	else if (string_equals(link, "_texbrushstencil")) {
 		return g_context->brush_stencil_image;
 	}

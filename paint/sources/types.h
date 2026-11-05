@@ -380,6 +380,12 @@ typedef struct context {
 	f32                         select_y1;
 	f32                         select_x2;
 	f32                         select_y2;
+	select_mode_t               select_mode;
+	f32_array_t                *select_points;
+	f32                         select_cursor_x;
+	f32                         select_cursor_y;
+	f64                         select_click_time;
+	struct gpu_texture         *select_mask_image;
 	bool                        write_icon_on_export;
 	struct gpu_texture         *text_tool_image;
 	char                       *text_tool_text;

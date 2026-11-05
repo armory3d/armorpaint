@@ -717,10 +717,15 @@ void ui_view2d_update(void *_) {
 			f32 sy = ty + g_context->select_y1 * th;
 			f32 sw = (g_context->select_x2 - g_context->select_x1) * tw;
 			f32 sh = (g_context->select_y2 - g_context->select_y1) * th;
-			base_draw_dashed_rect(sx, sy, sw, sh);
+			if (g_context->select_mode == SELECT_MODE_POLYGON) {
+				util_draw_select_shape(tx, ty, tw, th);
+			}
+			else {
+				util_draw_select_shape(sx, sy, sw, sh);
+			}
 
 			// Selected layer pixels
-			if (g_context->select_dragging) {
+			if (g_context->select_dragging && g_context->select_mode != SELECT_MODE_POLYGON) {
 				i32   px   = math_round((g_context->select_x2 - g_context->select_x1) * config_get_texture_res_x());
 				i32   py   = math_round((g_context->select_y2 - g_context->select_y1) * config_get_texture_res_y());
 				char *text = string_tmp("%d x %d", px, py);

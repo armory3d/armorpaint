@@ -294,6 +294,12 @@ typedef enum {
 } blur_type_t;
 
 typedef enum {
+	SELECT_MODE_RECTANGLE = 0,
+	SELECT_MODE_ELLIPSE   = 1,
+	SELECT_MODE_POLYGON   = 2,
+} select_mode_t;
+
+typedef enum {
 	CLONE_LAYERS_SELECTED = 0,
 	CLONE_LAYERS_VISIBLE  = 1,
 } clone_layers_t;
