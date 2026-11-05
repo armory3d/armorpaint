@@ -88,13 +88,9 @@ ui_state_t tab_layers_draw_layer_icon(slot_layer_t *l, i32 i, f32 uix, f32 uiy, 
 		g_ui->_x -= 1 * UI_SCALE();
 	}
 
-	if (mini && l->parent != NULL) {
+	for (slot_layer_t *p = l->parent; mini && p != NULL; p = p->parent) {
 		g_ui->_x += (icon_h - icon_h * 0.9) / 2.0;
 		icon_h *= 0.9;
-		if (l->parent->parent != NULL) {
-			g_ui->_x += (icon_h - icon_h * 0.9) / 2.0;
-			icon_h *= 0.9;
-		}
 	}
 
 	if (!slot_layer_is_group(l)) {
@@ -169,67 +165,13 @@ void tab_layers_draw_layer_slot_mini(slot_layer_t *l, i32 i) {
 void tab_layers_delete_layer(slot_layer_t *l) {
 	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
 
-	if (slot_layer_is_layer(l) && slot_layer_has_masks(l, false)) {
-		slot_layer_t_array_t *masks = slot_layer_get_masks(l, false);
-		for (i32 i = 0; i < masks->length; ++i) {
-			slot_layer_t *m  = masks->buffer[i];
-			g_context->layer = m;
-			history_delete_layer();
-			slot_layer_delete(m);
-		}
-	}
-	if (slot_layer_is_group(l)) {
-		slot_layer_t_array_t *children = slot_layer_get_children(l);
-		for (i32 i = 0; i < children->length; ++i) {
-			slot_layer_t *c = children->buffer[i];
-			if (slot_layer_has_masks(c, false)) {
-				slot_layer_t_array_t *masks = slot_layer_get_masks(c, false);
-				for (i32 i = 0; i < masks->length; ++i) {
-					slot_layer_t *m  = masks->buffer[i];
-					g_context->layer = m;
-					history_delete_layer();
-					slot_layer_delete(m);
-				}
-			}
-			g_context->layer = c;
-			history_delete_layer();
-			slot_layer_delete(c);
-		}
-		if (slot_layer_has_masks(l, true)) {
-			for (i32 i = 0; i < slot_layer_get_masks(l, true)->length; ++i) {
-				slot_layer_t *m  = slot_layer_get_masks(l, true)->buffer[i];
-				g_context->layer = m;
-				history_delete_layer();
-				slot_layer_delete(m);
-			}
-		}
-	}
-
-	g_context->layer = l;
-	history_delete_layer();
-	slot_layer_delete(l);
+	history_delete_layer(l);
 
 	if (slot_layer_is_mask(l)) {
 		g_context->layer = l->parent;
 		layers_update_fill_layers();
 	}
 
-	// Remove empty group
-	if (slot_layer_is_in_group(l) && slot_layer_get_children(slot_layer_get_containing_group(l)) == NULL) {
-		slot_layer_t *g = slot_layer_get_containing_group(l);
-		// Maybe some group masks are left
-		if (slot_layer_has_masks(g, true)) {
-			for (i32 i = 0; i < slot_layer_get_masks(g, true)->length; ++i) {
-				slot_layer_t *m  = slot_layer_get_masks(g, true)->buffer[i];
-				g_context->layer = m;
-				history_delete_layer();
-				slot_layer_delete(m);
-			}
-		}
-		g_context->layer = l->parent;
-		history_delete_layer();
-		slot_layer_delete(l->parent);
-	}
 	g_context->ddirty = 2;
 	tab_layers_remap_all_layer_pointers(pointers);
 	tab_stages_prune();
@@ -358,19 +300,19 @@ void tab_layers_layer_toggle_visible(slot_layer_t *l) {
 bool tab_layers_can_delete(slot_layer_t *l) {
 	i32 num_layers = 0;
 
-	if (slot_layer_is_mask(l)) {
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 		return true;
 	}
 
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
 		slot_layer_t *slot = g_project->_->layers->buffer[i];
-		if (slot_layer_is_layer(slot)) {
+		if (slot_layer_is_layer(slot) && !slot_layer_is_filter(slot)) {
 			++num_layers;
 		}
 	}
 
 	// All layers are in one group
-	if (slot_layer_is_group(l) && slot_layer_get_children(l)->length == num_layers) {
+	if (slot_layer_is_group(l) && slot_layer_get_children(l) != NULL && slot_layer_get_children(l)->length == num_layers) {
 		return false;
 	}
 
@@ -429,9 +371,8 @@ void tab_layers_draw_layer_slot_full(slot_layer_t *l, i32 i) {
 	g_ui->_x             = eye_x;
 	g_ui->_y             = uiy + 3 + center;
 	g_ui->_w             = eye_w;
-	i32  col             = g_theme->HOVER_COL + 0x00282828;
-	bool parent_hidden   = l->parent != NULL && (!l->parent->visible || (l->parent->parent != NULL && !l->parent->parent->visible));
-	if (parent_hidden) {
+	i32 col              = g_theme->HOVER_COL + 0x00282828;
+	if (l->parent != NULL && !slot_layer_is_visible(l->parent)) {
 		col -= 0x99000000;
 	}
 	if (ui_sub_image(icons, col, 18 * UI_SCALE(), r->x, r->y, r->w, r->h) == UI_STATE_RELEASED) {
@@ -577,10 +518,8 @@ void tab_layers_draw_layer_context_menu_to_paint_layer(void *_) {
 	slot_layer_t *l = tab_layers_l;
 
 	if (slot_layer_is_filter(l)) {
-		i32 pi = array_index_of(g_project->_->layers, l->parent);
-		array_remove(g_project->_->layers, l);
-		array_insert(g_project->_->layers, pi, l);
-		l->parent = NULL;
+		slot_layer_relocate(l, array_index_of(g_project->_->layers, l->parent));
+		l->parent = l->parent->parent;
 	}
 
 	slot_layer_is_layer(l) ? history_to_paint_layer() : history_to_paint_mask();
@@ -595,17 +534,13 @@ void tab_layers_draw_layer_context_menu_to_fill_layer(void *_) {
 
 bool tab_layers_can_merge_down(slot_layer_t *l) {
 	i32 index = array_index_of(g_project->_->layers, l);
+	i32 below = index - slot_layer_count_descendants(l) - 1;
 	// Lowest layer
-	if (index == 0) {
+	if (below < 0) {
 		return false;
 	}
-	// Lowest layer that has masks
-	if (slot_layer_is_layer(l) && slot_layer_is_mask(g_project->_->layers->buffer[0]) && g_project->_->layers->buffer[0]->parent == l) {
-		return false;
-	}
-	// The lowest toplevel layer is a group
-	if (slot_layer_is_group(l) && slot_layer_is_in_group(g_project->_->layers->buffer[0]) &&
-	    slot_layer_get_containing_group(g_project->_->layers->buffer[0]) == l) {
+	// Merging out of a group would leave its masks behind
+	if (l->parent != NULL && !slot_layer_is_descendant(g_project->_->layers->buffer[below], l->parent)) {
 		return false;
 	}
 	// Masks must be merged down to masks
@@ -634,6 +569,7 @@ void tab_layers_draw_layer_context_menu_merge_down(void *_) {
 
 void tab_layers_draw_layer_context_menu_merge_group(void *_) {
 	slot_layer_t *l = tab_layers_l;
+	history_merge_group(l);
 	layers_merge_group(l);
 }
 
@@ -752,8 +688,12 @@ void tab_layers_draw_layer_context_menu_draw() {
 	if (slot_layer_is_mask(l) && ui_menu_button(tr("Apply"), "", ICON_CHECK)) {
 		sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_apply, NULL);
 	}
-	if (slot_layer_is_group(l) && ui_menu_button(tr("Merge Group"), "", ICON_NONE)) {
-		sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_merge_group, NULL);
+	if (slot_layer_is_group(l)) {
+		g_ui->enabled = slot_layer_shows(l) || tab_layers_can_delete(l);
+		if (ui_menu_button(tr("Merge Group"), "", ICON_NONE)) {
+			sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_merge_group, NULL);
+		}
+		g_ui->enabled = true;
 	}
 
 	g_ui->enabled = tab_layers_can_merge_down(l);
@@ -921,11 +861,10 @@ static bool tab_layers_slot_hidden(slot_layer_t *l) {
 		return true;
 	}
 
-	if (l->parent != NULL && !l->parent->show_panel) { // Group closed
-		return true;
-	}
-	if (l->parent != NULL && l->parent->parent != NULL && !l->parent->parent->show_panel) {
-		return true;
+	for (slot_layer_t *p = l->parent; p != NULL; p = p->parent) {
+		if (!p->show_panel) { // Group closed
+			return true;
+		}
 	}
 
 	if (tab_layers_search_show && !string_equals(tab_layers_search, "") && string_index_of(to_lower_case(l->name), to_lower_case(tab_layers_search)) < 0) {
@@ -947,17 +886,10 @@ void tab_layers_draw_layer_slot(slot_layer_t *l, i32 i, bool mini) {
 	f32 absy = g_ui->_window_y + g_ui->_y;
 	if (base_is_dragging && base_drag_layer != NULL && context_in_layers()) {
 		if (mouse_y > absy + step && mouse_y < absy + step * 3) {
-			bool down                          = array_index_of(g_project->_->layers, base_drag_layer) >= i;
-			g_context->drag_dest               = down ? i : i - 1;
-			slot_layer_t_array_t *ls           = g_project->_->layers;
-			i32                   dest         = g_context->drag_dest;
-			bool                  to_group     = down ? dest > 0 && ls->buffer[dest - 1]->parent != NULL && ls->buffer[dest - 1]->parent->show_panel
-			                                          : dest < ls->length && ls->buffer[dest]->parent != NULL && ls->buffer[dest]->parent->show_panel;
-			bool                  nested_group = slot_layer_is_group(base_drag_layer) && to_group;
-			if (!nested_group) {
-				if (slot_layer_can_move(g_context->layer, g_context->drag_dest)) {
-					ui_fill(checkw, step * 2, (g_ui->_window_w / (float)UI_SCALE() - 2) - checkw, 2 * UI_SCALE(), g_theme->HIGHLIGHT_COL);
-				}
+			bool down            = array_index_of(g_project->_->layers, base_drag_layer) >= i;
+			g_context->drag_dest = down ? i : i - 1;
+			if (slot_layer_can_move(g_context->layer, g_context->drag_dest)) {
+				ui_fill(checkw, step * 2, (g_ui->_window_w / (float)UI_SCALE() - 2) - checkw, 2 * UI_SCALE(), g_theme->HIGHLIGHT_COL);
 			}
 		}
 		else if (i == g_project->_->layers->length - 1 && mouse_y < absy + step) {
@@ -1110,13 +1042,8 @@ void tab_layers_button_new_menu() {
 		}
 		layers_create_filter();
 	}
-	g_ui->enabled = !slot_layer_is_group(g_context->layer) && !slot_layer_is_in_group(g_context->layer);
 	if (ui_menu_button(tr("Group"), "", ICON_FOLDER)) {
-		if (slot_layer_is_group(l) || slot_layer_is_in_group(l)) {
-			return;
-		}
-
-		if (slot_layer_is_layer_mask(l)) {
+		if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 			l = l->parent;
 		}
 
@@ -1125,12 +1052,12 @@ void tab_layers_button_new_menu() {
 		context_set_layer(l);
 		array_remove(g_project->_->layers, group);
 		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
-		l->parent = group;
+		group->parent = l->parent;
+		l->parent     = group;
 		tab_layers_remap_all_layer_pointers(pointers);
 		context_set_layer(group);
 		history_new_group();
 	}
-	g_ui->enabled = true;
 }
 
 void tab_layers_button_new(char *text) {

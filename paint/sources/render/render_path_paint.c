@@ -364,6 +364,10 @@ void render_path_paint_commands_paint(bool dilation) {
 		return;
 	}
 
+	if (g_context->brush_time == 0) {
+		g_context->brush_blend_dirty = true;
+	}
+
 	if (g_context->tool == TOOL_TYPE_COLORID) {
 		render_path_set_target("texpaint_colorid", NULL, NULL, GPU_CLEAR_COLOR, 0xff000000, 0.0);
 		render_path_bind_target("gbuffer2", "gbuffer2");
@@ -1128,6 +1132,15 @@ void render_path_paint_draw_bake_derivative(void *_) {
 	_render_path_paint_deriv();
 }
 
+void render_path_paint_clear_blend() {
+	if (g_context->brush_blend_dirty) {
+		g_context->brush_blend_dirty = false;
+		render_path_set_target("texpaint_blend0", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+		render_path_set_target("texpaint_blend1", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+		render_path_end();
+	}
+}
+
 void render_path_paint_draw() {
 	if (!render_path_paint_paint_enabled()) {
 		return;
@@ -1222,12 +1235,7 @@ void render_path_paint_draw() {
 		}
 	}
 
-	if (g_context->brush_blend_dirty) {
-		g_context->brush_blend_dirty = false;
-		render_path_set_target("texpaint_blend0", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
-		render_path_set_target("texpaint_blend1", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
-		render_path_end();
-	}
+	render_path_paint_clear_blend();
 
 	if (g_context->paint2d) {
 		render_path_paint_restore_plane_mesh();

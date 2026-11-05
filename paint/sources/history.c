@@ -92,16 +92,81 @@ void history_undo_invert_mask(history_step_t *step) {
 	slot_layer_invert_mask(g_context->layer);
 }
 
-void history_undo_delete_layer_group(void *_) {
-	i32 active = history_steps->length - 1 - history_redos;
-	// 1. Undo deleting group masks
-	i32 n = 1;
-	while (history_steps->buffer[active - n]->layer_type == LAYER_SLOT_TYPE_MASK) {
-		history_undo();
-		++n;
+static void history_step_free(history_step_t *step) {
+	for (i32 i = 0; step->merge_layers != NULL && i < step->merge_layers->length; ++i) {
+		slot_layer_unload(step->merge_layers->buffer[i]);
 	}
-	// 2. Undo a mask to have a non empty group
-	history_undo();
+	free(step);
+}
+
+slot_layer_t_array_t *history_merge_saved_layers() {
+	i32 count = 0;
+	for (i32 i = 0; history_steps != NULL && i < history_steps->length; ++i) {
+		slot_layer_t_array_t *layers = history_steps->buffer[i]->merge_layers;
+		count += layers != NULL ? layers->length : 0;
+	}
+	slot_layer_t_array_t *saved = any_array_create_from_raw_tmp(NULL, count);
+	i32                   pos   = 0;
+	for (i32 i = 0; history_steps != NULL && i < history_steps->length; ++i) {
+		slot_layer_t_array_t *layers = history_steps->buffer[i]->merge_layers;
+		for (i32 j = 0; layers != NULL && j < layers->length; ++j) {
+			saved->buffer[pos++] = layers->buffer[j];
+		}
+	}
+	return saved;
+}
+
+static void history_swap_merge(history_step_t *step, bool undo) {
+	slot_layer_t_array_t *layers   = g_project->_->layers;
+	slot_layer_t_array_t *saved    = step->merge_layers;
+	i32_array_t          *parents  = step->merge_parents;
+	i32                   count    = layers->length - (step->merge_length - saved->length);
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+
+	step->merge_layers  = any_array_create_from_raw((void *[]){}, 0);
+	step->merge_parents = i32_array_create(0);
+	step->merge_length  = layers->length;
+	for (i32 i = 0; i < count; ++i) {
+		slot_layer_t *l = layers->buffer[step->merge_start + i];
+		any_array_push(step->merge_layers, l);
+		i32_array_push(step->merge_parents, l->parent != NULL ? array_index_of(layers, l->parent) : -1);
+	}
+	for (i32 i = 0; i < count; ++i) {
+		array_remove(layers, step->merge_layers->buffer[i]);
+	}
+	for (i32 i = 0; i < saved->length; ++i) {
+		array_insert(layers, step->merge_start + i, saved->buffer[i]);
+	}
+	for (i32 i = 0; i < saved->length; ++i) {
+		saved->buffer[i]->parent = parents->buffer[i] >= 0 ? layers->buffer[parents->buffer[i]] : NULL;
+	}
+
+	if (step->action == HISTORY_ACTION_DELETE_LAYER) {
+		tab_layers_remap_all_layer_pointers(pointers);
+		for (i32 i = 0; i < saved->length; ++i) {
+			tab_stages_add_layer(saved->buffer[i]->name);
+		}
+	}
+
+	i32 top = step->merge_start + saved->length - 1;
+	context_set_layer(layers->buffer[undo ? step->layer : top >= 0 ? top : 0]);
+	g_context->layers_preview_dirty = true;
+	tab_timeline_sync();
+}
+
+static void history_swap_order(history_step_t *step) {
+	slot_layer_t_array_t *pointers = tab_layers_init_layer_map();
+	slot_layer_t         *l        = g_project->_->layers->buffer[step->prev_order];
+	i32                   parent   = l->parent != NULL ? array_index_of(g_project->_->layers, l->parent) : -1;
+	slot_layer_relocate(l, step->layer);
+	l->parent          = step->layer_parent >= 0 ? g_project->_->layers->buffer[step->layer_parent] : NULL;
+	step->layer_parent = parent;
+	i32 prev_order     = step->prev_order;
+	step->prev_order   = step->layer;
+	step->layer        = prev_order;
+	tab_layers_remap_all_layer_pointers(pointers);
+	context_set_layer(l);
+	make_material_parse_mesh_material();
 }
 
 void history_update_fill_layer(slot_layer_t *l) {
@@ -328,29 +393,12 @@ void history_undo() {
 		else if (step->action == HISTORY_ACTION_NEW_GROUP) {
 			g_context->layer = g_project->_->layers->buffer[step->layer];
 			// The layer below is the only layer in the group. Its layer masks are automatically unparented, too.
-			g_project->_->layers->buffer[step->layer - 1]->parent = NULL;
+			g_project->_->layers->buffer[step->layer - 1]->parent = g_context->layer->parent;
 			slot_layer_delete(g_context->layer);
 			g_context->layer = g_project->_->layers->buffer[step->layer > 0 ? step->layer - 1 : 0];
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_LAYER) {
-			slot_layer_t *parent = step->layer_parent > 0 ? g_project->_->layers->buffer[step->layer_parent - 1] : NULL;
-			slot_layer_t *l      = slot_layer_create("", step->layer_type, parent);
-			array_insert(g_project->_->layers, step->layer, l);
-			context_set_layer(l);
-			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-			slot_layer_t *lay = history_undo_slot(history_undo_i);
-			slot_layer_swap(l, lay);
-			l->mask_opacity = step->layer_opacity;
-			l->blending     = step->layer_blending;
-			l->object_mask  = step->layer_object;
-			make_material_parse_mesh_material();
-
-			// Undo at least second time in order to avoid empty groups
-			if (step->layer_type == LAYER_SLOT_TYPE_GROUP) {
-				sys_notify_on_next_frame(&history_undo_delete_layer_group, NULL);
-			}
-
-			tab_stages_add_layer(l->name);
+			history_swap_merge(step, true);
 		}
 		else if (step->action == HISTORY_ACTION_CLEAR_LAYER) {
 			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
@@ -359,46 +407,15 @@ void history_undo() {
 			g_context->layer_preview_dirty = true;
 		}
 		else if (step->action == HISTORY_ACTION_DUPLICATE_LAYER) {
-			slot_layer_t_array_t *children = slot_layer_get_recursive_children(g_project->_->layers->buffer[step->layer]);
-			i32                   position = step->layer + 1;
-			if (children != NULL) {
-				position += children->length;
-			}
-
+			i32 position     = step->layer + 1 + slot_layer_count_descendants(g_project->_->layers->buffer[step->layer]);
 			g_context->layer = g_project->_->layers->buffer[position];
 			slot_layer_delete(g_context->layer);
 		}
 		else if (step->action == HISTORY_ACTION_ORDER_LAYERS) {
-			slot_layer_t *target                           = g_project->_->layers->buffer[step->prev_order];
-			g_project->_->layers->buffer[step->prev_order] = g_project->_->layers->buffer[step->layer];
-			g_project->_->layers->buffer[step->layer]      = target;
+			history_swap_order(step);
 		}
 		else if (step->action == HISTORY_ACTION_MERGE_LAYERS) {
-			g_context->layer = g_project->_->layers->buffer[step->layer];
-			slot_layer_delete(g_context->layer);
-
-			slot_layer_t *parent = step->layer_parent > 0 ? g_project->_->layers->buffer[step->layer_parent - 2] : NULL;
-			slot_layer_t *l      = slot_layer_create("", step->layer_type, parent);
-			array_insert(g_project->_->layers, step->layer, l);
-			context_set_layer(l);
-
-			history_undo_i    = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-			slot_layer_t *lay = history_undo_slot(history_undo_i);
-			slot_layer_swap(g_context->layer, lay);
-
-			l = slot_layer_create("", step->layer_type, parent);
-			array_insert(g_project->_->layers, step->layer + 1, l);
-			context_set_layer(l);
-
-			history_undo_i = history_undo_i - 1 < 0 ? g_config->undo_steps - 1 : history_undo_i - 1;
-			lay            = history_undo_slot(history_undo_i);
-			slot_layer_swap(g_context->layer, lay);
-
-			g_context->layer->mask_opacity  = step->layer_opacity;
-			g_context->layer->blending      = step->layer_blending;
-			g_context->layer->object_mask   = step->layer_object;
-			g_context->layers_preview_dirty = true;
-			make_material_parse_mesh_material();
+			history_swap_merge(step, true);
 		}
 		else if (step->action == HISTORY_ACTION_APPLY_MASK) {
 			// First restore the layer(s)
@@ -538,6 +555,9 @@ void history_undo() {
 
 		history_undos--;
 		history_redos++;
+		if (step->with_prev) {
+			history_undo();
+		}
 		g_context->rtdirty = 1;
 		g_context->ddirty  = 2;
 
@@ -565,10 +585,6 @@ void history_redo_apply_mask(void *_) {
 	slot_layer_apply_mask(g_context->layer);
 	context_set_layer(g_context->layer);
 	g_context->layers_preview_dirty = true;
-}
-
-void history_redo_merge_layers2(void *_) {
-	layers_merge_down();
 }
 
 slot_layer_t *history_undo_slot(i32 i) {
@@ -618,15 +634,6 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;
 }
 
-void history_copy_merging_layers() {
-	slot_layer_t *lay = g_context->layer;
-	history_copy_to_undo(lay->id, history_undo_i, slot_layer_is_mask(g_context->layer));
-
-	i32 below = array_index_of(g_project->_->layers, lay) - 1;
-	lay       = g_project->_->layers->buffer[below];
-	history_copy_to_undo(lay->id, history_undo_i, slot_layer_is_mask(g_context->layer));
-}
-
 void history_copy_merging_layers2(slot_layer_t_array_t *layers) {
 	for (i32 i = 0; i < layers->length; ++i) {
 		slot_layer_t *layer = layers->buffer[i];
@@ -634,23 +641,8 @@ void history_copy_merging_layers2(slot_layer_t_array_t *layers) {
 	}
 }
 
-void history_redo_merge_layers(void *_) {
-	history_copy_merging_layers();
-}
-
 void history_redo_duplicate_layer(void *_) {
 	layers_duplicate_layer(g_context->layer);
-}
-
-void history_redo_delete_layer(void *_) {
-	i32 active = history_steps->length - history_redos;
-	i32 n      = 1;
-	while (history_steps->buffer[active + n]->layer_type == LAYER_SLOT_TYPE_MASK) {
-		++n;
-	}
-	for (i32 i = 0; i < n; ++i) {
-		history_redo();
-	}
 }
 
 void history_redo_new_fill_mask(slot_layer_t *l) {
@@ -702,21 +694,12 @@ void history_redo() {
 			slot_layer_t *group = layers_new_group();
 			array_remove(g_project->_->layers, group);
 			array_insert(g_project->_->layers, step->layer, group);
-			l->parent = group;
+			group->parent = l->parent;
+			l->parent     = group;
 			context_set_layer(group);
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_LAYER) {
-			g_context->layer = g_project->_->layers->buffer[step->layer];
-			history_swap_active();
-			slot_layer_delete(g_context->layer);
-
-			// Redoing the last delete would result in an empty group
-			// Redo deleting all group masks + the group itself
-			if (step->layer_type == LAYER_SLOT_TYPE_LAYER && history_steps->length >= active + 2 &&
-			    (history_steps->buffer[active + 1]->layer_type == LAYER_SLOT_TYPE_GROUP ||
-			     history_steps->buffer[active + 1]->layer_type == LAYER_SLOT_TYPE_MASK)) {
-				sys_notify_on_next_frame(&history_redo_delete_layer, NULL);
-			}
+			history_swap_merge(step, false);
 		}
 		else if (step->action == HISTORY_ACTION_CLEAR_LAYER) {
 			g_context->layer = g_project->_->layers->buffer[step->layer];
@@ -729,14 +712,10 @@ void history_redo() {
 			sys_notify_on_next_frame(&history_redo_duplicate_layer, NULL);
 		}
 		else if (step->action == HISTORY_ACTION_ORDER_LAYERS) {
-			slot_layer_t *target                           = g_project->_->layers->buffer[step->prev_order];
-			g_project->_->layers->buffer[step->prev_order] = g_project->_->layers->buffer[step->layer];
-			g_project->_->layers->buffer[step->layer]      = target;
+			history_swap_order(step);
 		}
 		else if (step->action == HISTORY_ACTION_MERGE_LAYERS) {
-			g_context->layer = g_project->_->layers->buffer[step->layer + 1];
-			sys_notify_on_next_frame(&history_redo_merge_layers, NULL);
-			sys_notify_on_next_frame(&history_redo_merge_layers2, NULL);
+			history_swap_merge(step, false);
 		}
 		else if (step->action == HISTORY_ACTION_APPLY_MASK) {
 			g_context->layer = g_project->_->layers->buffer[step->layer];
@@ -855,6 +834,9 @@ void history_redo() {
 
 		history_undos++;
 		history_redos--;
+		if (history_redos > 0 && history_steps->buffer[history_steps->length - history_redos]->with_prev) {
+			history_redo();
+		}
 		g_context->rtdirty = 1;
 		g_context->ddirty  = 2;
 
@@ -876,7 +858,7 @@ void history_redo() {
 void history_reset() {
 	if (history_steps != NULL) {
 		for (i32 i = 0; i < history_steps->length; ++i) {
-			free(history_steps->buffer[i]);
+			history_step_free(history_steps->buffer[i]);
 		}
 		array_free(history_steps);
 		free(history_steps);
@@ -911,7 +893,7 @@ history_step_t *history_push(history_action_t action) {
 	}
 	if (history_redos > 0) {
 		for (i32 i = 0; i < history_redos; ++i) {
-			free(array_pop(history_steps));
+			history_step_free(array_pop(history_steps));
 		}
 		history_redos = 0;
 	}
@@ -939,7 +921,7 @@ history_step_t *history_push(history_action_t action) {
 	any_array_push(history_steps, step);
 
 	while (history_steps->length > g_config->undo_steps + 1) {
-		free(array_shift(history_steps));
+		history_step_free(array_shift(history_steps));
 	}
 	return history_steps->buffer[history_steps->length - 1];
 }
@@ -989,9 +971,45 @@ void history_duplicate_layer() {
 	history_push(HISTORY_ACTION_DUPLICATE_LAYER);
 }
 
-void history_delete_layer() {
-	history_swap_active();
-	history_push(HISTORY_ACTION_DELETE_LAYER);
+static slot_layer_t *history_emptied_root(slot_layer_t *l) {
+	slot_layer_t *top = l;
+	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
+		return top;
+	}
+	while (top->parent != NULL) {
+		slot_layer_t_array_t *children = slot_layer_get_children(top->parent);
+		for (i32 i = 0; children != NULL && i < children->length; ++i) {
+			slot_layer_t *c = children->buffer[i];
+			if (c != top && !slot_layer_is_descendant(c, top)) {
+				return top;
+			}
+		}
+		top = top->parent;
+	}
+	return top;
+}
+
+history_step_t *history_delete_layer(slot_layer_t *l) {
+	slot_layer_t_array_t *layers = g_project->_->layers;
+	slot_layer_t         *top    = history_emptied_root(l);
+	i32                   end    = array_index_of(layers, top);
+	i32                   start  = end - slot_layer_count_descendants(top);
+	history_step_t       *step   = history_push(HISTORY_ACTION_DELETE_LAYER);
+	step->merge_layers           = any_array_create_from_raw((void *[]){}, 0);
+	step->merge_parents          = i32_array_create(0);
+	step->merge_start            = start;
+	step->merge_length           = layers->length;
+	for (i32 i = start; i <= end; ++i) {
+		slot_layer_t *c = layers->buffer[i];
+		any_array_push(step->merge_layers, c);
+		i32_array_push(step->merge_parents, c->parent != NULL ? array_index_of(layers, c->parent) : -1);
+	}
+	for (i32 i = 0; i < step->merge_layers->length; ++i) {
+		array_remove(layers, step->merge_layers->buffer[i]);
+	}
+	tab_timeline_sync();
+	context_set_layer(layers->buffer[start > 0 ? start - 1 : 0]);
+	return step;
 }
 
 void history_clear_layer() {
@@ -1004,17 +1022,31 @@ void history_order_layers(i32 prev_order) {
 	step->prev_order     = prev_order;
 }
 
-void history_merge_layers() {
-	history_copy_merging_layers();
-
-	history_step_t *step = history_push(HISTORY_ACTION_MERGE_LAYERS);
-	step->layer -= 1; // Merge down
-	if (slot_layer_has_masks(g_context->layer, true)) {
-		step->layer -= slot_layer_get_masks(g_context->layer, true)->length;
+static void history_merge_capture(slot_layer_t *top, i32 start) {
+	slot_layer_t_array_t *layers = g_project->_->layers;
+	history_step_t       *step   = history_push(HISTORY_ACTION_MERGE_LAYERS);
+	i32                   end    = array_index_of(layers, top);
+	step->merge_layers           = any_array_create_from_raw((void *[]){}, 0);
+	step->merge_parents          = i32_array_create(0);
+	step->merge_start            = start;
+	step->merge_length           = layers->length;
+	for (i32 i = start; i <= end; ++i) {
+		slot_layer_t *l = layers->buffer[i];
+		any_array_push(step->merge_layers, slot_layer_clone(l));
+		i32_array_push(step->merge_parents, l->parent != NULL ? array_index_of(layers, l->parent) : -1);
 	}
-	array_shift(history_steps); // Merge consumes 2 steps
-	history_undos--;
-	// TODO: use undo layer in app_merge_down to save memory
+}
+
+void history_merge_layers() {
+	slot_layer_t_array_t *layers = g_project->_->layers;
+	slot_layer_t         *l1     = g_context->layer;
+	slot_layer_t         *l0     = layers->buffer[array_index_of(layers, l1) - slot_layer_count_descendants(l1) - 1];
+	history_merge_capture(l1, array_index_of(layers, l0) - slot_layer_count_descendants(l0));
+}
+
+void history_merge_group(slot_layer_t *l) {
+	slot_layer_t *top = slot_layer_shows(l) ? l : history_emptied_root(l);
+	history_merge_capture(top, array_index_of(g_project->_->layers, top) - slot_layer_count_descendants(top));
 }
 
 void history_apply_mask() {

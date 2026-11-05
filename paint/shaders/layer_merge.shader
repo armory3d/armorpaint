@@ -47,6 +47,131 @@ float3 rgb_to_hsv(float3 c) {
 	return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
 }
 
+float4 blend_modes(int blending, float4 col0, float4 cola, float maskr, float str) {
+	if (blending == 0) { // Mix
+		return float4(
+			lerp(cola.rgb, col0.rgb, str), max(col0.a * maskr, cola.a));
+	}
+	if (blending == 1) { // Darken
+		return float4(
+			lerp(cola.rgb, min(cola.rgb, col0.rgb), str), max(col0.a * maskr, cola.a));
+	}
+	if (blending == 2) { // Multiply
+		return float4(
+			lerp(cola.rgb, cola.rgb * col0.rgb, str), max(col0.a * maskr, cola.a));
+	}
+	if (blending == 3) { // Burn
+		return float4(
+			lerp(
+				cola.rgb,
+				float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - cola.rgb) / col0.rgb,
+				str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 4) { // Lighten
+		return float4(
+			max(cola.rgb, col0.rgb * str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 5) { // Screen
+		return float4(
+			(float3(1.0, 1.0, 1.0) - (float3(1.0 - str, 1.0 - str, 1.0 - str) +
+				str * (float3(1.0, 1.0, 1.0) - col0.rgb)) * (float3(1.0, 1.0, 1.0) - cola.rgb)),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 6) { // Dodge
+		return float4(
+			lerp(cola.rgb, cola.rgb / (float3(1.0, 1.0, 1.0) - col0.rgb), str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 7) { // Add
+		return float4(
+			lerp(cola.rgb, cola.rgb + col0.rgb, str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 8) { // Overlay
+		float rr = lerp(2.0 * cola.r * col0.r, 1.0 - 2.0 * (1.0 - cola.r) * (1.0 - col0.r), step(0.5, cola.r));
+		float gg = lerp(2.0 * cola.g * col0.g, 1.0 - 2.0 * (1.0 - cola.g) * (1.0 - col0.g), step(0.5, cola.g));
+		float bb = lerp(2.0 * cola.b * col0.b, 1.0 - 2.0 * (1.0 - cola.b) * (1.0 - col0.b), step(0.5, cola.b));
+		return float4(
+			lerp(cola.rgb, float3(rr, gg, bb), str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 9) { // Soft Light
+		return float4(
+			((1.0 - str) * cola.rgb +
+				str * ((float3(1.0, 1.0, 1.0) - cola.rgb) * col0.rgb * cola.rgb +
+				cola.rgb * (float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - col0.rgb) * (float3(1.0, 1.0, 1.0) - cola.rgb)))),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 10) { // Linear Light
+		return float4(
+			(cola.rgb + str * (float3(2.0, 2.0, 2.0) * (col0.rgb - float3(0.5, 0.5, 0.5)))),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 11) { // Difference
+		return float4(
+			lerp(cola.rgb, abs(cola.rgb - col0.rgb), str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 12) { // Subtract
+		return float4(
+			lerp(cola.rgb, cola.rgb - col0.rgb, str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 13) { // Divide
+		return float4(
+			float3(1.0 - str, 1.0 - str, 1.0 - str) * cola.rgb + float3(str, str, str) * cola.rgb / col0.rgb,
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 14) { // Hue
+		return float4(
+			lerp(
+				cola.rgb,
+				hsv_to_rgb(
+					float3(rgb_to_hsv(col0.rgb).r,
+					rgb_to_hsv(cola.rgb).g,
+					rgb_to_hsv(cola.rgb).b)),
+				str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 15) { // Saturation
+		return float4(
+			lerp(
+				cola.rgb,
+				hsv_to_rgb(
+					float3(rgb_to_hsv(cola.rgb).r,
+					rgb_to_hsv(col0.rgb).g,
+					rgb_to_hsv(cola.rgb).b)),
+				str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 16) { // Color
+		return float4(
+			lerp(
+				cola.rgb,
+				hsv_to_rgb(
+					float3(rgb_to_hsv(col0.rgb).r,
+					rgb_to_hsv(col0.rgb).g,
+					rgb_to_hsv(cola.rgb).b)),
+				str),
+			max(col0.a * maskr, cola.a));
+	}
+	if (blending == 17) { // Value
+		return float4(
+			lerp(
+				cola.rgb,
+				hsv_to_rgb(
+					float3(rgb_to_hsv(cola.rgb).r,
+					rgb_to_hsv(cola.rgb).g,
+					rgb_to_hsv(col0.rgb).b)),
+				str),
+			max(col0.a * maskr, cola.a));
+	}
+
+	return float4(1.0, 1.0, 1.0, 1.0);
+}
+
 float4 frag(vert_out input) {
 	float4 col0 = sample_lod(tex0, sampler_linear, input.tex, 0.0);
 	float4 cola = sample_lod(texa, sampler_linear, input.tex, 0.0);
@@ -54,6 +179,31 @@ float4 frag(vert_out input) {
 	float str = col0.a * constants.opac;
 	str *= maskr;
 
+	if (constants.blending == 105) { // Weight of the upper layer in merged _nor and _pack
+		float a = cola.a + str * (1.0 - cola.a);
+		if (a <= 0.0) {
+			return float4(0.0, 0.0, 0.0, 0.0);
+		}
+		return float4(str, cola.a, a, str / a);
+	}
+	if (constants.blending == 106) { // Merging layers, _nor with normal blending, tex0 from 105
+		if (col0.b <= 0.0) {
+			return cola;
+		}
+		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+		float3 flat_nor = float3(0.5, 0.5, 1.0);
+		float3 n1 = lerp(flat_nor, cola.rgb, col0.g) * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+		float3 n2 = lerp(flat_nor, col1.rgb, col0.r) * float3(2.0, 2.0, 2.0) - float3(1.0, 1.0, 1.0);
+		float3 blended = normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5);
+		return float4(flat_nor + (blended - flat_nor) / col0.b, max(col1.a, cola.a));
+	}
+	if (constants.blending == 107) { // Merging layers, _pack with height blending, tex0 from 105
+		if (col0.b <= 0.0) {
+			return cola;
+		}
+		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
+		return float4(lerp(cola.rgb, col1.rgb, col0.a), (cola.a * col0.g + col1.a * col0.r) / col0.b);
+	}
 	if (constants.blending == 101) { // Merging _nor and _pack
 		float4 col1 = sample_lod(tex1, sampler_linear, input.tex, 0.0);
 		return lerp(cola, col1, str);
@@ -86,126 +236,13 @@ float4 frag(vert_out input) {
 			normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5),
 			col0.a);
 	}
-	if (constants.blending == 0) { // Mix
-		return float4(
-			lerp(cola.rgb, col0.rgb, str), max(col0.a * maskr, cola.a));
+	if (constants.blending >= 200) { // Merging layers, the result is composited later
+		float a = cola.a + str * (1.0 - cola.a);
+		if (a <= 0.0) {
+			return cola;
+		}
+		float4 blended = blend_modes(constants.blending - 200, col0, cola, maskr, str);
+		return float4((blended.rgb * cola.a + col0.rgb * str * (1.0 - cola.a)) / a, a);
 	}
-	if (constants.blending == 1) { // Darken
-		return float4(
-			lerp(cola.rgb, min(cola.rgb, col0.rgb), str), max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 2) { // Multiply
-		return float4(
-			lerp(cola.rgb, cola.rgb * col0.rgb, str), max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 3) { // Burn
-		return float4(
-			lerp(
-				cola.rgb,
-				float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - cola.rgb) / col0.rgb,
-				str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 4) { // Lighten
-		return float4(
-			max(cola.rgb, col0.rgb * str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 5) { // Screen
-		return float4(
-			(float3(1.0, 1.0, 1.0) - (float3(1.0 - str, 1.0 - str, 1.0 - str) +
-				str * (float3(1.0, 1.0, 1.0) - col0.rgb)) * (float3(1.0, 1.0, 1.0) - cola.rgb)),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 6) { // Dodge
-		return float4(
-			lerp(cola.rgb, cola.rgb / (float3(1.0, 1.0, 1.0) - col0.rgb), str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 7) { // Add
-		return float4(
-			lerp(cola.rgb, cola.rgb + col0.rgb, str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 8) { // Overlay
-		float rr = lerp(2.0 * cola.r * col0.r, 1.0 - 2.0 * (1.0 - cola.r) * (1.0 - col0.r), step(0.5, cola.r));
-		float gg = lerp(2.0 * cola.g * col0.g, 1.0 - 2.0 * (1.0 - cola.g) * (1.0 - col0.g), step(0.5, cola.g));
-		float bb = lerp(2.0 * cola.b * col0.b, 1.0 - 2.0 * (1.0 - cola.b) * (1.0 - col0.b), step(0.5, cola.b));
-		return float4(
-			lerp(cola.rgb, float3(rr, gg, bb), str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 9) { // Soft Light
-		return float4(
-			((1.0 - str) * cola.rgb +
-				str * ((float3(1.0, 1.0, 1.0) - cola.rgb) * col0.rgb * cola.rgb +
-				cola.rgb * (float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - col0.rgb) * (float3(1.0, 1.0, 1.0) - cola.rgb)))),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 10) { // Linear Light
-		return float4(
-			(cola.rgb + str * (float3(2.0, 2.0, 2.0) * (col0.rgb - float3(0.5, 0.5, 0.5)))),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 11) { // Difference
-		return float4(
-			lerp(cola.rgb, abs(cola.rgb - col0.rgb), str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 12) { // Subtract
-		return float4(
-			lerp(cola.rgb, cola.rgb - col0.rgb, str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 13) { // Divide
-		return float4(
-			float3(1.0 - str, 1.0 - str, 1.0 - str) * cola.rgb + float3(str, str, str) * cola.rgb / col0.rgb,
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 14) { // Hue
-		return float4(
-			lerp(
-				cola.rgb,
-				hsv_to_rgb(
-					float3(rgb_to_hsv(col0.rgb).r,
-					rgb_to_hsv(cola.rgb).g,
-					rgb_to_hsv(cola.rgb).b)),
-				str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 15) { // Saturation
-		return float4(
-			lerp(
-				cola.rgb,
-				hsv_to_rgb(
-					float3(rgb_to_hsv(cola.rgb).r,
-					rgb_to_hsv(col0.rgb).g,
-					rgb_to_hsv(cola.rgb).b)),
-				str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 16) { // Color
-		return float4(
-			lerp(
-				cola.rgb,
-				hsv_to_rgb(
-					float3(rgb_to_hsv(col0.rgb).r,
-					rgb_to_hsv(col0.rgb).g,
-					rgb_to_hsv(cola.rgb).b)),
-				str),
-			max(col0.a * maskr, cola.a));
-	}
-	if (constants.blending == 17) { // Value
-		return float4(
-			lerp(
-				cola.rgb,
-				hsv_to_rgb(
-					float3(rgb_to_hsv(cola.rgb).r,
-					rgb_to_hsv(cola.rgb).g,
-					rgb_to_hsv(col0.rgb).b)),
-				str),
-			max(col0.a * maskr, cola.a));
-	}
-
-	return float4(1.0, 1.0, 1.0, 1.0);
+	return blend_modes(constants.blending, col0, cola, maskr, str);
 }

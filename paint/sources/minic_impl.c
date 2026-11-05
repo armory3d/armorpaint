@@ -462,6 +462,7 @@ static void script_paint_begin_stroke(void) {
 		return;
 	}
 	make_material_parse_paint_material(false);
+	render_path_paint_clear_blend();
 	render_path_base_draw_gbuffer();
 
 	history_push_undo = true;
@@ -776,9 +777,6 @@ slot_layer_t *script_layer_new_group(slot_layer_t *l) {
 	if (slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 		l = l->parent;
 	}
-	if (slot_layer_is_group(l) || slot_layer_is_in_group(l)) {
-		return NULL;
-	}
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
@@ -789,7 +787,8 @@ slot_layer_t *script_layer_new_group(slot_layer_t *l) {
 		context_set_layer(l);
 		array_remove(g_project->_->layers, group);
 		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, group);
-		l->parent = group;
+		group->parent = l->parent;
+		l->parent     = group;
 		tab_layers_remap_all_layer_pointers(pointers);
 		context_set_layer(group);
 		history_new_group();
@@ -847,6 +846,7 @@ bool script_layer_move(slot_layer_t *l, i32 to) {
 	gpu_texture_t *current;
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
+	base_init_undo_layers();
 	slot_layer_move(l, to);
 	make_material_parse_mesh_material();
 	script_gpu_end(current, in_use);
@@ -855,7 +855,7 @@ bool script_layer_move(slot_layer_t *l, i32 to) {
 }
 
 bool script_layer_set_group(slot_layer_t *l, slot_layer_t *group) {
-	if (!script_layer_valid(l) || !slot_layer_is_layer(l) || slot_layer_is_filter(l)) {
+	if (!script_layer_valid(l) || slot_layer_is_mask(l) || slot_layer_is_filter(l)) {
 		return false;
 	}
 	if (group == NULL) {
@@ -976,8 +976,13 @@ slot_layer_t *script_layer_merge_group(slot_layer_t *group) {
 	bool           in_use;
 	script_gpu_begin(&current, &in_use);
 	base_init_undo_layers();
+	if (slot_layer_shows(group) || tab_layers_can_delete(group)) {
+		history_merge_group(group);
+	}
 	slot_layer_t *l = layers_merge_group(group);
-	context_set_layer(l);
+	if (l != NULL) {
+		context_set_layer(l);
+	}
 	script_layer_op_end(current, in_use);
 	return l;
 }
@@ -1069,10 +1074,8 @@ bool script_layer_to_paint(slot_layer_t *l) {
 	script_gpu_begin(&current, &in_use);
 	base_init_undo_layers();
 	if (slot_layer_is_filter(l)) {
-		i32 pi = array_index_of(g_project->_->layers, l->parent);
-		array_remove(g_project->_->layers, l);
-		array_insert(g_project->_->layers, pi, l);
-		l->parent = NULL;
+		slot_layer_relocate(l, array_index_of(g_project->_->layers, l->parent));
+		l->parent = l->parent->parent;
 	}
 	context_set_layer(l);
 	slot_layer_is_layer(l) ? history_to_paint_layer() : history_to_paint_mask();

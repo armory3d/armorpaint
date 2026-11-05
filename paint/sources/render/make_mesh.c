@@ -420,23 +420,29 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 					node_shader_write_frag(kong, "metallic = lerp(metallic, texpaint_pack_sample.b, texpaint_opac);");
 				}
 				if (l->paint_height && make_material_height_used) {
-					char *assign = l->paint_height_blend ? "+=" : "=";
-					node_shader_write_frag(kong, string_tmp("height %s texpaint_pack_sample.a * texpaint_opac;", assign));
+					if (!l->paint_height_blend) {
+						node_shader_write_frag(kong, "height *= 1.0 - texpaint_opac;");
+						node_shader_write_frag(kong, "height0 *= 1.0 - texpaint_opac;");
+						node_shader_write_frag(kong, "height1 *= 1.0 - texpaint_opac;");
+						node_shader_write_frag(kong, "height2 *= 1.0 - texpaint_opac;");
+						node_shader_write_frag(kong, "height3 *= 1.0 - texpaint_opac;");
+					}
+					node_shader_write_frag(kong, "height += texpaint_pack_sample.a * texpaint_opac;");
 					node_shader_write_frag(kong, "{");
 					node_shader_add_constant(kong, "float2 texpaint_size", "_texpaint_size");
 					node_shader_write_frag(kong, "float tex_step = 1.0 / constants.texpaint_size.x;");
 					node_shader_write_frag(
-					    kong, string_tmp("height0 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x - tex_step, %s.y), 0.0).a * texpaint_opac;",
-					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height0 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x - tex_step, %s.y), 0.0).a * texpaint_opac;",
+					                     i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height1 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x + tex_step, %s.y), 0.0).a * texpaint_opac;",
-					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height1 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x + tex_step, %s.y), 0.0).a * texpaint_opac;",
+					                     i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height2 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y - tex_step), 0.0).a * texpaint_opac;",
-					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height2 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y - tex_step), 0.0).a * texpaint_opac;",
+					                     i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
-					    kong, string_tmp("height3 %s sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y + tex_step), 0.0).a * texpaint_opac;",
-					                     assign, i32_to_string(l->id), tex_coord, tex_coord));
+					    kong, string_tmp("height3 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y + tex_step), 0.0).a * texpaint_opac;",
+					                     i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(kong, "}");
 				}
 			}

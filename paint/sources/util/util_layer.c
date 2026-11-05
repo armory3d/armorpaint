@@ -113,6 +113,11 @@ void layers_resize_targets() {
 		}
 	}
 
+	slot_layer_t_array_t *saved = history_merge_saved_layers();
+	for (i32 i = 0; i < saved->length; ++i) {
+		slot_layer_resize_and_set_bits(saved->buffer[i]);
+	}
+
 	any_map_t *rts = render_path_render_targets;
 
 	render_target_t *blend0           = any_map_get(rts, "texpaint_blend0");
@@ -170,6 +175,10 @@ void layers_set_bits() {
 	for (i32 i = 0; i < history_undo_layers->length; ++i) {
 		slot_layer_t *l = history_undo_layers->buffer[i];
 		slot_layer_resize_and_set_bits(l);
+	}
+	slot_layer_t_array_t *saved = history_merge_saved_layers();
+	for (i32 i = 0; i < saved->length; ++i) {
+		slot_layer_resize_and_set_bits(saved->buffer[i]);
 	}
 }
 
@@ -675,7 +684,7 @@ slot_layer_t *layers_new_layer(bool clear, i32 position, slot_layer_t *parent) {
 		i32 li = array_index_of(g_project->_->layers, g_context->layer);
 		if (li > 0) {
 			slot_layer_t *below = g_project->_->layers->buffer[li - 1];
-			if (slot_layer_is_layer(below)) {
+			if (slot_layer_is_layer(below) || slot_layer_is_group(below)) {
 				g_context->layer->parent = below->parent;
 			}
 		}
@@ -887,92 +896,103 @@ void layers_create_color_layer(i32 base_color, f32 occlusion, f32 roughness, f32
 	sys_notify_on_next_frame(&layers_create_color_layer_on_next_frame, NULL);
 }
 
-void layers_duplicate_layer(slot_layer_t *l) {
-	if (!slot_layer_is_group(l)) {
-		slot_layer_t *new_layer = slot_layer_duplicate(l);
-		context_set_layer(new_layer);
-		slot_layer_t_array_t *masks = slot_layer_get_masks(l, false);
-		if (masks != NULL) {
-			for (i32 i = 0; i < masks->length; ++i) {
-				slot_layer_t *m = masks->buffer[i];
-				m               = slot_layer_duplicate(m);
-				m->parent       = new_layer;
-				array_remove(g_project->_->layers, m);
-				array_insert(g_project->_->layers, array_index_of(g_project->_->layers, new_layer), m);
-			}
-		}
-		context_set_layer(new_layer);
-	}
-	else {
-		slot_layer_t *new_group = layers_new_group();
-		array_remove(g_project->_->layers, new_group);
-		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, new_group);
-		// group.show_panel = true;
-		for (i32 i = 0; i < slot_layer_get_children(l)->length; ++i) {
-			slot_layer_t         *c         = slot_layer_get_children(l)->buffer[i];
-			slot_layer_t_array_t *masks     = slot_layer_get_masks(c, false);
-			slot_layer_t         *new_layer = slot_layer_duplicate(c);
-			new_layer->parent               = new_group;
-			array_remove(g_project->_->layers, new_layer);
-			array_insert(g_project->_->layers, array_index_of(g_project->_->layers, new_group), new_layer);
-			if (masks != NULL) {
-				for (i32 i = 0; i < masks->length; ++i) {
-					slot_layer_t *m        = masks->buffer[i];
-					slot_layer_t *new_mask = slot_layer_duplicate(m);
-					new_mask->parent       = new_layer;
-					array_remove(g_project->_->layers, new_mask);
-					array_insert(g_project->_->layers, array_index_of(g_project->_->layers, new_layer), new_mask);
-				}
-			}
-		}
-		slot_layer_t_array_t *group_masks = slot_layer_get_masks(l, true);
-		if (group_masks != NULL) {
-			for (i32 i = 0; i < group_masks->length; ++i) {
-				slot_layer_t *m        = group_masks->buffer[i];
-				slot_layer_t *new_mask = slot_layer_duplicate(m);
-				new_mask->parent       = new_group;
-				array_remove(g_project->_->layers, new_mask);
-				array_insert(g_project->_->layers, array_index_of(g_project->_->layers, new_group), new_mask);
-			}
-		}
-		context_set_layer(new_group);
+static void layers_duplicate_children(slot_layer_t *l, slot_layer_t *new_parent) {
+	slot_layer_t_array_t *children = slot_layer_get_direct_children(l);
+	for (i32 i = 0; i < children->length; ++i) {
+		slot_layer_t *c     = children->buffer[i];
+		slot_layer_t *new_c = slot_layer_is_group(c) ? layers_new_group() : slot_layer_duplicate(c);
+		new_c->parent       = new_parent;
+		array_remove(g_project->_->layers, new_c);
+		array_insert(g_project->_->layers, array_index_of(g_project->_->layers, new_parent), new_c);
+		layers_duplicate_children(c, new_c);
 	}
 }
 
+void layers_duplicate_layer(slot_layer_t *l) {
+	slot_layer_t *new_layer = slot_layer_is_group(l) ? layers_new_group() : slot_layer_duplicate(l);
+	new_layer->parent       = l->parent;
+	array_remove(g_project->_->layers, new_layer);
+	array_insert(g_project->_->layers, array_index_of(g_project->_->layers, l) + 1, new_layer);
+	layers_duplicate_children(l, new_layer);
+	context_set_layer(new_layer);
+}
+
 void layers_apply_masks(slot_layer_t *l) {
-	slot_layer_t_array_t *masks = slot_layer_get_masks(l, true);
+	slot_layer_t_array_t *masks = slot_layer_get_masks(l, false);
 
 	if (masks != NULL) {
-		for (i32 i = 0; i < masks->length - 1; ++i) {
-			layers_merge_layer(masks->buffer[i + 1], masks->buffer[i], false);
-			slot_layer_delete(masks->buffer[i]);
+		for (i32 i = 0; i < masks->length; ++i) {
+			masks->buffer[i]->visible ? slot_layer_apply_mask(masks->buffer[i]) : slot_layer_delete(masks->buffer[i]);
 		}
-		slot_layer_apply_mask(masks->buffer[masks->length - 1]);
 		g_context->layer_preview_dirty = true;
+	}
+}
+
+static void layers_bake_opacity(slot_layer_t *l) {
+	if (l->mask_opacity < 1.0 && slot_layer_is_mask(l)) {
+		layers_make_temp_img();
+		draw_begin(layers_temp_image, false, 0);
+		draw_set_pipeline(pipes_copy);
+		draw_image(l->texpaint, 0, 0);
+		draw_set_pipeline(NULL);
+		draw_end();
+		render_target_t *white = any_map_get(render_path_render_targets, "empty_white");
+		_gpu_begin(l->texpaint, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		gpu_set_pipeline(pipes_merge_mask);
+		gpu_set_texture(pipes_tex0_merge_mask, white->_image);
+		gpu_set_texture(pipes_texa_merge_mask, layers_temp_image);
+		gpu_set_float(pipes_opac_merge_mask, 1.0 - l->mask_opacity);
+		gpu_set_int(pipes_blending_merge_mask, BLEND_TYPE_MIX);
+		gpu_set_vertex_buffer(const_data_screen_aligned_vb);
+		gpu_set_index_buffer(const_data_screen_aligned_ib);
+		gpu_draw();
+		gpu_end();
+		l->mask_opacity = 1.0;
+	}
+	else if (l->mask_opacity < 1.0) {
+		render_target_t *black = any_map_get(render_path_render_targets, "empty_black");
+		slot_layer_t    *m     = ALLOC_INIT(slot_layer_t, {.texpaint = black->_image, .mask_opacity = 1.0 - l->mask_opacity});
+		layers_apply_mask(l, m);
+		free(m);
+		l->mask_opacity = 1.0;
 	}
 }
 
 void layers_merge_down() {
 	slot_layer_t *l1 = g_context->layer;
+	slot_layer_t *l0 = g_project->_->layers->buffer[array_index_of(g_project->_->layers, l1) - slot_layer_count_descendants(l1) - 1];
+
+	if (!slot_layer_shows(l1) || !slot_layer_shows(l0)) {
+		slot_layer_t *discard = slot_layer_shows(l1) ? l0 : l1;
+		slot_layer_t *keep    = discard == l1 ? l0 : l1;
+		slot_layer_delete(discard);
+		context_set_layer(keep);
+		g_context->layer_preview_dirty = true;
+		return;
+	}
 
 	if (slot_layer_is_group(l1)) {
 		l1 = layers_merge_group(l1);
 	}
-	else if (slot_layer_has_masks(l1, true)) { // It is a layer
+	else if (slot_layer_has_masks(l1, false)) { // It is a layer
 		layers_apply_masks(l1);
 		context_set_layer(l1);
 	}
 
-	slot_layer_t *l0 = g_project->_->layers->buffer[array_index_of(g_project->_->layers, l1) - 1];
-
 	if (slot_layer_is_group(l0)) {
 		l0 = layers_merge_group(l0);
 	}
-	else if (slot_layer_has_masks(l0, true)) { // It is a layer
+	else if (slot_layer_has_masks(l0, false)) { // It is a layer
 		layers_apply_masks(l0);
 		context_set_layer(l0);
 	}
 
+	layers_bake_opacity(l0);
+	if (slot_layer_is_layer(l0)) {
+		if (l0->object_mask != l1->object_mask) {
+			l0->object_mask = 0;
+		}
+	}
 	layers_merge_layer(l0, l1, false);
 	slot_layer_delete(l1);
 	context_set_layer(l0);
@@ -984,6 +1004,36 @@ slot_layer_t *layers_merge_group(slot_layer_t *l) {
 		return NULL;
 	}
 
+	if (!slot_layer_shows(l)) {
+		if (tab_layers_can_delete(l)) {
+			slot_layer_delete(l);
+			for (slot_layer_t *p = l->parent; p != NULL && slot_layer_get_children(p) == NULL; p = p->parent) {
+				slot_layer_delete(p);
+			}
+		}
+		return NULL;
+	}
+
+	slot_layer_t_array_t *direct = slot_layer_get_direct_children(l);
+	for (i32 i = 0; i < direct->length; ++i) {
+		if (!slot_layer_shows(direct->buffer[i])) {
+			slot_layer_delete(direct->buffer[i]);
+		}
+	}
+
+	slot_layer_t_array_t *masks = slot_layer_get_masks(l, false);
+	for (i32 i = 0; masks != NULL && i < masks->length; ++i) {
+		masks->buffer[i]->visible ? slot_layer_apply_mask(masks->buffer[i]) : slot_layer_delete(masks->buffer[i]);
+	}
+
+	direct = slot_layer_get_direct_children(l);
+	for (i32 i = 0; i < direct->length; ++i) {
+		direct->buffer[i]->mask_opacity *= l->mask_opacity;
+		if (slot_layer_is_group(direct->buffer[i])) {
+			layers_merge_group(direct->buffer[i]);
+		}
+	}
+
 	slot_layer_t_array_t *children = slot_layer_get_children(l);
 
 	if (children->length == 1 && slot_layer_has_masks(children->buffer[0], false)) {
@@ -992,21 +1042,10 @@ slot_layer_t *layers_merge_group(slot_layer_t *l) {
 
 	for (i32 i = 0; i < children->length - 1; ++i) {
 		context_set_layer(children->buffer[children->length - 1 - i]);
-		history_merge_layers();
 		layers_merge_down();
 	}
 
-	// Now apply the group masks
-	slot_layer_t_array_t *masks = slot_layer_get_masks(l, true);
-	if (masks != NULL) {
-		for (i32 i = 0; i < masks->length - 1; ++i) {
-			layers_merge_layer(masks->buffer[i + 1], masks->buffer[i], false);
-			slot_layer_delete(masks->buffer[i]);
-		}
-		layers_apply_mask(children->buffer[0], masks->buffer[masks->length - 1]);
-	}
-
-	children->buffer[0]->parent = NULL;
+	children->buffer[0]->parent = l->parent;
 	children->buffer[0]->name   = l->name;
 	if (children->buffer[0]->fill_material != NULL) {
 		slot_layer_to_paint_layer(children->buffer[0]);
@@ -1055,8 +1094,8 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 		gpu_set_pipeline(pipes_merge_mask);
 		gpu_set_texture(pipes_tex0_merge_mask, l1->texpaint);
 		gpu_set_texture(pipes_texa_merge_mask, layers_temp_image);
-		gpu_set_float(pipes_opac_merge_mask, slot_layer_get_opacity(l1));
-		gpu_set_int(pipes_blending_merge_mask, BLEND_TYPE_MIX);
+		gpu_set_float(pipes_opac_merge_mask, l1->mask_opacity);
+		gpu_set_int(pipes_blending_merge_mask, BLEND_TYPE_MULTIPLY);
 		gpu_set_vertex_buffer(const_data_screen_aligned_vb);
 		gpu_set_index_buffer(const_data_screen_aligned_ib);
 		gpu_draw();
@@ -1064,6 +1103,21 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 	}
 
 	if (slot_layer_is_layer(l1)) {
+		gpu_texture_t *weight = gpu_create_render_target(l0->texpaint->width, l0->texpaint->height, l0->texpaint->format);
+		_gpu_begin(weight, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		gpu_set_pipeline(pipes_merge);
+		gpu_set_texture(pipes_tex0, l1->texpaint);
+		gpu_set_texture(pipes_tex1, empty);
+		gpu_set_texture(pipes_texmask, mask);
+		gpu_set_texture(pipes_texa, layers_temp_image);
+		gpu_set_float(pipes_opac, l1->mask_opacity);
+		gpu_set_float(pipes_tex1w, empty->width);
+		gpu_set_int(pipes_blending, 105);
+		gpu_set_vertex_buffer(const_data_screen_aligned_vb);
+		gpu_set_index_buffer(const_data_screen_aligned_ib);
+		gpu_draw();
+		gpu_end();
+
 		if (l1->paint_base) {
 			_gpu_begin(l0->texpaint, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 			gpu_set_pipeline(pipes_merge);
@@ -1071,9 +1125,9 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
 			gpu_set_texture(pipes_texa, layers_temp_image);
-			gpu_set_float(pipes_opac, slot_layer_get_opacity(l1));
+			gpu_set_float(pipes_opac, l1->mask_opacity);
 			gpu_set_float(pipes_tex1w, empty->width);
-			gpu_set_int(pipes_blending, slot_layer_get_blending(l1));
+			gpu_set_int(pipes_blending, 200 + slot_layer_get_blending(l1));
 			gpu_set_vertex_buffer(const_data_screen_aligned_vb);
 			gpu_set_index_buffer(const_data_screen_aligned_ib);
 			gpu_draw();
@@ -1090,13 +1144,13 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 			if (l1->paint_nor) {
 				_gpu_begin(l0->texpaint_nor, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
 				gpu_set_pipeline(pipes_merge);
-				gpu_set_texture(pipes_tex0, l1->texpaint);
+				gpu_set_texture(pipes_tex0, weight);
 				gpu_set_texture(pipes_tex1, l1->texpaint_nor);
-				gpu_set_texture(pipes_texmask, mask);
+				gpu_set_texture(pipes_texmask, empty);
 				gpu_set_texture(pipes_texa, layers_temp_image);
-				gpu_set_float(pipes_opac, slot_layer_get_opacity(l1));
+				gpu_set_float(pipes_opac, 1.0);
 				gpu_set_float(pipes_tex1w, l1->texpaint_nor->width);
-				gpu_set_int(pipes_blending, l1->paint_nor_blend ? 102 : 101);
+				gpu_set_int(pipes_blending, l1->paint_nor_blend ? 106 : 101);
 				gpu_set_vertex_buffer(const_data_screen_aligned_vb);
 				gpu_set_index_buffer(const_data_screen_aligned_ib);
 				gpu_draw();
@@ -1113,22 +1167,23 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 
 			if (l1->paint_occ || l1->paint_rough || l1->paint_met || l1->paint_height) {
 				if (l1->paint_occ && l1->paint_rough && l1->paint_met && l1->paint_height) {
-					layers_commands_merge_pack(pipes_merge, l0->texpaint_pack, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask,
-					                           l1->paint_height_blend ? 103 : 101);
+					layers_commands_merge_pack(pipes_merge, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, l1->paint_height_blend ? 107 : 101);
 				}
 				else {
 					if (l1->paint_occ) {
-						layers_commands_merge_pack(pipes_merge_r, l0->texpaint_pack, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+						layers_commands_merge_pack(pipes_merge_r, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 					if (l1->paint_rough) {
-						layers_commands_merge_pack(pipes_merge_g, l0->texpaint_pack, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+						layers_commands_merge_pack(pipes_merge_g, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 					if (l1->paint_met) {
-						layers_commands_merge_pack(pipes_merge_b, l0->texpaint_pack, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+						layers_commands_merge_pack(pipes_merge_b, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 				}
 			}
 		}
+
+		gpu_delete_texture(weight);
 	}
 }
 

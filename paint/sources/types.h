@@ -578,6 +578,11 @@ typedef struct history_step {
 	vec4_t                       object_loc;
 	quat_t                       object_rot;
 	vec4_t                       object_scale;
+	struct slot_layer_t_array   *merge_layers; // Range of the layer array on the other side of a merge
+	i32_array_t                 *merge_parents;
+	i32                          merge_start;
+	i32                          merge_length;
+	bool                         with_prev; // Undone and redone together with the previous step
 } history_step_t;
 
 typedef struct logic_node {

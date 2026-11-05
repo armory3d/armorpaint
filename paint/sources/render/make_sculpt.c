@@ -1841,6 +1841,12 @@ void slot_layer_apply_sculpt(slot_layer_t *raw) {
 	for (i32 i = 0; history_undo_layers != NULL && i < history_undo_layers->length; ++i) {
 		sculpt_shift_texture(history_undo_layers->buffer[i]->texpaint_sculpt, delta, nt, scale);
 	}
+	slot_layer_t_array_t *saved = history_merge_saved_layers();
+	for (i32 i = 0; i < saved->length; ++i) {
+		if (saved->buffer[i]->texpaint_sculpt != NULL) {
+			sculpt_shift_texture(saved->buffer[i]->texpaint_sculpt, delta, nt, scale);
+		}
+	}
 	sculpt_shift_texture(rest_rt->_image, delta, nt, scale);
 	free(delta);
 
