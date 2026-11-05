@@ -637,6 +637,7 @@ typedef struct {
 	struct slot_font_t_array     *fonts;
 	struct slot_sound_t_array    *sounds;
 	struct node_group_t_array    *material_groups;
+	struct node_group_t_array    *mesh_groups;
 	char                         *filepath;
 	i32                           next_asset_id;
 	struct mesh_object_t_array   *paint_objects;
@@ -689,6 +690,7 @@ typedef struct project {
 	struct ui_node_canvas_t_array               *mesh_nodes;
 	struct i32_array                            *mesh_nodes_objects; // Object index for each mesh_nodes canvas
 	struct f32_array_t_array                    *mesh_paths;         // Path and curve tool points
+	struct ui_node_canvas_t_array               *mesh_groups;
 	project_runtime_t                           *_;
 } project_t;
 

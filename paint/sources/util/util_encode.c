@@ -207,7 +207,7 @@ buffer_t *util_encode_project(project_t *raw) {
 	buffer_t *encoded = buffer_create(size);
 
 	armpack_encode_start(encoded->buffer);
-	armpack_encode_map(45);
+	armpack_encode_map(46);
 
 	armpack_encode_string("version");
 	armpack_encode_string(raw->version);
@@ -609,6 +609,17 @@ buffer_t *util_encode_project(project_t *raw) {
 		armpack_encode_array(raw->mesh_paths->length);
 		for (i32 i = 0; i < raw->mesh_paths->length; ++i) {
 			armpack_encode_array_f32(raw->mesh_paths->buffer[i]);
+		}
+	}
+	else {
+		armpack_encode_null();
+	}
+
+	armpack_encode_string("mesh_groups");
+	if (raw->mesh_groups != NULL) {
+		armpack_encode_array(raw->mesh_groups->length);
+		for (i32 i = 0; i < raw->mesh_groups->length; ++i) {
+			util_encode_node_canvas(raw->mesh_groups->buffer[i]);
 		}
 	}
 	else {

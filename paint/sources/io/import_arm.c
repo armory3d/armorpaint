@@ -578,7 +578,7 @@ static void import_arm_check_scripts(project_t *project, bool meshes) {
 		return;
 	}
 	if (!import_arm_canvases_have_script(project->material_nodes) && !import_arm_canvases_have_script(project->material_groups) &&
-	    !(meshes && nodes_mesh_canvases_have_script(project->mesh_nodes))) {
+	    !(meshes && (nodes_mesh_canvases_have_script(project->mesh_nodes) || nodes_mesh_canvases_have_script(project->mesh_groups)))) {
 		return;
 	}
 	project_scripts_trusted = false;
@@ -1175,6 +1175,7 @@ void import_arm_run_project(char *path) {
 	ui_nodes_hwnd->redraws        = 2;
 	ui_nodes_group_stack          = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->mesh_groups     = any_array_create(0);
 	if (g_project->material_groups != NULL) {
 		for (i32 i = 0; i < g_project->material_groups->length; ++i) {
 			ui_node_canvas_t *g = g_project->material_groups->buffer[i];

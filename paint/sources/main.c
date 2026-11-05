@@ -108,6 +108,7 @@
 #include "nodes_mesh/mesh_boolean_node.c"
 #include "nodes_mesh/mesh_decimate_node.c"
 #include "nodes_mesh/mesh_displace_node.c"
+#include "nodes_mesh/mesh_group_node.c"
 #include "nodes_mesh/mesh_image_node.c"
 #include "nodes_mesh/mesh_input_node.c"
 #include "nodes_mesh/mesh_join_node.c"
@@ -344,6 +345,7 @@ void _kickstart() {
 	g_project->_->assets          = any_array_create_from_raw((void *[]){}, 0);
 	g_project->mesh_assets        = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->material_groups = any_array_create_from_raw((void *[]){}, 0);
+	g_project->_->mesh_groups     = any_array_create(0);
 	g_project->_->materials       = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->brushes         = any_array_create_from_raw((void *[]){}, 0);
 	g_project->_->layers          = any_array_create_from_raw((void *[]){}, 0);

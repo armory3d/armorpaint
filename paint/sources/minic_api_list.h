@@ -637,6 +637,17 @@ X3(script_mesh_disconnect, "v(p:mesh_object_t o,p:ui_node_t to,i to_socket)", v,
 X2(script_mesh_remove_node, "v(p:mesh_object_t o,p:ui_node_t node)", v, p, p)
 X4(script_mesh_add_input, "v(p:mesh_object_t o,p:ui_node_t node,p:char type,p:char name)", v, p, p, p, p)
 X1(script_mesh_update, "v(p:mesh_object_t o)", v, p)
+X1(script_mesh_group_create, "i(p:char name)", i, p)
+X1(script_mesh_group_remove, "i(p:char name)", i, p)
+X4(script_mesh_group_create_node_at, "p:ui_node_t(p:char group,p:char type,f x,f y)", p, p, p, f, f)
+X2(script_mesh_group_get_node, "p:ui_node_t(p:char group,p:char type)", p, p, p)
+X5(script_mesh_group_connect, "v(p:char group,p:ui_node_t from,i from_socket,p:ui_node_t to,i to_socket)", v, p, p, i, p, i)
+X3(script_mesh_group_disconnect, "v(p:char group,p:ui_node_t to,i to_socket)", v, p, p, i)
+X2(script_mesh_group_remove_node, "v(p:char group,p:ui_node_t node)", v, p, p)
+X4(script_mesh_group_add_input, "v(p:char group,p:ui_node_t node,p:char type,p:char name)", v, p, p, p, p)
+X4(script_mesh_create_group_node_at, "p:ui_node_t(p:mesh_object_t o,p:char group,f x,f y)", p, p, p, f, f)
+X4(script_mesh_group_create_group_node_at, "p:ui_node_t(p:char parent,p:char group,f x,f y)", p, p, p, f, f)
+X1(script_mesh_group_update, "v(p:char group)", v, p)
 
 // mesh script node
 X0(mesh_geo_input, "p:mesh_geo_t()", p)

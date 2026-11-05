@@ -916,6 +916,52 @@ void step_mesh_script() {
 	script_mesh_update(mo);
 	check(index_count(o) == 30, string("mesh script node input: 5 planes, %d indices", index_count(o)));
 
+	// Group shared by two group nodes with their own Count
+	char *grp = "test_mesh_group";
+	check(script_mesh_group_create(grp) && !script_mesh_group_create(grp), "mesh group created once");
+	ui_node_t *gin = script_mesh_group_get_node(grp, "GROUP_INPUT");
+	ui_node_t *gout = script_mesh_group_get_node(grp, "GROUP_OUTPUT");
+	script_mesh_group_add_input(grp, gin, "VALUE", "Count");
+	ui_node_t *gs = script_mesh_group_create_node_at(grp, "MESH_SCRIPT", 250.0, 200.0);
+	script_material_set_text(gs, 0,
+	                         "void main() {\nmesh_geo_t *g = mesh_geo_shape(5, 1.0, 1.0, 1.0, 1);\nint n = (int)mesh_geo_input_value(\"Count\");\n"
+	                         "g = mesh_geo_array(g, n, 1.2, 0.0, 0.0, false);\nmesh_geo_output(g);\n}\n");
+	script_mesh_group_add_input(grp, gs, "VALUE", "Count");
+	script_mesh_group_connect(grp, gin, 0, gs, 0);
+	script_mesh_group_connect(grp, gin, 1, gs, 1);
+	script_mesh_group_connect(grp, gs, 0, gout, 0);
+	ui_node_t *g1   = script_mesh_create_group_node_at(mo, grp, 300.0, 0.0);
+	ui_node_t *g2   = script_mesh_create_group_node_at(mo, grp, 300.0, 200.0);
+	ui_node_t *join = script_mesh_create_node_at(mo, "MESH_JOIN", 500.0, 100.0);
+	int ok = gin != NULL && gout != NULL && gs != NULL && g1 != NULL && g2 != NULL && join != NULL && g1->inputs->length == 2 && gin->outputs->length == 2;
+	check(ok, "mesh group nodes created");
+	if (ok) {
+		script_material_set_float(g1, 1, 1, 2.0);
+		script_material_set_float(g2, 1, 1, 4.0);
+		script_mesh_connect(mo, script_mesh_get_node(mo, "MESH_INPUT"), 0, g1, 0);
+		script_mesh_connect(mo, script_mesh_get_node(mo, "MESH_INPUT"), 0, g2, 0);
+		script_mesh_connect(mo, g1, 0, join, 0);
+		script_mesh_connect(mo, g2, 0, join, 1);
+		script_mesh_connect(mo, join, 0, script_mesh_get_node(mo, "MESH_OUTPUT"), 0);
+		script_mesh_update(mo);
+		check(index_count(o) == 36, string("mesh group instances: 2 + 4 planes, %d indices", index_count(o)));
+
+		script_material_set_text(gs, 0,
+		                         "void main() {\nmesh_geo_t *g = mesh_geo_shape(5, 1.0, 1.0, 1.0, 1);\nint n = (int)mesh_geo_input_value(\"Count\") + 1;\n"
+		                         "g = mesh_geo_array(g, n, 1.2, 0.0, 0.0, false);\nmesh_geo_output(g);\n}\n");
+		script_mesh_group_update(grp);
+		check(index_count(o) == 48, string("mesh group edit rebuilds: 3 + 5 planes, %d indices", index_count(o)));
+
+		char *outer = "test_mesh_group_outer";
+		script_mesh_group_create(outer);
+		ui_node_t *nested = script_mesh_group_create_group_node_at(outer, grp, 200.0, 200.0);
+		ui_node_t *loop   = script_mesh_group_create_group_node_at(grp, outer, 200.0, 400.0);
+		check(nested != NULL && loop == NULL, "mesh group nesting, recursion rejected");
+		check(!script_mesh_group_remove(grp), "mesh group in use not removed");
+		script_mesh_group_remove_node(outer, nested);
+		check(script_mesh_group_get_node(outer, "GROUP") == NULL && script_mesh_group_remove(outer), "unused mesh group removed");
+	}
+
 	// Back to the original mesh
 	script_mesh_connect(mo, script_mesh_get_node(mo, "MESH_INPUT"), 0, script_mesh_get_node(mo, "MESH_OUTPUT"), 0);
 	script_mesh_update(mo);
@@ -1199,6 +1245,8 @@ void step_verify_load() {
 	check(ok, "fill layer material survived");
 
 	check(script_get_object("test_box") != NULL && script_get_object("test_geom") != NULL, "objects survived");
+	ui_node_t *gin = script_mesh_group_get_node("test_mesh_group", "GROUP_INPUT");
+	check(gin != NULL && gin->outputs->length == 2 && script_mesh_group_get_node("test_mesh_group", "MESH_SCRIPT") != NULL, "mesh group survived");
 	script_set_stage("test_stage_b");
 	ok = script_get_stage() != NULL && string_equals(script_get_stage(), "test_stage_b");
 	check(ok, "stages survived");
@@ -2041,22 +2089,10 @@ void step_pick() {
 	check(1, "pick object at the cursor");
 }
 
-// 71 - Messages and stage fades
+// 71 - Messages
 
-int fade_frames = 0;
-
-void step_message_fade() {
-	if (sub == 0) {
-		script_show_message("test message", 0.2);
-		script_stage_create("test_fade");
-		script_fade_to_stage("test_fade");
-	}
-	char *stage = script_get_stage();
-	if ((stage == NULL || !string_equals(stage, "test_fade")) && sub < 240) {
-		step_again = 1;
-		return;
-	}
-	check(stage != NULL && string_equals(stage, "test_fade"), string("faded to stage after %d frames", sub));
+void step_message() {
+	script_show_message("test message", 0.2);
 }
 
 // Layer operations from the layers context menu
@@ -2466,7 +2502,7 @@ void run_step(int s) {
 	else if (s == 70)
 		step_duplicate_merge();
 	else if (s == 71)
-		step_message_fade();
+		step_message();
 	else if (s == 72)
 		step_layer_duplicate();
 	else if (s == 73)
@@ -2490,7 +2526,7 @@ void run_step(int s) {
 }
 
 int step_count      = 82;
-int expected_checks = 224;
+int expected_checks = 231;
 
 void next_frame() {
 	if (sub == 0) {

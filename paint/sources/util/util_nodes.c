@@ -14,14 +14,29 @@ void ui_nodes_get_linked_nodes(ui_node_t_array_t *linked_nodes, ui_node_t *n, ui
 	}
 }
 
+node_group_t_array_t *ui_nodes_groups() {
+	return ui_nodes_canvas_type == CANVAS_TYPE_MESH ? g_project->_->mesh_groups : g_project->_->material_groups;
+}
+
+node_group_t *ui_nodes_find_group(char *group_name) {
+	return ui_nodes_canvas_type == CANVAS_TYPE_MESH ? nodes_mesh_get_group(group_name) : project_get_material_group_by_name(group_name);
+}
+
+bool ui_nodes_group_in_use(node_group_t *group) {
+	return ui_nodes_canvas_type == CANVAS_TYPE_MESH ? nodes_mesh_group_in_use(group) : project_is_material_group_in_use(group);
+}
+
 bool ui_nodes_contains_node_group_recursive(node_group_t *group, char *group_name) {
+	if (group == NULL) {
+		return false;
+	}
 	if (string_equals(group->canvas->name, group_name)) {
 		return true;
 	}
 	for (i32 i = 0; i < group->canvas->nodes->length; ++i) {
 		ui_node_t *n = group->canvas->nodes->buffer[i];
 		if (string_equals(n->type, "GROUP")) {
-			node_group_t *g = project_get_material_group_by_name(n->name);
+			node_group_t *g = ui_nodes_find_group(n->name);
 			if (g != NULL && ui_nodes_contains_node_group_recursive(g, group_name)) {
 				return true;
 			}
@@ -36,22 +51,12 @@ bool ui_nodes_can_place_group(char *group_name) {
 	if (ui_nodes_group_stack->length > 0) {
 		for (i32 i = 0; i < ui_nodes_group_stack->length; ++i) {
 			node_group_t *g = ui_nodes_group_stack->buffer[i];
-			if (ui_nodes_contains_node_group_recursive(project_get_material_group_by_name(group_name), g->canvas->name))
+			if (ui_nodes_contains_node_group_recursive(ui_nodes_find_group(group_name), g->canvas->name))
 				return false;
 		}
 	}
 	// Group was deleted / renamed
-	bool group_exists = false;
-	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
-		node_group_t *group = g_project->_->material_groups->buffer[i];
-		if (string_equals(group_name, group->canvas->name)) {
-			group_exists = true;
-		}
-	}
-	if (!group_exists) {
-		return false;
-	}
-	return true;
+	return ui_nodes_find_group(group_name) != NULL;
 }
 
 gpu_texture_t *ui_nodes_get_node_preview_image(ui_node_t *n) {
@@ -162,6 +167,9 @@ string_array_t *ui_nodes_get_categories() {
 
 ui_node_canvas_t *ui_nodes_get_canvas(bool groups) {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		if (groups && ui_nodes_group_stack->length > 0) {
+			return ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->canvas;
+		}
 		return nodes_mesh_get(g_context->paint_object, true)->canvas;
 	}
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
@@ -179,6 +187,9 @@ ui_node_canvas_t *ui_nodes_get_canvas(bool groups) {
 
 ui_nodes_t *ui_nodes_get_nodes() {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		if (ui_nodes_group_stack->length > 0) {
+			return ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->nodes;
+		}
 		return nodes_mesh_get(g_context->paint_object, true)->nodes;
 	}
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
@@ -204,8 +215,8 @@ void ui_nodes_push_undo(ui_node_canvas_t *last_canvas) {
 		last_canvas = ui_nodes_get_canvas(true);
 	}
 	i32 canvas_group = -1;
-	if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL && ui_nodes_group_stack->length > 0) {
-		canvas_group = array_index_of(g_project->_->material_groups, ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]);
+	if (ui_nodes_canvas_type != CANVAS_TYPE_BRUSH && ui_nodes_group_stack->length > 0) {
+		canvas_group = array_index_of(ui_nodes_groups(), ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]);
 	}
 	ui_dock_redraw(TAB_AREA_SIDEBAR0);
 	history_edit_nodes(last_canvas, ui_nodes_canvas_type, canvas_group);
@@ -283,7 +294,12 @@ void ui_nodes_recompile() {
 	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
 		// Meshes are rebuilt once the change is done
 		if (ui_nodes_recompile_mat_final) {
-			nodes_mesh_update(g_context->paint_object, false);
+			if (ui_nodes_group_stack->length > 0) {
+				nodes_mesh_update_all();
+			}
+			else {
+				nodes_mesh_update(g_context->paint_object, false);
+			}
 		}
 		ui_nodes_recompile_mat       = false;
 		ui_nodes_recompile_mat_final = false;
@@ -348,39 +364,43 @@ void ui_nodes_recompile() {
 }
 
 ui_node_t *ui_nodes_make_group_node(ui_node_canvas_t *group_canvas, ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
-	ui_node_t_array_t *category = nodes_material_list->buffer[5];
-	ui_node_t         *n        = category->buffer[0];
-	ui_node_t         *node     = util_clone_canvas_node(n);
-	node->name                  = string_copy(group_canvas->name);
-	node->id                    = ui_next_node_id(canvas->nodes);
-	node->x                     = ui_nodes_get_node_x();
-	node->y                     = ui_nodes_get_node_y();
-	ui_node_t *group_input      = NULL;
-	ui_node_t *group_output     = NULL;
-	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
-		node_group_t *g     = g_project->_->material_groups->buffer[i];
-		char         *cname = g->canvas->name;
-		if (string_equals(cname, node->name)) {
-			for (i32 i = 0; i < g->canvas->nodes->length; ++i) {
-				ui_node_t *n = g->canvas->nodes->buffer[i];
-				if (string_equals(n->type, "GROUP_INPUT")) {
-					group_input = n;
-				}
-				else if (string_equals(n->type, "GROUP_OUTPUT")) {
-					group_output = n;
-				}
-			}
-			break;
+	ui_node_t *def = ui_nodes_canvas_type == CANVAS_TYPE_MESH ? nodes_mesh_group_def : nodes_material_group->buffer[0];
+	return ui_nodes_make_group_node_from(def, group_canvas, nodes, canvas);
+}
+
+ui_node_t *ui_nodes_make_group_node_from(ui_node_t *def, ui_node_canvas_t *group_canvas, ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
+	ui_node_t *node         = util_clone_canvas_node(def);
+	node->name              = string_copy(group_canvas->name);
+	node->id                = ui_next_node_id(canvas->nodes);
+	node->x                 = ui_nodes_get_node_x();
+	node->y                 = ui_nodes_get_node_y();
+	ui_node_t *group_input  = NULL;
+	ui_node_t *group_output = NULL;
+	for (i32 i = 0; i < group_canvas->nodes->length; ++i) {
+		ui_node_t *n = group_canvas->nodes->buffer[i];
+		if (string_equals(n->type, "GROUP_INPUT")) {
+			group_input = n;
+		}
+		else if (string_equals(n->type, "GROUP_OUTPUT")) {
+			group_output = n;
 		}
 	}
 	if (group_input != NULL && group_output != NULL) {
 		for (i32 i = 0; i < group_input->outputs->length; ++i) {
 			ui_node_socket_t *soc = group_input->outputs->buffer[i];
-			any_array_push(node->inputs, nodes_material_create_socket(nodes, node, soc->name, soc->type, canvas, soc->min, soc->max, soc->default_value));
+			ui_node_socket_t *s =
+			    nodes_material_create_socket(nodes, node, soc->name, soc->type, canvas, soc->min, soc->max, f32_array_create_from_array(soc->default_value));
+			s->color   = soc->color;
+			s->display = soc->display;
+			any_array_push(node->inputs, s);
 		}
 		for (i32 i = 0; i < group_output->inputs->length; ++i) {
 			ui_node_socket_t *soc = group_output->inputs->buffer[i];
-			any_array_push(node->outputs, nodes_material_create_socket(nodes, node, soc->name, soc->type, canvas, soc->min, soc->max, soc->default_value));
+			ui_node_socket_t *s =
+			    nodes_material_create_socket(nodes, node, soc->name, soc->type, canvas, soc->min, soc->max, f32_array_create_from_array(soc->default_value));
+			s->color   = soc->color;
+			s->display = soc->display;
+			any_array_push(node->outputs, s);
 		}
 	}
 	return node;

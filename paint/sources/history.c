@@ -322,12 +322,16 @@ void history_swap_object_transform(history_step_t *step) {
 	ui_header_handle->redraws = 2;
 }
 
+static node_group_t_array_t *history_groups(history_step_t *step) {
+	return step->canvas_type == CANVAS_TYPE_MESH ? g_project->_->mesh_groups : g_project->_->material_groups;
+}
+
 ui_node_canvas_t *history_get_canvas(history_step_t *step) {
 	if (step->canvas_group == -1) {
 		return g_project->_->materials->buffer[step->material]->canvas;
 	}
 	else {
-		return g_project->_->material_groups->buffer[step->canvas_group]->canvas;
+		return history_groups(step)->buffer[step->canvas_group]->canvas;
 	}
 }
 
@@ -336,7 +340,7 @@ void history_set_canvas(history_step_t *step, ui_node_canvas_t *canvas) {
 		g_project->_->materials->buffer[step->material]->canvas = canvas;
 	}
 	else {
-		g_project->_->material_groups->buffer[step->canvas_group]->canvas = canvas;
+		history_groups(step)->buffer[step->canvas_group]->canvas = canvas;
 	}
 }
 
@@ -346,6 +350,16 @@ void history_swap_canvas(history_step_t *step) {
 		history_set_canvas(step, step->canvas);
 		step->canvas        = _canvas;
 		g_context->material = g_project->_->materials->buffer[step->material];
+	}
+	else if (step->canvas_type == CANVAS_TYPE_MESH && step->canvas_group >= 0) {
+		node_group_t     *g       = g_project->_->mesh_groups->buffer[step->canvas_group];
+		ui_node_canvas_t *_canvas = history_get_canvas(step);
+		history_set_canvas(step, step->canvas);
+		step->canvas                        = _canvas;
+		g->nodes->nodes_selected_id->length = 0;
+		nodes_mesh_update_all();
+		ui_nodes_hwnd->redraws = 2;
+		return;
 	}
 	else if (step->canvas_type == CANVAS_TYPE_MESH) {
 		if (step->object < 0 || step->object >= g_project->_->paint_objects->length) {
@@ -524,7 +538,7 @@ void history_undo() {
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = NULL, .nodes = ui_nodes_create()});
-			array_insert(g_project->_->material_groups, step->canvas_group, ng);
+			array_insert(history_groups(step), step->canvas_group, ng);
 			history_swap_canvas(step);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
@@ -802,7 +816,7 @@ void history_redo() {
 		}
 		else if (step->action == HISTORY_ACTION_DELETE_NODE_GROUP) {
 			history_swap_canvas(step);
-			array_remove(g_project->_->material_groups, g_project->_->material_groups->buffer[step->canvas_group]);
+			array_remove(history_groups(step), history_groups(step)->buffer[step->canvas_group]);
 		}
 		else if (step->action == HISTORY_ACTION_NEW_MATERIAL) {
 			g_context->material = slot_material_create(g_project->_->materials->buffer[0]->data, NULL);
@@ -1219,7 +1233,7 @@ void history_duplicate_material() {
 
 void history_delete_material_group(node_group_t *group) {
 	history_step_t *step = history_push(HISTORY_ACTION_DELETE_NODE_GROUP);
-	step->canvas_type    = CANVAS_TYPE_MATERIAL;
-	step->canvas_group   = array_index_of(g_project->_->material_groups, group);
+	step->canvas_type    = ui_nodes_canvas_type == CANVAS_TYPE_MESH ? CANVAS_TYPE_MESH : CANVAS_TYPE_MATERIAL;
+	step->canvas_group   = array_index_of(history_groups(step), group);
 	step->canvas         = util_clone_canvas(group->canvas);
 }

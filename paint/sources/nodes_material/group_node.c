@@ -164,6 +164,15 @@ void nodes_material_sync_group_sockets(ui_node_canvas_t *canvas, char *group_nam
 void nodes_material_sync_sockets(ui_node_t *node) {
 	node_group_t_array_t *group_stack = ui_nodes_group_stack;
 	ui_node_canvas_t     *c           = group_stack->buffer[group_stack->length - 1]->canvas;
+	if (ui_nodes_canvas_type == CANVAS_TYPE_MESH) {
+		ui_node_canvas_t_array_t *canvases = nodes_mesh_canvases();
+		for (i32 i = 0; i < canvases->length; ++i) {
+			nodes_material_sync_group_sockets(canvases->buffer[i], c->name, node);
+		}
+		array_delete(canvases);
+		ui_nodes_canvas_changed();
+		return;
+	}
 	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
 		slot_material_t *m = g_project->_->materials->buffer[i];
 		nodes_material_sync_group_sockets(m->canvas, c->name, node);

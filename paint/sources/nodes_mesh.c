@@ -100,6 +100,9 @@ void nodes_mesh_init() {
 	mesh_math_node_init();
 	mesh_vector_node_init();
 
+	nodes_mesh_group = any_array_create(0);
+	mesh_group_node_init();
+
 	mesh_output_node_init();
 
 	nodes_mesh_categories = any_array_create_from_raw(
@@ -108,8 +111,9 @@ void nodes_mesh_init() {
 	        _tr("Modifier"),
 	        _tr("Combine"),
 	        _tr("Utilities"),
+	        _tr("Group"),
 	    },
-	    4);
+	    5);
 
 	nodes_mesh_list = any_array_create_from_raw(
 	    (void *[]){
@@ -117,8 +121,9 @@ void nodes_mesh_init() {
 	        nodes_mesh_modifier,
 	        nodes_mesh_combine,
 	        nodes_mesh_utilities,
+	        nodes_mesh_group,
 	    },
-	    4);
+	    5);
 }
 
 // Geometry
@@ -302,13 +307,35 @@ i32 nodes_mesh_button(ui_node_t *node, i32 button) {
 
 static mesh_object_t *nodes_mesh_object(i32 uid);
 
-static bool nodes_mesh_has_node(ui_node_canvas_t *c, char *type) {
-	for (i32 i = 0; i < c->nodes->length; ++i) {
-		if (string_equals(c->nodes->buffer[i]->type, type)) {
-			return true;
+static ui_node_t_array_t *nodes_mesh_all_nodes(ui_node_canvas_t *c) {
+	ui_node_t_array_t *nodes    = any_array_create(0);
+	any_array_t       *canvases = any_array_create(0);
+	any_array_push(canvases, c);
+	for (i32 k = 0; k < canvases->length; ++k) {
+		ui_node_canvas_t *cc = canvases->buffer[k];
+		for (i32 i = 0; i < cc->nodes->length; ++i) {
+			ui_node_t *n = cc->nodes->buffer[i];
+			any_array_push(nodes, n);
+			if (string_equals(n->type, "GROUP")) {
+				node_group_t *g = nodes_mesh_get_group(n->name);
+				if (g != NULL && array_index_of(canvases, g->canvas) == -1) {
+					any_array_push(canvases, g->canvas);
+				}
+			}
 		}
 	}
-	return false;
+	array_delete(canvases);
+	return nodes;
+}
+
+static bool nodes_mesh_has_node(ui_node_canvas_t *c, char *type) {
+	ui_node_t_array_t *nodes = nodes_mesh_all_nodes(c);
+	bool               found = false;
+	for (i32 i = 0; i < nodes->length && !found; ++i) {
+		found = string_equals(nodes->buffer[i]->type, type);
+	}
+	array_delete(nodes);
+	return found;
 }
 
 static mesh_nodes_t *nodes_mesh_find(i32 uid) {
@@ -364,16 +391,19 @@ static bool nodes_mesh_reaches(mesh_object_t *o, i32 target_uid, i32 depth) {
 	if (slot == NULL || depth > NODES_MESH_MAX_DEPTH) {
 		return false;
 	}
-	for (i32 i = 0; i < slot->canvas->nodes->length; ++i) {
-		ui_node_t *n = slot->canvas->nodes->buffer[i];
+	ui_node_t_array_t *nodes = nodes_mesh_all_nodes(slot->canvas);
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
 		if (!string_equals(n->type, "MESH_OBJECT")) {
 			continue;
 		}
 		mesh_object_t *ref = nodes_mesh_node_object(n);
 		if (ref != NULL && nodes_mesh_reaches(ref, target_uid, depth + 1)) {
+			array_delete(nodes);
 			return true;
 		}
 	}
+	array_delete(nodes);
 	return false;
 }
 
@@ -391,10 +421,12 @@ mat4_t nodes_mesh_object_matrix(mesh_object_t *self, mesh_object_t *ref) {
 }
 
 mesh_geo_t *nodes_mesh_eval_input(ui_node_t *node, i32 socket) {
-	ui_node_t *from = nodes_mesh_linked_node(nodes_mesh_eval_canvas, node, socket);
-	if (from == NULL || from->outputs->length == 0 || !string_equals(from->outputs->buffer[0]->type, "MESH")) {
+	ui_node_link_t *link = nodes_mesh_link(nodes_mesh_eval_canvas, node, socket);
+	ui_node_t      *from = link != NULL ? ui_get_node(nodes_mesh_eval_canvas->nodes, link->from_id) : NULL;
+	if (from == NULL || link->from_socket >= from->outputs->length || !string_equals(from->outputs->buffer[link->from_socket]->type, "MESH")) {
 		return util_geo_create(0, 0);
 	}
+	nodes_mesh_eval_socket = link->from_socket;
 	return nodes_mesh_eval_node(from);
 }
 
@@ -489,9 +521,11 @@ static mesh_data_t *nodes_mesh_eval(mesh_nodes_t *slot, mesh_object_t *o) {
 	nodes_mesh_eval_unwrap      = false;
 	nodes_mesh_eval_depth       = 0;
 	nodes_mesh_eval_reads_frame = false;
-	mesh_geo_t *g               = nodes_mesh_eval_node(from);
-	nodes_mesh_eval_object      = NULL;
-	slot->reads_frame           = nodes_mesh_eval_reads_frame;
+	nodes_mesh_eval_socket      = nodes_mesh_link(slot->canvas, output, 0)->from_socket;
+	nodes_mesh_group_reset_eval();
+	mesh_geo_t *g          = nodes_mesh_eval_node(from);
+	nodes_mesh_eval_object = NULL;
+	slot->reads_frame      = nodes_mesh_eval_reads_frame;
 	mesh_image_node_clear();
 
 	if (g->index_count == 0) {
@@ -517,12 +551,18 @@ static u32 nodes_mesh_hash_bytes(u32 hash, void *data, i32 length) {
 }
 
 // Covers what changes the result, node positions are left out
-static u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
-	u32 hash = 2166136261u;
+static u32 nodes_mesh_hash_canvas(u32 hash, ui_node_canvas_t *c, mesh_object_t *o, i32 depth) {
 	for (i32 i = 0; i < c->nodes->length; ++i) {
 		ui_node_t *n = c->nodes->buffer[i];
 		hash         = nodes_mesh_hash_bytes(hash, &n->id, sizeof(n->id));
 		hash         = nodes_mesh_hash_bytes(hash, n->type, string_length(n->type));
+		if (string_equals(n->type, "GROUP")) {
+			hash            = nodes_mesh_hash_bytes(hash, n->name, string_length(n->name));
+			node_group_t *g = nodes_mesh_get_group(n->name);
+			if (g != NULL && depth < NODES_MESH_MAX_DEPTH) {
+				hash = nodes_mesh_hash_canvas(hash, g->canvas, o, depth + 1);
+			}
+		}
 		if (string_equals(n->type, "MESH_OBJECT")) {
 			// Rebuild when the other mesh changes or either of the two moves
 			mesh_object_t *ref = nodes_mesh_node_object(n);
@@ -571,6 +611,10 @@ static u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
 		hash              = nodes_mesh_hash_bytes(hash, &l->from_id, sizeof(i32) * 4);
 	}
 	return hash;
+}
+
+static u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
+	return nodes_mesh_hash_canvas(2166136261u, c, o, 0);
 }
 
 // Slots
@@ -642,6 +686,9 @@ mesh_nodes_t *nodes_mesh_get(mesh_object_t *o, bool create) {
 	}
 	slot->canvas->name = o->base->name;
 	nodes_mesh_sync_objects(slot->canvas);
+	for (i32 i = 0; g_project->_->mesh_groups != NULL && i < g_project->_->mesh_groups->length; ++i) {
+		nodes_mesh_sync_objects(g_project->_->mesh_groups->buffer[i]->canvas);
+	}
 	return slot;
 }
 
@@ -747,7 +794,35 @@ ui_node_canvas_t_array_t *nodes_mesh_canvases() {
 		mesh_nodes_t *slot = nodes_mesh_slots->buffer[i];
 		any_array_push(canvases, slot->canvas);
 	}
+	for (i32 i = 0; g_project->_->mesh_groups != NULL && i < g_project->_->mesh_groups->length; ++i) {
+		node_group_t *g = g_project->_->mesh_groups->buffer[i];
+		any_array_push(canvases, g->canvas);
+	}
 	return canvases;
+}
+
+bool nodes_mesh_group_in_use(node_group_t *group) {
+	ui_node_canvas_t_array_t *canvases = nodes_mesh_canvases();
+	bool                      used     = false;
+	for (i32 i = 0; i < canvases->length && !used; ++i) {
+		ui_node_canvas_t *c = canvases->buffer[i];
+		for (i32 j = 0; j < c->nodes->length && !used; ++j) {
+			ui_node_t *n = c->nodes->buffer[j];
+			used         = string_equals(n->type, "GROUP") && string_equals(n->name, group->canvas->name);
+		}
+	}
+	array_delete(canvases);
+	return used;
+}
+
+void nodes_mesh_update_all() {
+	for (i32 i = 0; nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
+		mesh_nodes_t  *slot = nodes_mesh_slots->buffer[i];
+		mesh_object_t *o    = nodes_mesh_object(slot->uid);
+		if (o != NULL) {
+			nodes_mesh_update(o, false);
+		}
+	}
 }
 
 bool nodes_mesh_has_nodes(mesh_object_t *o) {
@@ -824,15 +899,17 @@ bool nodes_mesh_set_input(mesh_object_t *o, mesh_data_t *data) {
 void nodes_mesh_layer_changed(slot_layer_t *l) {
 	i32 index = g_project->_->layers != NULL ? array_index_of(g_project->_->layers, l) : -1;
 	for (i32 i = 0; index >= 0 && nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
-		mesh_nodes_t *slot = nodes_mesh_slots->buffer[i];
-		for (i32 j = 0; j < slot->canvas->nodes->length; ++j) {
-			ui_node_t *n = slot->canvas->nodes->buffer[j];
+		mesh_nodes_t      *slot  = nodes_mesh_slots->buffer[i];
+		ui_node_t_array_t *nodes = nodes_mesh_all_nodes(slot->canvas);
+		for (i32 j = 0; j < nodes->length; ++j) {
+			ui_node_t *n = nodes->buffer[j];
 			if ((string_equals(n->type, "LAYER_MASK") || string_equals(n->type, "MESH_DISPLACE")) && nodes_mesh_button(n, 0) == index) {
 				slot->dirty                = true;
 				nodes_mesh_refresh_pending = true;
 				break;
 			}
 		}
+		array_delete(nodes);
 	}
 }
 
@@ -888,6 +965,17 @@ void nodes_mesh_reset() {
 void nodes_mesh_export_begin() {
 	g_project->mesh_nodes         = NULL;
 	g_project->mesh_nodes_objects = NULL;
+	g_project->mesh_groups        = NULL;
+	for (i32 i = 0; g_project->_->mesh_groups != NULL && i < g_project->_->mesh_groups->length; ++i) {
+		if (g_project->mesh_groups == NULL) {
+			g_project->mesh_groups = any_array_create(0);
+		}
+		ui_node_canvas_t *c = util_clone_canvas(g_project->_->mesh_groups->buffer[i]->canvas);
+		for (i32 j = 0; j < c->nodes->length; ++j) {
+			export_arm_export_node(c->nodes->buffer[j], NULL);
+		}
+		any_array_push(g_project->mesh_groups, c);
+	}
 	if (nodes_mesh_slots == NULL) {
 		return;
 	}
@@ -928,7 +1016,24 @@ void nodes_mesh_export_end() {
 	}
 }
 
+static ui_node_canvas_t *nodes_mesh_import_canvas(ui_node_canvas_t *c) {
+	c = util_clone_canvas(c); // Project data is temporary
+	import_arm_init_nodes(c->nodes);
+	for (i32 j = 0; j < c->nodes->length; ++j) {
+		ui_node_t *n = c->nodes->buffer[j];
+		if (string_equals(n->type, "MESH_OBJECT") && n->buttons->buffer[0]->default_value->length > 2) {
+			n->buttons->buffer[0]->default_value->buffer[1] = -1; // Object uids are not kept in files
+		}
+	}
+	return c;
+}
+
 void nodes_mesh_import() {
+	g_project->_->mesh_groups = any_array_create(0);
+	for (i32 i = 0; g_project->mesh_groups != NULL && i < g_project->mesh_groups->length; ++i) {
+		ui_node_canvas_t *c = nodes_mesh_import_canvas(g_project->mesh_groups->buffer[i]);
+		any_array_push(g_project->_->mesh_groups, ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()}));
+	}
 	if (g_project->mesh_nodes == NULL || g_project->mesh_nodes_objects == NULL) {
 		return;
 	}
@@ -939,14 +1044,7 @@ void nodes_mesh_import() {
 		}
 		mesh_object_t *o    = g_project->_->paint_objects->buffer[index];
 		mesh_nodes_t  *slot = nodes_mesh_get(o, true);
-		slot->canvas        = util_clone_canvas(g_project->mesh_nodes->buffer[i]); // Project data is temporary
-		import_arm_init_nodes(slot->canvas->nodes);
-		for (i32 j = 0; j < slot->canvas->nodes->length; ++j) {
-			ui_node_t *n = slot->canvas->nodes->buffer[j];
-			if (string_equals(n->type, "MESH_OBJECT") && n->buttons->buffer[0]->default_value->length > 2) {
-				n->buttons->buffer[0]->default_value->buffer[1] = -1; // Object uids are not kept in files
-			}
-		}
+		slot->canvas        = nodes_mesh_import_canvas(g_project->mesh_nodes->buffer[i]);
 	}
 	// Scene mesh nodes need all the canvases in place
 	for (i32 i = 0; i < g_project->mesh_nodes->length && i < g_project->mesh_nodes_objects->length; ++i) {
@@ -974,29 +1072,33 @@ void nodes_mesh_update_scripts() {
 	for (i32 i = 0; nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
 		mesh_nodes_t  *slot = nodes_mesh_slots->buffer[i];
 		mesh_object_t *o    = nodes_mesh_object(slot->uid);
-		if (o != NULL && nodes_mesh_canvases_have_script(any_array_create_from_raw_tmp((void *[]){slot->canvas}, 1))) {
+		if (o != NULL && nodes_mesh_has_node(slot->canvas, "MESH_SCRIPT")) {
 			nodes_mesh_update(o, true);
 		}
 	}
 }
 
-ui_node_t *nodes_mesh_create_node(mesh_object_t *o, char *type) {
+ui_node_t *nodes_mesh_create_node_in(ui_node_canvas_t *canvas, ui_nodes_t *nodes, char *type) {
 	nodes_mesh_init();
 	if (string_equals(type, "MESH_OUTPUT")) {
 		return NULL;
 	}
-	mesh_nodes_t *slot = nodes_mesh_get(o, true);
 	for (i32 i = 0; i < nodes_mesh_list->length; ++i) {
 		ui_node_t_array_t *category = nodes_mesh_list->buffer[i];
 		for (i32 j = 0; j < category->length; ++j) {
 			if (string_equals(category->buffer[j]->type, type)) {
-				ui_node_t *node = ui_nodes_make_node(category->buffer[j], slot->nodes, slot->canvas);
-				any_array_push(slot->canvas->nodes, node);
+				ui_node_t *node = ui_nodes_make_node(category->buffer[j], nodes, canvas);
+				any_array_push(canvas->nodes, node);
 				return node;
 			}
 		}
 	}
 	return NULL;
+}
+
+ui_node_t *nodes_mesh_create_node(mesh_object_t *o, char *type) {
+	mesh_nodes_t *slot = nodes_mesh_get(o, true);
+	return nodes_mesh_create_node_in(slot->canvas, slot->nodes, type);
 }
 
 char *nodes_mesh_reference() {
@@ -1048,5 +1150,19 @@ char *nodes_mesh_reference() {
 	       "}\");\n"
 	       "//     script_mesh_connect(o, script_mesh_get_node(o, \"MESH_INPUT\"), 0, sc, 0);\n"
 	       "//     script_mesh_connect(o, sc, 0, script_mesh_get_node(o, \"MESH_OUTPUT\"), 0);\n"
+	       "//     script_mesh_update(o);\n"
+	       "//\n"
+	       "// Groups: a group is a canvas shared by the project, placed on object canvases (and in other groups) as GROUP nodes.\n"
+	       "//     script_mesh_group_create(\"Detail\");\n"
+	       "//     ui_node_t *gin = script_mesh_group_get_node(\"Detail\", \"GROUP_INPUT\");\n"
+	       "//     script_mesh_group_add_input(\"Detail\", gin, \"VALUE\", \"Levels\");\n"
+	       "//     ui_node_t *sub = script_mesh_group_create_node_at(\"Detail\", \"MESH_SUBDIVIDE\", 250.0, 200.0);\n"
+	       "//     script_mesh_group_connect(\"Detail\", gin, 0, sub, 0);\n"
+	       "//     script_mesh_group_connect(\"Detail\", gin, 1, sub, 1);\n"
+	       "//     script_mesh_group_connect(\"Detail\", sub, 0, script_mesh_group_get_node(\"Detail\", \"GROUP_OUTPUT\"), 0);\n"
+	       "//     ui_node_t *gn = script_mesh_create_group_node_at(o, \"Detail\", 250.0, 200.0);\n"
+	       "//     script_material_set_float(gn, 1, 1, 2.0); // Levels of this object\n"
+	       "//     script_mesh_connect(o, script_mesh_get_node(o, \"MESH_INPUT\"), 0, gn, 0);\n"
+	       "//     script_mesh_connect(o, gn, 0, script_mesh_get_node(o, \"MESH_OUTPUT\"), 0);\n"
 	       "//     script_mesh_update(o);\n";
 }

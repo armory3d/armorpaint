@@ -14,6 +14,7 @@ static ui_node_t *nodes_mesh_script_node = NULL;
 // Memory a script node keeps between its runs, by object and node
 typedef struct {
 	i32   uid;
+	u32   group_key;
 	i32   node_id;
 	i32   size;
 	void *data;
@@ -391,7 +392,7 @@ void *mesh_geo_state(i32 size) {
 	i32 node_id = nodes_mesh_script_node->id;
 	for (i32 i = 0; i < nodes_mesh_script_states_count; ++i) {
 		nodes_mesh_script_state_t *s = &nodes_mesh_script_states[i];
-		if (s->uid == uid && s->node_id == node_id) {
+		if (s->uid == uid && s->group_key == nodes_mesh_eval_group_key && s->node_id == node_id) {
 			if (s->size != size) {
 				free(s->data);
 				s->data = calloc(1, size);
@@ -404,8 +405,9 @@ void *mesh_geo_state(i32 size) {
 		nodes_mesh_script_states_cap = nodes_mesh_script_states_cap == 0 ? 8 : nodes_mesh_script_states_cap * 2;
 		nodes_mesh_script_states     = realloc(nodes_mesh_script_states, nodes_mesh_script_states_cap * sizeof(nodes_mesh_script_state_t));
 	}
-	void *data                                                 = calloc(1, size);
-	nodes_mesh_script_states[nodes_mesh_script_states_count++] = (nodes_mesh_script_state_t){.uid = uid, .node_id = node_id, .size = size, .data = data};
+	void *data = calloc(1, size);
+	nodes_mesh_script_states[nodes_mesh_script_states_count++] =
+	    (nodes_mesh_script_state_t){.uid = uid, .group_key = nodes_mesh_eval_group_key, .node_id = node_id, .size = size, .data = data};
 	return data;
 }
 

@@ -25,9 +25,9 @@ static ui_node_canvas_t *ui_node_params_get_canvas(i32 canvas_type) {
 static ui_node_t *ui_node_params_source(i32 canvas_type) {
 	char  *material_types[] = {"GROUP", "SHADER_GPU", "OUTPUT_MATERIAL_PBR"};
 	char  *brush_types[]    = {"brush_output_node"};
-	char  *mesh_types[]     = {"MESH_SCRIPT", "MESH_OUTPUT"};
+	char  *mesh_types[]     = {"GROUP", "MESH_SCRIPT", "MESH_OUTPUT"};
 	char **types            = canvas_type == CANVAS_TYPE_BRUSH ? brush_types : canvas_type == CANVAS_TYPE_MESH ? mesh_types : material_types;
-	i32    count            = canvas_type == CANVAS_TYPE_BRUSH ? 1 : canvas_type == CANVAS_TYPE_MESH ? 2 : 3;
+	i32    count            = canvas_type == CANVAS_TYPE_BRUSH ? 1 : 3;
 
 	ui_node_canvas_t *canvas = ui_node_params_get_canvas(canvas_type);
 	if (canvas == NULL) {

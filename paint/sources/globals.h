@@ -7,7 +7,7 @@
 
 char *manifest_title           = "ArmorPaint";
 char *manifest_version         = "1.1alpha";
-char *manifest_version_project = "22";
+char *manifest_version_project = "23";
 char *manifest_version_config  = "2";
 char *manifest_url             = "https://armorpaint.org";
 char *manifest_url_android     = "https://play.google.com/store/apps/details?id=org.armorpaint";
@@ -329,6 +329,8 @@ ui_node_t_array_t    *nodes_mesh_input;
 ui_node_t_array_t    *nodes_mesh_modifier;
 ui_node_t_array_t    *nodes_mesh_combine;
 ui_node_t_array_t    *nodes_mesh_utilities;
+ui_node_t_array_t    *nodes_mesh_group;
+ui_node_t            *nodes_mesh_group_def;
 node_list_t_array_t  *nodes_mesh_list = NULL;
 ui_node_t            *nodes_mesh_input_def;
 ui_node_t            *nodes_mesh_output_def;
@@ -340,6 +342,8 @@ mesh_nodes_t         *nodes_mesh_eval_slot;
 mesh_object_t        *nodes_mesh_eval_object;
 bool                  nodes_mesh_eval_unwrap;
 i32                   nodes_mesh_vector_socket; // Output socket of the node evaluated by nodes_mesh_vector
+i32                   nodes_mesh_eval_socket;
+u32                   nodes_mesh_eval_group_key = 0;
 bool                  nodes_mesh_script_running = false;
 bool                  nodes_mesh_eval_reads_frame;
 i32                   make_mesh_layer_pass_count = 1;

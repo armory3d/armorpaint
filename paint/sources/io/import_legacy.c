@@ -317,13 +317,19 @@ project_t *import_arm_from_map_to_arm(any_map_t *old) {
 	project->mesh_nodes         = import_arm_get_node_canvas_array(old, "mesh_nodes");
 	project->mesh_nodes_objects = any_map_get(old, "mesh_nodes_objects");
 	project->mesh_paths         = any_map_get(old, "mesh_paths");
+	project->mesh_groups        = import_arm_get_node_canvas_array(old, "mesh_groups");
 
 	return project;
 }
 
+project_t *import_arm_from_version_22(any_map_t *old) {
+	any_map_set(old, "mesh_groups", NULL);
+	return import_arm_from_map_to_arm(old);
+}
+
 project_t *import_arm_from_version_21(any_map_t *old) {
 	// slot_material_t->paint_opac_mode removed
-	return import_arm_from_map_to_arm(old);
+	return import_arm_from_version_22(old);
 }
 
 project_t *import_arm_from_version_20(any_map_t *old) {
@@ -531,7 +537,7 @@ project_t *import_arm_from_old(buffer_t *b) {
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
 	    import_arm_from_version_10, import_arm_from_version_11, import_arm_from_version_12, import_arm_from_version_13, import_arm_from_version_14,
 	    import_arm_from_version_15, import_arm_from_version_16, import_arm_from_version_17, import_arm_from_version_18, import_arm_from_version_19,
-	    import_arm_from_version_20, import_arm_from_version_21,
+	    import_arm_from_version_20, import_arm_from_version_21, import_arm_from_version_22,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (import_arm_is_version(b, i32_to_string(v))) {

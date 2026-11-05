@@ -288,7 +288,10 @@ static void ui_base_show_nodes(canvas_type_t type) {
 	// Clear input state as ui receives input events even when not drawn
 	ui_end_input();
 
-	bool show            = !ui_nodes_show || ui_nodes_canvas_type != type;
+	bool show = !ui_nodes_show || ui_nodes_canvas_type != type;
+	if (ui_nodes_canvas_type != type) {
+		ui_nodes_group_stack->length = 0;
+	}
 	ui_nodes_canvas_type = type;
 	ui_dock_show_view(TAB_NODES, show);
 
