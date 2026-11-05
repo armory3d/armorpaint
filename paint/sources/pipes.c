@@ -16,16 +16,41 @@ gpu_pipeline_t *_pipes_make_merge(bool red, bool green, bool blue, bool alpha) {
 	return pipe;
 }
 
+gpu_pipeline_t *pipes_get_merge_r() {
+	if (pipes_merge_r == NULL) {
+		pipes_merge_r = _pipes_make_merge(true, false, false, false);
+	}
+	return pipes_merge_r;
+}
+
+gpu_pipeline_t *pipes_get_merge_g() {
+	if (pipes_merge_g == NULL) {
+		pipes_merge_g = _pipes_make_merge(false, true, false, false);
+	}
+	return pipes_merge_g;
+}
+
+gpu_pipeline_t *pipes_get_merge_b() {
+	if (pipes_merge_b == NULL) {
+		pipes_merge_b = _pipes_make_merge(false, false, true, false);
+	}
+	return pipes_merge_b;
+}
+
+gpu_pipeline_t *pipes_get_merge_a() {
+	if (pipes_merge_a == NULL) {
+		pipes_merge_a = _pipes_make_merge(false, false, false, true);
+	}
+	return pipes_merge_a;
+}
+
 void pipes_init() {
 
 	pipes_merge = _pipes_make_merge(true, true, true, true);
-
-	pipes_merge_r = _pipes_make_merge(true, false, false, false);
-
-	pipes_merge_g = _pipes_make_merge(false, true, false, false);
-
-	pipes_merge_b  = _pipes_make_merge(false, false, true, false);
-	pipes_merge_a  = _pipes_make_merge(false, false, false, true);
+	// pipes_merge_r = _pipes_make_merge(true, false, false, false);
+	// pipes_merge_g = _pipes_make_merge(false, true, false, false);
+	// pipes_merge_b = _pipes_make_merge(false, false, true, false);
+	// pipes_merge_a = _pipes_make_merge(false, false, false, true);
 	pipes_tex0     = 0; // Always binding texpaint.a for blending
 	pipes_tex1     = 1;
 	pipes_texmask  = 2;

@@ -1171,13 +1171,13 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 				}
 				else {
 					if (l1->paint_occ) {
-						layers_commands_merge_pack(pipes_merge_r, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
+						layers_commands_merge_pack(pipes_get_merge_r(), l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 					if (l1->paint_rough) {
-						layers_commands_merge_pack(pipes_merge_g, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
+						layers_commands_merge_pack(pipes_get_merge_g(), l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 					if (l1->paint_met) {
-						layers_commands_merge_pack(pipes_merge_b, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
+						layers_commands_merge_pack(pipes_get_merge_b(), l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, 101);
 					}
 				}
 			}
@@ -1373,7 +1373,7 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			// }
 			// else {
 			_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_merge_a);
+			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_get_merge_a());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
@@ -1423,13 +1423,13 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			}
 			else {
 				if (l1->paint_occ) {
-					layers_commands_merge_pack(pipes_merge_r, layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+					layers_commands_merge_pack(pipes_get_merge_r(), layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
 				}
 				if (l1->paint_rough) {
-					layers_commands_merge_pack(pipes_merge_g, layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+					layers_commands_merge_pack(pipes_get_merge_g(), layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
 				}
 				if (l1->paint_met) {
-					layers_commands_merge_pack(pipes_merge_b, layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
+					layers_commands_merge_pack(pipes_get_merge_b(), layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask, 101);
 				}
 			}
 		}

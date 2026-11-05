@@ -236,13 +236,17 @@ float4 frag(vert_out input) {
 			normalize(float3(n1.xy + n2.xy, n1.z * n2.z)) * float3(0.5, 0.5, 0.5) + float3(0.5, 0.5, 0.5),
 			col0.a);
 	}
-	if (constants.blending >= 200) { // Merging layers, the result is composited later
-		float a = cola.a + str * (1.0 - cola.a);
+	float a = cola.a + str * (1.0 - cola.a);
+	int mode = constants.blending;
+	if (mode >= 200) { // Merging layers, the result is composited later
 		if (a <= 0.0) {
 			return cola;
 		}
-		float4 blended = blend_modes(constants.blending - 200, col0, cola, maskr, str);
+		mode = mode - 200;
+	}
+	float4 blended = blend_modes(mode, col0, cola, maskr, str);
+	if (constants.blending >= 200) {
 		return float4((blended.rgb * cola.a + col0.rgb * str * (1.0 - cola.a)) / a, a);
 	}
-	return blend_modes(constants.blending, col0, cola, maskr, str);
+	return blended;
 }
