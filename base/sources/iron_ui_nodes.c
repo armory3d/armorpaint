@@ -737,9 +737,12 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	current_nodes->_input_started = current->input_started;
 	if (current->input_started) {
 		for (int i = ui_get_node_index(canvas->nodes->buffer, canvas->nodes->length, node->id) + 1; i < canvas->nodes->length; ++i) {
-			ui_node_t *n = canvas->nodes->buffer[i];
-			if (UI_NODE_X(n) < current->input_x - current->_window_x && UI_NODE_X(n) + UI_NODE_W(n) > current->input_x - current->_window_x &&
-			    UI_NODE_Y(n) < current->input_y - current->_window_y && UI_NODE_Y(n) + UI_NODE_H(canvas, n) > current->input_y - current->_window_y) {
+			ui_node_t *n    = canvas->nodes->buffer[i];
+			float      ix   = current->input_x - current->_window_x;
+			float      iy   = current->input_y - current->_window_y;
+			float      half = lineh / 2.0;
+			if (UI_NODE_X(n) - half < ix && UI_NODE_X(n) + UI_NODE_W(n) + half > ix && UI_NODE_Y(n) - half < iy &&
+			    UI_NODE_Y(n) + UI_NODE_H(canvas, n) + half > iy) {
 				current->input_started = false;
 				break;
 			}
