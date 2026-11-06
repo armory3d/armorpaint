@@ -1207,7 +1207,7 @@ void gpu_present_internal() {
 	    .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 	    .commandBufferCount   = 1,
 	    .pCommandBuffers      = &command_buffer,
-	    .signalSemaphoreCount = 1,
+	    .signalSemaphoreCount = framebuffer_acquired ? 1 : 0,
 	    .pSignalSemaphores    = &rendering_finished_semaphores[framebuffer_index],
 	};
 
@@ -1215,15 +1215,17 @@ void gpu_present_internal() {
 	vkQueueSubmit(queue, 1, &submit_info, fences[gpu_frame_index]);
 	fences_pending[gpu_frame_index] = true;
 
-	VkPresentInfoKHR present = {
-	    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-	    .swapchainCount     = 1,
-	    .pSwapchains        = &swapchain,
-	    .pImageIndices      = (uint32_t *)&framebuffer_index,
-	    .pWaitSemaphores    = &rendering_finished_semaphores[framebuffer_index],
-	    .waitSemaphoreCount = 1,
-	};
-	vkQueuePresentKHR(queue, &present);
+	if (framebuffer_acquired) {
+		VkPresentInfoKHR present = {
+		    .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		    .swapchainCount     = 1,
+		    .pSwapchains        = &swapchain,
+		    .pImageIndices      = (uint32_t *)&framebuffer_index,
+		    .pWaitSemaphores    = &rendering_finished_semaphores[framebuffer_index],
+		    .waitSemaphoreCount = 1,
+		};
+		vkQueuePresentKHR(queue, &present);
+	}
 
 	if (buffers_to_destroy_count > 0 || gpu_cleanup_pending()) {
 		vkQueueWaitIdle(queue);
