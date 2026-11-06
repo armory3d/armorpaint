@@ -9,7 +9,9 @@ void ui_nodes_get_linked_nodes(ui_node_t_array_t *linked_nodes, ui_node_t *n, ui
 		ui_node_link_t *l = c->links->buffer[i];
 		if (l->from_id == n->id) {
 			ui_node_t *nn = ui_get_node(c->nodes, l->to_id);
-			ui_nodes_get_linked_nodes(linked_nodes, nn, c);
+			if (nn != NULL) {
+				ui_nodes_get_linked_nodes(linked_nodes, nn, c);
+			}
 		}
 	}
 }
