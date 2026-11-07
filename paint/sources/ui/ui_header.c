@@ -2,6 +2,7 @@
 #include "../global.h"
 
 ui_color_state_t ui_header_color_state;
+static f64       ui_header_progress_last = 0.0;
 
 void ui_header_init() {
 	ui_header_handle->layout       = UI_LAYOUT_HORIZONTAL;
@@ -731,4 +732,29 @@ void ui_header_draw_tool_properties() {
 			g_ui->_w = _w;
 		}
 	}
+}
+
+void ui_header_draw_progress(f32 progress) {
+	if (gpu_in_use) {
+		return;
+	}
+	f64 t = iron_time();
+	if (progress > 0.0 && progress < 1.0 && t - ui_header_progress_last < 1.0 / 30.0) {
+		return;
+	}
+	ui_header_progress_last = t;
+	i32  w                  = iron_window_width();
+	i32  h                  = iron_window_height();
+	i32  bw                 = w / 4;
+	i32  bh                 = h / 180 > 2 ? h / 180 : 2;
+	i32  bx                 = (w - bw) / 2;
+	i32  by                 = (ui_header_h - bh) / 2;
+	bool first_frame        = g_context->frame == 0;
+	draw_begin(NULL, args_player || first_frame, 0xff202020);
+	draw_set_color(g_theme->BUTTON_COL);
+	draw_filled_rect(bx, by, bw, bh);
+	draw_set_color(g_theme->HIGHLIGHT_COL);
+	draw_filled_rect(bx, by, bw * progress, bh);
+	draw_end();
+	gpu_present();
 }

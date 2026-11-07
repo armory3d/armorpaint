@@ -928,6 +928,7 @@ void                      util_mesh_delete();
 void                      ui_header_init();
 void                      ui_header_render_ui();
 void                      ui_header_draw_tool_properties();
+void                      ui_header_draw_progress(f32 progress);
 void                      player_update();
 void                      player_run_scripts();
 void                      player_runtime_capture_objects();

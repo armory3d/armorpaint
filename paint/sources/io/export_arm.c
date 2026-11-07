@@ -135,6 +135,14 @@ string_array_t *export_arm_sounds_to_files(char *project_path, slot_sound_t_arra
 	return sound_files;
 }
 
+static bool export_arm_show_progress = false;
+
+static void export_arm_progress(f32 progress) {
+	if (export_arm_show_progress) {
+		ui_header_draw_progress(progress);
+	}
+}
+
 static void export_arm_free_buffer(buffer_t *b) {
 	if (b != NULL) {
 		array_free(b);
@@ -145,6 +153,7 @@ static void export_arm_free_buffer(buffer_t *b) {
 buffer_t *export_arm_encode_project(char *path) {
 	// Path is where the project is imported from, asset paths are relative to it
 
+	export_arm_progress(0.0);
 	tab_timeline_prepare_save();
 	tab_scripts_strip_trailing_whitespace();
 
@@ -230,7 +239,9 @@ buffer_t *export_arm_encode_project(char *path) {
 	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
 
 	layer_data_t_array_t *ld = any_array_create_from_raw((void *[]){}, 0);
+	export_arm_progress(0.1);
 	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
+		export_arm_progress(0.1 + 0.6 * i / (f32)g_project->_->layers->length);
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		layer_data_t *d =
 		    ALLOC_INIT(layer_data_t, {.name               = l->name,
@@ -380,11 +391,13 @@ buffer_t *export_arm_encode_project(char *path) {
 #ifdef IRON_WASM
 	pack_assets = true;
 #endif
+	export_arm_progress(0.7);
 	if (pack_assets) { // Pack textures and sounds
 		export_arm_pack_assets(g_project, g_project->_->assets);
 		export_arm_pack_sounds(g_project, g_project->_->sounds);
 	}
 
+	export_arm_progress(0.8);
 	buffer_t *buffer = util_encode_project(g_project);
 	nodes_mesh_export_end();
 
@@ -409,10 +422,15 @@ buffer_t *export_arm_encode_project(char *path) {
 }
 
 void export_arm_run_project(char *path) {
-	buffer_t *buffer = export_arm_encode_project(path);
+	export_arm_show_progress = true;
+	buffer_t *buffer         = export_arm_encode_project(path);
+	export_arm_progress(0.9);
 	iron_file_save_bytes(path, buffer, buffer->length + 1);
 	array_free(buffer);
 	free(buffer);
+	export_arm_progress(1.0);
+	export_arm_show_progress = false;
+	base_redraw_ui();
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_WASM)
 #ifdef IRON_WASM
