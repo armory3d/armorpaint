@@ -5,7 +5,6 @@ gpu_texture_t *_tab_swatches_empty;
 i32            tab_swatches_drag_pos = -1;
 i32            _tab_swatches_draw_i;
 swatch_color_t tab_swatches_edit_prev;
-bool           tab_swatches_large = false;
 
 // White rounded rect, tinted with the swatch color
 gpu_texture_t *tab_swatches_empty_get() {
@@ -160,15 +159,6 @@ void tab_swatches_draw_edit() {
 		    },
 		    1);
 	}
-
-	ui_menu_separator();
-	i32 size = tab_swatches_large ? 1 : 0;
-	ui_radio(&size, 0, tr("Small Icons"), "");
-	ui_radio(&size, 1, tr("Large Icons"), "");
-	if (tab_swatches_large != (size == 1)) {
-		tab_swatches_large = size == 1;
-		ui_dock_redraw(TAB_AREA_STATUS);
-	}
 }
 
 void tab_swatches_draw(i32 *htab) {
@@ -215,7 +205,7 @@ void tab_swatches_draw(i32 *htab) {
 		ui_end_sticky();
 		ui_separator(3, false);
 
-		i32 size  = tab_swatches_large ? 50 : 26;
+		i32 size  = 26 * ui_base_asset_scale();
 		i32 slotw = math_floor(size * UI_SCALE());
 		i32 num   = math_floor(g_ui->_w / (float)(slotw + 3));
 		if (num == 0) {

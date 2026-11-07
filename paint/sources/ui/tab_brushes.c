@@ -113,7 +113,8 @@ void tab_brushes_draw(i32 *htab) {
 		ui_end_sticky();
 		ui_separator(3, false);
 
-		i32 slotw = math_floor(51 * UI_SCALE());
+		f32 a     = ui_base_asset_scale();
+		i32 slotw = math_floor((50 * a + 1) * UI_SCALE());
 		i32 num   = math_floor(g_ui->_window_w / (float)slotw);
 		if (num == 0) {
 			return;
@@ -122,7 +123,7 @@ void tab_brushes_draw(i32 *htab) {
 		bool drag_pos_set = false;
 		f32  uix          = 0.0;
 		f32  uiy          = 0.0;
-		i32  imgw_val     = math_floor(50 * UI_SCALE());
+		i32  imgw_val     = math_floor(50 * a * UI_SCALE());
 
 		for (i32 row = 0; row < math_floor(math_ceil(g_project->_->brushes->length / (float)num)); ++row) {
 			i32          mult = g_config->show_asset_names ? 2 : 1;
@@ -133,13 +134,13 @@ void tab_brushes_draw(i32 *htab) {
 			ui_row(ar);
 
 			g_ui->_x += 2;
-			f32 off = g_config->show_asset_names ? UI_ELEMENT_OFFSET() * 10.0 : 6;
+			f32 off = g_config->show_asset_names ? UI_ELEMENT_OFFSET() * 10.0 + (a - 1) * 50 * UI_SCALE() : 6;
 			if (row > 0) {
 				g_ui->_y += off;
 			}
 
 			for (i32 j = 0; j < num; ++j) {
-				i32 imgw = math_floor(50 * UI_SCALE());
+				i32 imgw = math_floor(50 * a * UI_SCALE());
 				i32 i    = j + row * num;
 				if (i >= g_project->_->brushes->length) {
 					ui_end_element_of_size(imgw);
@@ -148,12 +149,12 @@ void tab_brushes_draw(i32 *htab) {
 					}
 					continue;
 				}
-				gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
+				gpu_texture_t *img      = UI_SCALE() * a > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
 				if (g_context->brush == g_project->_->brushes->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
-					i32 w = 50;
+					i32 w = 50 * a;
 					if (g_config->window_scale > 1) {
 						w += math_floor(g_config->window_scale * 2);
 					}
@@ -169,8 +170,8 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				ui_state_t state = g_project->_->brushes->buffer[i]->preview_ready
-				                       ? ui_image(img, 0xffffffff, -1.0)
-				                       : ui_sub_image(resource_get("icons.k"), -1, -1.0, tile * 5, tile, tile, tile);
+				                       ? ui_image(img, 0xffffffff, imgw)
+				                       : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
 
 				if (state == UI_STATE_HOVERED && base_drag_brush != NULL) {
 					tab_brushes_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
@@ -211,13 +212,12 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				if (g_config->show_asset_names) {
-					g_ui->_x = uix;
-					g_ui->_y += slotw * 0.9;
-					ui_text(g_project->_->brushes->buffer[i]->canvas->name, UI_ALIGN_CENTER, 0x00000000);
+					g_ui->_y += slotw * 0.9 + (a - 1) * 5 * UI_SCALE();
+					ui_base_asset_name(g_project->_->brushes->buffer[i]->canvas->name, uix, imgw);
 					if (g_ui->is_hovered) {
 						ui_tooltip(g_project->_->brushes->buffer[i]->canvas->name);
 					}
-					g_ui->_y -= slotw * 0.9;
+					g_ui->_y -= slotw * 0.9 + (a - 1) * 5 * UI_SCALE();
 					if (i == g_project->_->brushes->length - 1) {
 						g_ui->_y += j == num - 1 ? imgw : imgw + UI_ELEMENT_H() + UI_ELEMENT_OFFSET();
 					}

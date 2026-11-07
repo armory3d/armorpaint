@@ -30,6 +30,20 @@ void ui_base_make_empty_envmap(i32 col) {
 	free(b);
 }
 
+f32 ui_base_asset_scale() {
+	return g_config->large_asset_previews ? 1.5 : 1.0;
+}
+
+void ui_base_asset_name(char *name, f32 x, f32 icon_w) {
+	f32  d    = (icon_w - g_ui->_w) / 2.0;
+	bool last = g_ui->ratios != NULL && g_ui->current_ratio == g_ui->ratios->length - 1;
+	g_ui->_x  = x + d;
+	ui_text(name, UI_ALIGN_CENTER, 0x00000000);
+	if (!last) {
+		g_ui->_x -= d;
+	}
+}
+
 void ui_base_set_icon_scale() {
 	if (UI_SCALE() > 1) {
 		string_array_t *res = any_array_create_from_raw(

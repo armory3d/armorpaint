@@ -880,13 +880,17 @@ bool ui_dock_status_minimized() {
 	return l != NULL && l->visible && l->h <= ui_statusbar_default_h * g_config->window_scale;
 }
 
+i32 ui_dock_status_expanded_h(bool large) {
+	return math_floor((large ? 280 : 240) * g_config->window_scale);
+}
+
 void ui_base_toggle_browser() {
 	dock_node_t *s = dock_find_role(ui_dock_root, DOCK_ROLE_STATUS);
 	if (s == NULL) {
 		return;
 	}
 	bool minimized = s->size <= ui_statusbar_default_h * g_config->window_scale;
-	s->size        = math_floor((minimized ? 240 : ui_statusbar_default_h) * g_config->window_scale);
+	s->size        = minimized ? ui_dock_status_expanded_h(g_config->large_asset_previews) : math_floor(ui_statusbar_default_h * g_config->window_scale);
 	base_resize();
 	ui_dock_save();
 }

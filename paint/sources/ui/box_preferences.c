@@ -137,6 +137,11 @@ void box_preferences_interface_tab() {
 		ui_tooltip(tr("Show node preview on each node by default"));
 	}
 
+	ui_check(&g_config->large_asset_previews, tr("Large Asset Previews"), "");
+	if (ui_item_changed()) {
+		base_redraw_ui();
+	}
+
 	ui_check(&g_config->wrap_mouse, tr("Wrap Mouse"), "");
 	if (g_ui->is_hovered) {
 		ui_tooltip(tr("Wrap mouse around view boundaries during camera control"));

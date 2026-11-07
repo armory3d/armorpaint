@@ -189,8 +189,19 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 	rect_t        *file        = resource_tile50(icons, ICON_FILE);
 	rect_t        *cube        = resource_tile50(icons, ICON_CUBE);
 	rect_t        *downloading = resource_tile50(icons, ICON_DOWNLOADING);
-	bool           is_cloud    = starts_with(*path, "cloud");
-	bool           changed     = false;
+	gpu_texture_t *tile_icons  = icons;
+	if (g_config->large_asset_previews && g_config->window_scale <= 1) {
+		tile_icons      = data_get_texture("icons2x.k");
+		rect_t *rects[] = {folder, file, cube, downloading};
+		for (i32 i = 0; i < 4; ++i) {
+			rects[i]->x *= 2;
+			rects[i]->y *= 2;
+			rects[i]->w *= 2;
+			rects[i]->h *= 2;
+		}
+	}
+	bool is_cloud = starts_with(*path, "cloud");
+	bool changed  = false;
 
 	if (is_cloud && file_cloud == NULL) {
 		file_init_cloud(&ui_files_file_browser_on_init_cloud_done, g_config->server);
@@ -259,7 +270,8 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 		ui_files_select_pending = NULL;
 	}
 
-	i32 slotw = math_floor(70 * UI_SCALE());
+	f32 a     = ui_base_asset_scale();
+	i32 slotw = math_floor(70 * a * UI_SCALE());
 	i32 num   = math_floor(g_ui->_w / (float)slotw);
 	if (num == 0) {
 		return *path;
@@ -278,7 +290,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 		}
 		ui_row(ar);
 		if (row > 0) {
-			g_ui->_y += UI_ELEMENT_OFFSET() * 14.0;
+			g_ui->_y += UI_ELEMENT_OFFSET() * 14.0 + (a - 1) * 52.5 * UI_SCALE();
 		}
 		if (row == selected_row) {
 			selected_top = g_ui->_y;
@@ -314,7 +326,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 			if (ui_files_selected == i)
 				col = g_theme->HIGHLIGHT_COL;
 
-			f32 off = g_ui->_w / 2.0 - 25 * UI_SCALE();
+			f32 off = g_ui->_w / 2.0 - 25 * a * UI_SCALE();
 			g_ui->_x += off;
 
 			f32            uix     = g_ui->_x;
@@ -350,7 +362,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 					}
 				}
 				if (icon != NULL && icon != icons) {
-					i32 w = 50;
+					i32 w = 50 * a;
 					if (i == ui_files_selected) {
 						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
@@ -430,7 +442,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 				}
 
 				if (icon != NULL) {
-					i32 w = 50;
+					i32 w = 50 * a;
 					if (i == ui_files_selected) {
 						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
@@ -444,7 +456,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 			}
 
 			if (!is_folder && path_is_texture(f) && !is_cloud) {
-				i32 w = 50;
+				i32 w = 50 * a;
 				if (ui_files_icon_map == NULL) {
 					ui_files_icon_map = any_map_create();
 				}
@@ -460,7 +472,7 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 					gpu_texture_t *image = data_get_texture(shandle);
 
 					if (image != NULL) {
-						ui_files_make_icon_t *args = ALLOC_INIT(ui_files_make_icon_t, {.image = image, .shandle = shandle, .w = w});
+						ui_files_make_icon_t *args = ALLOC_INIT(ui_files_make_icon_t, {.image = image, .shandle = shandle, .w = 100});
 						sys_notify_on_next_frame(ui_files_make_icon, args);
 					}
 				}
@@ -468,13 +480,13 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 					if (i == ui_files_selected) {
 						ui_rect_round(-1, -1, w + 4, w + 4, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 					}
-					state   = ui_image(icon, 0xffffffff, icon->height * UI_SCALE());
+					state   = ui_image(icon, 0xffffffff, icon->height * 0.5 * a * UI_SCALE());
 					generic = false;
 				}
 			}
 
 			if (generic) {
-				state = ui_sub_image(icons, col, 50 * UI_SCALE(), rect->x, rect->y, rect->w, rect->h);
+				state = ui_sub_image(tile_icons, col, 50 * a * UI_SCALE(), rect->x, rect->y, rect->w, rect->h);
 			}
 
 			if (g_ui->is_hovered && g_ui->input_released_r && context_menu != NULL) {
