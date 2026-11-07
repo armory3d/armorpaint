@@ -478,33 +478,22 @@ void render_path_base_swap_buf(char *bufa) {
 }
 
 void render_path_base_make_gbuffer_copy_textures() {
-	if (any_map_get(render_path_render_targets, "gbuffer0_copy") == NULL) {
-		{
-			render_target_t *t = render_target_create();
-			t->name            = "gbuffer0_copy";
-			t->width           = 0;
-			t->height          = 0;
-			t->format          = "RGBA64";
-			t->scale           = render_path_base_get_super_sampling();
+	gpu_texture_t *g0      = ((render_target_t *)any_map_get(render_path_render_targets, "gbuffer0"))->_image;
+	char          *names[] = {"gbuffer0_copy", "gbuffer1_copy", "gbuffer2_copy"};
+	for (i32 i = 0; i < 3; ++i) {
+		render_target_t *t = any_map_get(render_path_render_targets, names[i]);
+		if (t == NULL) {
+			t         = render_target_create();
+			t->name   = names[i];
+			t->width  = 0;
+			t->height = 0;
+			t->format = "RGBA64";
+			t->scale  = render_path_base_get_super_sampling();
 			render_path_create_render_target(t);
 		}
-		{
-			render_target_t *t = render_target_create();
-			t->name            = "gbuffer1_copy";
-			t->width           = 0;
-			t->height          = 0;
-			t->format          = "RGBA64";
-			t->scale           = render_path_base_get_super_sampling();
-			render_path_create_render_target(t);
-		}
-		{
-			render_target_t *t = render_target_create();
-			t->name            = "gbuffer2_copy";
-			t->width           = 0;
-			t->height          = 0;
-			t->format          = "RGBA64";
-			t->scale           = render_path_base_get_super_sampling();
-			render_path_create_render_target(t);
+		if (t->_image->width != g0->width || t->_image->height != g0->height) {
+			gpu_delete_texture(t->_image);
+			t->_image = gpu_create_render_target(g0->width, g0->height, GPU_TEXTURE_FORMAT_RGBA64);
 		}
 	}
 }
