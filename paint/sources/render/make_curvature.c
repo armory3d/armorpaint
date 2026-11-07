@@ -269,13 +269,45 @@ static void make_curvature_splat_centroid(make_curvature_grid_t *g, i32 t) {
 	}
 }
 
+static void make_curvature_splat_lattice(make_curvature_grid_t *g, f32 *P, f32 *N, i32 n, f32 world) {
+	f32 w = world / (n * n);
+	for (i32 i = 0; i < n; ++i) {
+		for (i32 j = 0; j < n - i; ++j) {
+			for (i32 k = 0; k < (i + j < n - 1 ? 2 : 1); ++k) {
+				f32 o  = k == 0 ? 1.0 / 3.0 : 2.0 / 3.0;
+				f32 b0 = (i + o) / n;
+				f32 b1 = (j + o) / n;
+				f32 b2 = 1.0 - b0 - b1;
+				f32 p[3];
+				make_curvature_phong(P, N, b0, b1, b2, p);
+				f32 nn[3];
+				for (i32 c = 0; c < 3; ++c) {
+					nn[c] = N[c] * b0 + N[3 + c] * b1 + N[6 + c] * b2;
+				}
+				make_curvature_norm(nn);
+				make_curvature_grid_visit(g, p, nn, w, true, NULL);
+			}
+		}
+	}
+}
+
+static i32 make_curvature_lattice_size(f32 *P, f32 size) {
+	f32 l = 0.0;
+	for (i32 i = 0; i < 3; ++i) {
+		f32 *a = P + i * 3;
+		f32 *b = P + ((i + 1) % 3) * 3;
+		l      = fmaxf(l, sqrtf((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2])));
+	}
+	return (i32)fminf(ceilf(l / (size * 0.25)), 1024.0);
+}
+
 // Walks the texels of the triangles within rows [row0, row1). Splatting weighs each texel by the surface
 // area it covers and marks the triangle covered. A triangle within these rows that covers no texel centre
 // is only seen by this pass, so it is splatted at its centroid right away.
 static void make_curvature_raster(make_curvature_grid_t *g, i32 w, i32 h, i32 row0, i32 row1, i32 *tris, i32 count, make_curvature_eval_t *e, u8 *covered) {
 	make_curvature_mesh_t *m = &make_curvature_mesh;
 	for (i32 i = 0; i < count; ++i) {
-		i32  t  = tris[i];
+		i32  t  = tris[e != NULL ? count - 1 - i : i];
 		f32 *uv = m->uv + t * 6;
 		f32  x0 = uv[0] * w, y0 = uv[1] * h;
 		f32  x1 = uv[2] * w, y1 = uv[3] * h;
@@ -290,16 +322,44 @@ static void make_curvature_raster(make_curvature_grid_t *g, i32 w, i32 h, i32 ro
 		f32  world  = sqrtf(cr[0] * cr[0] + cr[1] * cr[1] + cr[2] * cr[2]) * 0.5;
 		f32  area   = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
 		if (fabsf(area) >= 1e-8) {
+			if (e == NULL) {
+				i32 n = make_curvature_lattice_size(P, g->size);
+				if (n * n < fabsf(area) * 0.5) {
+					f32 first = fmaxf(top, 0.0);
+					if (first >= row0 && first < row1) {
+						make_curvature_splat_lattice(g, P, N, n, world);
+						covered[t] = 1;
+					}
+					continue;
+				}
+			}
 			f32  per_texel = world / (fabsf(area) * 0.5);
-			i32  minx      = (i32)fmaxf(0.0, floorf(fminf(x0, fminf(x1, x2))));
-			i32  maxx      = (i32)fminf(w - 1, ceilf(fmaxf(x0, fmaxf(x1, x2))));
+			f32  minx      = fmaxf(0.0, floorf(fminf(x0, fminf(x1, x2))));
+			f32  maxx      = fminf(w - 1, ceilf(fmaxf(x0, fmaxf(x1, x2))));
 			i32  miny      = (i32)fmaxf(row0, top);
 			i32  maxy      = (i32)fminf(row1 - 1, bottom);
 			bool hit       = false;
+			f32  a[3]      = {(y1 - y2) / area, (y2 - y0) / area, 0.0};
+			a[2]           = -a[0] - a[1];
 			for (i32 y = miny; y <= maxy; ++y) {
-				for (i32 x = minx; x <= maxx; ++x) {
+				f32 py   = y + 0.5;
+				f32 b[3] = {(x1 * (y2 - py) - x2 * (y1 - py)) / area, (x2 * (y0 - py) - x0 * (y2 - py)) / area, 0.0};
+				b[2]     = 1.0 - b[0] - b[1];
+				f32 lo   = minx;
+				f32 hi   = maxx;
+				for (i32 k = 0; k < 3; ++k) {
+					if (a[k] > 0.0) {
+						lo = fmaxf(lo, floorf((-0.001 - b[k]) / a[k] - 0.5) - 1.0);
+					}
+					else if (a[k] < 0.0) {
+						hi = fminf(hi, ceilf((-0.001 - b[k]) / a[k] - 0.5) + 1.0);
+					}
+				}
+				for (i32 x = (i32)lo; x <= (i32)hi; ++x) {
+					if (e != NULL && e->mask[y * w + x]) {
+						continue;
+					}
 					f32 px = x + 0.5;
-					f32 py = y + 0.5;
 					f32 b0 = ((x1 - px) * (y2 - py) - (x2 - px) * (y1 - py)) / area;
 					f32 b1 = ((x2 - px) * (y0 - py) - (x0 - px) * (y2 - py)) / area;
 					f32 b2 = 1.0 - b0 - b1;
