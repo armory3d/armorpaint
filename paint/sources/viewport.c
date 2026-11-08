@@ -53,6 +53,7 @@ void viewport_set_view(f32 x, f32 y, f32 z, f32 rx, f32 ry, f32 rz) {
 	camera_object_build_proj(cam, -1.0);
 	g_context->ddirty = 2;
 	camera_reset(g_context->view_index_last);
+	render_path_raytrace_ready = false;
 }
 
 void viewport_orbit(f32 x, f32 y) {

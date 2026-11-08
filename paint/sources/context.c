@@ -461,12 +461,6 @@ void context_set_viewport_mode(viewport_mode_t mode) {
 		util_mesh_visibility_changed();
 	}
 
-	// Rotate mode is not supported for path tracing yet
-	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->camera_controls == CAMERA_CONTROLS_ROTATE) {
-		g_context->camera_controls = CAMERA_CONTROLS_ORBIT;
-		viewport_reset();
-	}
-
 	// Bake in lit mode for now
 	if (g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool == TOOL_TYPE_BAKE) {
 		g_context->viewport_mode = VIEWPORT_MODE_LIT;
