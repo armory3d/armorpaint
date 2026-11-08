@@ -6,7 +6,7 @@
 #include <iron.h>
 
 char *manifest_title           = "ArmorPaint";
-char *manifest_version         = "1.1alpha";
+char *manifest_version         = "1.1rc1";
 char *manifest_version_project = "23";
 char *manifest_version_config  = "3";
 char *manifest_url             = "https://armorpaint.org";
@@ -348,8 +348,8 @@ bool                  nodes_mesh_script_running = false;
 bool                  nodes_mesh_eval_reads_frame;
 i32                   make_mesh_layer_pass_count = 1;
 
-i32             ui_sidebar_default_w_mini = 56;
-i32             ui_sidebar_default_w_full = 280;
+i32             ui_sidebar_default_w_mini  = 56;
+i32             ui_sidebar_default_w_full  = 280;
 i32             ui_sidebar_default_w_large = 295;
 i32             ui_sidebar_default_w;
 ui_window_t    *ui_sidebar_hminimized;
