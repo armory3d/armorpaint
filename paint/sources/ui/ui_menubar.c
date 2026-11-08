@@ -609,8 +609,18 @@ void ui_menubar_draw_category_items() {
 		}
 
 		ui_menu_align();
+		f32 old_fov = scene_camera->data->fov;
 		ui_slider(&scene_camera->data->fov, tr("FoV"), 0.3, 1.4, true, 100.0, true, UI_ALIGN_RIGHT, true);
 		if (ui_item_changed()) {
+			if (g_context->camera_type == CAMERA_TYPE_PERSPECTIVE && scene_camera->data->fov != old_fov) {
+				transform_t *t    = scene_camera->base->transform;
+				vec4_t       look = camera_object_look(scene_camera);
+				f32          d    = vec4_dot(vec4_sub(camera_origins[camera_index()], t->loc), look);
+				f32          d2   = d * math_tan(old_fov / 2.0) / math_tan(scene_camera->data->fov / 2.0);
+				if (d > 0.0) {
+					transform_move(t, look, d - d2);
+				}
+			}
 			viewport_update_camera_type(g_context->camera_type);
 		}
 
