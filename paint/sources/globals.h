@@ -350,6 +350,7 @@ i32                   make_mesh_layer_pass_count = 1;
 
 i32             ui_sidebar_default_w_mini = 56;
 i32             ui_sidebar_default_w_full = 280;
+i32             ui_sidebar_default_w_large = 295;
 i32             ui_sidebar_default_w;
 ui_window_t    *ui_sidebar_hminimized;
 i32             ui_sidebar_w_mini;

@@ -462,7 +462,8 @@ void util_render_make_brush_preview() {
 
 	if (g_context->brush->image == NULL) {
 		g_context->brush->image = gpu_create_render_target(util_render_material_preview_size, util_render_material_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
-		g_context->brush->image_icon = gpu_create_render_target(50, 50, GPU_TEXTURE_FORMAT_RGBA32);
+		i32 w_icon                   = ui_base_asset_icon_size();
+		g_context->brush->image_icon = gpu_create_render_target(w_icon, w_icon, GPU_TEXTURE_FORMAT_RGBA32);
 	}
 	if (g_context->brush->image_wave == NULL) {
 		i32 w                        = util_render_material_preview_size;
@@ -668,6 +669,42 @@ void util_render_make_brush_preview() {
 
 	g_context->brush->preview_ready = true;
 	g_context->brush_blend_dirty    = true;
+
+	if (in_use)
+		draw_begin(current, false, 0);
+}
+
+static gpu_texture_t *util_render_resize_icon(gpu_texture_t *image, gpu_texture_t *icon, gpu_texture_format_t format, char *shader) {
+	i32 w = ui_base_asset_icon_size();
+	if (image == NULL || icon == NULL || icon->width == w) {
+		return icon;
+	}
+	gpu_delete_texture(icon);
+	icon                             = gpu_create_render_target(w, w, format);
+	render_target_t *texpreview      = any_map_get(render_path_render_targets, "texpreview");
+	render_target_t *texpreview_icon = any_map_get(render_path_render_targets, "texpreview_icon");
+	texpreview->_image               = image;
+	texpreview_icon->_image          = icon;
+	render_path_set_target("texpreview_icon", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+	render_path_bind_target("texpreview", "tex");
+	render_path_draw_shader(shader);
+	return icon;
+}
+
+void util_render_resize_asset_icons(void *_) {
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use)
+		draw_end();
+
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m = g_project->_->materials->buffer[i];
+		m->image_icon      = util_render_resize_icon(m->image, m->image_icon, GPU_TEXTURE_FORMAT_RGBA64, "Scene/supersample_resolve/supersample_resolveRGBA64");
+	}
+	for (i32 i = 0; i < g_project->_->brushes->length; ++i) {
+		slot_brush_t *b = g_project->_->brushes->buffer[i];
+		b->image_icon   = util_render_resize_icon(b->image, b->image_icon, GPU_TEXTURE_FORMAT_RGBA32, "Scene/supersample_resolve/supersample_resolve");
+	}
 
 	if (in_use)
 		draw_begin(current, false, 0);

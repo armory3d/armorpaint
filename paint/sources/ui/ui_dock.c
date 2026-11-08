@@ -345,7 +345,7 @@ void ui_dock_reset() {
 	dock_default_leaf(sidebar1, TAB_PLUGINS);
 
 	f32 scale     = g_config->window_scale;
-	i32 sidebar_w = math_floor(ui_sidebar_default_w * scale);
+	i32 sidebar_w = math_floor(ui_base_sidebar_default_w(g_config->large_asset_previews) * scale);
 	i32 status_h  = math_floor(ui_statusbar_default_h * scale);
 	// Views take the space next to the sidebar and the toolbar
 	i32 views_w = iron_window_width() - sidebar_w - math_floor(ui_toolbar_default_w * scale);
@@ -660,7 +660,7 @@ void ui_dock_layout() {
 
 i32 ui_dock_view3d_w() {
 	if (ui_dock_root == NULL) { // Not docked yet
-		return iron_window_width() - ui_sidebar_default_w - ui_toolbar_default_w;
+		return iron_window_width() - ui_base_sidebar_default_w(g_config->large_asset_previews) - ui_toolbar_default_w;
 	}
 	return dock_view3d_w;
 }

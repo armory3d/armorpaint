@@ -50,7 +50,7 @@ slot_material_t *slot_material_create(shader_data_t *m, ui_node_canvas_t *c) {
 	raw->data = m;
 
 	i32 w           = util_render_material_preview_size;
-	i32 w_icon      = 50;
+	i32 w_icon      = ui_base_asset_icon_size();
 	raw->image      = gpu_create_render_target(w, w, GPU_TEXTURE_FORMAT_RGBA64);
 	raw->image_icon = gpu_create_render_target(w_icon, w_icon, GPU_TEXTURE_FORMAT_RGBA64);
 

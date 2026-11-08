@@ -149,7 +149,7 @@ void tab_brushes_draw(i32 *htab) {
 					}
 					continue;
 				}
-				gpu_texture_t *img      = UI_SCALE() * a > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
+				gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->brushes->buffer[i]->image : g_project->_->brushes->buffer[i]->image_icon;
 				gpu_texture_t *img_full = g_project->_->brushes->buffer[i]->image;
 
 				if (g_context->brush == g_project->_->brushes->buffer[i]) {

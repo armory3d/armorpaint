@@ -77,7 +77,7 @@ void util_cursor_render(void *_) {
 		// Show picked material next to cursor
 		else if (g_context->picker_select_material) {
 			gpu_texture_t *img = g_context->material->image_icon;
-			draw_image(img, mx + 10, my + 10);
+			draw_scaled_image(img, mx + 10, my + 10, 50, 50);
 		}
 	}
 

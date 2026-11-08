@@ -31,7 +31,15 @@ void ui_base_make_empty_envmap(i32 col) {
 }
 
 f32 ui_base_asset_scale() {
-	return g_config->large_asset_previews ? 1.5 : 1.0;
+	return g_config->large_asset_previews ? 1.4 : 1.0;
+}
+
+i32 ui_base_sidebar_default_w(bool large) {
+	return large && ui_sidebar_default_w == ui_sidebar_default_w_full ? ui_sidebar_default_w_large : ui_sidebar_default_w;
+}
+
+i32 ui_base_asset_icon_size() {
+	return math_floor(50 * ui_base_asset_scale());
 }
 
 void ui_base_asset_name(char *name, f32 x, f32 icon_w) {

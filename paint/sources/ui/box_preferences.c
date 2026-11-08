@@ -22,7 +22,7 @@ void box_preferences_set_scale() {
 	ui_dock_set_size(DOCK_ROLE_STATUS, math_floor(ui_statusbar_default_h * scale));
 	ui_menubar_w = math_floor(ui_menubar_default_w * scale);
 	ui_base_set_icon_scale();
-	ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_sidebar_default_w * scale));
+	ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_base_sidebar_default_w(g_config->large_asset_previews) * scale));
 	base_resize();
 }
 
@@ -139,6 +139,13 @@ void box_preferences_interface_tab() {
 
 	ui_check(&g_config->large_asset_previews, tr("Large Asset Previews"), "");
 	if (ui_item_changed()) {
+		sys_notify_on_next_frame(&util_render_resize_asset_icons, NULL);
+		f32 scale = g_config->window_scale;
+		if (math_floor(ui_dock_get_size(DOCK_ROLE_SIDEBAR)) == math_floor(ui_base_sidebar_default_w(!g_config->large_asset_previews) * scale)) {
+			ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_base_sidebar_default_w(g_config->large_asset_previews) * scale));
+			base_resize();
+			ui_dock_save();
+		}
 		base_redraw_ui();
 	}
 

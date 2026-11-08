@@ -261,7 +261,7 @@ void tab_materials_draw_slots(bool mini) {
 				}
 				continue;
 			}
-			gpu_texture_t *img      = UI_SCALE() * a > 1 ? g_project->_->materials->buffer[i]->image : g_project->_->materials->buffer[i]->image_icon;
+			gpu_texture_t *img      = UI_SCALE() > 1 ? g_project->_->materials->buffer[i]->image : g_project->_->materials->buffer[i]->image_icon;
 			gpu_texture_t *img_full = g_project->_->materials->buffer[i]->image;
 
 			// Highligh selected
