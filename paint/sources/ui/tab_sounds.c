@@ -149,7 +149,7 @@ void tab_sounds_draw(i32 *htab) {
 			}
 			ui_row(ar);
 
-			g_ui->_x += 2;
+			g_ui->_x += 2 * UI_SCALE();
 			f32 off = g_config->show_asset_names ? UI_ELEMENT_OFFSET() * 10.0 + (a - 1) * 50 * UI_SCALE() : 6;
 			if (row > 0) {
 				g_ui->_y += off;
@@ -172,10 +172,7 @@ void tab_sounds_draw(i32 *htab) {
 				if (g_context->sound == g_project->_->sounds->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
-					if (g_config->window_scale > 1) {
-						w += math_floor(g_config->window_scale * 2);
-					}
-					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 
 				uix                       = g_ui->_x;
@@ -196,7 +193,9 @@ void tab_sounds_draw(i32 *htab) {
 				// 	state = ui_image(img, 0xffffffff, -1.0);
 				// }
 				// else {
+				g_ui->image_scroll_align = false;
 				state = ui_sub_image(tile_icons, -1, imgw, tile * 7, tile * 9, tile, tile);
+				g_ui->image_scroll_align = true;
 				// }
 
 				if (state == UI_STATE_HOVERED && base_drag_sound != NULL && string_equals(search, "")) {

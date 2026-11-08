@@ -245,7 +245,7 @@ void tab_materials_draw_slots(bool mini) {
 		}
 		ui_row(ar);
 
-		g_ui->_x += 2;
+		g_ui->_x += mini ? 2 : 2 * UI_SCALE();
 		f32 off = g_config->show_asset_names ? UI_ELEMENT_OFFSET() * 10.0 + (a - 1) * 50 * UI_SCALE() : 6;
 		if (row > 0) {
 			g_ui->_y += off;
@@ -271,8 +271,8 @@ void tab_materials_draw_slots(bool mini) {
 					ui_rect_round(0, -2, w - 2, w - 4, g_theme->HIGHLIGHT_COL, 3);
 				}
 				else {
-					i32 w = 50 * a + math_floor(g_config->window_scale * 2);
-					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+					i32 w = 50 * a;
+					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 			}
 
@@ -286,9 +286,11 @@ void tab_materials_draw_slots(bool mini) {
 				ui_fill(-1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 			}
 
+			g_ui->image_scroll_align = mini;
 			ui_state_t state = g_project->_->materials->buffer[i]->preview_ready
 			                       ? ui_image(img, 0xffffffff, imgh)
 			                       : ui_sub_image(resource_get("icons.k"), 0xffffffff, imgh, tile, tile, tile, tile);
+			g_ui->image_scroll_align = true;
 
 			if (state == UI_STATE_HOVERED && base_drag_material != NULL) {
 				tab_materials_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;

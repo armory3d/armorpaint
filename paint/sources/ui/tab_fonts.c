@@ -116,7 +116,7 @@ void tab_fonts_draw(i32 *htab) {
 			}
 			ui_row(ar);
 
-			g_ui->_x += 2;
+			g_ui->_x += 2 * UI_SCALE();
 			f32 off = g_config->show_asset_names ? UI_ELEMENT_OFFSET() * 10.0 + (a - 1) * 50 * UI_SCALE() : 6;
 			if (row > 0) {
 				g_ui->_y += off;
@@ -139,10 +139,7 @@ void tab_fonts_draw(i32 *htab) {
 				if (g_context->font == g_project->_->fonts->buffer[i]) {
 					// ui_fill(1, -2, img.width + 3, img.height + 3, ui.ops.theme.HIGHLIGHT_COL); // TODO
 					i32 w = 50 * a;
-					if (g_config->window_scale > 1) {
-						w += math_floor(g_config->window_scale * 2);
-					}
-					ui_rect_round(0, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
+					ui_rect_round(-1, -1, w + 2, w + 2, g_theme->HIGHLIGHT_COL, 2 * UI_SCALE());
 				}
 
 				uix      = g_ui->_x;
@@ -153,6 +150,7 @@ void tab_fonts_draw(i32 *htab) {
 					ui_fill(-1, -2, 2, imgw_val + 4, g_theme->HIGHLIGHT_COL);
 				}
 
+				g_ui->image_scroll_align = false;
 				ui_state_t state = UI_STATE_IDLE;
 				if (g_project->_->fonts->buffer[i]->preview_ready) {
 					state = ui_image(img, 0xffffffff, imgw);
@@ -160,6 +158,7 @@ void tab_fonts_draw(i32 *htab) {
 				else {
 					state = ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 6, tile, tile, tile);
 				}
+				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_font != NULL && string_equals(search, "")) {
 					tab_fonts_drag_pos = (mouse_x > uix + g_ui->_window_x + imgw_val / 2.0) ? i + 1 : i;
