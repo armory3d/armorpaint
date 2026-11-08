@@ -516,6 +516,19 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	}
 }
 
+bool util_mesh_merged_partial() {
+	if (!g_context->merged_object_is_atlas || util_mesh_merged_objects == NULL) {
+		return false;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
+		if (po->base->visible && array_index_of(util_mesh_merged_objects, po) < 0) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void util_mesh_merge(mesh_object_t_array_t *paint_objects) {
 	_util_mesh_merge(paint_objects, true);
 }
