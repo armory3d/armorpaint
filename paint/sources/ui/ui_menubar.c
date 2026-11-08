@@ -303,6 +303,7 @@ void ui_menubar_draw_category_items() {
 			ui_menu_sub_begin(4);
 			if (ui_menu_button(tr("Textures..."), any_map_get(g_keymap, "file_export_textures_as"), ICON_IMAGE)) {
 				g_context->layers_export = EXPORT_MODE_VISIBLE;
+				box_export_tab           = 0;
 				box_export_show_textures();
 			}
 			if (ui_menu_button(tr("Swatches..."), "", ICON_PALETTE)) {
@@ -906,6 +907,7 @@ void ui_menubar_render_ui() {
 				project_import_asset(NULL, true);
 			}
 			if (ui_menubar_icon_button(ICON_EXPORT)) {
+				box_export_tab = 0;
 				box_export_show_textures();
 			}
 			i32 size = math_floor(g_ui->_w / (float)UI_SCALE());

@@ -651,6 +651,7 @@ void tab_layers_draw_layer_context_menu_draw() {
 		}
 		else {
 			g_context->layers_export = EXPORT_MODE_SELECTED;
+			box_export_tab           = 0;
 			box_export_show_textures();
 		}
 	}
@@ -1119,6 +1120,12 @@ static void tab_layers_scroll_to_layer(slot_layer_t *l) {
 }
 
 void tab_layers_draw_edit() {
+	if (ui_menu_button(tr("Atlases"), "", ICON_LAYERS)) {
+		box_export_tab = 2;
+		box_export_show_textures();
+	}
+	ui_menu_separator();
+
 	ui_menu_align();
 	string_array_t *ar = any_array_create_from_raw(
 	    (void *[]){
