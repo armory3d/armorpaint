@@ -2044,7 +2044,7 @@ void ui_end_window() {
 		float full_size   = handle->layout == UI_LAYOUT_VERTICAL ? current->_y - current->window_header_h : current->_x - current->window_header_w;
 		full_size -= handle->scroll_offset;
 
-		if (full_size < window_size || !current->scroll_enabled) { // Disable scrollbar
+		if (full_size <= window_size || !current->scroll_enabled) { // Disable scrollbar
 			handle->scroll_enabled = false;
 			handle->scroll_offset  = 0;
 		}
