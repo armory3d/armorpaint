@@ -151,7 +151,7 @@ void tab_fonts_draw(i32 *htab) {
 				}
 
 				g_ui->image_scroll_align = false;
-				ui_state_t state = UI_STATE_IDLE;
+				ui_state_t state         = UI_STATE_IDLE;
 				if (g_project->_->fonts->buffer[i]->preview_ready) {
 					state = ui_image(img, 0xffffffff, imgw);
 				}

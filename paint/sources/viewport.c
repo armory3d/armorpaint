@@ -27,9 +27,9 @@ void viewport_reset() {
 		if (string_equals(o->type, "camera_object")) {
 			cam->base->transform->local = mat4_from_f32_array(o->transform, 0);
 			transform_decompose(cam->base->transform);
-			cam->data->fov         = g_config->camera_fov;
-			vec4_t look            = camera_object_look(cam);
-			f32    d               = vec4_dot(vec4_mult(cam->base->transform->loc, -1.0), look);
+			cam->data->fov = g_config->camera_fov;
+			vec4_t look    = camera_object_look(cam);
+			f32    d       = vec4_dot(vec4_mult(cam->base->transform->loc, -1.0), look);
 			transform_move(cam->base->transform, look, d - d * math_tan(0.69 / 2.0) / math_tan(cam->data->fov / 2.0));
 			g_context->camera_type = 0;
 			cam->data->ortho       = NULL;

@@ -462,7 +462,7 @@ void util_render_make_brush_preview() {
 
 	if (g_context->brush->image == NULL) {
 		g_context->brush->image = gpu_create_render_target(util_render_material_preview_size, util_render_material_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
-		i32 w_icon                   = ui_base_asset_icon_size();
+		i32 w_icon              = ui_base_asset_icon_size();
 		g_context->brush->image_icon = gpu_create_render_target(w_icon, w_icon, GPU_TEXTURE_FORMAT_RGBA32);
 	}
 	if (g_context->brush->image_wave == NULL) {

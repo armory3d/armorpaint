@@ -194,7 +194,7 @@ void tab_sounds_draw(i32 *htab) {
 				// }
 				// else {
 				g_ui->image_scroll_align = false;
-				state = ui_sub_image(tile_icons, -1, imgw, tile * 7, tile * 9, tile, tile);
+				state                    = ui_sub_image(tile_icons, -1, imgw, tile * 7, tile * 9, tile, tile);
 				g_ui->image_scroll_align = true;
 				// }
 

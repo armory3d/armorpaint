@@ -257,11 +257,11 @@ config_t *config_create_default() {
 #else
 	c->material_live = true;
 #endif
-	c->brush_depth_reject   = true;
-	c->brush_angle_reject   = true;
-	c->brush_alpha_discard  = 0.1;
-	c->brush_live           = false;
-	c->show_asset_names     = false;
+	c->brush_depth_reject  = true;
+	c->brush_angle_reject  = true;
+	c->brush_alpha_discard = 0.1;
+	c->brush_live          = false;
+	c->show_asset_names    = false;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	c->material_params = false;
 	c->brush_params    = false;
@@ -269,16 +269,16 @@ config_t *config_create_default() {
 	c->material_params = true;
 	c->brush_params    = true;
 #endif
-	c->mesh_params          = false;
-	c->dilate_radius        = 2;
-	c->blender              = "";
-	c->pathtrace_mode       = PATHTRACE_MODE_FAST;
-	c->pathtrace_frames     = 8;
-	c->grid_snap            = false;
-	c->view2d_grid_show     = false;
-	c->view2d_grid_cell     = 64;
-	c->view2d_grid_snap     = false;
-	c->pixel_snap           = false;
+	c->mesh_params      = false;
+	c->dilate_radius    = 2;
+	c->blender          = "";
+	c->pathtrace_mode   = PATHTRACE_MODE_FAST;
+	c->pathtrace_frames = 8;
+	c->grid_snap        = false;
+	c->view2d_grid_show = false;
+	c->view2d_grid_cell = 64;
+	c->view2d_grid_snap = false;
+	c->pixel_snap       = false;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	c->large_asset_previews = false;
 #else

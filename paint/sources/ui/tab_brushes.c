@@ -167,9 +167,9 @@ void tab_brushes_draw(i32 *htab) {
 				}
 
 				g_ui->image_scroll_align = false;
-				ui_state_t state = g_project->_->brushes->buffer[i]->preview_ready
-				                       ? ui_image(img, 0xffffffff, imgw)
-				                       : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
+				ui_state_t state         = g_project->_->brushes->buffer[i]->preview_ready
+				                               ? ui_image(img, 0xffffffff, imgw)
+				                               : ui_sub_image(resource_get("icons.k"), -1, imgw, tile * 5, tile, tile, tile);
 				g_ui->image_scroll_align = true;
 
 				if (state == UI_STATE_HOVERED && base_drag_brush != NULL) {

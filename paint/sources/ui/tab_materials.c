@@ -287,9 +287,9 @@ void tab_materials_draw_slots(bool mini) {
 			}
 
 			g_ui->image_scroll_align = mini;
-			ui_state_t state = g_project->_->materials->buffer[i]->preview_ready
-			                       ? ui_image(img, 0xffffffff, imgh)
-			                       : ui_sub_image(resource_get("icons.k"), 0xffffffff, imgh, tile, tile, tile, tile);
+			ui_state_t state         = g_project->_->materials->buffer[i]->preview_ready
+			                               ? ui_image(img, 0xffffffff, imgh)
+			                               : ui_sub_image(resource_get("icons.k"), 0xffffffff, imgh, tile, tile, tile, tile);
 			g_ui->image_scroll_align = true;
 
 			if (state == UI_STATE_HOVERED && base_drag_material != NULL) {
