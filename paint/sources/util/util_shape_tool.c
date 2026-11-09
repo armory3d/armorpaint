@@ -321,6 +321,17 @@ static void _shape_tool_commit() {
 	g_context->ddirty         = 2;
 }
 
+bool util_shape_tool_takes_press() {
+	if (!_shape_tool_active() || !util_tool_input_enabled()) {
+		return false;
+	}
+	if (_shape_tool_state != SHAPE_TOOL_STATE_IDLE && g_context->tool == _shape_tool_type) {
+		return true;
+	}
+	vec4_t p;
+	return util_tool_ground_point(&p);
+}
+
 void util_shape_tool_update() {
 	if (!_shape_tool_active() || g_context->tool != _shape_tool_type || keyboard_started("escape")) {
 		_shape_tool_state = SHAPE_TOOL_STATE_IDLE;

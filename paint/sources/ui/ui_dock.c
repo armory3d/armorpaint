@@ -1068,7 +1068,8 @@ static void ui_dock_render_sidebar_buttons() {
 			g_theme->BUTTON_H   = g_theme->ELEMENT_H;
 			g_theme->BUTTON_COL = g_theme->WINDOW_BG_COL;
 			if (ui_button(mini ? "<" : ">", UI_ALIGN_CENTER, "")) {
-				s->size = math_floor((mini ? ui_sidebar_default_w_full : ui_sidebar_default_w_mini) * UI_SCALE());
+				bool large = g_config->large_asset_previews;
+				s->size    = math_floor((mini ? ui_base_sidebar_full_w(large) : ui_base_sidebar_mini_w(large)) * UI_SCALE());
 				base_resize();
 				ui_dock_save();
 			}

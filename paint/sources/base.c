@@ -1027,7 +1027,7 @@ void base_apply_workspace() {
 	g_config->header_pinned = !g_config->touch_ui;
 	if (g_config->touch_ui) {
 		if (preset == WORKSPACE_PRESET_VIEW_2D || preset == WORKSPACE_PRESET_VIEW_3D) {
-			ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_sidebar_default_w_mini * UI_SCALE()));
+			ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_base_sidebar_mini_w(g_config->large_asset_previews) * UI_SCALE()));
 		}
 	}
 	ui_dock_set_preset(false);

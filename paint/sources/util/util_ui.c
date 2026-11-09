@@ -34,8 +34,16 @@ f32 ui_base_asset_scale() {
 	return g_config->large_asset_previews ? 1.4 : 1.0;
 }
 
+i32 ui_base_sidebar_mini_w(bool large) {
+	return large ? math_floor(ui_sidebar_default_w_mini * 1.4) : ui_sidebar_default_w_mini;
+}
+
+i32 ui_base_sidebar_full_w(bool large) {
+	return large ? ui_sidebar_default_w_large : ui_sidebar_default_w_full;
+}
+
 i32 ui_base_sidebar_default_w(bool large) {
-	return large && ui_sidebar_default_w == ui_sidebar_default_w_full ? ui_sidebar_default_w_large : ui_sidebar_default_w;
+	return ui_sidebar_default_w == ui_sidebar_default_w_mini ? ui_base_sidebar_mini_w(large) : ui_base_sidebar_full_w(large);
 }
 
 i32 ui_base_asset_icon_size() {

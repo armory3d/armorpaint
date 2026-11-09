@@ -140,9 +140,18 @@ void box_preferences_interface_tab() {
 	ui_check(&g_config->large_asset_previews, tr("Large Asset Previews"), "");
 	if (ui_item_changed()) {
 		sys_notify_on_next_frame(&util_render_resize_asset_icons, NULL);
-		f32 scale = g_config->window_scale;
-		if (math_floor(ui_dock_get_size(DOCK_ROLE_SIDEBAR)) == math_floor(ui_base_sidebar_default_w(!g_config->large_asset_previews) * scale)) {
-			ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(ui_base_sidebar_default_w(g_config->large_asset_previews) * scale));
+		f32  scale = g_config->window_scale;
+		bool large = g_config->large_asset_previews;
+		i32  size  = math_floor(ui_dock_get_size(DOCK_ROLE_SIDEBAR));
+		i32  new_w = 0;
+		if (size == math_floor(ui_base_sidebar_mini_w(!large) * scale)) {
+			new_w = ui_base_sidebar_mini_w(large);
+		}
+		else if (size == math_floor(ui_base_sidebar_full_w(!large) * scale)) {
+			new_w = ui_base_sidebar_full_w(large);
+		}
+		if (new_w > 0) {
+			ui_dock_set_size(DOCK_ROLE_SIDEBAR, math_floor(new_w * scale));
 			base_resize();
 			ui_dock_save();
 		}

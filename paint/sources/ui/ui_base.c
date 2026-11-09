@@ -152,7 +152,7 @@ void ui_base_update(void *_) {
 		}
 	}
 
-	ui_sidebar_w_mini = math_floor(ui_sidebar_default_w_mini * UI_SCALE());
+	ui_sidebar_w_mini = math_floor(ui_base_sidebar_mini_w(g_config->large_asset_previews) * UI_SCALE());
 
 	if (base_ui_enabled) {
 		render_gizmo_update();
