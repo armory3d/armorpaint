@@ -262,8 +262,13 @@ config_t *config_create_default() {
 	c->brush_alpha_discard  = 0.1;
 	c->brush_live           = false;
 	c->show_asset_names     = false;
-	c->material_params      = true;
-	c->brush_params         = true;
+#if defined(IRON_ANDROID) || defined(IRON_IOS)
+	c->material_params = false;
+	c->brush_params    = false;
+#else
+	c->material_params = true;
+	c->brush_params    = true;
+#endif
 	c->mesh_params          = false;
 	c->dilate_radius        = 2;
 	c->blender              = "";
