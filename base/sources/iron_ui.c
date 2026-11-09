@@ -1705,7 +1705,8 @@ void ui_draw_tabs() {
 	int   dock_count = 0;
 	float dock_end_x = 0.0;
 	float drop_x     = -1.0;
-	bool  dock       = ui_on_tab_drop != NULL && (ui_on_tab_dock == NULL || ui_on_tab_dock(current->tab_handle));
+	bool  docked     = ui_on_tab_dock == NULL || ui_on_tab_dock(current->tab_handle);
+	bool  dock       = ui_on_tab_drop != NULL && docked;
 	bool  dragging   = dock && current->drag_tab_handle != NULL && !current->tab_vertical;
 	bool  dropped    = false;
 	bool  hover_dock = false;
@@ -1751,7 +1752,7 @@ void ui_draw_tabs() {
 				}
 			}
 		}
-		if (ui_on_tab_context_menu != NULL && dock && dockable && hover && current->input_released_r) {
+		if (ui_on_tab_context_menu != NULL && docked && dockable && hover && current->input_released_r) {
 			ui_on_tab_context_menu(current->tab_handle, i);
 		}
 		if (released) {
