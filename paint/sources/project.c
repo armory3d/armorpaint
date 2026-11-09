@@ -92,6 +92,7 @@ void project_cleanup() {
 	util_mesh_remove_merged();
 	nodes_mesh_reset();
 	util_path_tool_reset();
+	sculpt_reset_objects();
 
 	if (g_project->_->paint_objects != NULL) {
 		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {

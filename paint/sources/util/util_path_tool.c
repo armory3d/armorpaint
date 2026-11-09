@@ -359,6 +359,7 @@ static void _path_tool_rebuild() {
 		}
 		mesh_object_set_data(_path_tool_object, md);
 		transform_build_matrix(_path_tool_object->base->transform);
+		sculpt_sync_objects();
 		util_mesh_merge(NULL);
 		nodes_mesh_request_refresh();
 		render_path_raytrace_ready = false;

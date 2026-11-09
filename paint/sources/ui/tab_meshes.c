@@ -305,6 +305,7 @@ static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 			break;
 		}
 	}
+	sculpt_sync_objects();
 	if (!changed) {
 		return;
 	}
@@ -321,6 +322,7 @@ static void tab_meshes_sort_hierarchy_from(mesh_object_t **old_order) {
 void tab_meshes_sort_hierarchy() {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	if (objects == NULL || objects->length < 2) {
+		sculpt_sync_objects();
 		return;
 	}
 	mesh_object_t **old_order = malloc(objects->length * sizeof(mesh_object_t *));
@@ -1254,6 +1256,7 @@ mesh_object_t *tab_meshes_append_data(mesh_data_t *md) {
 	any_array_push(g_project->_->paint_objects, mo);
 	tab_stages_add_object(mo->base->name);
 	g_context->paint_object = mo;
+	sculpt_sync_objects();
 	util_mesh_merge(NULL);
 	return mo;
 }
