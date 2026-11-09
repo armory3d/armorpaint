@@ -420,7 +420,8 @@ void ui_node_params_draw(i32 canvas_type, bool *show) {
 
 	// Outlined section with the toggle button at the bottom of the tab, the parameters expand it upwards
 	// Toggle button sticks to the bottom of the tab, in line with the collapsed status bar
-	f32 bottom = g_ui->_window_h - UI_ELEMENT_H() - UI_ELEMENT_OFFSET() - ui_dock_sidebar_button_inset() + g_ui->current_window->scroll_offset;
+	i32 inset  = ui_dock_sidebar_button_inset();
+	f32 bottom = g_ui->_window_h - UI_ELEMENT_H() - UI_ELEMENT_OFFSET() - inset + g_ui->current_window->scroll_offset;
 	f32 _x     = g_ui->_x;
 	f32 _w     = g_ui->_w;
 	f32 pad    = UI_ELEMENT_OFFSET() * 2;
@@ -496,4 +497,5 @@ void ui_node_params_draw(i32 canvas_type, bool *show) {
 	g_ui->_w = _w;
 	f32 h    = g_ui->_y - section_y;
 	ui_rect_round(1, -h / UI_SCALE(), g_ui->_w / (float)UI_SCALE() - 2, h / UI_SCALE(), g_theme->BUTTON_COL, 2);
+	g_ui->_y += inset;
 }
