@@ -1076,9 +1076,6 @@ void tab_layers_combo_filter() {
 void tab_layers_draw_mini(i32 *htab) {
 	ui_set_hovered_tab_name(tr("Layers"));
 
-	i32 _ELEMENT_H     = g_theme->ELEMENT_H;
-	g_theme->ELEMENT_H = math_floor(ui_sidebar_w_mini / 2.0 / (float)UI_SCALE());
-
 	ui_begin_sticky();
 	ui_separator(5, true);
 
@@ -1088,6 +1085,9 @@ void tab_layers_draw_mini(i32 *htab) {
 
 	ui_end_sticky();
 	g_ui->_y += 2;
+
+	i32 _ELEMENT_H     = g_theme->ELEMENT_H;
+	g_theme->ELEMENT_H = math_floor(ui_sidebar_w_mini / 2.0 / (float)UI_SCALE());
 
 	tab_layers_highlight_odd_lines();
 	tab_layers_draw_slots(true);

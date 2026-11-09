@@ -939,11 +939,11 @@ void ui_menubar_render_ui() {
 			if (ui_menubar_icon_button(ICON_CAMERA)) {
 				ui_menubar_show_menu(MENUBAR_CATEGORY_CAMERA);
 			}
+			if (ui_menu_show && ui_menubar_category == MENUBAR_CATEGORY_WINDOW) {
+				ui_fill(0, -6, size, size - 4, g_theme->HIGHLIGHT_COL);
+			}
 			if (ui_menubar_icon_button(ICON_WORKSPACE)) {
 				ui_menubar_show_menu(MENUBAR_CATEGORY_WINDOW);
-			}
-			if (ui_menu_show && ui_menubar_category == MENUBAR_CATEGORY_HELP) {
-				ui_fill(0, -6, size, size - 4, g_theme->HIGHLIGHT_COL);
 			}
 
 			bool full = true;
@@ -953,6 +953,9 @@ void ui_menubar_render_ui() {
 			}
 #endif
 
+			// if (ui_menu_show && ui_menubar_category == MENUBAR_CATEGORY_HELP) {
+			// 	ui_fill(0, -6, size, size - 4, g_theme->HIGHLIGHT_COL);
+			// }
 			// if (full && ui_menubar_icon_button(ICON_HELP)) {
 			// 	ui_menubar_show_menu(MENUBAR_CATEGORY_HELP);
 			// }

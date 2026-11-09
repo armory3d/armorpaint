@@ -274,7 +274,11 @@ config_t *config_create_default() {
 	c->view2d_grid_cell     = 64;
 	c->view2d_grid_snap     = false;
 	c->pixel_snap           = false;
+#if defined(IRON_ANDROID) || defined(IRON_IOS)
+	c->large_asset_previews = false;
+#else
 	c->large_asset_previews = true;
+#endif
 #ifdef NDEBUG
 	c->auto_run_scripts = false;
 #else

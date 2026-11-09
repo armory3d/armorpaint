@@ -187,9 +187,6 @@ bool ui_icon_button(char *text, icon_t icon, ui_align_t align) {
 
 		if (g_config->touch_ui) {
 			g_ui->_x += 1 * UI_SCALE();
-			if (!string_equals(text, "")) {
-				g_ui->_x += 5 * UI_SCALE();
-			}
 			g_ui->_y = _y_top + 2 * UI_SCALE();
 		}
 		if (g_ui->current_ratio > -1) {
