@@ -295,6 +295,7 @@ i32                    ui_dock_menubar_max_w();
 void                   ui_dock_set_size(i32 role, f32 size);
 f32                    ui_dock_get_size(i32 role);
 bool                   ui_dock_status_minimized();
+i32                    ui_dock_sidebar_button_inset();
 bool                   ui_dock_on_tab_dock(int *handle);
 void                   ui_dock_on_tab_drop(int *to, i32 to_position, int *from, i32 from_position);
 void                   ui_dock_on_tab_context_menu(int *handle, i32 position);
