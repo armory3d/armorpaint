@@ -545,6 +545,11 @@ typedef enum {
 } icon_t;
 
 typedef enum {
+	SWATCH_DISPLAY_2D,
+	SWATCH_DISPLAY_3D,
+} swatch_display_t;
+
+typedef enum {
 	COLOR_SPACE_AUTO, // sRGB for base color, otherwise linear
 	COLOR_SPACE_LINEAR,
 	COLOR_SPACE_SRGB,

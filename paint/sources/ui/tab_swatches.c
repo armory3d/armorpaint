@@ -33,6 +33,123 @@ gpu_texture_t *tab_swatches_empty_get() {
 	return _tab_swatches_empty;
 }
 
+typedef struct tab_swatches_sphere {
+	u32            base;
+	f32            roughness;
+	f32            metallic;
+	gpu_texture_t *image;
+} tab_swatches_sphere_t;
+
+static swatch_display_t       _tab_swatches_display      = SWATCH_DISPLAY_2D;
+static tab_swatches_sphere_t *_tab_swatches_spheres      = NULL;
+static i32                    _tab_swatches_sphere_count = 0;
+
+static u8 tab_swatches_tonemap(f32 c) {
+	f32 x = math_max(0.0, c - 0.004);
+	f32 v = (x * (x * 6.2 + 0.5)) / (x * (x * 6.2 + 1.7) + 0.06);
+	return math_floor(math_min(math_max(v, 0.0), 1.0) * 255.0 + 0.5);
+}
+
+static void tab_swatches_env_brdf(f32 roughness, f32 dotnv, f32 *a, f32 *b) {
+	f32 rx   = -1.0 * roughness + 1.0;
+	f32 ry   = -0.0275 * roughness + 0.0425;
+	f32 rz   = -0.572 * roughness + 1.04;
+	f32 rw   = 0.022 * roughness - 0.04;
+	f32 a004 = math_min(rx * rx, math_pow(2.0, -9.28 * dotnv)) * rx + ry;
+	*a       = -1.04 * a004 + rz;
+	*b       = 1.04 * a004 + rw;
+}
+
+static f32 tab_swatches_env(f32 rx, f32 ry, f32 rz, f32 dx, f32 dy, f32 dz, f32 roughness) {
+	static const f32 horizon[]   = {0.5, 0.55, 0.6, 0.7, 0.8, 1.0};
+	static const f32 lobe_exp[]  = {600.0, 150.0, 40.0, 12.0, 5.0, 2.0};
+	static const f32 lobe_peak[] = {3.0, 2.0, 1.2, 0.8, 0.5, 0.35};
+	f32              level       = roughness * 5.0;
+	i32              l0          = math_floor(level);
+	i32              l1          = l0 < 5 ? l0 + 1 : 5;
+	f32              t           = level - l0;
+	f32              v[2];
+	for (i32 k = 0; k < 2; ++k) {
+		i32 l   = k == 0 ? l0 : l1;
+		f32 h   = horizon[l];
+		f32 s   = math_min(math_max((ry + h) / (2.0 * h), 0.0), 1.0);
+		f32 dot = rx * dx + ry * dy + rz * dz;
+		v[k]    = 0.12 + (0.47 - 0.12) * s * s * (3.0 - 2.0 * s) + (dot > 0.0 ? lobe_peak[l] * math_pow(dot, lobe_exp[l]) : 0.0);
+	}
+	return v[0] + (v[1] - v[0]) * t;
+}
+
+static gpu_texture_t *tab_swatches_make_sphere(swatch_color_t *s) {
+	i32         size = 96;
+	u8_array_t *b    = u8_array_create(size * size * 4);
+	f32         base[3];
+	base[0] = math_pow(color_get_rb(s->base) / 255.0, 2.2);
+	base[1] = math_pow(color_get_gb(s->base) / 255.0, 2.2);
+	base[2] = math_pow(color_get_bb(s->base) / 255.0, 2.2);
+
+	f32 dx    = -0.416;
+	f32 dy    = 0.78;
+	f32 dz    = 0.468;
+	f32 r     = size / 2.0 - 1.0;
+	f32 rough = math_min(math_max(s->roughness, 0.0), 1.0);
+	f32 metal = math_min(math_max(s->metallic, 0.0), 1.0);
+	for (i32 y = 0; y < size; ++y) {
+		for (i32 x = 0; x < size; ++x) {
+			f32 px    = (x + 0.5 - size / 2.0) / r;
+			f32 py    = (size / 2.0 - (y + 0.5)) / r;
+			f32 d2    = px * px + py * py;
+			f32 alpha = math_min(math_max((1.0 - math_sqrt(d2)) * r + 0.5, 0.0), 1.0);
+			i32 i     = (y * size + x) * 4;
+			if (alpha <= 0.0) {
+				b->buffer[i + 3] = 0;
+				continue;
+			}
+			f32 nz    = math_sqrt(math_max(1.0 - d2, 0.0));
+			f32 dotnv = math_max(nz, 0.05);
+
+			f32 rx  = 2.0 * nz * px;
+			f32 ry  = 2.0 * nz * py;
+			f32 rz  = 2.0 * nz * nz - 1.0;
+			f32 irr = (0.886227 * 0.5 + 2.0 * 0.511664 * 0.65 * (px * dx + py * dy + nz * dz)) / math_pi();
+			f32 env = tab_swatches_env(rx, ry, rz, dx, dy, dz, rough);
+			f32 ba;
+			f32 bb;
+			tab_swatches_env_brdf(rough, dotnv, &ba, &bb);
+			for (i32 c = 0; c < 3; ++c) {
+				f32 albedo       = base[c] * (1.0 - metal);
+				f32 f0           = 0.04 + (base[c] - 0.04) * metal;
+				f32 col          = (irr * albedo + env * (f0 * ba + bb)) * 4.0;
+				b->buffer[i + c] = tab_swatches_tonemap(math_max(col, 0.0));
+			}
+			b->buffer[i + 3] = alpha * 255;
+		}
+	}
+	gpu_texture_t *image = gpu_create_texture_from_bytes(b, size, size, GPU_TEXTURE_FORMAT_RGBA32);
+	array_free(b);
+	free(b);
+	return image;
+}
+
+static gpu_texture_t *tab_swatches_sphere_get(i32 i, swatch_color_t *s) {
+	if (i >= _tab_swatches_sphere_count) {
+		i32 count             = math_max(i + 1, _tab_swatches_sphere_count * 2);
+		_tab_swatches_spheres = realloc(_tab_swatches_spheres, sizeof(tab_swatches_sphere_t) * count);
+		memset(_tab_swatches_spheres + _tab_swatches_sphere_count, 0, sizeof(tab_swatches_sphere_t) * (count - _tab_swatches_sphere_count));
+		_tab_swatches_sphere_count = count;
+	}
+	tab_swatches_sphere_t *e = &_tab_swatches_spheres[i];
+	if (e->image == NULL || e->base != s->base || e->roughness != s->roughness || e->metallic != s->metallic) {
+		if (e->image != NULL) {
+			gpu_delete_texture(e->image);
+		}
+		e->base      = s->base;
+		e->roughness = s->roughness;
+		e->metallic  = s->metallic;
+		e->image     = tab_swatches_make_sphere(s);
+	}
+	return e->image;
+}
+
 void tab_swatches_delete_swatch(swatch_color_t *swatch) {
 	i32 i = array_index_of(g_project->swatches, swatch);
 	history_delete_swatch(swatch);
@@ -159,6 +276,21 @@ void tab_swatches_draw_edit() {
 		    },
 		    1);
 	}
+
+	ui_menu_separator();
+	ui_menu_align();
+	ui_menu_label(tr("Display"), NULL);
+	ui_menu_align();
+	string_array_t *display_items = any_array_create_from_raw(
+	    (void *[]){
+	        tr("2D"),
+	        tr("3D"),
+	    },
+	    2);
+	ui_inline_radio((int *)&_tab_swatches_display, display_items, UI_ALIGN_LEFT);
+	if (g_ui->changed) {
+		ui_menu_keep_open = true;
+	}
 }
 
 void tab_swatches_draw(i32 *htab) {
@@ -249,7 +381,9 @@ void tab_swatches_draw(i32 *htab) {
 					ui_fill(-1, -2, 2, size + 6, g_theme->HIGHLIGHT_COL);
 				}
 
-				ui_state_t state = ui_image(tab_swatches_empty_get(), g_project->swatches->buffer[i]->base, slotw);
+				swatch_color_t *swatch = g_project->swatches->buffer[i];
+				ui_state_t      state  = _tab_swatches_display == SWATCH_DISPLAY_3D ? ui_image(tab_swatches_sphere_get(i, swatch), 0xffffffff, slotw)
+				                                                                    : ui_image(tab_swatches_empty_get(), swatch->base, slotw);
 
 				if (state == UI_STATE_STARTED) {
 					g_context->swatch         = g_project->swatches->buffer[i];
