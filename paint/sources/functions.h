@@ -1344,6 +1344,7 @@ i32                    sculpt_object_vertex_offset(mesh_object_t *o);
 void                   sculpt_import_mesh_pack_to_texture(gpu_texture_t *target);
 void                   sculpt_bake_to_mesh();
 void                   sculpt_init_sculpt_texture(slot_layer_t *l);
+void                   sculpt_pack_base();
 void                   sculpt_init_meshes();
 void                   sculpt_sync_objects();
 void                   sculpt_reset_objects();

@@ -299,10 +299,27 @@ static i32 sculpt_vertex_object(i32 *vertex) {
 	return 0;
 }
 
+static bool sculpt_storage_matches_objects() {
+	mesh_object_t_array_t *objects = g_project->_->paint_objects;
+	if (sculpt_object_datas == NULL || objects->length != sculpt_object_count) {
+		return false;
+	}
+	for (i32 o = 0; o < objects->length; ++o) {
+		if (objects->buffer[o]->data != sculpt_object_datas[o]) {
+			return false;
+		}
+	}
+	return true;
+}
+
 static buffer_t *sculpt_pack_rest() {
 	// Pack positions and normals into texture
 	u32       capacity = config_get_texture_res_x() * config_get_texture_res_y();
 	buffer_t *b        = buffer_create(capacity * 4 * 4);
+	if (!sculpt_storage_matches_objects()) {
+		memset(b->buffer, 0, b->length);
+		return b;
+	}
 	f32      *nor      = calloc(sculpt_texel_count * 3 + 1, sizeof(f32));
 	i32       v        = 0;
 	for (i32 o = 0; o < g_project->_->paint_objects->length; ++o) {
@@ -1382,18 +1399,33 @@ void sculpt_init_sculpt_texture(slot_layer_t *l) {
 	}
 
 	if (any_map_get(render_path_render_targets, "texpaint_sculpt_base") == NULL) {
+		sculpt_pack_base();
+	}
+	else if (sculpt_layer_count == 1) {
+		render_path_set_target("texpaint_sculpt_base", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_bind_target(string_tmp("texpaint_sculpt%s", i32_to_string(id)), "tex");
+		render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
+	}
+}
+
+void sculpt_pack_base() {
+	render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_sculpt_base");
+	if (rt == NULL) {
 		render_target_t *t = render_target_create();
 		t->name            = "texpaint_sculpt_base";
 		t->width           = config_get_texture_res_x();
 		t->height          = config_get_texture_res_y();
 		t->format          = "RGBA128";
-		render_path_create_render_target(t);
+		rt                 = render_path_create_render_target(t);
 	}
-
-	if (sculpt_layer_count == 1) {
-		render_path_set_target("texpaint_sculpt_base", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		render_path_bind_target(string_tmp("texpaint_sculpt%s", i32_to_string(id)), "tex");
-		render_path_draw_shader("Scene/copy_pass/copyRGBA128_pass");
+	gpu_texture_t *current = _draw_current;
+	bool           in_use  = gpu_in_use;
+	if (in_use) {
+		draw_end();
+	}
+	sculpt_import_mesh_pack_to_texture(rt->_image);
+	if (in_use) {
+		draw_begin(current, false, 0);
 	}
 }
 
@@ -1466,6 +1498,7 @@ void sculpt_init_meshes() {
 
 void sculpt_init() {
 	sculpt_init_meshes();
+	sculpt_pack_base();
 
 	if (g_context->merged_object != NULL) {
 		util_mesh_merge(NULL);
@@ -1841,12 +1874,7 @@ void sculpt_sync_objects() {
 	if (sculpt_object_datas == NULL || !sculpt_project_has_layers()) {
 		return;
 	}
-	mesh_object_t_array_t *objects = g_project->_->paint_objects;
-	bool                   changed = objects->length != sculpt_object_count;
-	for (i32 o = 0; !changed && o < objects->length; ++o) {
-		changed = objects->buffer[o]->data != sculpt_object_datas[o];
-	}
-	if (!changed) {
+	if (sculpt_storage_matches_objects()) {
 		return;
 	}
 

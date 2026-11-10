@@ -164,6 +164,7 @@ void layers_resize_targets() {
 		sculpt_base->width  = config_get_texture_res_x();
 		sculpt_base->height = config_get_texture_res_y();
 		sculpt_base->_image = gpu_create_render_target(config_get_texture_res_x(), config_get_texture_res_y(), GPU_TEXTURE_FORMAT_RGBA128);
+		sculpt_pack_base();
 	}
 }
 
