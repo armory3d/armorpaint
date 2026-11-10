@@ -26,6 +26,18 @@ void tab_textures_draw_export_on_next_frame2(gpu_texture_t *target) {
 	if (string_equals(f, "")) {
 		f = string_copy(tr("untitled"));
 	}
+	if (target->format == GPU_TEXTURE_FORMAT_RGBA64) {
+		if (!ends_with(f, ".exr")) {
+			f = string("%s.exr", f);
+		}
+		buffer_t *pixels = gpu_get_texture_pixels(target);
+		buffer_t *b      = export_exr_run(target->width, target->height, pixels, 16, 1, 0);
+		iron_file_save_bytes(string("%s%s%s", path, PATH_SEP, f), b, b->length);
+		array_free(b);
+		free(b);
+		gpu_delete_texture(target);
+		return;
+	}
 	if (!ends_with(f, ".jpg") && !ends_with(f, ".png")) {
 		f = string("%s.png", f);
 	}
@@ -41,9 +53,10 @@ void tab_textures_draw_export_on_next_frame2(gpu_texture_t *target) {
 
 void tab_textures_draw_export_on_next_frame(void *_) {
 	gpu_texture_t *img    = _tab_textures_draw_img;
-	gpu_texture_t *target = gpu_create_render_target(img->width, img->height, GPU_TEXTURE_FORMAT_RGBA32);
+	bool           hdr    = img->format == GPU_TEXTURE_FORMAT_RGBA64 || img->format == GPU_TEXTURE_FORMAT_RGBA128;
+	gpu_texture_t *target = gpu_create_render_target(img->width, img->height, hdr ? GPU_TEXTURE_FORMAT_RGBA64 : GPU_TEXTURE_FORMAT_RGBA32);
 	draw_begin(target, false, 0);
-	draw_set_pipeline(pipes_copy);
+	draw_set_pipeline(hdr ? pipes_copy64 : pipes_copy);
 	draw_scaled_image(img, 0, 0, target->width, target->height);
 	draw_set_pipeline(NULL);
 	draw_end();
@@ -130,7 +143,9 @@ void tab_textures_delete_texture(asset_t *asset) {
 
 void tab_textures_draw_context_menu() {
 	if (ui_menu_button(tr("Export"), "", ICON_EXPORT)) {
-		ui_files_show("png,jpg", true, false, &tab_textures_draw_export);
+		gpu_texture_format_t format = _tab_textures_draw_img->format;
+		bool                 hdr    = format == GPU_TEXTURE_FORMAT_RGBA64 || format == GPU_TEXTURE_FORMAT_RGBA128;
+		ui_files_show(hdr ? "exr" : "png,jpg", true, false, &tab_textures_draw_export);
 	}
 	if (ui_menu_button(tr("Reimport"), "", ICON_SYNC)) {
 		project_reimport_texture(_tab_textures_draw_asset);
