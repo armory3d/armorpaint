@@ -14,6 +14,7 @@
 #define GRID_CELL       2.0f // Broadphase cell size on xy, a few times a typical moving body
 #define GRID_SPAN       8    // Bodies wider than this many cells go into one bucket that every query visits
 #define MAX_TERRAIN_RES 1024
+#define CONTACT_SKIN    0.01f
 
 #define SPHERE_TAG  0x10000
 #define BOX_TAG     0x20000
@@ -120,7 +121,8 @@ static inline int sphere_aabb_intersect(sphere_t *s, aabb_t *a) {
 	float y  = fmaxf(a->min.y, fminf(s->position.y, a->max.y));
 	float z  = fmaxf(a->min.z, fminf(s->position.z, a->max.z));
 	float dx = x - s->position.x, dy = y - s->position.y, dz = z - s->position.z;
-	return dx * dx + dy * dy + dz * dz <= s->radius * s->radius;
+	float r = s->radius * (1.0f + CONTACT_SKIN);
+	return dx * dx + dy * dy + dz * dz <= r * r;
 }
 
 static int compare_triangles(const void *a, const void *b) {
@@ -176,7 +178,8 @@ static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
 
 	vec4_t to_sphere = vec4_sub(s->position, t->v0);
 	float  dist      = vec4_dot(to_sphere, t->normal);
-	if (dist < 0.0f || dist > s->radius) {
+	float  skin      = s->radius * CONTACT_SKIN;
+	if (dist < 0.0f || dist > s->radius + skin) {
 		return;
 	}
 
@@ -188,7 +191,7 @@ static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
 
 		float orig_dist = dist;
 
-		if (!s->sleeping) {
+		if (!s->sleeping && dist < s->radius) {
 			s->position = vec4_add(s->position, vec4_mult(t->normal, s->radius - dist));
 
 			float v_dot_n = vec4_dot(s->velocity, t->normal);
@@ -200,7 +203,7 @@ static void collide_sphere_triangle(sphere_t *s, int si, triangle_t *t) {
 		}
 
 		vec4_t contact_point = vec4_sub(s->position, vec4_mult(t->normal, s->radius));
-		report_contact(&s->contact, &s->contact_depth, s->radius - orig_dist, contact_point, t->normal);
+		report_contact(&s->contact, &s->contact_depth, s->radius + skin - orig_dist, contact_point, t->normal);
 	}
 }
 
