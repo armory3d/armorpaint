@@ -27,6 +27,7 @@ static int touch_hold_y = -1;
 // Touch and hold finger for right click
 // Show extra tooltips above finger / on-screen keyboard
 bool  ui_touch_control                         = false;
+bool  ui_tooltips                              = true;
 float ui_touch_speed                           = 1.0;
 bool  ui_is_cut                                = false;
 bool  ui_is_copy                               = false;
@@ -968,7 +969,7 @@ void ui_draw_tooltip() {
 		draw_end();
 	}
 
-	if (current->tooltip_text[0] != '\0' || current->tooltip_img != NULL) {
+	if (ui_tooltips && (current->tooltip_text[0] != '\0' || current->tooltip_img != NULL)) {
 		if (ui_input_changed()) {
 			current->tooltip_shown = false;
 			current->tooltip_wait  = current->input_dx == 0 && current->input_dy == 0; // Wait for movement before showing up again

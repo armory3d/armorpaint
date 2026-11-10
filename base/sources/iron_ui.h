@@ -415,6 +415,7 @@ float UI_HEADER_DRAG_H();
 float UI_TOOLTIP_DELAY();
 
 extern bool  ui_touch_control;
+extern bool  ui_tooltips;
 extern float ui_touch_speed;
 extern bool  ui_is_cut;
 extern bool  ui_is_copy;
