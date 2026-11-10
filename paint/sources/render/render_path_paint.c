@@ -201,6 +201,7 @@ static void render_path_paint_draw_fill_object() {
 
 void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) {
 	// Paint pass per particle
+	i32 drawn = 0;
 	for (i32 _pi = 0; _pi < 32; ++_pi) {
 		if (g_context->particles[_pi].timer == NULL || g_context->particles[_pi].hit_x == 0) {
 			continue;
@@ -222,6 +223,13 @@ void render_path_paint_commands_particle(i32 tid, char *texpaint, bool is_mask) 
 				}
 			}
 		}
+
+		if (drawn > 0) {
+			render_path_set_target("texpaint_blend1", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
+			render_path_bind_target("texpaint_blend0", "tex");
+			render_path_draw_shader("Scene/copy_pass/copyR8_pass");
+		}
+		drawn++;
 
 		render_path_set_target(texpaint, render_path_paint_additional(string_tmp("texpaint_nor%d", tid), string_tmp("texpaint_pack%d", tid)), NULL,
 		                       GPU_CLEAR_NONE, 0, 0.0);
@@ -364,7 +372,7 @@ void render_path_paint_commands_paint(bool dilation) {
 		return;
 	}
 
-	if (g_context->brush_time == 0) {
+	if (g_context->brush_time == 0 && g_context->tool != TOOL_TYPE_PARTICLE && !g_context->pick_pos_nor_tex) {
 		g_context->brush_blend_dirty = true;
 	}
 
