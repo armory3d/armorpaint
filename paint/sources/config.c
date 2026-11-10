@@ -139,6 +139,7 @@ void config_save() {
 	json_encode_bool("view2d_grid_snap", g_config->view2d_grid_snap);
 	json_encode_bool("pixel_snap", g_config->pixel_snap);
 	json_encode_bool("large_asset_previews", g_config->large_asset_previews);
+	json_encode_bool("tooltips", g_config->tooltips);
 	char *config_json = json_encode_end();
 
 	buffer_t *buffer = sys_string_to_buffer(config_json);
@@ -281,8 +282,10 @@ config_t *config_create_default() {
 	c->pixel_snap       = false;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	c->large_asset_previews = false;
+	c->tooltips             = false;
 #else
 	c->large_asset_previews = true;
+	c->tooltips             = true;
 #endif
 #ifdef NDEBUG
 	c->auto_run_scripts = false;
@@ -305,6 +308,7 @@ void config_init() {
 	}
 
 	ui_touch_control = g_config->touch_ui;
+	ui_tooltips      = g_config->tooltips;
 	ui_touch_speed   = 1.0;
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	if (sys_display_ppi() > 400) {
@@ -393,13 +397,20 @@ config_t *config_from_map_to_config(any_map_t *old) {
 	c->view2d_grid_snap      = armpack_map_get_i32(old, "view2d_grid_snap") > 0;
 	c->pixel_snap            = armpack_map_get_i32(old, "pixel_snap") > 0;
 	c->large_asset_previews  = armpack_map_get_i32(old, "large_asset_previews") > 0;
+	c->tooltips              = armpack_map_get_i32(old, "tooltips") > 0;
 	return c;
+}
+
+config_t *config_from_version_3(any_map_t *old) {
+	config_t *def = config_create_default();
+	armpack_map_set_i32(old, "tooltips", def->tooltips);
+	return config_from_map_to_config(old);
 }
 
 config_t *config_from_version_2(any_map_t *old) {
 	config_t *def = config_create_default();
 	armpack_map_set_i32(old, "large_asset_previews", def->large_asset_previews);
-	return config_from_map_to_config(old);
+	return config_from_version_3(old);
 }
 
 config_t *config_from_version_1(any_map_t *old) {
@@ -429,6 +440,7 @@ config_t *config_from_old(char *s) {
 	config_t *(*fns[])(any_map_t *) = {
 	    config_from_version_1,
 	    config_from_version_2,
+	    config_from_version_3,
 	};
 	for (i32 v = sizeof(fns) / sizeof(fns[0]) - 1; v >= 0; --v) {
 		if (config_is_version(s, i32_to_string(v + 1))) {
@@ -513,6 +525,7 @@ void config_import_from(config_t *from) {
 
 void config_apply() {
 	config_save();
+	ui_tooltips            = g_config->tooltips;
 	g_context->ddirty      = 2;
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;

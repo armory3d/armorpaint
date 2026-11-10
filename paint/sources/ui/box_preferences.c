@@ -117,26 +117,6 @@ void box_preferences_interface_tab() {
 		g_context->hscale_was_changed = true;
 	}
 
-	ui_check(&g_config->node_previews, tr("Node Previews"), "");
-	if (ui_item_changed()) {
-		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
-			ui_node_canvas_t *c = g_project->_->materials->buffer[i]->canvas;
-			for (i32 j = 0; j < c->nodes->length; ++j) {
-				ui_node_t *n = c->nodes->buffer[j];
-				if (g_config->node_previews) {
-					n->flags |= UI_NODE_FLAG_PREVIEW;
-				}
-				else {
-					n->flags &= ~UI_NODE_FLAG_PREVIEW;
-				}
-			}
-		}
-		ui_nodes_hwnd->redraws = 2;
-	}
-	if (g_ui->is_hovered) {
-		ui_tooltip(tr("Show node preview on each node by default"));
-	}
-
 	ui_check(&g_config->large_asset_previews, tr("Large Asset Previews"), "");
 	if (ui_item_changed()) {
 		sys_notify_on_next_frame(&util_render_resize_asset_icons, NULL);
@@ -156,6 +136,32 @@ void box_preferences_interface_tab() {
 			ui_dock_save();
 		}
 		base_redraw_ui();
+	}
+
+	ui_check(&g_config->tooltips, tr("Tooltips"), "");
+	if (ui_item_changed()) {
+		ui_tooltips = g_config->tooltips;
+		base_redraw_ui();
+	}
+
+	ui_check(&g_config->node_previews, tr("Node Previews"), "");
+	if (ui_item_changed()) {
+		for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+			ui_node_canvas_t *c = g_project->_->materials->buffer[i]->canvas;
+			for (i32 j = 0; j < c->nodes->length; ++j) {
+				ui_node_t *n = c->nodes->buffer[j];
+				if (g_config->node_previews) {
+					n->flags |= UI_NODE_FLAG_PREVIEW;
+				}
+				else {
+					n->flags &= ~UI_NODE_FLAG_PREVIEW;
+				}
+			}
+		}
+		ui_nodes_hwnd->redraws = 2;
+	}
+	if (g_ui->is_hovered) {
+		ui_tooltip(tr("Show node preview on each node by default"));
 	}
 
 	ui_check(&g_config->wrap_mouse, tr("Wrap Mouse"), "");

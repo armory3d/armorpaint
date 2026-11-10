@@ -189,6 +189,7 @@ typedef struct config {
 	bool                 view2d_grid_snap;
 	bool                 pixel_snap;
 	bool                 large_asset_previews;
+	bool                 tooltips;
 } config_t;
 
 typedef struct slot_material {
