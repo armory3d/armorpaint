@@ -1141,7 +1141,8 @@ void ui_draw_combo() {
 		}
 		if (current->_y + UI_ELEMENT_H() > iron_window_height() - current->window_border_bottom ||
 		    current->_y - UI_ELEMENT_H() * 2 < current->window_border_top) {
-			current->_x += current->combo_selected_w * unroll_right; // Next column
+			float column_w = current->combo_selected_w + (current->combo_selected_images != NULL ? UI_ELEMENT_H() : 0);
+			current->_x += column_w * unroll_right; // Next column
 			current->_y = current->combo_selected_y;
 		}
 	}
