@@ -531,6 +531,8 @@ void util_render_make_brush_preview() {
 
 	render_path_paint_live_layer_drawn = 0;
 	render_path_base_draw_gbuffer();
+	g_context->brush_blend_dirty = true;
+	render_path_paint_clear_blend();
 
 	// Paint brush preview
 	f32 _brush_radius         = g_context->brush_radius;
