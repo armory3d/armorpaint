@@ -320,8 +320,8 @@ static buffer_t *sculpt_pack_rest() {
 		memset(b->buffer, 0, b->length);
 		return b;
 	}
-	f32      *nor      = calloc(sculpt_texel_count * 3 + 1, sizeof(f32));
-	i32       v        = 0;
+	f32 *nor = calloc(sculpt_texel_count * 3 + 1, sizeof(f32));
+	i32  v   = 0;
 	for (i32 o = 0; o < g_project->_->paint_objects->length; ++o) {
 		mesh_data_t *mesh = g_project->_->paint_objects->buffer[o]->data;
 		i16_array_t *pos  = mesh->vertex_arrays->buffer[0]->values;
