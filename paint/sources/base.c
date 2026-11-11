@@ -289,6 +289,9 @@ void base_update(void *_) {
 					gpu_texture_t *image = project_get_image(base_drag_asset);
 					import_envmap_run(base_drag_asset->file, image);
 				}
+				else {
+					util_stencil_view_image_open(base_drag_asset, (mouse_x - base_view_x(0)) / (f32)base_view_w(), (mouse_y - base_appy) / (f32)base_h());
+				}
 			}
 			// Create mask
 			else if (context_in_layers() || context_in_2d_view(VIEW_2D_TYPE_LAYER)) {

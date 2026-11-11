@@ -133,6 +133,13 @@ void context_init() {
 	g_context->brush_stencil_scaling        = false;
 	g_context->brush_stencil_angle          = 0.0;
 	g_context->brush_stencil_rotating       = false;
+	g_context->view_image                   = NULL;
+	g_context->view_image_x                 = 0.5;
+	g_context->view_image_y                 = 0.5;
+	g_context->view_image_scale             = 0.5;
+	g_context->view_image_angle             = 0.0;
+	g_context->view_image_opacity           = 0.5;
+	g_context->view_image_action            = 0;
 	g_context->brush_nodes_scale            = 1.0;
 	g_context->brush_nodes_angle            = 0.0;
 	g_context->brush_nodes_hardness         = 1.0;

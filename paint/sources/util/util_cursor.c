@@ -21,51 +21,21 @@ void util_cursor_draw_2d(f32 cx, f32 cy, f32 radius, i32 color) {
 }
 
 void util_cursor_render(void *_) {
-	if (!base_ui_enabled) {
-		return;
-	}
-
-	if (g_context->tool == TOOL_TYPE_MATERIAL) {
-		return;
-	}
-
 	draw_begin(NULL, false, 0);
+	util_stencil_view_image_render();
+	if (g_context->brush_stencil_image != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_COLORID) {
+		util_stencil_render();
+	}
+	render_gizmo_render_bones();
+	util_path_tool_render();
+	if (!base_ui_enabled || g_context->tool == TOOL_TYPE_MATERIAL) {
+		draw_end();
+		return;
+	}
 	draw_set_color(0xffffffff);
 
 	i32 mx = base_paint_screen_x(g_context->paint_vec.x);
 	i32 my = base_paint_screen_y(g_context->paint_vec.y);
-
-	if (g_context->brush_stencil_image != NULL && g_context->tool != TOOL_TYPE_PICKER && g_context->tool != TOOL_TYPE_COLORID) {
-		rect_t *r = ui_base_get_brush_stencil_rect();
-		if (!keymap_shortcut(any_map_get(g_keymap, "stencil_hide"), SHORTCUT_TYPE_DOWN)) {
-			draw_set_color(0x88ffffff);
-			f32 angle = g_context->brush_stencil_angle;
-			draw_set_transform(mat3_multmat(mat3_multmat(mat3_translation(0.5, 0.5), mat3_rotation(-angle)), mat3_translation(-0.5, -0.5)));
-			draw_scaled_image(g_context->brush_stencil_image, r->x, r->y, r->w, r->h);
-			draw_set_transform(mat3_nan());
-			draw_set_color(0xffffffff);
-		}
-		bool transform = keymap_shortcut(any_map_get(g_keymap, "stencil_transform"), SHORTCUT_TYPE_DOWN);
-		if (transform) {
-			// Outline
-			draw_rect(r->x, r->y, r->w, r->h, 1.0);
-			// Scale
-			draw_rect(r->x - 8, r->y - 8, 16, 16, 1.0);
-			draw_rect(r->x - 8 + r->w, r->y - 8, 16, 16, 1.0);
-			draw_rect(r->x - 8, r->y - 8 + r->h, 16, 16, 1.0);
-			draw_rect(r->x - 8 + r->w, r->y - 8 + r->h, 16, 16, 1.0);
-			// Rotate
-			f32 cosa = math_cos(-g_context->brush_stencil_angle);
-			f32 sina = math_sin(-g_context->brush_stencil_angle);
-			f32 ox   = 0;
-			f32 oy   = -r->h / 2.0;
-			f32 x    = ox * cosa - oy * sina;
-			f32 y    = ox * sina + oy * cosa;
-			x += r->x + r->w / 2.0;
-			y += r->y + r->h / 2.0;
-			draw_filled_circle(x, y, 8, 0);
-		}
-	}
 
 	if (g_context->tool == TOOL_TYPE_PICKER) {
 		// Show picker icon when picking
@@ -141,10 +111,8 @@ void util_cursor_render(void *_) {
 		f32 radius = g_context->brush_lazy_radius * util_layer_brush_screen_radius() * 3.0 * 2.0 * sys_h();
 		util_cursor_draw_2d(mx, my, radius * 0.46, 0xff666666);
 	}
-	render_gizmo_render_bones();
 	render_gizmo_render_rect();
 	util_shape_tool_render();
 	util_text_tool_render();
-	util_path_tool_render();
 	draw_end();
 }

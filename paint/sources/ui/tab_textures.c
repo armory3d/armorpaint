@@ -177,6 +177,14 @@ void tab_textures_draw_context_menu() {
 	if (!_tab_textures_draw_is_packed && ui_menu_button(tr("Open in Browser"), "", ICON_NONE)) {
 		tab_browser_show_directory(substring(_tab_textures_draw_asset->file, 0, string_last_index_of(_tab_textures_draw_asset->file, PATH_SEP)));
 	}
+	if (g_context->view_image == _tab_textures_draw_asset) {
+		if (ui_menu_button(tr("Close in 3D View"), "", ICON_NONE)) {
+			util_stencil_view_image_close();
+		}
+	}
+	else if (ui_menu_button(tr("Open in 3D View"), "", ICON_NONE)) {
+		util_stencil_view_image_open(_tab_textures_draw_asset, 0.5, 0.5);
+	}
 }
 
 bool tab_textures_nodes_use_texture(ui_node_t_array_t *nodes, i32 index) {
