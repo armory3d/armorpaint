@@ -714,7 +714,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	parser_material_triplanar          = false;
 	parser_material_sample_keep_aspect = false;
 
-	sculpt_make_paint_run(kong);
+	if (!g_context->material_preview) {
+		sculpt_make_paint_run(kong);
+	}
 
 	con_paint->data->shader_from_source = true;
 	make_paint_create_shaders(node_shader_get(kong), &con_paint->data->vertex_shader, &con_paint->data->fragment_shader,

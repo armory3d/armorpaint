@@ -441,10 +441,6 @@ void util_render_make_brush_preview() {
 		return;
 	}
 
-	if (g_config->tools == TOOLS_SCULPT) {
-		return;
-	}
-
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
 	if (in_use)

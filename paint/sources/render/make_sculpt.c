@@ -23,11 +23,11 @@ i32 sculpt_object_vertex_offset(mesh_object_t *o) {
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *p = g_project->_->paint_objects->buffer[i];
 		if (p == o) {
-			break;
+			return offset;
 		}
 		offset += p->data->vertex_arrays->buffer[0]->values->length / 4;
 	}
-	return offset;
+	return -1;
 }
 
 i32 sculpt_object_texel_offset(i32 object_index) {
@@ -1285,7 +1285,9 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 	}
 
 	// Position
-	sculpt_write_texel_uv(kong, false, "sculpt_uv", "uint(vertex_id()) + uint(constants.sculpt_vertex_offset)", string_tmp("texpaint_sculpt_size%d", idx0));
+	node_shader_write_vert(kong, "int sculpt_offset = constants.sculpt_vertex_offset;");
+	node_shader_write_vert(kong, "if (sculpt_offset < 0) { sculpt_offset = 0; }");
+	sculpt_write_texel_uv(kong, false, "sculpt_uv", "uint(vertex_id()) + uint(sculpt_offset)", string_tmp("texpaint_sculpt_size%d", idx0));
 	node_shader_write_vert(kong, string_tmp("float4 texpaint_sculpt_sample = texpaint_sculpt%d[sculpt_uv];", idx0));
 	node_shader_write_vert(kong, "float3 sculpt_pos = texpaint_sculpt_sample.xyz;");
 	if (sculpt_mask_value(kong, sculpt_layers->buffer[0], "sculpt_pmask0", false, NULL)) {
@@ -1306,6 +1308,7 @@ void sculpt_make_mesh_run(node_shader_t *kong, slot_layer_t_array_t *sculpt_laye
 			node_shader_write_vert(kong, string_tmp("sculpt_pos = sculpt_pos + texpaint_sculpt_sample_%d.xyz - texpaint_sculpt_base_sample_%d.xyz;", idx, idx));
 		}
 	}
+	node_shader_write_vert(kong, "if (constants.sculpt_vertex_offset < 0) { sculpt_pos = input.pos.xyz; }");
 	node_shader_write_vert(kong, "output.pos = constants.WVP * float4(sculpt_pos, 1.0);");
 	node_shader_write_vert(kong, "output.wposition = (constants.W * float4(sculpt_pos, 1.0)).xyz;");
 
