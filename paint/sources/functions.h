@@ -911,6 +911,7 @@ void                      util_mesh_remove_objects(mesh_object_t_array_t *object
 mesh_data_t              *util_mesh_data_duplicate(mesh_data_t *source);
 void                      util_mesh_merge(mesh_object_t_array_t *paint_objects);
 bool                      util_mesh_merged_partial();
+mesh_object_t_array_t    *util_mesh_get_merged_objects();
 void                      util_mesh_merge_all();
 bool                      util_mesh_merge_refresh();
 void                      util_mesh_transform_changed();
@@ -1268,6 +1269,9 @@ void                   render_path_paint_init();
 void                   render_path_paint_commands_paint(bool dilation);
 mesh_object_t         *render_path_paint_target();
 void                   render_path_paint_draw_target();
+bool                   render_path_paint_mirrored();
+vec4_t                 render_path_paint_mirror_begin(mesh_object_t *o);
+void                   render_path_paint_mirror_end(mesh_object_t *o, vec4_t scale);
 gpu_texture_t         *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char *link);
 void                   render_path_paint_use_live_layer(bool use);
 void                   render_path_paint_commands_cursor();

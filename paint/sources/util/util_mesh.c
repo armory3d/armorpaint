@@ -516,6 +516,10 @@ static void _util_mesh_merge(mesh_object_t_array_t *paint_objects, bool paintabl
 	}
 }
 
+mesh_object_t_array_t *util_mesh_get_merged_objects() {
+	return util_mesh_merged_objects;
+}
+
 bool util_mesh_merged_partial() {
 	if (!g_context->merged_object_is_atlas || util_mesh_merged_objects == NULL) {
 		return false;

@@ -511,6 +511,7 @@ static void script_paint_at(f32 x, f32 y) {
 	g_context->prev_paint_vec_y = prev_y;
 	g_context->pdirty           = 1;
 
+	render_path_paint_commands_symmetry();
 	render_path_paint_commands_paint(false);
 
 	script_paint_first = false;

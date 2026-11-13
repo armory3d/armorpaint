@@ -33,6 +33,7 @@ mesh_object_t   *render_path_paint_painto                = NULL;
 mesh_object_t   *render_path_paint_planeo                = NULL;
 u8_array_t      *render_path_paint_visibles              = NULL;
 bool             render_path_paint_merged_object_visible = false;
+vec4_t           render_path_paint_mirror                = {1.0, 1.0, 1.0, 1.0};
 f32_array_t     *render_path_paint_saved_ortho           = NULL;
 render_target_t *_render_path_paint_texpaint;
 render_target_t *_render_path_paint_texpaint_nor;
@@ -144,12 +145,50 @@ mesh_object_t *render_path_paint_target() {
 	return o->base->visible && make_material_is_default(o->material) ? o : NULL;
 }
 
+bool render_path_paint_mirrored() {
+	return render_path_paint_mirror.x < 0.0 || render_path_paint_mirror.y < 0.0 || render_path_paint_mirror.z < 0.0;
+}
+
+vec4_t render_path_paint_mirror_begin(mesh_object_t *o) {
+	transform_t *t     = o->base->transform;
+	vec4_t       scale = t->scale;
+	if (render_path_paint_mirrored()) {
+		t->scale = (vec4_t){scale.x * render_path_paint_mirror.x, scale.y * render_path_paint_mirror.y, scale.z * render_path_paint_mirror.z, scale.w};
+		transform_build_matrix(t);
+	}
+	return scale;
+}
+
+void render_path_paint_mirror_end(mesh_object_t *o, vec4_t scale) {
+	if (render_path_paint_mirrored()) {
+		o->base->transform->scale = scale;
+		transform_build_matrix(o->base->transform);
+	}
+}
+
+static void render_path_paint_draw_object(mesh_object_t *o) {
+	vec4_t scale = render_path_paint_mirror_begin(o);
+	mesh_object_draw(o, make_material_paint_scon, _render_path_bind_params);
+	render_path_paint_mirror_end(o, scale);
+}
+
 // Texture space, the whole mesh is drawn wherever the camera looks
 void render_path_paint_draw_target() {
 	mesh_object_t *o = render_path_paint_target();
 	if (o != NULL && make_material_paint_scon != NULL) {
 		_mesh_object_last_pipeline = NULL;
-		mesh_object_draw(o, make_material_paint_scon, _render_path_bind_params);
+		if (o == g_context->merged_object && render_path_paint_mirrored()) {
+			mesh_object_t_array_t *objects = util_mesh_get_merged_objects();
+			for (i32 i = 0; objects != NULL && i < objects->length; ++i) {
+				mesh_object_t *p = objects->buffer[i];
+				if (p->data->index_array->length > 0) {
+					render_path_paint_draw_object(p);
+				}
+			}
+		}
+		else {
+			render_path_paint_draw_object(o);
+		}
 	}
 	render_path_end();
 }
@@ -193,7 +232,7 @@ static void render_path_paint_draw_fill_object() {
 		if (submesh) {
 			o->data->_->index_buffer = render_path_paint_fill_indices;
 		}
-		mesh_object_draw(o, make_material_paint_scon, _render_path_bind_params);
+		render_path_paint_draw_object(o);
 		o->data->_->index_buffer = indices;
 	}
 	render_path_end();
@@ -742,50 +781,21 @@ void render_path_paint_use_live_layer(bool use) {
 }
 
 void render_path_paint_commands_symmetry() {
-	if (g_context->sym_x || g_context->sym_y || g_context->sym_z) {
-		g_context->ddirty = 2;
-		transform_t *t    = g_context->paint_object->base->transform;
-		f32          sx   = t->scale.x;
-		f32          sy   = t->scale.y;
-		f32          sz   = t->scale.z;
-		if (g_context->sym_x) {
-			t->scale = (vec4_t){-sx, sy, sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_y) {
-			t->scale = (vec4_t){sx, -sy, sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_z) {
-			t->scale = (vec4_t){sx, sy, -sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_x && g_context->sym_y) {
-			t->scale = (vec4_t){-sx, -sy, sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_x && g_context->sym_z) {
-			t->scale = (vec4_t){-sx, sy, -sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_y && g_context->sym_z) {
-			t->scale = (vec4_t){sx, -sy, -sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		if (g_context->sym_x && g_context->sym_y && g_context->sym_z) {
-			t->scale = (vec4_t){-sx, -sy, -sz, 1.0};
-			transform_build_matrix(t);
-			render_path_paint_commands_paint(false);
-		}
-		t->scale = (vec4_t){sx, sy, sz, 1.0};
-		transform_build_matrix(t);
+	if (!g_context->sym_x && !g_context->sym_y && !g_context->sym_z) {
+		return;
 	}
+	g_context->ddirty = 2;
+	for (i32 i = 1; i < 8; ++i) {
+		bool x = (i & 1) != 0;
+		bool y = (i & 2) != 0;
+		bool z = (i & 4) != 0;
+		if ((x && !g_context->sym_x) || (y && !g_context->sym_y) || (z && !g_context->sym_z)) {
+			continue;
+		}
+		render_path_paint_mirror = (vec4_t){x ? -1.0 : 1.0, y ? -1.0 : 1.0, z ? -1.0 : 1.0, 1.0};
+		render_path_paint_commands_paint(false);
+	}
+	render_path_paint_mirror = (vec4_t){1.0, 1.0, 1.0, 1.0};
 }
 
 void render_path_paint_commands_live_brush() {

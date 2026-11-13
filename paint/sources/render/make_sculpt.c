@@ -1597,7 +1597,10 @@ void render_path_sculpt_displace_pass(char *texpaint_sculpt) {
 
 	gpu_set_pipeline(shader_context->_->pipe);
 	uniforms_set_context_consts(shader_context, _render_path_bind_params);
-	uniforms_set_obj_consts(shader_context, g_project->_->paint_objects->buffer[0]->base);
+	mesh_object_t *po    = g_project->_->paint_objects->buffer[0];
+	vec4_t         scale = render_path_paint_mirror_begin(po);
+	uniforms_set_obj_consts(shader_context, po->base);
+	render_path_paint_mirror_end(po, scale);
 	gpu_set_vertex_buffer(const_data_screen_aligned_vb);
 	gpu_set_index_buffer(const_data_screen_aligned_ib);
 	gpu_draw();
