@@ -334,16 +334,19 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 	for (i32 i = 0; i < count; ++i) {
 		ui_node_socket_t *inp  = node->inputs->buffer[i];
 		ui_node_link_t   *link = ui_node_params_link(canvas, node, i);
+		ui_node_t        *from = link != NULL ? ui_get_node(canvas->nodes, link->from_id) : NULL;
+		if (link != NULL && (from == NULL || !string_equals(from->type, "TEX_IMAGE"))) {
+			continue;
+		}
 		ui_node_params_draw_socket(canvas_type, node, i);
 		if (link != NULL) {
-			ui_node_t *from = ui_get_node(canvas->nodes, link->from_id);
 			ui_row2();
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
-			asset_t *asset = from != NULL && string_equals(from->type, "TEX_IMAGE") ? ui_node_params_tex_image_asset(from) : NULL;
+			asset_t *asset = ui_node_params_tex_image_asset(from);
 			if (asset != NULL) {
 				ui_node_params_draw_preview(project_get_image(asset));
 			}
-			ui_text(asset != NULL ? asset->name : from != NULL ? tr(from->name) : "", UI_ALIGN_RIGHT, 0x00000000);
+			ui_text(asset != NULL ? asset->name : tr(from->name), UI_ALIGN_RIGHT, 0x00000000);
 		}
 		else if (string_equals(inp->type, "VALUE")) {
 			ui_slider(inp->default_value->buffer, tr(inp->name), inp->min, inp->max, true, inp->precision, true, UI_ALIGN_LEFT, true);
