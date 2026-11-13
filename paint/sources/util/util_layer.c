@@ -639,7 +639,7 @@ void tab_layers_apply_filter(i32 filter) {
 	if (filter == 0 && g_context->merged_object_is_atlas) {
 		util_mesh_merge(NULL);
 	}
-	else if (filter > g_project->_->paint_objects->length) {
+	else if (filter > g_project->_->paint_objects->length || util_mesh_udim_active()) {
 		util_mesh_merge(util_mesh_get_visible());
 	}
 	layers_set_object_mask();
