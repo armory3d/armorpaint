@@ -41,6 +41,9 @@ void               console_error(char *s);
 buffer_t          *iron_load_blob(char *file);
 bool               bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(void *), void *data);
 gpu_texture_t     *gpu_create_render_target(i32 width, i32 height, i32 format);
+bool               util_mesh_udim_active();
+i32                util_mesh_atlas_stride();
+i32                util_mesh_atlas_slot(object_t *object);
 i32                config_get_texture_res_x();
 i32                config_get_texture_res_y();
 extern bool        bake_texture_node_baking;
@@ -643,6 +646,17 @@ static bool bake_rays_set_low() {
 		}
 		vertex_array_t *col = mesh_data_get_vertex_array(o->data, "col");
 		i32             n   = bake_rays_count_tris(o);
+		// Udim tiles share one atlas, remap the tile local uvs into the slot of the tile
+		i32 stride = 1;
+		f32 off_x = 0.0, off_y = 0.0;
+		if (util_mesh_udim_active()) {
+			i32 slot = util_mesh_atlas_slot(o->base);
+			if (slot >= 0) {
+				stride = util_mesh_atlas_stride();
+				off_x  = (f32)(slot % stride) / stride;
+				off_y  = (f32)(slot / stride) / stride;
+			}
+		}
 		for (i32 t = 0; t < n; ++t) {
 			bake_rays_tri_t *tri = &bake_rays_lp[ti++];
 			tri->object          = i;
@@ -650,6 +664,8 @@ static bool bake_rays_set_low() {
 			for (i32 v = 0; v < 3; ++v) {
 				u32 vi = o->data->index_array->buffer[t * 3 + v];
 				bake_rays_read_vertex(o->data, vi, tri->p + v * 3, tri->n + v * 3, tri->uv + v * 2);
+				tri->uv[v * 2]     = tri->uv[v * 2] / stride + off_x;
+				tri->uv[v * 2 + 1] = tri->uv[v * 2 + 1] / stride + off_y;
 				for (i32 k = 0; k < 3; ++k) {
 					bake_rays_lp_min[k] = bake_rays_fmin(bake_rays_lp_min[k], tri->p[v * 3 + k]);
 					bake_rays_lp_max[k] = bake_rays_fmax(bake_rays_lp_max[k], tri->p[v * 3 + k]);
