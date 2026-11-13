@@ -10,6 +10,7 @@ static bool              ui_node_params_live     = false; // Edited this frame, 
 static bool              ui_node_params_hooked   = false;
 static i32               ui_node_params_node     = -1; // Color popup target, node values can move in memory
 static i32               ui_node_params_socket   = -1;
+static i32               ui_node_params_color_id = -1; // Color popup node, the parameters node or a connected Color node
 static ui_id_t           ui_node_params_combo_id = 0; // Texture combo of the socket buttons
 static ui_color_state_t  ui_node_params_color_state;
 static f32               ui_node_params_heights[3]; // Parameters height of the last frame per canvas type
@@ -145,12 +146,40 @@ static void ui_node_params_end(i32 canvas_type) {
 	}
 }
 
+// Socket holding the value of a connected Value or Color node, NULL when not editable from the parameters
+static ui_node_socket_t *ui_node_params_linked_socket(ui_node_canvas_t *canvas, ui_node_t *from) {
+	if (from == NULL) {
+		return NULL;
+	}
+	if (string_equals(from->type, "VALUE") || string_equals(from->type, "RGB")) {
+		return from->outputs->length > 0 ? from->outputs->buffer[0] : NULL;
+	}
+	if (string_equals(from->type, "float_node") || string_equals(from->type, "MESH_VALUE")) {
+		return from->inputs->length > 0 && ui_node_params_link(canvas, from, 0) == NULL ? from->inputs->buffer[0] : NULL;
+	}
+	return NULL;
+}
+
+static f32 *ui_node_params_color_value() {
+	ui_node_canvas_t *canvas = ui_node_params_get_canvas(ui_node_params_type);
+	ui_node_t        *node   = ui_node_params_source(ui_node_params_type);
+	if (canvas == NULL || node == NULL || node->id != ui_node_params_node || ui_node_params_socket >= node->inputs->length) {
+		return NULL;
+	}
+	ui_node_link_t *link = ui_node_params_link(canvas, node, ui_node_params_socket);
+	ui_node_t      *from = link != NULL ? ui_get_node(canvas->nodes, link->from_id) : NULL;
+	if (from == NULL) {
+		return ui_node_params_color_id == node->id ? node->inputs->buffer[ui_node_params_socket]->default_value->buffer : NULL;
+	}
+	ui_node_socket_t *sock = ui_node_params_linked_socket(canvas, from);
+	return sock != NULL && from->id == ui_node_params_color_id ? sock->default_value->buffer : NULL;
+}
+
 static void ui_node_params_color_menu() {
-	ui_node_t *node = ui_node_params_source(ui_node_params_type);
-	if (node == NULL || node->id != ui_node_params_node || ui_node_params_socket >= node->inputs->length) {
+	f32 *val = ui_node_params_color_value();
+	if (val == NULL) {
 		return;
 	}
-	f32 *val = node->inputs->buffer[ui_node_params_socket]->default_value->buffer;
 	ui_fill(0, 0, g_ui->_w / (float)UI_SCALE(), g_theme->ELEMENT_H * 9, g_theme->SEPARATOR_COL);
 	ui_node_params_begin(ui_node_params_type);
 	u32 color = color_from_floats(val[0], val[1], val[2], 1.0);
@@ -266,7 +295,9 @@ static void ui_node_params_draw_socket(i32 canvas_type, ui_node_t *node, i32 soc
 			string_array_push(texts, g_project->_->assets->buffer[i]->name);
 			any_array_push(images, project_get_image(g_project->_->assets->buffer[i]));
 		}
-		ui_combo_open(ui_node_params_combo_id, asset != NULL ? array_index_of(g_project->_->assets, asset) + 1 : 0, texts, tr("File"), UI_ALIGN_LEFT, true);
+		// Nothing selected for a connected Value or Color node, so that None disconnects it
+		i32 selected = asset != NULL ? array_index_of(g_project->_->assets, asset) + 1 : from != NULL && !string_equals(from->type, "TEX_IMAGE") ? -1 : 0;
+		ui_combo_open(ui_node_params_combo_id, selected, texts, tr("File"), UI_ALIGN_LEFT, true);
 		g_ui->combo_selected_images = images;
 		array_free(texts); // Copied by the combo
 		free(texts);
@@ -335,11 +366,16 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 		ui_node_socket_t *inp  = node->inputs->buffer[i];
 		ui_node_link_t   *link = ui_node_params_link(canvas, node, i);
 		ui_node_t        *from = link != NULL ? ui_get_node(canvas->nodes, link->from_id) : NULL;
-		if (link != NULL && (from == NULL || !string_equals(from->type, "TEX_IMAGE"))) {
+		if (link != NULL && from == NULL) {
+			continue;
+		}
+		ui_node_socket_t *sock = link != NULL ? ui_node_params_linked_socket(canvas, from) : inp;
+		if (link != NULL && sock == NULL && !string_equals(from->type, "TEX_IMAGE")) {
 			continue;
 		}
 		ui_node_params_draw_socket(canvas_type, node, i);
-		if (link != NULL) {
+		ui_node_t *owner = link != NULL ? from : node;
+		if (link != NULL && string_equals(from->type, "TEX_IMAGE")) {
 			ui_row2();
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
 			asset_t *asset = ui_node_params_tex_image_asset(from);
@@ -348,29 +384,34 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 			}
 			ui_text(asset != NULL ? asset->name : tr(from->name), UI_ALIGN_RIGHT, 0x00000000);
 		}
-		else if (string_equals(inp->type, "VALUE")) {
-			ui_slider(inp->default_value->buffer, tr(inp->name), inp->min, inp->max, true, inp->precision, true, UI_ALIGN_LEFT, true);
+		else if (link != NULL && string_equals(from->type, "VALUE")) {
+			ui_node_button_t *but = from->buttons->buffer[0];
+			ui_slider(sock->default_value->buffer, tr(inp->name), but->min, but->max, true, but->precision, true, UI_ALIGN_LEFT, true);
 		}
-		else if (string_equals(inp->type, "RGBA")) {
-			f32 *val = inp->default_value->buffer;
+		else if (string_equals(sock->type, "VALUE")) {
+			ui_slider(sock->default_value->buffer, tr(inp->name), sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
+		}
+		else if (string_equals(sock->type, "RGBA")) {
+			f32 *val = sock->default_value->buffer;
 			ui_row2();
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
 			// Use the returned state, is_hovered is stale when the row is scrolled out of view
 			ui_state_t state = ui_swatch(color_from_floats(val[0], val[1], val[2], 1.0));
 			if (state == UI_STATE_RELEASED && g_ui->combo_selected_id == 0) {
-				ui_node_params_node   = node->id;
-				ui_node_params_socket = i;
-				ui_node_params_type   = canvas_type;
+				ui_node_params_node     = node->id;
+				ui_node_params_socket   = i;
+				ui_node_params_color_id = owner->id;
+				ui_node_params_type     = canvas_type;
 				ui_menu_draw(&ui_node_params_color_menu, -1, -1);
 			}
 		}
-		else if (string_equals(inp->type, "VECTOR") && inp->display == 1) {
-			f32 *val = inp->default_value->buffer;
+		else if (string_equals(sock->type, "VECTOR") && sock->display == 1) {
+			f32 *val = sock->default_value->buffer;
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
 			ui_row3();
-			ui_slider(&val[0], "X", inp->min, inp->max, true, inp->precision, true, UI_ALIGN_LEFT, true);
-			ui_slider(&val[1], "Y", inp->min, inp->max, true, inp->precision, true, UI_ALIGN_LEFT, true);
-			ui_slider(&val[2], "Z", inp->min, inp->max, true, inp->precision, true, UI_ALIGN_LEFT, true);
+			ui_slider(&val[0], "X", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
+			ui_slider(&val[1], "Y", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
+			ui_slider(&val[2], "Z", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
 		}
 		else {
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
