@@ -684,6 +684,18 @@ void gpu_resize_internal(int width, int height) {
 	// Newest window size is fetched in create_swapchain
 }
 
+void gpu_destroy(void) {
+	vkDeviceWaitIdle(device);
+	if (swapchain != VK_NULL_HANDLE) {
+		vkDestroySwapchainKHR(device, swapchain, NULL);
+		swapchain = VK_NULL_HANDLE;
+	}
+	if (surface != VK_NULL_HANDLE) {
+		vkDestroySurfaceKHR(instance, surface, NULL);
+		surface = VK_NULL_HANDLE;
+	}
+}
+
 void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	uint32_t instance_layer_count = 0;
 

@@ -1194,11 +1194,14 @@ void iron_init(iron_window_options_t *ops) {
 	iron_window_create(ops);
 }
 
+void gpu_destroy(void);
+
 void iron_internal_shutdown() {
 #ifdef WITH_GAMEPAD
 	iron_linux_closeHIDGamepads();
 #endif
 	free(clipboardString);
+	gpu_destroy();
 	XCloseDisplay(x11_ctx.display);
 	iron_internal_shutdown_callback();
 }
