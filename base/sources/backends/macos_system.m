@@ -810,6 +810,12 @@ int main(int argc, char **argv) {
 @implementation IronApplication
 
 - (void)terminate:(id)sender {
+	if (windows[0].close_callback != NULL) {
+		if (windows[0].close_callback(windows[0].close_callback_data)) {
+			iron_stop();
+		}
+		return;
+	}
 	iron_stop();
 }
 
