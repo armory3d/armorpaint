@@ -113,6 +113,7 @@ void raytrace() {
 	}
 
 	accum = accum / float(SAMPLES);
+	accum = saturate(float3(1.0, 1.0, 1.0) - (float3(1.0, 1.0, 1.0) - accum) * constant_buffer.v0.y);
 
 	float4 target = render_target[id.xy];
 	float3 color  = target.xyz;
