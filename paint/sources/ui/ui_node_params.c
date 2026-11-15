@@ -430,8 +430,8 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 		}
 		else if (string_equals(sock->type, "VECTOR") && sock->display == 1) {
 			f32 *val = sock->default_value->buffer;
+			ui_row4();
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
-			ui_row3();
 			ui_slider(&val[0], "X", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
 			ui_slider(&val[1], "Y", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
 			ui_slider(&val[2], "Z", sock->min, sock->max, true, sock->precision, true, UI_ALIGN_LEFT, true);
