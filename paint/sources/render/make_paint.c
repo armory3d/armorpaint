@@ -393,6 +393,18 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 
 	make_texcoord_run(kong, is_atlas);
 
+	// Cpu baked maps keep every udim tile in its own atlas slot
+	bool atlas_uv = !is_atlas && util_mesh_udim_active();
+	if (atlas_uv) {
+		if (!udim) {
+			node_shader_add_constant(kong, "float3 atlas_transform", "_atlas_transform");
+			node_shader_write_vert(kong, "float2 atlas_uv = input.tex * constants.atlas_transform.z + constants.atlas_transform.xy;");
+		}
+		node_shader_add_out(kong, "float2 tex_coord_atlas");
+		node_shader_write_vert(kong, "output.tex_coord_atlas = atlas_uv;");
+		node_shader_write_attrib_frag(kong, "float2 tex_coord_atlas = input.tex_coord_atlas;");
+	}
+
 	if (g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_texture(kong, "gbuffer2", NULL);
 		node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
@@ -424,7 +436,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		parser_material_triplanar          = uv_type == UV_TYPE_TRIPLANAR && !decal;
 		parser_material_sample_keep_aspect = decal;
 		parser_material_sample_uv_scale    = is_atlas ? "1.0" : "constants.brush_scale";
+		parser_material_atlas_uv           = atlas_uv;
 		shader_out_t *sout                 = parser_material_parse(g_context->material->canvas, con_paint, kong);
+		parser_material_atlas_uv           = false;
 		parser_material_parse_emission     = false;
 		parser_material_parse_subsurface   = false;
 		parser_material_parse_height       = false;

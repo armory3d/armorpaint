@@ -252,6 +252,7 @@ char                 *parser_material_sample_uv_scale       = "1.0";
 bool                  parser_material_transform_color_space = true;
 bool                  parser_material_blur_passthrough      = false;
 bool                  parser_material_warp_passthrough      = false;
+bool                  parser_material_atlas_uv              = false; // tex_coord_atlas holds the udim atlas uv
 ui_node_canvas_t     *parser_material_start_group           = NULL;
 ui_node_t_array_t    *parser_material_start_parents         = NULL;
 ui_node_t            *parser_material_start_node            = NULL;

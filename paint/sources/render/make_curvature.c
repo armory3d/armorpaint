@@ -46,6 +46,9 @@ static u64 make_curvature_objects_key() {
 		mesh_object_t *o = objs->buffer[i];
 		u64            v = (u64)(uintptr_t)o->data ^ ((u64)(o->data != NULL && o->data->index_array != NULL ? o->data->index_array->length : 0) << 40);
 		key              = (key ^ v) * 1099511628211ull;
+		if (util_mesh_udim_active()) { // Atlas slot of the tile
+			key = (key ^ (u64)(util_mesh_atlas_slot(o->base) + 1) ^ ((u64)util_mesh_atlas_stride() << 8)) * 1099511628211ull;
+		}
 	}
 	return key;
 }
@@ -87,6 +90,12 @@ static void make_curvature_read_mesh() {
 		i16_array_t *nor = mesh_data_get_vertex_array(d, "nor") != NULL ? mesh_data_get_vertex_array(d, "nor")->values : NULL;
 		i16_array_t *tex = mesh_data_get_vertex_array(d, "tex")->values;
 		f32          s   = d->scale_pos;
+		// Udim tiles all use the 0-1 range, each one is baked into its own atlas slot instead
+		i32 stride = util_mesh_udim_active() ? util_mesh_atlas_stride() : 1;
+		i32 slot   = stride > 1 ? util_mesh_atlas_slot(o->base) : -1;
+		f32 scale  = slot >= 0 ? 1.0 / stride : 1.0;
+		f32 tile_x = slot >= 0 ? (slot % stride) * scale : 0.0;
+		f32 tile_y = slot >= 0 ? (slot / stride) * scale : 0.0;
 		for (i32 j = 0; j < d->index_array->length; ++j, ++c) {
 			u32  vi = d->index_array->buffer[j];
 			f32 *p  = m->p + c * 3;
@@ -98,8 +107,8 @@ static void make_curvature_read_mesh() {
 			n[1]    = nor != NULL ? nor->buffer[vi * 2 + 1] / 32767.0 : 0.0;
 			n[2]    = pos->buffer[vi * 4 + 3] / 32767.0;
 			make_curvature_norm(n);
-			m->uv[c * 2]     = tex->buffer[vi * 2] / 32767.0;
-			m->uv[c * 2 + 1] = tex->buffer[vi * 2 + 1] / 32767.0;
+			m->uv[c * 2]     = tex->buffer[vi * 2] / 32767.0 * scale + tile_x;
+			m->uv[c * 2 + 1] = tex->buffer[vi * 2 + 1] / 32767.0 * scale + tile_y;
 		}
 	}
 	f32 lo[3] = {1e30, 1e30, 1e30};
