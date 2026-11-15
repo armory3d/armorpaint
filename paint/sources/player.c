@@ -3,6 +3,7 @@
 
 void player_update() {
 	tab_timeline_update();
+	layers_update_frame_fill_layers();
 }
 
 void player_run_scripts() {
