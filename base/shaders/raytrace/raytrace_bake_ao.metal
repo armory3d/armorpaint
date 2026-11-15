@@ -15,7 +15,7 @@ struct _1_type {
 
 constant float _12 = 6.28318548;
 
-constant int _11 = 4;
+constant int _11 = 64;
 
 float3 cos_weighted_hemisphere_direction(uint3 _136, float3 _137, int _138, int _139, int _140, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10);
 float rand(int _56, int _57, int _58, int _59, int _60, texture2d<float> _8, texture2d<float> _9, texture2d<float> _10);
