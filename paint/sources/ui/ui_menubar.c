@@ -323,7 +323,11 @@ void ui_menubar_draw_category_items() {
 		}
 		ui_menu_separator();
 		if (ui_menu_button(tr("Exit"), "", ICON_EXIT)) {
+#if defined(IRON_WINDOWS) || defined(IRON_LINUX) || defined(IRON_MACOS)
+			_save_and_quit_callback_internal();
+#else
 			iron_stop();
+#endif
 		}
 	}
 	else if (ui_menubar_category == MENUBAR_CATEGORY_EDIT) {
@@ -710,7 +714,7 @@ void ui_menubar_draw_category_items() {
 #if defined(IRON_MACOS) || defined(IRON_IOS) // Limited url length
 			iron_load_url(
 			    string("https://github.com/armory3d/armorpaint/issues/new?labels=feature%%20request&template=feature_request.md&body=*%s%%20%s-%s,%%20%s",
-			           manifest_title, manifest_version, config_get_sha(), iron_system_id()));
+				       manifest_title, manifest_version, config_get_sha(), iron_system_id()));
 #else
 			iron_load_url(string("https://github.com/armory3d/armorpaint/issues/"
 			                     "new?labels=feature%%20request&template=feature_request.md&body=*%s%%20%s-%s,%%20%s*%%0A%%0A**Feature description:**%%0A%%0A",
@@ -809,12 +813,12 @@ void ui_menubar_draw_tools() {
 	ui_menu_label(tr("Tools"), NULL);
 	bool            tools_changed = false;
 	string_array_t *tools_items   = any_array_create_from_raw(
-        (void *[]){
-            tr("Paint"),
-            tr("Sculpt"),
-            tr("Object"),
-        },
-        3);
+	    (void *[]){
+	        tr("Paint"),
+	        tr("Sculpt"),
+	        tr("Object"),
+	    },
+	    3);
 
 	for (i32 i = 0; i < tools_items->length; ++i) {
 		ui_radio((int *)&g_config->tools, i, tools_items->buffer[i], "");
