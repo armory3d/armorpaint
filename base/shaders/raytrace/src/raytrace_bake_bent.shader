@@ -112,7 +112,7 @@ void raytrace() {
 		}
 	}
 
-	accum = normalize(accum / float(SAMPLES)) * 0.5 + 0.5;
+	accum = normalize(accum / float(SAMPLES) + nor * 0.0001) * 0.5 + 0.5;
 
 	if (constant_buffer.v1.y > 0.0) {
 		accum = float3(accum.x, accum.z, 1.0 - accum.y);
