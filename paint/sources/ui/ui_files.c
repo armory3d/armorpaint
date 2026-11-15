@@ -23,6 +23,7 @@ bool            ui_files_show_extensions = false;
 bool            ui_files_offline         = false;
 bool            ui_files_scroll_pending  = false;
 char          **_ui_files_file_browser_path;
+char           *ui_files_next_path = NULL;
 
 void ui_files_release_keys() {
 	// File dialog may prevent firing key up events
@@ -33,14 +34,27 @@ void ui_files_release_keys() {
 #endif
 }
 
+// The next ui_files_show answers with path instead of opening the native dialog, once
+void ui_files_answer_next(char *path) {
+	ui_files_next_path = string_copy(path);
+}
+
+// The pending answer as the native dialog returns it, NULL when there is none
+static char *ui_files_take_next() {
+	char *path         = ui_files_next_path;
+	ui_files_next_path = NULL;
+	return path;
+}
+
 void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files_done)(char *)) {
+	char *next_path = ui_files_take_next();
 	if (is_save) {
 #ifdef IRON_WASM
 		char *default_path = ui_files_filename != NULL ? ui_files_filename : ""; // Suggested file name
 #else
 		char *default_path = "";
 #endif
-		ui_files_path = string_copy(iron_save_dialog(filters, default_path));
+		ui_files_path = string_copy(next_path != NULL ? next_path : iron_save_dialog(filters, default_path));
 		if (ui_files_path != NULL) {
 			char *sep2 = string("%s%s", PATH_SEP, PATH_SEP);
 			while (string_index_of(ui_files_path, sep2) >= 0) {
@@ -53,7 +67,14 @@ void ui_files_show(char *filters, bool is_save, bool open_multiple, void (*files
 		}
 	}
 	else {
-		string_array_t *paths = iron_open_dialog(filters, "", open_multiple);
+		string_array_t *paths = NULL;
+		if (next_path != NULL) {
+			paths = string_array_create(0);
+			string_array_push(paths, next_path);
+		}
+		else {
+			paths = iron_open_dialog(filters, "", open_multiple);
+		}
 		if (paths != NULL) {
 			for (i32 i = 0; i < paths->length; ++i) {
 				char *path = paths->buffer[i];

@@ -211,6 +211,13 @@ void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files
 	ui_files_show(filters, is_save, open_multiple, _ui_files_show_done);
 }
 
+// The next file or folder dialog does not open and answers with path, once. Open dialogs pass path to their callback.
+// Save dialogs, also the folder pickers, take path as the chosen file: the callback gets its folder and
+// ui_files_filename its name, so "dir/name.png" picks folder "dir", and "dir/" picks "dir" with no name.
+void script_files_next(char *path) {
+	ui_files_answer_next(path);
+}
+
 static void *_ui_box_commands;
 static void *_ui_box_on_hide;
 
