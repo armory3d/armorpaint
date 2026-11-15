@@ -11,7 +11,7 @@ static bool              ui_node_params_hooked   = false;
 static i32               ui_node_params_node     = -1; // Color popup target, node values can move in memory
 static i32               ui_node_params_socket   = -1;
 static i32               ui_node_params_color_id = -1; // Color popup node, the parameters node or a connected Color node
-static ui_id_t           ui_node_params_combo_id = 0; // Texture combo of the socket buttons
+static ui_id_t           ui_node_params_combo_id = 0;  // Texture combo of the socket buttons
 static ui_color_state_t  ui_node_params_color_state;
 static f32               ui_node_params_heights[3]; // Parameters height of the last frame per canvas type
 
@@ -160,6 +160,19 @@ static ui_node_socket_t *ui_node_params_linked_socket(ui_node_canvas_t *canvas, 
 	return NULL;
 }
 
+static bool ui_node_params_is_vector(ui_node_canvas_t *canvas, ui_node_t *from) {
+	if (from == NULL || from->inputs->length != 3 ||
+	    (!string_equals(from->type, "vector_node") && !string_equals(from->type, "MESH_VECTOR") && !string_equals(from->type, "COMBXYZ"))) {
+		return false;
+	}
+	for (i32 i = 0; i < 3; ++i) {
+		if (ui_node_params_link(canvas, from, i) != NULL) {
+			return false;
+		}
+	}
+	return true;
+}
+
 static f32 *ui_node_params_color_value() {
 	ui_node_canvas_t *canvas = ui_node_params_get_canvas(ui_node_params_type);
 	ui_node_t        *node   = ui_node_params_source(ui_node_params_type);
@@ -295,7 +308,7 @@ static void ui_node_params_draw_socket(i32 canvas_type, ui_node_t *node, i32 soc
 			string_array_push(texts, g_project->_->assets->buffer[i]->name);
 			any_array_push(images, project_get_image(g_project->_->assets->buffer[i]));
 		}
-		// Nothing selected for a connected Value or Color node, so that None disconnects it
+		// Nothing selected for a connected Value, Color or Vector node, so that None disconnects it
 		i32 selected = asset != NULL ? array_index_of(g_project->_->assets, asset) + 1 : from != NULL && !string_equals(from->type, "TEX_IMAGE") ? -1 : 0;
 		ui_combo_open(ui_node_params_combo_id, selected, texts, tr("File"), UI_ALIGN_LEFT, true);
 		g_ui->combo_selected_images = images;
@@ -369,13 +382,23 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 		if (link != NULL && from == NULL) {
 			continue;
 		}
-		ui_node_socket_t *sock = link != NULL ? ui_node_params_linked_socket(canvas, from) : inp;
-		if (link != NULL && sock == NULL && !string_equals(from->type, "TEX_IMAGE")) {
+		ui_node_socket_t *sock   = link != NULL ? ui_node_params_linked_socket(canvas, from) : inp;
+		bool              vector = link != NULL && ui_node_params_is_vector(canvas, from);
+		if (link != NULL && sock == NULL && !vector && !string_equals(from->type, "TEX_IMAGE")) {
 			continue;
 		}
 		ui_node_params_draw_socket(canvas_type, node, i);
 		ui_node_t *owner = link != NULL ? from : node;
-		if (link != NULL && string_equals(from->type, "TEX_IMAGE")) {
+		if (vector) {
+			ui_row4();
+			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
+			char *labels[] = {"X", "Y", "Z"};
+			for (i32 j = 0; j < 3; ++j) {
+				ui_node_socket_t *s = from->inputs->buffer[j];
+				ui_slider(s->default_value->buffer, labels[j], s->min, s->max, true, s->precision, true, UI_ALIGN_LEFT, true);
+			}
+		}
+		else if (link != NULL && string_equals(from->type, "TEX_IMAGE")) {
 			ui_row2();
 			ui_text(tr(inp->name), UI_ALIGN_LEFT, 0x00000000);
 			asset_t *asset = ui_node_params_tex_image_asset(from);
