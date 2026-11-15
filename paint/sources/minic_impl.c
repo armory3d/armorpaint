@@ -2251,6 +2251,25 @@ typedef struct script_click {
 	i32 button;
 } script_click_t;
 
+static script_click_t *script_click_create(i32 x, i32 y, i32 button) {
+	script_click_t *c = malloc(sizeof(script_click_t));
+	c->x              = x;
+	c->y              = y;
+	c->button         = button;
+	return c;
+}
+
+// Moves the mouse and the ui hover position, so hover, tooltips and drags follow
+static void script_mouse_apply_move(script_click_t *c) {
+	iron_internal_mouse_trigger_move(c->x, c->y);
+	ui_mouse_move(g_ui, c->x, c->y, 0, 0);
+}
+
+static void script_mouse_apply_down(script_click_t *c) {
+	script_mouse_apply_move(c);
+	iron_internal_mouse_trigger_press(c->button, c->x, c->y);
+}
+
 static void script_mouse_click_up(void *data) {
 	script_click_t *c = data;
 	iron_internal_mouse_trigger_release(c->button, c->x, c->y);
@@ -2259,9 +2278,7 @@ static void script_mouse_click_up(void *data) {
 
 static void script_mouse_click_down(void *data) {
 	script_click_t *c = data;
-	iron_internal_mouse_trigger_move(c->x, c->y);
-	ui_mouse_move(g_ui, c->x, c->y, 0, 0);
-	iron_internal_mouse_trigger_press(c->button, c->x, c->y);
+	script_mouse_apply_down(c);
 	sys_notify_on_next_frame(script_mouse_click_up, c);
 }
 
@@ -2270,11 +2287,47 @@ void script_mouse_click(i32 x, i32 y, i32 button) {
 	if (button < 0 || button > 4) {
 		return;
 	}
-	script_click_t *c = malloc(sizeof(script_click_t));
-	c->x              = x;
-	c->y              = y;
-	c->button         = button;
-	sys_notify_on_next_frame(script_mouse_click_down, c);
+	sys_notify_on_next_frame(script_mouse_click_down, script_click_create(x, y, button));
+}
+
+static void script_mouse_move_next(void *data) {
+	script_click_t *c = data;
+	script_mouse_apply_move(c);
+	free(c);
+}
+
+static void script_mouse_down_next(void *data) {
+	script_click_t *c = data;
+	script_mouse_apply_down(c);
+	free(c);
+}
+
+static void script_mouse_up_next(void *data) {
+	script_click_t *c = data;
+	script_mouse_apply_move(c);
+	iron_internal_mouse_trigger_release(c->button, c->x, c->y);
+	free(c);
+}
+
+// Move the mouse to window pixel x, y next frame, a button that is down stays down (drags)
+void script_mouse_move(i32 x, i32 y) {
+	sys_notify_on_next_frame(script_mouse_move_next, script_click_create(x, y, 0));
+}
+
+// Move to window pixel x, y and press next frame, button 0 left, 1 right, 2 middle; release with script_mouse_up
+void script_mouse_down(i32 x, i32 y, i32 button) {
+	if (button < 0 || button > 4) {
+		return;
+	}
+	sys_notify_on_next_frame(script_mouse_down_next, script_click_create(x, y, button));
+}
+
+// Move to window pixel x, y and release next frame
+void script_mouse_up(i32 x, i32 y, i32 button) {
+	if (button < 0 || button > 4) {
+		return;
+	}
+	sys_notify_on_next_frame(script_mouse_up_next, script_click_create(x, y, button));
 }
 
 static void script_key_press_up(void *data) {
