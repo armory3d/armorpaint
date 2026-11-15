@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Propose a release only once it is a week old. A compromised release
+    # is usually caught and pulled within days, and the wait lets that
+    # happen before an update reaches this repository, at the cost of
+    # fixes arriving a week late.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
