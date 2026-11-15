@@ -501,25 +501,24 @@ void args_run_on_next_frame(void *_) {
 
 		g_context->layers_export = EXPORT_MODE_VISIBLE;
 
-		// Get export preset and apply the correct one from args
-		box_export_files = file_read_directory(string("%s%sexport_presets", path_data(), PATH_SEP));
-		for (i32 i = 0; i < box_export_files->length; ++i) {
-			char *s                     = box_export_files->buffer[i];
-			box_export_files->buffer[i] = substring(s, 0, string_length(s) - 5); // Strip .json
+		// Get export preset from args, falling back to generic
+		char     *file = string("export_presets/%s.json", args_export_textures_preset);
+		buffer_t *blob = data_get_blob(file);
+		if (blob == NULL) {
+			iron_log(tr("Invalid export preset"));
+			file = "export_presets/generic.json";
+			blob = data_get_blob(file);
 		}
-
-		char *file = string("export_presets/%s.json", box_export_files->buffer[0]);
-		for (i32 i = 0; i < box_export_files->length; ++i) {
-			char *f = box_export_files->buffer[i];
-			if (string_equals(f, args_export_textures_preset)) {
-				file = string("export_presets/%s.json", box_export_files->buffer[array_index_of(box_export_files, f)]);
-			}
+		if (blob == NULL) {
+			args_export_textures = false;
 		}
+		else {
+			box_export_preset = json_parse(sys_buffer_to_string(blob));
+			data_delete_blob(file);
+		}
+	}
 
-		buffer_t *blob    = data_get_blob(file);
-		box_export_preset = json_parse(sys_buffer_to_string(blob));
-		data_delete_blob(file);
-
+	if (args_export_textures) {
 		// Export queue
 		sys_notify_on_next_frame(&args_run_export_queue, NULL);
 	}
