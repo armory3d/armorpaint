@@ -930,11 +930,11 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	{
 		float                   queue_priorities[1] = {0.0};
 		VkDeviceQueueCreateInfo queue               = {
-		                  .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-		                  .queueFamilyIndex = graphics_queue_node_index,
-		                  .queueCount       = 1,
-		                  .pQueuePriorities = queue_priorities,
-        };
+		    .sType            = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+		    .queueFamilyIndex = graphics_queue_node_index,
+		    .queueCount       = 1,
+		    .pQueuePriorities = queue_priorities,
+		};
 
 		VkPhysicalDeviceDynamicRenderingFeatures dynamic_rendering_features = {
 		    .sType            = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES,
@@ -1025,6 +1025,13 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	else {
 		bool found = false;
 		for (uint32_t i = 0; i < format_count; ++i) {
+			if (surf_formats[i].format == VK_FORMAT_B8G8R8A8_UNORM) {
+				surface_format = surf_formats[i];
+				found          = true;
+				break;
+			}
+		}
+		for (uint32_t i = 0; i < format_count && !found; ++i) {
 			if (surf_formats[i].format != VK_FORMAT_B8G8R8A8_SRGB) {
 				surface_format = surf_formats[i];
 				found          = true;
@@ -1112,8 +1119,8 @@ void gpu_begin_internal(gpu_clear_t flags, uint32_t color, float depth) {
 		    .resolveMode        = VK_RESOLVE_MODE_NONE,
 		    .resolveImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		    .loadOp             = (flags & GPU_CLEAR_COLOR)             ? VK_ATTACHMENT_LOAD_OP_CLEAR
-		                          : (flags & GPU_CLEAR_DONT_LOAD_COLOR) ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
-		                                                                : VK_ATTACHMENT_LOAD_OP_LOAD,
+			                      : (flags & GPU_CLEAR_DONT_LOAD_COLOR) ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
+			                                                            : VK_ATTACHMENT_LOAD_OP_LOAD,
 		    .storeOp            = VK_ATTACHMENT_STORE_OP_STORE,
 		    .clearValue         = clear_value,
 		};
@@ -1351,7 +1358,7 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 		mem_alloc.allocationSize       = mem_reqs.size;
 		mem_alloc.memoryTypeIndex =
 		    memory_type_from_properties(mem_reqs.memoryTypeBits,
-		                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+			                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 		vkAllocateMemory(device, &mem_alloc, NULL, &readback_mem);
 		vkBindBufferMemory(device, readback_buffer, readback_mem, 0);
 	}
@@ -1574,8 +1581,8 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 		att_state[i].colorWriteMask =
 		    (pipeline->color_write_mask_red[i] ? VK_COLOR_COMPONENT_R_BIT : 0) | (pipeline->color_write_mask_green[i] ? VK_COLOR_COMPONENT_G_BIT : 0) |
 		    (pipeline->color_write_mask_blue[i] ? VK_COLOR_COMPONENT_B_BIT : 0) | (pipeline->color_write_mask_alpha[i] ? VK_COLOR_COMPONENT_A_BIT : 0);
-		att_state[i].blendEnable = pipeline->blend_source != GPU_BLEND_ONE || pipeline->blend_destination != GPU_BLEND_ZERO ||
-		                           pipeline->alpha_blend_source != GPU_BLEND_ONE || pipeline->alpha_blend_destination != GPU_BLEND_ZERO;
+		att_state[i].blendEnable         = pipeline->blend_source != GPU_BLEND_ONE || pipeline->blend_destination != GPU_BLEND_ZERO ||
+		                                   pipeline->alpha_blend_source != GPU_BLEND_ONE || pipeline->alpha_blend_destination != GPU_BLEND_ZERO;
 		att_state[i].srcColorBlendFactor = convert_blend_factor(pipeline->blend_source);
 		att_state[i].dstColorBlendFactor = convert_blend_factor(pipeline->blend_destination);
 		att_state[i].colorBlendOp        = VK_BLEND_OP_ADD;
@@ -1761,11 +1768,11 @@ static bool bc7_compute_init() {
 
 	VkDescriptorPoolSize       pool_sizes[] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2}};
 	VkDescriptorPoolCreateInfo pool_info    = {
-	       .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-	       .maxSets       = 1,
-	       .poolSizeCount = 2,
-	       .pPoolSizes    = pool_sizes,
-    };
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+	    .maxSets       = 1,
+	    .poolSizeCount = 2,
+	    .pPoolSizes    = pool_sizes,
+	};
 	if (vkCreateDescriptorPool(device, &pool_info, NULL, &bc7_descriptor_pool) != VK_SUCCESS) {
 		return false;
 	}
@@ -2894,8 +2901,8 @@ void gpu_raytrace_acceleration_structure_build(gpu_acceleration_structure_t *acc
 		                                                       instances[i].m.m[1], instances[i].m.m[5], instances[i].m.m[9],  instances[i].m.m[13],
 		                                                       instances[i].m.m[2], instances[i].m.m[6], instances[i].m.m[10], instances[i].m.m[14]};
 		VkAccelerationStructureInstanceKHR instance         = {
-		            .transform = transform_matrix,
-        };
+		    .transform = transform_matrix,
+		};
 
 		instance.instanceCustomIndex = i;
 

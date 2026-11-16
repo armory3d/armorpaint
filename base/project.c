@@ -39,16 +39,48 @@ project_t *main() {
 		}
 	}
 	else if (platform == PLATFORM_LINUX) {
-		add_cfiles(project, "sources/backends/linux_system.*");
+		bool with_wayland = has_arg("--wayland");
+		if (with_wayland) {
+			add_define(project, "WITH_WAYLAND");
+			add_cfiles(project, "sources/backends/wayland_system.c");
+			char *dir        = string("%s/build/wayland", flags->dirname);
+			char *xdg_shell  = "/usr/share/wayland-protocols/stable/xdg-shell/xdg-shell.xml";
+			char *viewporter = "/usr/share/wayland-protocols/stable/viewporter/viewporter.xml";
+			char *fractional = "/usr/share/wayland-protocols/staging/fractional-scale/fractional-scale-v1.xml";
+			char *decoration = "/usr/share/wayland-protocols/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml";
+			char *tablet     = "/usr/share/wayland-protocols/stable/tablet/tablet-v2.xml";
+			char *output     = "/usr/share/wayland-protocols/unstable/xdg-output/xdg-output-unstable-v1.xml";
+			fs_ensuredir(dir);
+			fs_writefile(string("%s/xdg-shell.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", xdg_shell)));
+			fs_writefile(string("%s/xdg-shell.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", xdg_shell)));
+			fs_writefile(string("%s/viewporter.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", viewporter)));
+			fs_writefile(string("%s/viewporter.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", viewporter)));
+			fs_writefile(string("%s/fractional-scale.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", fractional)));
+			fs_writefile(string("%s/fractional-scale.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", fractional)));
+			fs_writefile(string("%s/xdg-decoration.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", decoration)));
+			fs_writefile(string("%s/xdg-decoration.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", decoration)));
+			fs_writefile(string("%s/tablet.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", tablet)));
+			fs_writefile(string("%s/tablet.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", tablet)));
+			fs_writefile(string("%s/xdg-output.h", dir), os_popen(string("wayland-scanner client-header %s /dev/stdout", output)));
+			fs_writefile(string("%s/xdg-output.c", dir), os_popen(string("wayland-scanner private-code %s /dev/stdout", output)));
+			add_include_dir(project, dir);
+			add_cfiles(project, string("%s/**", dir));
+			add_lib(project, "wayland-client");
+			add_lib(project, "wayland-cursor");
+			add_lib(project, "xkbcommon");
+		}
+		else {
+			add_cfiles(project, "sources/backends/linux_system.*");
+			add_lib(project, "X11");
+			add_lib(project, "Xi");
+			add_lib(project, "Xcursor");
+			add_lib(project, "Xrandr");
+		}
 		add_cfiles(project, "sources/backends/posix_net.*");
 		add_cfiles(project, "sources/backends/posix_thread.*");
 		add_cfiles(project, "sources/backends/vulkan_gpu.*");
 		add_define(project, "IRON_VULKAN");
 		add_define(project, "_POSIX_C_SOURCE=200809L");
-		add_lib(project, "X11");
-		add_lib(project, "Xi");
-		add_lib(project, "Xcursor");
-		add_lib(project, "Xrandr");
 		add_lib(project, "ssl");
 		add_lib(project, "crypto");
 		add_lib(project, "vulkan");
