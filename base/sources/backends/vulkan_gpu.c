@@ -681,7 +681,7 @@ static void acquire_next_image() {
 }
 
 void gpu_resize_internal(int width, int height) {
-	// Newest window size is fetched in create_swapchain
+	swapchain_suboptimal = true;
 }
 
 void gpu_destroy(void) {
