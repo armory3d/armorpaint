@@ -37,7 +37,7 @@ static void util_layer_draw_preview(slot_layer_t *l, gpu_texture_t *target) {
 	                         : type == PAINT_TEX_METALLIC  ? 3
 	                         : type == PAINT_TEX_NORMAL    ? 5
 	                                                       : 4; // Opacity, height
-	draw_begin(target, true, 0xff000000);                    // view2d pipe keeps dst alpha
+	draw_begin(target, true, 0xff000000);                       // view2d pipe keeps dst alpha
 	draw_set_pipeline(ui_view2d_pipe);
 	gpu_set_int(ui_view2d_channel_loc, channel);
 	draw_scaled_image(source, 0, 0, target->width, target->height);
@@ -529,6 +529,34 @@ void layers_update_linked_layers() {
 	}
 	g_context->material = _material;
 	if (any_linked) {
+		make_material_parse_paint_material(false);
+	}
+}
+
+void layers_update_all_fill_layers() {
+	slot_material_t *_material = g_context->material;
+	tool_type_t      _tool     = g_context->tool;
+	bool             any_fill  = false;
+	for (i32 i = 0; i < g_project->_->materials->length; ++i) {
+		slot_material_t *m        = g_project->_->materials->buffer[i];
+		bool             has_fill = false;
+		for (i32 j = 0; j < g_project->_->layers->length; ++j) {
+			if (g_project->_->layers->buffer[j]->fill_material == m) {
+				has_fill = true;
+				break;
+			}
+		}
+		if (!has_fill) {
+			continue;
+		}
+		any_fill            = true;
+		g_context->material = m;
+		g_context->tool     = TOOL_TYPE_FILL;
+		layers_update_fill_layers();
+		g_context->tool = _tool;
+	}
+	g_context->material = _material;
+	if (any_fill) {
 		make_material_parse_paint_material(false);
 	}
 }

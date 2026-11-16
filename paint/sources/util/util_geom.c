@@ -855,10 +855,16 @@ void geom_unwrap(geom_t *g, f32 margin) {
 	mesh->index_count     = g->icount;
 	mesh->scale_pos       = scale;
 	mesh->scale_tex       = 1.0f;
-	f32 last_margin       = util_uv_unwrap_margin;
-	util_uv_unwrap_margin = margin;
+	f32 last_margin         = util_uv_unwrap_margin;
+	i32 last_rotation       = util_uv_unwrap_rotation;
+	f32 last_angle          = util_uv_unwrap_angle;
+	util_uv_unwrap_margin   = margin;
+	util_uv_unwrap_rotation = 0;
+	util_uv_unwrap_angle    = 66.0;
 	util_uv_unwrap_run(mesh);
-	util_uv_unwrap_margin = last_margin;
+	util_uv_unwrap_margin   = last_margin;
+	util_uv_unwrap_rotation = last_rotation;
+	util_uv_unwrap_angle    = last_angle;
 	// Output vertex i is face corner i; texa stores (1 - u, v)
 	free(g->uv);
 	g->uv = malloc(sizeof(f32) * 2 * g->icount);

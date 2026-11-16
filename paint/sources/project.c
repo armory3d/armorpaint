@@ -452,25 +452,65 @@ void project_reskin_finish() {
 	render_path_raytrace_ready = false;
 }
 
+static mesh_object_t_array_t *project_unwrap_objects = NULL;
+
 void project_unwrap_mesh_box_draw() {
-	ui_end_element();
+	static f32 margin = -1.0;
+	if (margin < 0.0) {
+		margin = util_uv_unwrap_margin * 100.0;
+	}
+	ui_slider(&margin, tr("Island Margin"), 0.0, 5.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+
+	static f32 angle = -1.0;
+	if (angle < 0.0) {
+		angle = util_uv_unwrap_angle;
+	}
+	ui_slider(&angle, tr("Angle Limit"), 1.0, 180.0, true, 1.0, true, UI_ALIGN_RIGHT, true);
+
+	string_array_t *rotation_combo = any_array_create_from_raw_tmp(
+	    (void *[]){
+	        "0",
+	        "90",
+	        "180",
+	        "270",
+	    },
+	    4);
+	ui_combo(&util_uv_unwrap_rotation, rotation_combo, tr("Rotation"), true, UI_ALIGN_LEFT, false);
+
 	ui_row2();
 	if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {
 		ui_box_hide();
 	}
 	if (ui_icon_button(tr("Unwrap"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) {
+		mesh_object_t_array_t *objects = project_unwrap_objects;
+		project_unwrap_objects         = NULL;
 		ui_box_hide();
 
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 		console_toast(tr("Unwrapping mesh"));
 #endif
 
-		util_mesh_uv_unwrap(NULL);
+		util_uv_unwrap_margin = margin / 100.0;
+		util_uv_unwrap_angle  = angle;
+		util_mesh_uv_unwrap(objects);
+		if (objects != NULL) {
+			array_delete(objects);
+		}
+		g_context->ddirty = 2;
 	}
 }
 
-void project_unwrap_mesh_box() {
-	ui_box_show_custom(&project_unwrap_mesh_box_draw, 400, 200, NULL, true, tr("Unwrap Mesh"));
+void project_unwrap_mesh_box_hide() {
+	if (project_unwrap_objects != NULL) {
+		array_delete(project_unwrap_objects);
+		project_unwrap_objects = NULL;
+	}
+}
+
+void project_unwrap_mesh_box(mesh_object_t_array_t *objects) {
+	project_unwrap_mesh_box_hide();
+	project_unwrap_objects = objects;
+	ui_box_show_custom(&project_unwrap_mesh_box_draw, 400, 190, &project_unwrap_mesh_box_hide, true, tr("Unwrap Mesh"));
 }
 
 void project_import_asset_on_file_picked(char *path) {

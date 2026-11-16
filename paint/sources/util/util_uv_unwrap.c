@@ -7,14 +7,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Cosine of 66 degrees - angle threshold for chart grouping
-#define UV_ANGLE_THRESHOLD 0.4067f
+// Angle threshold for chart grouping, in degrees
+#define UV_ANGLE_THRESHOLD 66.0f
 #define UV_PACK_MARGIN     0.001f
 #define UV_PACK_EPS        1e-6f
 #define UV_OVERLAP_EPS     1e-6f
 #define UV_GRID_MAX        128
 
-float util_uv_unwrap_margin = UV_PACK_MARGIN;
+float util_uv_unwrap_margin   = UV_PACK_MARGIN;
+int   util_uv_unwrap_rotation = 0; // Quarter turns of the packed uv map
+float util_uv_unwrap_angle    = UV_ANGLE_THRESHOLD;
 
 // Position hash map entry for canonical vertex deduplication
 typedef struct {
@@ -803,9 +805,10 @@ void util_uv_unwrap_run(raw_mesh_t *mesh) {
 	free(vert_canon);
 
 	// Flood-fill faces into charts based on normal angle threshold
-	int *chart_id    = (int *)malloc(sizeof(int) * face_count);
-	int  chart_count = 0;
-	int *stack       = (int *)malloc(sizeof(int) * face_count);
+	int  *chart_id    = (int *)malloc(sizeof(int) * face_count);
+	int   chart_count = 0;
+	float angle_cos   = cosf(util_uv_unwrap_angle * 3.14159265f / 180.0f);
+	int  *stack       = (int *)malloc(sizeof(int) * face_count);
 	memset(chart_id, -1, sizeof(int) * face_count);
 
 	for (int f = 0; f < face_count; f++) {
@@ -829,7 +832,7 @@ void util_uv_unwrap_run(raw_mesh_t *mesh) {
 				}
 				// Compare against seed normal to prevent chart drift
 				float dot = seed_nx * fnormals[nf * 3] + seed_ny * fnormals[nf * 3 + 1] + seed_nz * fnormals[nf * 3 + 2];
-				if (dot >= UV_ANGLE_THRESHOLD) {
+				if (dot >= angle_cos) {
 					chart_id[nf] = cid;
 					stack[sp++]  = nf;
 				}
@@ -1143,6 +1146,11 @@ void util_uv_unwrap_run(raw_mesh_t *mesh) {
 			v = 0.0f;
 		if (v > 1.0f)
 			v = 1.0f;
+		for (int r = 0; r < util_uv_unwrap_rotation; r++) {
+			float ru = 1.0f - v;
+			v        = u;
+			u        = ru;
+		}
 		ta_out[i * 2]     = (int16_t)((1.0f - u) * 32767.0f);
 		ta_out[i * 2 + 1] = (int16_t)(v * 32767.0f);
 

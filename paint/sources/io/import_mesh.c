@@ -160,7 +160,7 @@ void import_mesh_finish_import(void *_) {
 
 	if (import_mesh_needs_unwrap) {
 		import_mesh_needs_unwrap = false;
-		project_unwrap_mesh_box();
+		project_unwrap_mesh_box(NULL);
 	}
 
 	import_mesh_append = false;

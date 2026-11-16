@@ -828,7 +828,7 @@ static bool tab_meshes_menu_delete() {
 
 static bool tab_meshes_menu_uv_unwrap(mesh_object_t *o) {
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		util_mesh_uv_unwrap(tab_meshes_menu_objects(o));
+		project_unwrap_mesh_box(tab_meshes_menu_objects(o));
 		return true;
 	}
 	return false;
@@ -1202,7 +1202,7 @@ void tab_meshes_draw_context_menu() {
 
 void tab_meshes_draw_edit() {
 	if (ui_menu_button(tr("UV Unwrap"), "", ICON_NONE)) {
-		util_mesh_uv_unwrap(NULL);
+		project_unwrap_mesh_box(NULL);
 	}
 
 	if (ui_menu_button(tr("Edit UV Map"), "", ICON_NONE)) {
