@@ -162,7 +162,12 @@ void build_run(bool run, bool clean) {
 	                  debug),
 	           false);
 #else
-	build_exec(string("cd \"%s\" && %s\"%s\" %s%s 2>&1", dir, clean ? "rm -rf build && " : "", make, run ? "--run" : "--compile", debug), false);
+#ifdef IRON_LINUX
+	char *platform = " --wayland";
+#else
+	char *platform = "";
+#endif
+	build_exec(string("cd \"%s\" && %s\"%s\" %s%s%s 2>&1", dir, clean ? "rm -rf build && " : "", make, run ? "--run" : "--compile", debug, platform), false);
 #endif
 }
 
