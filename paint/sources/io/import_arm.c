@@ -1015,6 +1015,11 @@ static void import_arm_run_mesh_append_from_project(project_t *project, char *pa
 void import_arm_run_mesh_append(char *path) {
 	buffer_t  *b       = data_get_blob(path);
 	project_t *project = import_arm_decode_project(b);
+	if (project == NULL) { // Unknown version
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	import_arm_run_mesh_append_from_project(project, path, NULL, NULL);
 	data_delete_blob(path);
 }
@@ -1110,6 +1115,11 @@ void import_arm_run_project(char *path) {
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
+		if (project == NULL) { // Unknown version
+			console_error(string("Unsupported project version in %s.", path));
+			data_delete_blob(path);
+			return;
+		}
 	}
 	else {
 		project = armpack_decode(b);
@@ -1634,6 +1644,11 @@ void import_arm_run_material(char *path) {
 		project = armpack_decode(b);
 	}
 
+	if (project == NULL) { // Unknown version
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	if (project->version == NULL) {
 		data_delete_blob(path);
 		return;
