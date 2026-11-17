@@ -164,7 +164,8 @@ void box_append_show(char *path) {
 	box_append_path    = string_copy(path);
 	buffer_t *b        = data_get_blob(path);
 	box_append_project = import_arm_decode_project(b);
-	if (box_append_project == NULL) {
+	if (box_append_project == NULL) { // Unknown version
+		console_error(string("Unsupported project version in %s.", path));
 		data_delete_blob(path);
 		box_append_path = NULL;
 		return;
