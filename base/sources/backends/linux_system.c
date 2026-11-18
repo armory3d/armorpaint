@@ -64,6 +64,184 @@ int iron_x11_error_handler(Display *display, XErrorEvent *error_event) {
 	return 0;
 }
 
+static bool x11_name_has_word(const char *name, const char *word) {
+	size_t len = strlen(word);
+	if (len == 0) {
+		return false;
+	}
+	for (const char *p = name; (p = strstr(p, word)) != NULL; p += len) {
+		bool start_ok = p == name || !isalnum((unsigned char)p[-1]);
+		bool end_ok   = !isalnum((unsigned char)p[len]);
+		if (start_ok && end_ok) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool x11_is_eraser_device(const char *name) {
+	return strstr(name, "eraser") != NULL;
+}
+
+static bool x11_is_pen_device(const char *name) {
+	// Match "pen" as a separate word only - a plain substring search also matches names like "OpenTabletDriver"
+	return x11_name_has_word(name, "pen") || x11_name_has_word(name, "stylus") || x11_name_has_word(name, "wacom") ||
+	       x11_name_has_word(name, "digitizer");
+}
+
+static int x11_pressure_valuator(Display *display, XIDeviceInfo *info, double *max_value) {
+	for (int i = 0; i < info->num_classes; i++) {
+		if (info->classes[i]->type != XIValuatorClass) {
+			continue;
+		}
+		XIValuatorClassInfo *val = (XIValuatorClassInfo *)info->classes[i];
+		if (val->label == None) {
+			continue;
+		}
+		char *label = XGetAtomName(display, val->label);
+		bool  found = false;
+		if (label != NULL) {
+			for (char *c = label; *c != '\0'; c++) {
+				*c = (char)tolower((unsigned char)*c);
+			}
+			// Labels differ between drivers ("Abs Pressure", "Pressure", ...)
+			found = strstr(label, "pressure") != NULL;
+			XFree(label);
+		}
+		if (found) {
+			*max_value = val->max > 0.0 ? val->max : 1.0;
+			return val->number;
+		}
+	}
+	return -1;
+}
+
+static void x11_select_pen_events(struct iron_x11_window *window);
+
+static void x11_update_pen_devices(void) {
+	if (x11_ctx.display == NULL) {
+		return;
+	}
+
+	int           num_devices = 0;
+	XIDeviceInfo *devices     = XIQueryDevice(x11_ctx.display, XIAllDevices, &num_devices);
+	if (devices == NULL) {
+		return;
+	}
+
+	struct x11_pen_device pen    = {0};
+	struct x11_pen_device eraser = {0};
+	pen.id                       = -1;
+	eraser.id                    = -1;
+
+	for (int i = 0; i < num_devices; i++) {
+		XIDeviceInfo *info = &devices[i];
+		char          name[256];
+		strncpy(name, info->name, sizeof(name) - 1);
+		name[sizeof(name) - 1] = '\0';
+		for (int j = 0; name[j] != '\0'; j++) {
+			name[j] = (char)tolower((unsigned char)name[j]);
+		}
+
+		// Eraser devices often carry the vendor name too ("... wacom ... eraser"), so check the eraser first
+		bool is_eraser = x11_is_eraser_device(name);
+		bool is_pen    = !is_eraser && x11_is_pen_device(name);
+		if (!is_pen && !is_eraser) {
+			continue;
+		}
+
+		double max            = 0.0;
+		int    pressure_index = x11_pressure_valuator(x11_ctx.display, info, &max);
+		if (pressure_index == -1) {
+			continue;
+		}
+
+		struct x11_pen_device *d = is_eraser ? &eraser : &pen;
+		d->id                    = info->deviceid;
+		d->pressure_index        = pressure_index;
+		d->pressure_max          = max;
+	}
+
+	XIFreeDeviceInfo(devices);
+
+	if (pen.id == x11_ctx.pen.id && eraser.id == x11_ctx.eraser.id) {
+		return;
+	}
+
+	x11_ctx.pen.id               = pen.id;
+	x11_ctx.pen.pressure_index   = pen.pressure_index;
+	x11_ctx.pen.pressure_max     = pen.pressure_max;
+	x11_ctx.pen.pressure_current = 0.0f;
+	x11_ctx.pen.press            = iron_internal_pen_trigger_press;
+	x11_ctx.pen.move             = iron_internal_pen_trigger_move;
+	x11_ctx.pen.release          = iron_internal_pen_trigger_release;
+
+	x11_ctx.eraser.id               = eraser.id;
+	x11_ctx.eraser.pressure_index   = eraser.pressure_index;
+	x11_ctx.eraser.pressure_max     = eraser.pressure_max;
+	x11_ctx.eraser.pressure_current = 0.0f;
+	x11_ctx.eraser.press            = iron_internal_eraser_trigger_press;
+	x11_ctx.eraser.move             = iron_internal_eraser_trigger_move;
+	x11_ctx.eraser.release          = iron_internal_eraser_trigger_release;
+
+	if (pen.id != -1) {
+		iron_log("Pen device: %d (pressure axis %d, max %.0f)", pen.id, pen.pressure_index, pen.pressure_max);
+	}
+	if (eraser.id != -1) {
+		iron_log("Eraser device: %d (pressure axis %d, max %.0f)", eraser.id, eraser.pressure_index, eraser.pressure_max);
+	}
+
+	x11_select_pen_events(&x11_ctx.windows[0]);
+}
+
+static void x11_select_pen_events(struct iron_x11_window *window) {
+	if (x11_ctx.display == NULL || window->window == 0) {
+		return;
+	}
+
+	XIEventMask   masks[2];
+	unsigned char mask_data[2][XIMaskLen(XI_LASTEVENT)];
+	int           ids[2] = {x11_ctx.pen.id, x11_ctx.eraser.id};
+	int           count  = 0;
+	for (int i = 0; i < 2; i++) {
+		if (ids[i] == -1) {
+			continue;
+		}
+		if (i == 1 && ids[1] == ids[0]) {
+			continue;
+		}
+		memset(mask_data[count], 0, sizeof(mask_data[count]));
+		masks[count].deviceid = ids[i];
+		masks[count].mask_len = sizeof(mask_data[count]);
+		masks[count].mask     = mask_data[count];
+		XISetMask(masks[count].mask, XI_Motion);
+		XISetMask(masks[count].mask, XI_ButtonPress);
+		XISetMask(masks[count].mask, XI_ButtonRelease);
+		count++;
+	}
+	if (count > 0) {
+		XISelectEvents(x11_ctx.display, window->window, masks, count);
+		XFlush(x11_ctx.display);
+	}
+}
+
+static void x11_select_pen_hierarchy_events(void) {
+	if (x11_ctx.display == NULL) {
+		return;
+	}
+	// Pick up tablets which are connected or created (XWayland creates pen devices on proximity) after startup
+	XIEventMask   mask;
+	unsigned char mask_data[XIMaskLen(XI_LASTEVENT)];
+	memset(mask_data, 0, sizeof(mask_data));
+	mask.deviceid = XIAllDevices;
+	mask.mask_len = sizeof(mask_data);
+	mask.mask     = mask_data;
+	XISetMask(mask_data, XI_HierarchyChanged);
+	XISetMask(mask_data, XI_DeviceChanged);
+	XISelectEvents(x11_ctx.display, DefaultRootWindow(x11_ctx.display), &mask, 1);
+	XFlush(x11_ctx.display);
+}
+
 void iron_x11_init() {
 	XInitThreads(); // Fixes random ubuntu22 crash
 	x11_ctx.display = XOpenDisplay(NULL);
@@ -94,48 +272,8 @@ void iron_x11_init() {
 
 	int event, error;
 	XQueryExtension(x11_ctx.display, "XInputExtension", &xi_extension, &event, &error);
-	int           num_devices;
-	XIDeviceInfo *devices = XIQueryDevice(x11_ctx.display, XIAllDevices, &num_devices);
-	x11_ctx.pen.id        = -1;
-	x11_ctx.eraser.id     = -1;
-	for (int i = 0; i < num_devices; i++) {
-		XIDeviceInfo *info = &devices[i];
-		strncpy(buffer, info->name, 1023);
-		buffer[1023] = 0;
-		for (int j = 0; buffer[j]; j++) {
-			buffer[j] = tolower(buffer[j]);
-		}
-
-		bool is_pen    = strstr(buffer, "stylus") || strstr(buffer, "pen") || strstr(buffer, "wacom");
-		bool is_eraser = strstr(buffer, "eraser");
-		if (!is_pen && !is_eraser) {
-			continue;
-		}
-
-		int    pressure_index = -1;
-		double max            = 0;
-		for (int j = 0; j < info->num_classes; j++) {
-			if (info->classes[j]->type == XIValuatorClass) {
-				XIValuatorClassInfo *val = (XIValuatorClassInfo *)info->classes[j];
-				if (val->label == XInternAtom(x11_ctx.display, "Abs Pressure", False)) {
-					pressure_index = val->number;
-					max            = val->max;
-					break;
-				}
-			}
-		}
-		if (pressure_index == -1)
-			continue;
-
-		struct x11_pen_device *d = is_pen ? &x11_ctx.pen : &x11_ctx.eraser;
-		d->id                    = info->deviceid;
-		d->pressure_index        = pressure_index;
-		d->pressure_max          = max;
-		d->press                 = is_pen ? iron_internal_pen_trigger_press : iron_internal_eraser_trigger_press;
-		d->move                  = is_pen ? iron_internal_pen_trigger_move : iron_internal_eraser_trigger_move;
-		d->release               = is_pen ? iron_internal_pen_trigger_release : iron_internal_eraser_trigger_release;
-	}
-	XIFreeDeviceInfo(devices);
+	x11_update_pen_devices();
+	x11_select_pen_hierarchy_events();
 }
 
 void iron_display_init() {
@@ -380,18 +518,7 @@ void iron_window_create(iron_window_options_t *win) {
 
 	iron_window_set_title(win->title);
 
-	if (x11_ctx.pen.id != -1) {
-		XIEventMask   mask;
-		unsigned char mask_data[XIMaskLen(XI_LASTEVENT)];
-		memset(mask_data, 0, sizeof(mask_data));
-		mask.deviceid = x11_ctx.pen.id;
-		mask.mask_len = sizeof(mask_data);
-		mask.mask     = mask_data;
-		XISetMask(mask.mask, XI_Motion);
-		XISetMask(mask.mask, XI_ButtonPress);
-		XISetMask(mask.mask, XI_ButtonRelease);
-		XISelectEvents(x11_ctx.display, window->window, &mask, 1);
-	}
+	x11_select_pen_events(window);
 
 	gpu_init(win->depth_bits, win->vsync);
 }
@@ -423,26 +550,33 @@ iron_window_mode_t iron_window_get_mode() {
 	return x11_ctx.windows[0].mode;
 }
 
-static void check_pen_device(struct iron_x11_window *window, XEvent *event, struct x11_pen_device *pen) {
-	if (!XGetEventData(x11_ctx.display, &event->xcookie)) {
+static void check_pen_device(struct iron_x11_window *window, XEvent *event, XIDeviceEvent *dev_event) {
+	if (dev_event == NULL || dev_event->event != window->window) {
 		return;
 	}
 
-	XIDeviceEvent *dev_event = (XIDeviceEvent *)event->xcookie.data;
-	if (dev_event->event != window->window || dev_event->deviceid != pen->id) {
-		XFreeEventData(x11_ctx.display, &event->xcookie);
+	struct x11_pen_device *pen = NULL;
+	if (dev_event->deviceid == x11_ctx.pen.id) {
+		pen = &x11_ctx.pen;
+	}
+	else if (dev_event->deviceid == x11_ctx.eraser.id) {
+		pen = &x11_ctx.eraser;
+	}
+	if (pen == NULL) {
 		return;
 	}
 
 	float p = pen->pressure_current;
-	if (XIMaskIsSet(dev_event->valuators.mask, pen->pressure_index)) {
+	if (pen->pressure_index >= 0 && XIMaskIsSet(dev_event->valuators.mask, pen->pressure_index)) {
 		double *values = dev_event->valuators.values;
 		int     idx    = 0;
 		for (int i = 0; i < pen->pressure_index; i++) {
 			if (XIMaskIsSet(dev_event->valuators.mask, i))
 				idx++;
 		}
-		p = values[idx] / pen->pressure_max;
+		if (pen->pressure_max > 0.0) {
+			p = (float)(values[idx] / pen->pressure_max);
+		}
 	}
 
 	if (event->xcookie.evtype == XI_ButtonPress && dev_event->detail == 1) {
@@ -455,8 +589,6 @@ static void check_pen_device(struct iron_x11_window *window, XEvent *event, stru
 		pen->move(dev_event->event_x, dev_event->event_y, p);
 	}
 	pen->pressure_current = p;
-
-	XFreeEventData(x11_ctx.display, &event->xcookie);
 }
 
 struct iron_x11_window *window_from_window(Window window) {
@@ -799,8 +931,24 @@ static bool _handle_messages() {
 		XNextEvent(x11_ctx.display, &event);
 
 		if (event.type == GenericEvent && event.xcookie.extension == xi_extension) {
-			check_pen_device(&x11_ctx.windows[0], &event, &x11_ctx.pen);
-			check_pen_device(&x11_ctx.windows[0], &event, &x11_ctx.eraser);
+			if (XGetEventData(x11_ctx.display, &event.xcookie)) {
+				switch (event.xcookie.evtype) {
+				case XI_HierarchyChanged:
+				case XI_DeviceChanged:
+					XFreeEventData(x11_ctx.display, &event.xcookie);
+					x11_update_pen_devices();
+					break;
+				case XI_Motion:
+				case XI_ButtonPress:
+				case XI_ButtonRelease:
+					check_pen_device(&x11_ctx.windows[0], &event, (XIDeviceEvent *)event.xcookie.data);
+					XFreeEventData(x11_ctx.display, &event.xcookie);
+					break;
+				default:
+					XFreeEventData(x11_ctx.display, &event.xcookie);
+					break;
+				}
+			}
 			continue;
 		}
 
