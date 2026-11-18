@@ -84,10 +84,13 @@ ui_node_canvas_t_array_t *import_arm_get_node_canvas_array(any_map_t *map, char 
 
 bool import_arm_is_version(buffer_t *b, char *n) {
 	// 0xdf map, i32 count, 0xdb string, i32 len, "version", 0xdb string, i32 len, version value
-	if (b->buffer[10] != 'v') {
+	if (b == NULL || b->length < 22 || b->buffer[10] != 'v') {
 		return false;
 	}
 	uint32_t len = *(uint32_t *)(b->buffer + 18); // version value length
+	if (len > b->length - 22) {
+		return false;
+	}
 	char    *v   = (char *)(b->buffer + 22);      // version value
 	for (uint32_t i = 0; i < len; ++i) {
 		if (n[i] == '\0' || v[i] != n[i]) {
