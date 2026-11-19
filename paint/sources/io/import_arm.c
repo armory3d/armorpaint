@@ -1117,6 +1117,7 @@ void import_arm_run_project(char *path) {
 	if (project == NULL) { // Damaged data
 		console_error(string("Could not read %s.", path));
 		data_delete_blob(path);
+		ui_header_draw_progress(1.0);
 		return;
 	}
 
