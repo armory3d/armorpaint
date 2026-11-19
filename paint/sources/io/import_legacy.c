@@ -532,6 +532,9 @@ project_t *import_arm_from_version_0(any_map_t *old) {
 
 project_t *import_arm_from_old(buffer_t *b) {
 	any_map_t *old                   = armpack_decode_to_map(b);
+	if (old == NULL) { // Damaged data
+		return NULL;
+	}
 	project_t *(*fns[])(any_map_t *) = {
 	    import_arm_from_version_0,  import_arm_from_version_1,  import_arm_from_version_2,  import_arm_from_version_3,  import_arm_from_version_4,
 	    import_arm_from_version_5,  import_arm_from_version_6,  import_arm_from_version_7,  import_arm_from_version_8,  import_arm_from_version_9,
