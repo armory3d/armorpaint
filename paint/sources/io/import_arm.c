@@ -80,7 +80,13 @@ void import_arm_run_mesh(project_t *raw) {
 	history_reset();
 }
 
+// 0xdf map, i32 count, 0xdb string, i32 len, then the first key, 'v' of "version" when the file has one
+#define ARM_VERSION_OFFSET 10
+
 project_t *import_arm_decode_project(buffer_t *b) {
+	if (b->length <= ARM_VERSION_OFFSET) { // Too short to be an arm file
+		return NULL;
+	}
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
 		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
@@ -744,6 +750,11 @@ void import_arm_run_project(char *path) {
 		console_error(string("Could not open file %s.", path));
 		return;
 	}
+	if (b->length <= ARM_VERSION_OFFSET) { // Too short to be an arm file
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	project_t *project;
 	bool       import_as_mesh = false;
 	if (!import_arm_has_version(b)) {
@@ -1374,6 +1385,6 @@ void import_arm_run_swatches(char *path, bool replace_existing) {
 }
 
 bool import_arm_has_version(buffer_t *b) {
-	bool has_version = b->buffer[10] == 118; // 'v';
+	bool has_version = b->length > ARM_VERSION_OFFSET && b->buffer[ARM_VERSION_OFFSET] == 118; // 'v';
 	return has_version;
 }
