@@ -757,11 +757,21 @@ any_map_t *_armpack_decode_to_map() {
 	return result;
 }
 
+// Returns NULL when the data ends before the structure does
 any_map_t *armpack_decode_to_map(buffer_t *b) {
-	encoded = b->buffer;
-	ei      = 0;
+	jmp_buf guard;
+	encoded        = b->buffer;
+	encoded_length = b->length;
+	ei             = 0;
+	if (setjmp(guard) != 0) {
+		decode_guard = NULL;
+		return NULL;
+	}
+	decode_guard = &guard;
 	read_u8(); // Must be 0xdf for a map
-	return _armpack_decode_to_map();
+	any_map_t *map = _armpack_decode_to_map();
+	decode_guard   = NULL;
+	return map;
 }
 
 static void     armpack_to_json_value();
