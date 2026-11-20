@@ -1168,6 +1168,9 @@ void tab_meshes_draw_context_menu() {
 	string_array_push(phys_combo, tr("Sphere"));
 	string_array_push(phys_combo, tr("Terrain"));
 	string_array_push(phys_combo, tr("Mesh"));
+	string_array_push(phys_combo, tr("Wind"));
+	string_array_push(phys_combo, tr("Attractor"));
+	string_array_push(phys_combo, tr("Domain"));
 
 	i32 phys = shape + 1; // 0 = none
 	ui_set_next_id(3);
@@ -1177,15 +1180,17 @@ void tab_meshes_draw_context_menu() {
 	free(phys_combo);
 	if (phys_changed) {
 		shape        = phys - 1;
-		bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+		bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE || shape == PHYSICS_SHAPE_WIND || shape == PHYSICS_SHAPE_ATTRACTOR;
 		util_physics_set(o->base, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 		g_project->mesh_physics_shapes = i32_array_create(0);
 	}
 
-	if (shape >= 0) {
+	if (shape >= 0 && shape != PHYSICS_SHAPE_DOMAIN) {
 		f32 mass = util_physics_get_mass(o->base);
 		ui_set_next_id(4);
-		ui_slider(&mass, tr("Mass"), 0.0, 10.0, true, 100, true, UI_ALIGN_LEFT, true);
+		bool field = shape >= PHYSICS_SHAPE_WIND; // Wind speed or pull, negative turns it around
+		f32  max   = field ? 10.0 : 1000.0;       // Mass in kg
+		ui_slider(&mass, field ? tr("Strength") : tr("Mass"), field ? -10.0 : 0.0, max, true, 100, true, UI_ALIGN_LEFT, true);
 		if (ui_item_changed()) {
 			util_physics_set_mass(o->base, mass);
 			g_project->mesh_physics_shapes = i32_array_create(0);
@@ -1330,7 +1335,7 @@ void tab_meshes_make_preview(mesh_object_t *o) {
 	g_context->saved_camera = scene_camera->base->transform->local;
 	mat4_t m =
 	    (mat4_t){0.9146286343879498, 0.404295023959927,   0.000007410128652369705, 0, -0.0032648027153306235, 0.007367569133732468, 0.9999675337275382,   0,
-	             0.404281837254303,  -0.9145989516155143, 0.008058532943908717,    0, 0.4659988049397712,     -1.0687517188018691,  0.015935682577325486, 1};
+		         0.404281837254303,  -0.9145989516155143, 0.008058532943908717,    0, 0.4659988049397712,     -1.0687517188018691,  0.015935682577325486, 1};
 	transform_set_matrix(scene_camera->base->transform, m);
 	{
 		// Orbit up to look at the mesh from above
@@ -1571,8 +1576,8 @@ void tab_meshes_draw_mesh_slot(mesh_object_t *o, i32 i) {
 		// Row interaction
 		f32  row_left = uix + uiw * 0.08;
 		bool hovered  = g_ui->enabled && g_ui->input_enabled && g_ui->input_x > g_ui->_window_x + row_left && g_ui->input_x < g_ui->_window_x + uix + uiw &&
-		               g_ui->input_y > g_ui->_window_y + uiy && g_ui->input_y < g_ui->_window_y + uiy + step * 2 * UI_SCALE() &&
-		               g_ui->input_y > g_ui->_window_y + g_ui->window_header_h;
+		                g_ui->input_y > g_ui->_window_y + uiy && g_ui->input_y < g_ui->_window_y + uiy + step * 2 * UI_SCALE() &&
+		                g_ui->input_y > g_ui->_window_y + g_ui->window_header_h;
 		if (hovered) {
 			ui_tooltip(tab_meshes_mesh_info(o, i));
 			if (g_ui->input_started || g_ui->input_released_r) {

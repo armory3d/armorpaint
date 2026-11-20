@@ -166,8 +166,8 @@ void script_timer(f32 delay, void *fn) {
 
 void *script_update_fn = NULL;
 void  script_on_update(void *_) {
-    iron_delay_idle_sleep();
-    minic_call_fn(script_update_fn, NULL, 0);
+	iron_delay_idle_sleep();
+	minic_call_fn(script_update_fn, NULL, 0);
 }
 void script_notify_on_update(void *fn) {
 	if (script_update_fn == NULL) {
@@ -178,11 +178,11 @@ void script_notify_on_update(void *fn) {
 
 void *script_next_frame_fn = NULL;
 void  script_on_next_frame(void *_) {
-    void *fn             = script_next_frame_fn;
-    script_next_frame_fn = NULL;
-    if (fn != NULL) {
-        minic_call_fn(fn, NULL, 0);
-    }
+	void *fn             = script_next_frame_fn;
+	script_next_frame_fn = NULL;
+	if (fn != NULL) {
+		minic_call_fn(fn, NULL, 0);
+	}
 }
 void script_notify_on_next_frame(void *fn) {
 	sys_notify_on_next_frame(script_on_next_frame, NULL);
@@ -203,8 +203,8 @@ void script_stop(void) {
 
 void *_ui_files_done;
 void  _ui_files_show_done(char *path) {
-    minic_val_t args[1] = {minic_val_ptr(path)};
-    minic_call_fn(_ui_files_done, args, 1);
+	minic_val_t args[1] = {minic_val_ptr(path)};
+	minic_call_fn(_ui_files_done, args, 1);
 }
 void ui_files_show2(char *filters, bool is_save, bool open_multiple, void *files_done) {
 	_ui_files_done = files_done;
@@ -2066,7 +2066,7 @@ void script_physics_set_shape(object_t *o, i32 shape) {
 		return;
 	}
 
-	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE;
+	bool dynamic = shape == PHYSICS_SHAPE_BOX || shape == PHYSICS_SHAPE_SPHERE || shape == PHYSICS_SHAPE_WIND || shape == PHYSICS_SHAPE_ATTRACTOR;
 	util_physics_set(o, shape, shape < 0 ? 0.0 : (dynamic ? 1.0 : 0.0));
 	g_project->mesh_physics_shapes = i32_array_create(0);
 }
@@ -2144,9 +2144,9 @@ static bool script_pick_hit(object_t *o, ray_t *ray, f32 margin, f32 *out_t) {
 
 	vec4_t scale = o->transform->scale;
 	vec4_t grow  = (vec4_t){scale.x != 0.0 ? margin / math_abs(scale.x) : 0.0, scale.y != 0.0 ? margin / math_abs(scale.y) : 0.0,
-                           scale.z != 0.0 ? margin / math_abs(scale.z) : 0.0, 0.0};
-	min = (vec4_t){min.x - grow.x, min.y - grow.y, min.z - grow.z, 0.0};
-	max = (vec4_t){max.x + grow.x, max.y + grow.y, max.z + grow.z, 0.0};
+	                        scale.z != 0.0 ? margin / math_abs(scale.z) : 0.0, 0.0};
+	min          = (vec4_t){min.x - grow.x, min.y - grow.y, min.z - grow.z, 0.0};
+	max          = (vec4_t){max.x + grow.x, max.y + grow.y, max.z + grow.z, 0.0};
 
 	mat4_t inv    = mat4_inv(o->transform->world);
 	vec4_t origin = vec4_apply_mat4((vec4_t){ray->origin.x, ray->origin.y, ray->origin.z, 1.0}, inv);

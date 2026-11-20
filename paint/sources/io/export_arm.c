@@ -221,6 +221,7 @@ buffer_t *export_arm_encode_project(char *path) {
 	}
 
 	nodes_mesh_export_begin();
+	sim_world_export_begin();
 
 	mesh_data_t_array_t *md = any_array_create_from_raw((void *[]){}, 0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
@@ -245,42 +246,42 @@ buffer_t *export_arm_encode_project(char *path) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		layer_data_t *d =
 		    ALLOC_INIT(layer_data_t, {.name               = l->name,
-		                              .res                = l->texpaint != NULL ? l->texpaint->width : g_project->_->layers->buffer[0]->texpaint->width,
-		                              .bpp                = bpp,
-		                              .texpaint           = l->texpaint != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint)) : NULL,
-		                              .uv_scale           = l->scale,
-		                              .uv_rot             = l->angle,
-		                              .uv_type            = l->uv_type,
-		                              .uv_map             = l->uv_map,
-		                              .decal_mat          = l->uv_type == UV_TYPE_PROJECT ? mat4_to_f32_array(l->decal_mat) : NULL,
-		                              .opacity_mask       = l->mask_opacity,
-		                              .fill_material      = l->fill_material != NULL ? array_index_of(g_project->_->materials, l->fill_material) : -1,
-		                              .object_mask        = l->object_mask,
-		                              .blending           = l->blending,
-		                              .parent             = l->parent != NULL ? array_index_of(g_project->_->layers, l->parent) : -1,
-		                              .visible            = l->visible,
-		                              .texpaint_nor       = l->texpaint_nor != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_nor)) : NULL,
-		                              .texpaint_pack      = l->texpaint_pack != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_pack)) : NULL,
-		                              .texpaint_sculpt    = l->texpaint_sculpt != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_sculpt)) : NULL,
-		                              .paint_base         = l->paint_base,
-		                              .paint_opac         = l->paint_opac,
-		                              .paint_occ          = l->paint_occ,
-		                              .paint_rough        = l->paint_rough,
-		                              .paint_met          = l->paint_met,
-		                              .paint_nor          = l->paint_nor,
-		                              .paint_nor_blend    = l->paint_nor_blend,
-		                              .paint_height       = l->paint_height,
-		                              .paint_height_blend = l->paint_height_blend,
-		                              .paint_emis         = l->paint_emis,
-		                              .paint_subs         = l->paint_subs,
-		                              .path_points        = l->path_points,
-		                              .path_points_world  = l->path_points_world,
-		                              .path_points_camera = l->path_points_camera,
-		                              .path_points_parent = l->path_points_parent,
-		                              .path_tool          = l->path_tool,
-		                              .path_curved        = l->path_curved,
-		                              .path_text          = l->path_text,
-		                              .path_material      = l->path_material != NULL ? array_index_of(g_project->_->materials, l->path_material) : -1});
+			                          .res                = l->texpaint != NULL ? l->texpaint->width : g_project->_->layers->buffer[0]->texpaint->width,
+			                          .bpp                = bpp,
+			                          .texpaint           = l->texpaint != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint)) : NULL,
+			                          .uv_scale           = l->scale,
+			                          .uv_rot             = l->angle,
+			                          .uv_type            = l->uv_type,
+			                          .uv_map             = l->uv_map,
+			                          .decal_mat          = l->uv_type == UV_TYPE_PROJECT ? mat4_to_f32_array(l->decal_mat) : NULL,
+			                          .opacity_mask       = l->mask_opacity,
+			                          .fill_material      = l->fill_material != NULL ? array_index_of(g_project->_->materials, l->fill_material) : -1,
+			                          .object_mask        = l->object_mask,
+			                          .blending           = l->blending,
+			                          .parent             = l->parent != NULL ? array_index_of(g_project->_->layers, l->parent) : -1,
+			                          .visible            = l->visible,
+			                          .texpaint_nor       = l->texpaint_nor != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_nor)) : NULL,
+			                          .texpaint_pack      = l->texpaint_pack != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_pack)) : NULL,
+			                          .texpaint_sculpt    = l->texpaint_sculpt != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_sculpt)) : NULL,
+			                          .paint_base         = l->paint_base,
+			                          .paint_opac         = l->paint_opac,
+			                          .paint_occ          = l->paint_occ,
+			                          .paint_rough        = l->paint_rough,
+			                          .paint_met          = l->paint_met,
+			                          .paint_nor          = l->paint_nor,
+			                          .paint_nor_blend    = l->paint_nor_blend,
+			                          .paint_height       = l->paint_height,
+			                          .paint_height_blend = l->paint_height_blend,
+			                          .paint_emis         = l->paint_emis,
+			                          .paint_subs         = l->paint_subs,
+			                          .path_points        = l->path_points,
+			                          .path_points_world  = l->path_points_world,
+			                          .path_points_camera = l->path_points_camera,
+			                          .path_points_parent = l->path_points_parent,
+			                          .path_tool          = l->path_tool,
+			                          .path_curved        = l->path_curved,
+			                          .path_text          = l->path_text,
+			                          .path_material      = l->path_material != NULL ? array_index_of(g_project->_->materials, l->path_material) : -1});
 		any_array_push(ld, d);
 	}
 
@@ -400,6 +401,7 @@ buffer_t *export_arm_encode_project(char *path) {
 	export_arm_progress(0.8);
 	buffer_t *buffer = util_encode_project(g_project);
 	nodes_mesh_export_end();
+	sim_world_export_end();
 
 	for (i32 i = 0; i < ld->length; ++i) {
 		layer_data_t *d = ld->buffer[i];
@@ -559,7 +561,7 @@ void export_arm_run_material(char *path) {
 	                                                                    .paint_height = m->paint_height,
 	                                                                    .paint_emis   = m->paint_emis,
 	                                                                    .paint_subs   = m->paint_subs,
-                                                         });
+	                                                                });
 	any_array_push(mdata2, md2);
 
 	project_t *raw = ALLOC_INIT(project_t, {.version         = manifest_version_project,

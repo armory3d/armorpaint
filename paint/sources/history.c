@@ -316,6 +316,7 @@ void history_swap_object_transform(history_step_t *step) {
 	physics_body_t *pb = o->_->body;
 	if (pb != NULL) {
 		physics_body_sync_transform(pb);
+		sim_world_invalidate();
 	}
 	util_mesh_transform_changed();
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);

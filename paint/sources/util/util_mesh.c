@@ -9,6 +9,10 @@ void util_mesh_remove_merged() {
 	if (util_mesh_merged_objects != NULL) {
 		util_mesh_merged_objects->length = 0;
 	}
+	if (g_context->paint_body != NULL) { // Collider of the merged mesh for particle painting
+		physics_body_remove(g_context->paint_body);
+		g_context->paint_body = NULL;
+	}
 	if (g_context->merged_object != NULL) {
 		mesh_data_delete(g_context->merged_object->data);
 		mesh_object_remove(g_context->merged_object);

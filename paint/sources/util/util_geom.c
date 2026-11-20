@@ -488,6 +488,8 @@ static void geom_smooth(geom_t *g, i32 iterations, f32 factor) {
 	free(cnt);
 }
 
+static geom_t *geom_polygonize(f32 *f, i32 *n, f32 *mn, f32 v, i32 smooth);
+
 geom_t *geom_sdf_end(i32 smooth) {
 	f32 v     = geom_voxel;
 	f32 mn[3] = {1e9f, 1e9f, 1e9f};
@@ -512,6 +514,15 @@ geom_t *geom_sdf_end(i32 smooth) {
 		}
 	}
 
+	geom_t *g = geom_polygonize(f, n, mn, v, smooth);
+	free(f);
+	geom_prim_count = 0;
+	return g;
+}
+
+// Surface nets over a field sampled at mn + index * v, negative inside
+static geom_t *geom_polygonize(f32 *f, i32 *n, f32 *mn, f32 v, i32 smooth) {
+	i32     nx = n[0], ny = n[1], nz = n[2];
 	geom_t *g  = geom_create();
 	i32     cx = nx - 1, cy = ny - 1, cz = nz - 1;
 	i32    *cell = malloc(sizeof(i32) * cx * cy * cz);
@@ -594,11 +605,22 @@ geom_t *geom_sdf_end(i32 smooth) {
 			}
 		}
 	}
-	free(f);
 	free(cell);
 	geom_smooth(g, smooth, 0.6f);
-	geom_prim_count = 0;
 	return g;
+}
+
+// Surface of a field as node geometry, normals are left at zero
+mesh_geo_t *geom_polygonize_geo(f32 *f, i32 nx, i32 ny, i32 nz, f32 *mn, f32 v, i32 smooth) {
+	i32         n[3] = {nx, ny, nz};
+	geom_t     *g    = geom_polygonize(f, n, mn, v, smooth);
+	mesh_geo_t *out  = util_geo_create(g->vcount, g->icount);
+	memcpy(out->pos, g->pos, sizeof(f32) * 3 * g->vcount);
+	memcpy(out->ind, g->ind, sizeof(u32) * g->icount);
+	free(g->pos);
+	free(g->ind);
+	free(g);
+	return out;
 }
 
 // Direct primitives

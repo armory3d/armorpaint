@@ -577,7 +577,8 @@ static transform_t *tab_timeline_mesh_transform(i32 mi) {
 	return mi == TAB_TIMELINE_CAMERA ? scene_camera->base->transform : g_project->_->paint_objects->buffer[mi]->base->transform;
 }
 
-static void tab_timeline_sync_mesh_body(i32 mi) {
+// A move over dt seconds gives the collider a velocity, 0 is a jump
+static void tab_timeline_sync_mesh_body(i32 mi, f32 dt) {
 	if (mi == TAB_TIMELINE_CAMERA) {
 		return;
 	}
@@ -586,7 +587,7 @@ static void tab_timeline_sync_mesh_body(i32 mi) {
 		return;
 	}
 	physics_body_set_velocity(body->_body, 0.0f, 0.0f, 0.0f);
-	physics_body_sync_transform(body);
+	physics_body_move(body, dt);
 }
 
 static bool tab_timeline_skip_mesh(i32 mi) {
@@ -596,7 +597,7 @@ static bool tab_timeline_skip_mesh(i32 mi) {
 		return !tab_timeline_camera_enabled() || !tab_timeline_mesh_keyed(mi);
 	}
 	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
-	return body != NULL && body->mass > 0.0;
+	return body != NULL && body->mass > 0.0 && (body->shape == PHYSICS_SHAPE_BOX || body->shape == PHYSICS_SHAPE_SPHERE); // Dynamic
 }
 
 static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
@@ -620,8 +621,10 @@ static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
 
 static bool tab_timeline_mesh_refresh_pending = false;
 
+static bool tab_timeline_posing = false; // The simulation world places the meshes frame by frame
+
 static void tab_timeline_mesh_moved() {
-	if (tab_timeline_playing) {
+	if (tab_timeline_playing || tab_timeline_posing) {
 		tab_timeline_mesh_refresh_pending = true;
 		render_path_raytrace_ready        = false;
 		return;
@@ -651,6 +654,14 @@ static void tab_timeline_load_mesh_keyframes(float frame_f, bool camera_only, f6
 	bool any     = false;
 	bool moved   = false;
 	i32  frame_i = (i32)frame_f;
+
+	// Stepping forward by up to a frame or two moves colliders with a velocity, other jumps place them
+	static f32 last_frame = -1.0f;
+	f32        step       = frame_f - last_frame;
+	f32        move_dt    = !camera_only && step > 0.0f && step <= 2.0f ? step / (f32)tab_timeline_get_frame_rate() : 0.0f;
+	if (!camera_only) {
+		last_frame = frame_f;
+	}
 	for (i32 mi = TAB_TIMELINE_CAMERA; mi < (camera_only ? 0 : g_project->_->paint_objects->length); mi++) {
 		if (!tab_timeline_mesh_in_edit(mi) || tab_timeline_skip_mesh(mi)) {
 			continue;
@@ -682,7 +693,7 @@ static void tab_timeline_load_mesh_keyframes(float frame_f, bool camera_only, f6
 		if (tab_timeline_set_mesh_transform(mi, mat)) {
 			moved = true;
 		}
-		tab_timeline_sync_mesh_body(mi);
+		tab_timeline_sync_mesh_body(mi, move_dt);
 		any = true;
 	}
 	if (any) {
@@ -691,6 +702,16 @@ static void tab_timeline_load_mesh_keyframes(float frame_f, bool camera_only, f6
 	if (moved) {
 		tab_timeline_mesh_moved();
 	}
+}
+
+// Places the keyframed meshes and their colliders at a frame, the refresh waits until the world is done
+void tab_timeline_pose_meshes(f32 frame) {
+	if (tab_timeline_mesh_keyframes == NULL) {
+		return;
+	}
+	tab_timeline_posing = true;
+	tab_timeline_load_mesh_keyframes(frame, false, frame);
+	tab_timeline_posing = false;
 }
 
 static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
@@ -943,7 +964,7 @@ static void tab_timeline_restore_stash(bool clear) {
 			tab_timeline_instance_t *instance = tab_timeline_instance(mi);
 			instance->delta                   = s->delta;
 			memset(&instance->applied, 0, sizeof(mat4_t)); // Recompute base on next capture
-			tab_timeline_sync_mesh_body(mi);
+			tab_timeline_sync_mesh_body(mi, 0.0f);
 			moved = true;
 		}
 		if (clear)
@@ -962,7 +983,7 @@ static void tab_timeline_rest_clip_meshes() {
 	for (i32 mi = 0; mi < g_project->_->paint_objects->length; ++mi) {
 		if (tab_timeline_mesh_in_edit(mi) && !tab_timeline_mesh_keyed(mi)) {
 			tab_timeline_set_mesh_transform(mi, mat4_identity());
-			tab_timeline_sync_mesh_body(mi);
+			tab_timeline_sync_mesh_body(mi, 0.0f);
 		}
 	}
 	g_context->ddirty = 2;
@@ -1648,6 +1669,7 @@ void tab_timeline_update() {
 			tab_timeline_mesh_refresh_pending = false;
 			util_mesh_transform_changed();
 		}
+		sim_world_update();
 		nodes_mesh_frame_changed();
 		return;
 	}
@@ -1657,11 +1679,11 @@ void tab_timeline_update() {
 	f64 playback_frame = (sys_time() - tab_timeline_play_time) * tab_timeline_frame_rate;
 	if (tab_timeline_capturing) {
 		// Step one frame per recorded video frame, however long it takes to render
-		g_context->ddirty = 2;
 		if (viewport_video_time >= 0.0) {
-			// Previous frame was not recorded yet
+			// Previous frame was not recorded yet, keep the path tracer accumulating
 			return;
 		}
+		g_context->ddirty = 2;
 		playback_frame = tab_timeline_capture_frame;
 		if (playback_frame >= tab_timeline_max_frames) {
 			// Played once, the last frame was already recorded
@@ -1694,6 +1716,7 @@ void tab_timeline_update() {
 	if (tab_timeline_keyframes != NULL) {
 		tab_timeline_tween_from_keyframes(frame_f);
 	}
+	sim_world_update();
 	nodes_mesh_frame_changed();
 }
 

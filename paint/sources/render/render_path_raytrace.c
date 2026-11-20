@@ -8,6 +8,7 @@ f32 render_path_raytrace_uv_scale = 1.0;
 static mesh_data_t *render_path_raytrace_override_data[OVERRIDE_MAX];
 static i32          render_path_raytrace_override_material[OVERRIDE_MAX];
 static bool         render_path_raytrace_override_dirty[OVERRIDE_MAX];
+static u32          render_path_raytrace_override_topology[OVERRIDE_MAX]; // Index buffer version
 static i32          render_path_raytrace_override_count     = 0;
 static i32          render_path_raytrace_override_allocated = 0;
 static char        *render_path_raytrace_override_format    = NULL;
@@ -391,10 +392,13 @@ static void render_path_raytrace_update_overrides() {
 	i32  allocated = render_path_raytrace_override_allocated;
 	bool recreated = render_path_raytrace_override_targets(count);
 	for (i32 i = 0; i < count; ++i) {
-		bool changed = recreated || i >= allocated || i >= render_path_raytrace_override_count || render_path_raytrace_override_data[i] != data[i] ||
-		               render_path_raytrace_override_material[i] != material[i];
+		// New topology brings new uvs, as for the simulated meshes rebuilt every frame
+		u32  topology = data[i]->_->index_buffer->version;
+		bool changed  = recreated || i >= allocated || i >= render_path_raytrace_override_count || render_path_raytrace_override_data[i] != data[i] ||
+		                render_path_raytrace_override_material[i] != material[i] || render_path_raytrace_override_topology[i] != topology;
 		render_path_raytrace_override_data[i]     = data[i];
 		render_path_raytrace_override_material[i] = material[i];
+		render_path_raytrace_override_topology[i] = topology;
 		render_path_raytrace_override_dirty[i]    = changed;
 	}
 	render_path_raytrace_override_count = count;

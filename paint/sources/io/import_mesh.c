@@ -89,6 +89,10 @@ i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 }
 
 void import_mesh_finish_import(void *_) {
+	if (g_context->paint_body != NULL) { // Collider of the merged mesh for particle painting
+		physics_body_remove(g_context->paint_body);
+		g_context->paint_body = NULL;
+	}
 	if (g_context->merged_object != NULL) {
 		mesh_data_delete(g_context->merged_object->data);
 		mesh_object_remove(g_context->merged_object);

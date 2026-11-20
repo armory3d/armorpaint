@@ -4,9 +4,7 @@
 #define NODES_MESH_SOCKET_COL 0xff00d6a3
 #define NODES_MESH_MAX_DEPTH  64
 
-static any_array_t *nodes_mesh_slots           = NULL;
-static bool         nodes_mesh_refresh_pending = false;
-static i32          nodes_mesh_eval_depth;
+static bool nodes_mesh_refresh_pending = false;
 
 static mesh_geo_t *nodes_mesh_eval_node(ui_node_t *node);
 
@@ -27,7 +25,7 @@ static ui_node_socket_t *nodes_mesh_socket(char *name, char *type, f32_array_t *
 ui_node_t *nodes_mesh_def(ui_node_t_array_t *category, char *name, char *type, u32 color, char *output_type) {
 	ui_node_t *n =
 	    ALLOC_INIT(ui_node_t,
-	               {.name = name, .type = type, .color = color, .inputs = any_array_create(0), .outputs = any_array_create(0), .buttons = any_array_create(0)});
+		           {.name = name, .type = type, .color = color, .inputs = any_array_create(0), .outputs = any_array_create(0), .buttons = any_array_create(0)});
 	if (output_type != NULL) {
 		char        *output_name = string_equals(output_type, "MESH") ? _tr("Mesh") : string_equals(output_type, "VECTOR") ? _tr("Vector") : _tr("Value");
 		f32_array_t *value       = string_equals(output_type, "VECTOR") ? f32_array_create_xyz(0.0, 0.0, 0.0) : f32_array_create_x(0.0);
@@ -89,6 +87,10 @@ void nodes_mesh_init() {
 	mesh_decimate_node_init();
 	mesh_bevel_node_init();
 	mesh_displace_node_init();
+	mesh_fluid_node_init();
+	mesh_cloth_node_init();
+	mesh_fracture_node_init();
+	mesh_smoke_node_init();
 	mesh_script_node_init();
 
 	nodes_mesh_combine = any_array_create(0);
@@ -147,6 +149,68 @@ void util_geo_free(mesh_geo_t *g) {
 	free(g->tex);
 	free(g->ind);
 	free(g);
+}
+
+// Uvs box projected over a box which holds all of the mesh, so the uvs stay in 0 - 1
+void util_geo_uv_box(mesh_geo_t *g, f32 *mn, f32 *mx) {
+	f32 size       = fmaxf(fmaxf(fmaxf(mx[0] - mn[0], mx[1] - mn[1]), mx[2] - mn[2]), 1e-6f); // Same scale on all axes
+	f32 gap        = 1.0f / 256.0f;                                                           // Around each cell
+	f32 cell       = 0.5f - gap * 2.0f;
+	i32 keep[3][2] = {{1, 2}, {0, 2}, {0, 1}};                   // Position axes on the plane of each axis
+	f32 at[3][2]   = {{0.5f, 0.0f}, {0.0f, 0.5f}, {0.0f, 0.0f}}; // Corner of the cell of each plane
+
+	// A vertex for each plane its faces are on
+	i32 *split = malloc(sizeof(i32) * g->vertex_count * 3);
+	i32 *src   = malloc(sizeof(i32) * g->vertex_count * 3);
+	u8  *plane = malloc(g->vertex_count * 3);
+	for (i32 i = 0; i < g->vertex_count * 3; ++i) {
+		split[i] = -1;
+	}
+	i32 count = 0;
+	for (i32 t = 0; t + 2 < g->index_count; t += 3) {
+		f32 *a    = &g->pos[g->ind[t] * 3];
+		f32 *b    = &g->pos[g->ind[t + 1] * 3];
+		f32 *c    = &g->pos[g->ind[t + 2] * 3];
+		f32  e[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+		f32  f[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
+		f32  n[3] = {fabsf(e[1] * f[2] - e[2] * f[1]), fabsf(e[2] * f[0] - e[0] * f[2]), fabsf(e[0] * f[1] - e[1] * f[0])};
+		u8   axis = n[0] > n[1] && n[0] > n[2] ? 0 : n[1] > n[2] ? 1 : 2;
+		for (i32 k = 0; k < 3; ++k) {
+			i32 key = g->ind[t + k] * 3 + axis;
+			if (split[key] < 0) {
+				split[key]   = count;
+				src[count]   = g->ind[t + k];
+				plane[count] = axis;
+				count++;
+			}
+			g->ind[t + k] = split[key];
+		}
+	}
+
+	f32 *pos = malloc(sizeof(f32) * (count * 3 + 1));
+	f32 *nor = malloc(sizeof(f32) * (count * 3 + 1));
+	f32 *tex = malloc(sizeof(f32) * (count * 2 + 1));
+	for (i32 i = 0; i < count; ++i) {
+		memcpy(&pos[i * 3], &g->pos[src[i] * 3], sizeof(f32) * 3);
+		memcpy(&nor[i * 3], &g->nor[src[i] * 3], sizeof(f32) * 3);
+		u8 p = plane[i];
+		for (i32 k = 0; k < 2; ++k) { // A surface may reach a little past the box, stay in the cell
+			i32 axis       = keep[p][k];
+			f32 x          = fminf(fmaxf((pos[i * 3 + axis] - mn[axis]) / size, 0.0f), 1.0f);
+			tex[i * 2 + k] = at[p][k] + gap + x * cell;
+		}
+	}
+	free(split);
+	free(src);
+	free(plane);
+	free(g->pos);
+	free(g->nor);
+	free(g->tex);
+	g->pos             = pos;
+	g->nor             = nor;
+	g->tex             = tex;
+	g->vertex_count    = count;
+	g->vertex_capacity = count;
 }
 
 mesh_geo_t *nodes_mesh_geo_from_data(mesh_data_t *md) {
@@ -212,12 +276,12 @@ mesh_data_t *nodes_mesh_geo_to_data(mesh_geo_t *g, char *name) {
 
 	mesh_data_t *raw   = ALLOC_INIT(mesh_data_t, {.name          = string_copy(name),
 	                                              .vertex_arrays = any_array_create_from_raw(
-                                                    (void *[]){
-                                                        ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
-                                                        ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
-                                                    },
-                                                    3),
+	                                                  (void *[]){
+	                                                      ALLOC_INIT(vertex_array_t, {.values = va0, .attrib = "pos", .data = "short4norm"}),
+	                                                      ALLOC_INIT(vertex_array_t, {.values = va1, .attrib = "nor", .data = "short2norm"}),
+	                                                      ALLOC_INIT(vertex_array_t, {.values = va2, .attrib = "tex", .data = "short2norm"}),
+	                                                  },
+	                                                  3),
 	                                              .index_array = inda,
 	                                              .scale_pos   = scale_pos,
 	                                              .scale_tex   = scale_tex});
@@ -258,6 +322,63 @@ void nodes_mesh_geo_transform(mesh_geo_t *g, mat4_t m) {
 	if (mat4_determinant(m) < 0.0) {
 		nodes_mesh_geo_flip(g);
 	}
+}
+
+static i32 nodes_mesh_sort_f32(const void *a, const void *b) {
+	f32 x = *(f32 *)a, y = *(f32 *)b;
+	return (x > y) - (x < y);
+}
+
+// Surface crossings of a ray up from (x, y), sorted
+static i32 nodes_mesh_column_hits(f32 *pos, u32 *ind, i32 index_count, f32 x, f32 y, f32 *hits) {
+	i32 count = 0;
+	for (i32 t = 0; t + 2 < index_count; t += 3) {
+		f32 *a = &pos[ind[t] * 3];
+		f32 *b = &pos[ind[t + 1] * 3];
+		f32 *c = &pos[ind[t + 2] * 3];
+		f32  d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+		if (fabsf(d) < 1e-12f) {
+			continue; // Parallel to the ray
+		}
+		f32 u = ((b[1] - c[1]) * (x - c[0]) + (c[0] - b[0]) * (y - c[1])) / d;
+		f32 v = ((c[1] - a[1]) * (x - c[0]) + (a[0] - c[0]) * (y - c[1])) / d;
+		f32 w = 1.0f - u - v;
+		if (u < 0.0f || v < 0.0f || w < 0.0f) {
+			continue;
+		}
+		hits[count++] = u * a[2] + v * b[2] + w * c[2];
+	}
+	qsort(hits, count, sizeof(f32), nodes_mesh_sort_f32);
+	return count;
+}
+
+// Marks the lattice points origin + index * cell which are inside the closed mesh, by casting a ray up each column
+void nodes_mesh_geo_voxelize(f32 *pos, u32 *ind, i32 index_count, f32 *origin, f32 cell, i32 nx, i32 ny, i32 nz, u8 *inside) {
+	f32 *hits = malloc(sizeof(f32) * (index_count / 3 + 1));
+	for (i32 j = 0; j < ny; ++j) {
+		for (i32 i = 0; i < nx; ++i) {
+			f32 x     = origin[0] + i * cell;
+			f32 y     = origin[1] + j * cell;
+			i32 count = nodes_mesh_column_hits(pos, ind, index_count, x, y, hits);
+			if (count % 2 == 1) {
+				// The ray went through an edge and counted it twice or not at all, try again beside it
+				count = nodes_mesh_column_hits(pos, ind, index_count, x + cell * 0.0137f, y + cell * 0.0071f, hits);
+				if (count % 2 == 1) {
+					count = 0;
+				}
+			}
+			// Points between pairs of surface crossings are inside
+			i32 h = 0;
+			for (i32 k = 0; k < nz; ++k) {
+				f32 z = origin[2] + k * cell;
+				while (h < count && hits[h] < z) {
+					h++;
+				}
+				inside[i + nx * (j + ny * k)] = h % 2;
+			}
+		}
+	}
+	free(hits);
 }
 
 // Evaluation
@@ -304,8 +425,6 @@ f32 nodes_mesh_value(ui_node_t *node, i32 socket) {
 i32 nodes_mesh_button(ui_node_t *node, i32 button) {
 	return (i32)node->buttons->buffer[button]->default_value->buffer[0];
 }
-
-static mesh_object_t *nodes_mesh_object(i32 uid);
 
 static ui_node_t_array_t *nodes_mesh_all_nodes(ui_node_canvas_t *c) {
 	ui_node_t_array_t *nodes    = any_array_create(0);
@@ -543,7 +662,7 @@ static mesh_data_t *nodes_mesh_eval(mesh_nodes_t *slot, mesh_object_t *o) {
 	return md;
 }
 
-static u32 nodes_mesh_hash_bytes(u32 hash, void *data, i32 length) {
+u32 nodes_mesh_hash_bytes(u32 hash, void *data, i32 length) {
 	for (i32 i = 0; i < length; ++i) {
 		hash = (hash ^ ((unsigned char *)data)[i]) * 16777619u;
 	}
@@ -613,13 +732,13 @@ static u32 nodes_mesh_hash_canvas(u32 hash, ui_node_canvas_t *c, mesh_object_t *
 	return hash;
 }
 
-static u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
+u32 nodes_mesh_hash(ui_node_canvas_t *c, mesh_object_t *o) {
 	return nodes_mesh_hash_canvas(2166136261u, c, o, 0);
 }
 
 // Slots
 
-static mesh_object_t *nodes_mesh_object(i32 uid) {
+mesh_object_t *nodes_mesh_object(i32 uid) {
 	if (g_project->_->paint_objects == NULL) {
 		return NULL;
 	}
@@ -712,6 +831,11 @@ static void nodes_mesh_set_data(mesh_object_t *o, mesh_data_t *data, bool unwrap
 	transform_build_matrix(o->base->transform);
 	nodes_mesh_refresh_pending = true; // Meshes using this one
 
+	physics_body_t *body = o->base->_->body;
+	if (body != NULL && body->shape == PHYSICS_SHAPE_MESH) {
+		physics_body_sync_transform(body); // Mesh collider takes the new triangles
+	}
+
 	if (unwrap) {
 		util_mesh_uv_unwrap(any_array_create_from_raw_tmp((void *[]){o}, 1));
 	}
@@ -779,6 +903,7 @@ void nodes_mesh_remove(mesh_object_t *o) {
 		}
 		array_splice(nodes_mesh_slots, i, 1);
 		mesh_script_node_state_free(slot->uid);
+		sim_world_invalidate();
 		mesh_data_t *input = slot->output != slot->input ? slot->input : NULL;
 		if (input != NULL && util_mesh_data_owner(input) == -1 && !nodes_mesh_holds(input)) {
 			sys_notify_on_next_frame(&util_mesh_delete_data_uncache, input);
@@ -949,6 +1074,7 @@ void nodes_mesh_frame_changed() {
 
 void nodes_mesh_reset() {
 	mesh_script_node_state_free(-1);
+	sim_world_invalidate();
 	if (nodes_mesh_slots == NULL) {
 		return;
 	}
