@@ -80,7 +80,13 @@ void import_arm_run_mesh(project_t *raw) {
 	history_reset();
 }
 
+// 0xdf map, i32 count, 0xdb string, i32 len, then the first key, 'v' of "version" when the file has one
+#define ARM_VERSION_OFFSET 10
+
 project_t *import_arm_decode_project(buffer_t *b) {
+	if (b == NULL || b->length <= ARM_VERSION_OFFSET) { // Missing or too short to be an arm file
+		return NULL;
+	}
 	if (!import_arm_has_version(b)) { // Mesh only
 		scene_t *scene = armpack_decode(b);
 		return ALLOC_INIT(project_t, {.mesh_datas = scene->mesh_datas});
@@ -237,8 +243,17 @@ static void import_arm_run_mesh_append_from_project(project_t *project, i32_arra
 }
 
 void import_arm_run_mesh_append(char *path) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = import_arm_decode_project(b);
+	if (project == NULL) { // Unknown version
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	import_arm_run_mesh_append_from_project(project, NULL, NULL);
 	data_delete_blob(path);
 }
@@ -737,6 +752,13 @@ void import_arm_run_project(char *path) {
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
 		console_error(string("Could not open file %s.", path));
+		ui_header_draw_progress(1.0);
+		return;
+	}
+	if (b->length <= ARM_VERSION_OFFSET) { // Too short to be an arm file
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		ui_header_draw_progress(1.0);
 		return;
 	}
 	project_t *project;
@@ -748,6 +770,12 @@ void import_arm_run_project(char *path) {
 	}
 	else if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
+		if (project == NULL) { // Unknown version
+			console_error(string("Unsupported project version in %s.", path));
+			data_delete_blob(path);
+			ui_header_draw_progress(1.0);
+			return;
+		}
 	}
 	else {
 		project = armpack_decode(b);
@@ -1284,7 +1312,11 @@ void import_arm_run_project(char *path) {
 }
 
 void import_arm_run_material(char *path) {
-	buffer_t  *b = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project;
 	if (import_arm_is_old(b)) {
 		project = import_arm_from_old(b);
@@ -1293,6 +1325,11 @@ void import_arm_run_material(char *path) {
 		project = armpack_decode(b);
 	}
 
+	if (project == NULL) { // Unknown version
+		console_error(string("Unsupported project version in %s.", path));
+		data_delete_blob(path);
+		return;
+	}
 	if (project->version == NULL) {
 		data_delete_blob(path);
 		return;
@@ -1301,7 +1338,11 @@ void import_arm_run_material(char *path) {
 }
 
 void import_arm_run_brush(char *path) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = armpack_decode(b);
 	if (project->version == NULL) {
 		data_delete_blob(path);
@@ -1349,7 +1390,11 @@ void import_arm_run_brush_from_project(project_t *project, char *path) {
 }
 
 void import_arm_run_swatches(char *path, bool replace_existing) {
-	buffer_t  *b       = data_get_blob(path);
+	buffer_t *b = data_get_blob(path);
+	if (b == NULL) {
+		console_error(string("Could not open file %s.", path));
+		return;
+	}
 	project_t *project = armpack_decode(b);
 	if (project->version == NULL) {
 		data_delete_blob(path);
@@ -1359,6 +1404,6 @@ void import_arm_run_swatches(char *path, bool replace_existing) {
 }
 
 bool import_arm_has_version(buffer_t *b) {
-	bool has_version = b->buffer[10] == 118; // 'v';
+	bool has_version = b->length > ARM_VERSION_OFFSET && b->buffer[ARM_VERSION_OFFSET] == 118; // 'v';
 	return has_version;
 }
