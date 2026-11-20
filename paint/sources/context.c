@@ -31,6 +31,7 @@ void context_init() {
 	g_context->export_mesh_format           = MESH_FORMAT_OBJ;
 	g_context->export_mesh_index            = 0;
 	g_context->pack_assets_on_export        = true;
+	g_context->export_mesh_embed_textures   = false;
 	g_context->pack_assets_on_save          = false;
 	g_context->paint_vec                    = (vec4_t){0.0, 0.0, 0.0, 1.0};
 	g_context->last_paint_x                 = -1.0;

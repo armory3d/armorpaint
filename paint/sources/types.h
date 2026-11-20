@@ -295,6 +295,7 @@ typedef struct context {
 	mesh_format_t               export_mesh_format;
 	i32                         export_mesh_index;
 	bool                        pack_assets_on_export;
+	bool                        export_mesh_embed_textures;
 	bool                        pack_assets_on_save;
 	vec4_t                      paint_vec;
 	f32                         last_paint_x;

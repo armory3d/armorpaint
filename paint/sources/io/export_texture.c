@@ -3,6 +3,7 @@
 
 static f32             export_texture_gamma       = 1.0 / 2.2;
 static string_array_t *export_texture_baked_files = NULL;
+static any_array_t    *export_texture_embedded    = NULL; // Encoded png buffers instead of files
 
 static i32  _export_texture_channel(i32 c, i32 bits);
 static f32  _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bits);
@@ -45,6 +46,14 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 	}
 	if (type == 2 && off == 3) {
 		format = 6; // AAA1
+	}
+
+	if (export_texture_embedded != NULL) {
+		for (i32 i = 0; i < res_x * res_y; ++i) {
+			pixels->buffer[i * 4 + 3] = 255;
+		}
+		any_array_push(export_texture_embedded, iron_encode_png(pixels, res_x, res_y, 0));
+		return;
 	}
 
 	if (g_context->layers_destination == EXPORT_DESTINATION_PACK_INTO_PROJECT) {
@@ -577,7 +586,7 @@ static i32 export_texture_asset_index(char *file) {
 static void export_texture_link(ui_node_canvas_t *canvas, ui_node_t *from, i32 from_socket, ui_node_t *to, i32 to_socket) {
 	ui_node_link_t *l =
 	    ALLOC_INIT(ui_node_link_t,
-	               {.id = ui_next_link_id(canvas->links), .from_id = from->id, .from_socket = from_socket, .to_id = to->id, .to_socket = to_socket});
+		           {.id = ui_next_link_id(canvas->links), .from_id = from->id, .from_socket = from_socket, .to_id = to->id, .to_socket = to_socket});
 	any_array_push(canvas->links, l);
 }
 
@@ -854,4 +863,24 @@ void export_texture_run(char *path, bool bake_material) {
 	console_info(tr("Textures exported"));
 #endif
 	ui_files_last_path = "";
+}
+
+any_array_t *export_texture_run_embed() {
+	char            *channels[3][4] = {{"base_r", "base_g", "base_b", "1.0"}, {"nor_r", "nor_g", "nor_b", "1.0"}, {"occ", "rough", "metal", "1.0"}};
+	export_preset_t *preset         = TMP_ALLOC_INIT(export_preset_t, {.textures = any_array_create_from_raw_tmp(NULL, 3)});
+	for (i32 i = 0; i < 3; ++i) {
+		preset->textures->buffer[i] =
+		    TMP_ALLOC_INIT(export_preset_texture_t, {.name = "", .channels = any_array_create_from_raw_tmp((void **)channels[i], 4), .color_space = "linear"});
+	}
+	export_preset_t *last_preset = box_export_preset;
+	export_mode_t    last_mode   = g_context->layers_export;
+	box_export_preset            = preset;
+	g_context->layers_export     = EXPORT_MODE_VISIBLE;
+	export_texture_embedded      = any_array_create_from_raw((void *[]){}, 0);
+	export_texture_run_layers("", g_project->_->layers, "", false);
+	any_array_t *textures    = export_texture_embedded;
+	export_texture_embedded  = NULL;
+	box_export_preset        = last_preset;
+	g_context->layers_export = last_mode;
+	return textures;
 }

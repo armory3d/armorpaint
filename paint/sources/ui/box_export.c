@@ -409,6 +409,22 @@ void box_export_tab_atlases() {
 	}
 }
 
+static void box_export_tab_export_mesh_run(void *path) {
+	mesh_object_t_array_t *paint_objects;
+	if (box_export_mesh == 0) {
+		paint_objects = NULL;
+	}
+	else {
+		mesh_object_t *po = g_project->_->paint_objects->buffer[box_export_mesh - 1];
+		paint_objects     = any_array_create_from_raw(
+		    (void *[]){
+		        po,
+		    },
+		    1);
+	}
+	export_mesh_run(path, paint_objects);
+}
+
 void box_export_tab_export_mesh_path_picked(char *path) {
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	char *f = sys_title();
@@ -421,20 +437,7 @@ void box_export_tab_export_mesh_path_picked(char *path) {
 #if defined(IRON_ANDROID) || defined(IRON_IOS)
 	console_toast(tr("Exporting mesh"));
 #endif
-
-	mesh_object_t_array_t *paint_objects;
-	if (box_export_mesh == 0) {
-		paint_objects = NULL;
-	}
-	else {
-		mesh_object_t *po = g_project->_->paint_objects->buffer[box_export_mesh - 1];
-		paint_objects     = any_array_create_from_raw(
-            (void *[]){
-                po,
-            },
-            1);
-	}
-	export_mesh_run(string("%s%s%s", path, PATH_SEP, f), paint_objects);
+	sys_notify_on_next_frame(&box_export_tab_export_mesh_run, string("%s%s%s", path, PATH_SEP, f));
 }
 
 void box_export_tab_export_mesh(i32 *tab) {
@@ -482,16 +485,20 @@ void box_export_tab_export_mesh(i32 *tab) {
 		else {
 			mesh_object_t *po = g_project->_->paint_objects->buffer[pos - 1];
 			paint_objects     = any_array_create_from_raw(
-                (void *[]){
-                    po,
-                },
-                1);
+			    (void *[]){
+			        po,
+			    },
+			    1);
 		}
 		for (i32 i = 0; i < paint_objects->length; ++i) {
 			mesh_object_t *po = paint_objects->buffer[i];
 			tris += math_floor(po->data->index_array->length / 3.0);
 		}
 		ui_text(string_tmp("%s %s", i32_to_string(tris), tr("triangles")), UI_ALIGN_LEFT, 0x00000000);
+
+		if (g_context->export_mesh_format == MESH_FORMAT_GLB) {
+			ui_check(&g_context->export_mesh_embed_textures, tr("Embed Textures"), "");
+		}
 
 		ui_row2();
 		if (ui_icon_button(tr("Cancel"), ICON_CLOSE, UI_ALIGN_CENTER)) {

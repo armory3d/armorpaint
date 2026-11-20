@@ -8,9 +8,48 @@ bool import_mesh_no_scale      = false;
 bool import_mesh_keep_timeline = false;
 bool import_mesh_append        = false;
 
+any_array_t *import_mesh_textures = NULL; // Base color, normal and occlusion-roughness-metallic to apply to the first layer
+
 static mesh_object_t *import_mesh_appended = NULL;
 
+static void import_mesh_free_textures() {
+	if (import_mesh_textures == NULL) {
+		return;
+	}
+	for (i32 i = 0; i < 3; ++i) {
+		if (import_mesh_textures->buffer[i] != NULL) {
+			gpu_delete_texture(import_mesh_textures->buffer[i]);
+		}
+	}
+	array_free(import_mesh_textures);
+	free(import_mesh_textures);
+	import_mesh_textures = NULL;
+}
+
+static void import_mesh_apply_textures(void *_) {
+	slot_layer_t *l = g_project->_->layers->buffer[0];
+	if (import_mesh_textures == NULL || !slot_layer_is_layer(l)) {
+		import_mesh_free_textures();
+		return;
+	}
+	gpu_texture_t *targets[3] = {l->texpaint, l->texpaint_nor, l->texpaint_pack};
+	for (i32 i = 0; i < 3; ++i) {
+		gpu_texture_t *t = import_mesh_textures->buffer[i];
+		if (t != NULL) {
+			draw_begin(targets[i], false, 0);
+			draw_set_pipeline(pipes_copy_rgb);
+			draw_scaled_image(t, 0, 0, targets[i]->width, targets[i]->height);
+			draw_set_pipeline(NULL);
+			draw_end();
+		}
+	}
+	import_mesh_free_textures();
+	g_context->layer_preview_dirty = true;
+}
+
 void import_mesh_run(char *path, bool _clear_layers, bool replace_existing, bool keep_camera) {
+	import_mesh_free_textures();
+
 	if (!path_is_mesh(path)) {
 		if (!context_enable_import_plugin(path)) {
 			console_error(strings_unknown_asset_format());
@@ -89,6 +128,10 @@ i32 import_mesh_finish_import_sort(void **pa, void **pb) {
 }
 
 void import_mesh_finish_import(void *_) {
+	if (import_mesh_textures != NULL) {
+		sys_notify_on_next_frame(&import_mesh_apply_textures, NULL);
+	}
+
 	if (g_context->paint_body != NULL) { // Collider of the merged mesh for particle painting
 		physics_body_remove(g_context->paint_body);
 		g_context->paint_body = NULL;
@@ -264,10 +307,10 @@ void import_mesh_make_mesh(raw_mesh_t *mesh) {
 
 	mesh_object_t_array_t *old_paint_objects = g_project->_->paint_objects;
 	g_project->_->paint_objects              = any_array_create_from_raw(
-        (void *[]){
-            g_context->paint_object,
-        },
-        1);
+	    (void *[]){
+	        g_context->paint_object,
+	    },
+	    1);
 	array_delete(old_paint_objects);
 
 	if (!import_mesh_keep_timeline) {

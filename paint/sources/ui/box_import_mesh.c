@@ -10,6 +10,8 @@ void (*_project_import_mesh_box_done)(void);
 extern int plugins_skinning_frame;
 extern int plugins_split_by;
 
+extern bool plugins_import_textures;
+
 void project_import_mesh_box_menu() {
 	if (ui_menu_button(tr("Append"), "", ICON_CHECK)) {
 		ui_box_hide();
@@ -62,6 +64,10 @@ void project_import_mesh_box_draw() {
 		if (!skinning) {
 			plugins_skinning_frame = -1;
 		}
+	}
+
+	if (path_has_ext(path, "glb")) {
+		ui_check(&plugins_import_textures, tr("Import Textures"), "");
 	}
 
 	f32_array_t *row = f32_array_create_from_raw_tmp(

@@ -2,7 +2,7 @@
 #include "../global.h"
 
 #ifdef WITH_PLUGINS
-void export_glb_run(char *path, mesh_object_t_array_t *paint_objects);
+void export_glb_run(char *path, mesh_object_t_array_t *paint_objects, any_array_t *textures);
 #endif
 
 void export_mesh_run(char *path, mesh_object_t_array_t *paint_objects) {
@@ -19,7 +19,7 @@ void export_mesh_run(char *path, mesh_object_t_array_t *paint_objects) {
 	}
 	else if (g_context->export_mesh_format == MESH_FORMAT_GLB) {
 #ifdef WITH_PLUGINS
-		export_glb_run(path, paint_objects);
+		export_glb_run(path, paint_objects, g_context->export_mesh_embed_textures ? export_texture_run_embed() : NULL);
 #endif
 	}
 	else {
