@@ -231,8 +231,6 @@ float voronoi_3d_f2_fbm(float3 p, float detail, float roughness, float lacunarit
 } \
 ";
 
-// Largest possible distance for Normalize, as in Blender: the distance from a cell corner to a point jittered to (0.5 + 0.5 * randomness)
-// along every axis, i.e. sqrt(N) * (0.5 + 0.5 * randomness), doubled for F2
 static char *voronoi_norm_max_distance(i32 dim, bool is_f2, char *randomness) {
 	return string_tmp("(%s * (0.5 + 0.5 * %s) * %s)", dim == 0 ? "1.41421356" : "1.73205081", randomness, is_f2 ? "2.0" : "1.0");
 }
