@@ -15,7 +15,7 @@ char *parser_material_get_gradient(char *grad, char *co) {
 		return string_tmp("(%s.x + %s.y) * 0.5", co, co);
 	}
 	else if (string_equals(grad, "RADIAL")) {
-		return string_tmp("atan2(%s.x, %s.y) / (3.141592 * 2.0) + 0.5", co, co);
+		return string_tmp("atan2(%s.y, %s.x) / (3.141592 * 2.0) + 0.5", co, co);
 	}
 	else if (string_equals(grad, "QUADRATIC_SPHERE")) {
 		return "0.0";
