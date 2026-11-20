@@ -14,7 +14,7 @@ float tex_noise_f(float3 x) { \
 	                lerp(lerp(hash(n + dot(step, float3(0.0, 0.0, 1.0))), hash(n + dot(step, float3(1.0, 0.0, 1.0))), u.x), \
 	                     lerp(hash(n + dot(step, float3(0.0, 1.0, 1.0))), hash(n + dot(step, float3(1.0, 1.0, 1.0))), u.x), u.y), u.z); \
 } \
-float tex_noise_fbm(float3 p, float detail, float roughness, float lacunarity) { \
+float tex_noise_fbm(float3 p, float detail, float roughness, float lacunarity, float do_norm) { \
 	float fscale = 1.0; \
 	float amp = 1.0; \
 	float maxamp = 0.0; \
@@ -31,16 +31,18 @@ float tex_noise_fbm(float3 p, float detail, float roughness, float lacunarity) {
 		float t = tex_noise_f(p * fscale); \
 		float sum2 = sum + t * amp; \
 		float maxamp2 = maxamp + amp; \
-		return lerp(sum / maxamp, sum2 / maxamp2, rmd); \
+		if (do_norm > 0.5) { return lerp(sum / maxamp, sum2 / maxamp2, rmd); } \
+		return lerp(2.0 * sum - maxamp, 2.0 * sum2 - maxamp2, rmd); \
 	} \
-	return sum / maxamp; \
+	if (do_norm > 0.5) { return sum / maxamp; } \
+	return 2.0 * sum - maxamp; \
 } \
-float3 tex_noise(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion) { \
+float3 tex_noise(float3 p, float scale, float detail, float roughness, float lacunarity, float distortion, float do_norm) { \
 	float3 pp = p * scale; \
 	pp = pp + distortion * (float3(tex_noise_f(pp), tex_noise_f(pp + float3(0.5, 0.0, 0.0)), tex_noise_f(pp + float3(0.0, 0.5, 0.0))) * 2.0 - 1.0); \
-	float f = tex_noise_fbm(pp, detail, roughness, lacunarity); \
-	float r = tex_noise_fbm(pp + float3(0.33, 0.0, 0.0), detail, roughness, lacunarity); \
-	float g = tex_noise_fbm(pp + float3(0.0, 0.33, 0.0), detail, roughness, lacunarity); \
+	float f = tex_noise_fbm(pp, detail, roughness, lacunarity, do_norm); \
+	float r = tex_noise_fbm(pp + float3(0.33, 0.0, 0.0), detail, roughness, lacunarity, do_norm); \
+	float g = tex_noise_fbm(pp + float3(0.0, 0.33, 0.0), detail, roughness, lacunarity, do_norm); \
 	return float3(f, r, g); \
 } \
 ";
@@ -53,7 +55,9 @@ static char *noise_texture_node_result(ui_node_t *node) {
 	char *roughness  = parser_material_parse_value_input(node->inputs->buffer[3], false);
 	char *lacunarity = parser_material_parse_value_input(node->inputs->buffer[4], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[5], false);
-	return string_tmp("tex_noise(%s, %s, %s, %s, %s, %s)", co, scale, detail, roughness, lacunarity, distortion);
+	ui_node_button_t *but_norm  = node->buttons->buffer[2];
+	char             *norm_flag = (i32)but_norm->default_value->buffer[0] == 1 ? "1.0" : "0.0";
+	return string_tmp("tex_noise(%s, %s, %s, %s, %s, %s, %s)", co, scale, detail, roughness, lacunarity, distortion, norm_flag);
 }
 
 char *noise_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -186,7 +190,7 @@ void noise_texture_node_init() {
 	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("Normalize"),
 	                                                                 .type          = "BOOL",
 	                                                                 .output        = -1,
-	                                                                 .default_value = f32_array_create_x(0),
+	                                                                 .default_value = f32_array_create_x(1),
 	                                                                 .data          = NULL,
 	                                                                 .min           = 0.0,
 	                                                                 .max           = 1.0,
