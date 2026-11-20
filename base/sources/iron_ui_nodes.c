@@ -824,7 +824,10 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	if (!(node->flags & UI_NODE_FLAG_COLLAPSED)) {
 		bool _changed    = current->changed;
 		current->changed = false;
+		ui_slider_decimals   = UI_NODES_VALUE_DECIMALS;
+		ui_slider_trim_zeros = UI_NODES_VALUE_TRIM_ZEROS;
 		ui_node_draw_body(node, canvas, nx, ny);
+		ui_slider_decimals = -1;
 		if (ui_nodes_on_node_changed != NULL && current->changed) {
 			ui_nodes_on_node_changed(node);
 		}

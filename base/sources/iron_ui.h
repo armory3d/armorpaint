@@ -325,6 +325,12 @@ int   ui_combo(int *value, string_array_t *texts, char *label, bool show_label, 
 void  ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar);
 float ui_parse_float(char *text);
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
+// Decimals of the value fields of nodes, fields of whole numbers (precision 1) show none.
+// Fixed: 1 -> "1.000". Trimmed (UI_NODES_VALUE_TRIM_ZEROS true): 1 -> "1", 0.5 -> "0.5".
+#define UI_NODES_VALUE_DECIMALS 3
+#define UI_NODES_VALUE_TRIM_ZEROS false
+extern int  ui_slider_decimals;   // >= 0: decimals shown by ui_slider, -1: default (up to 2)
+extern bool ui_slider_trim_zeros; // With ui_slider_decimals: strip trailing zeros
 void  ui_row(f32_array_t *ratios);
 void  ui_row2();
 void  ui_row3();
