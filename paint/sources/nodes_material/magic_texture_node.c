@@ -69,7 +69,7 @@ char *magic_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	char *co         = parser_material_get_coord(node);
 	char *scale      = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[2], false);
-	i32   depth      = (i32)node->outputs->buffer[0]->default_value->buffer[0];
+	i32   depth      = (i32)node->buttons->buffer[0]->default_value->buffer[0];
 	return string_tmp("tex_magic(%s * %s, %s, %d.0)", co, scale, distortion, depth);
 }
 
@@ -78,7 +78,7 @@ char *magic_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	char *co         = parser_material_get_coord(node);
 	char *scale      = parser_material_parse_value_input(node->inputs->buffer[1], false);
 	char *distortion = parser_material_parse_value_input(node->inputs->buffer[2], false);
-	i32   depth      = (i32)node->outputs->buffer[0]->default_value->buffer[0];
+	i32   depth      = (i32)node->buttons->buffer[0]->default_value->buffer[0];
 	return string_tmp("tex_magic_f(%s * %s, %s, %d.0)", co, scale, distortion, depth);
 }
 
