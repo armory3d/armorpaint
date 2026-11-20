@@ -782,13 +782,13 @@ mesh_fracture_t *mesh_fracture_create(mesh_geo_t *in, ui_node_t *node) {
 			f32 ll = l[0] * l[0] + l[1] * l[1] + l[2] * l[2];
 			r2 += ll;
 			fr->rad[p] = fmaxf(fr->rad[p], sqrtf(ll) + fmaxf(fr->rp[p], thick * 0.5f));
-			f32 far    = -1.0f;
+			f32 farthest = -1.0f;
 			for (i32 j = c0; j < c1; j++) {
 				i32 t  = cl[j];
 				f32 dx = tc[t * 3] - x, dy = tc[t * 3 + 1] - y, dz = tc[t * 3 + 2] - z;
 				md[t] = fminf(md[t], dx * dx + dy * dy + dz * dz);
-				if (md[t] > far) {
-					far  = md[t];
+				if (md[t] > farthest) {
+					farthest = md[t];
 					pick = t;
 				}
 			}
