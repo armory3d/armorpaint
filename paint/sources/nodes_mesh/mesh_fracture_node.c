@@ -9,10 +9,12 @@
 #define FRACTURE_MAXC    40000
 #define FRACTURE_DENSITY 500.0f
 #define FRACTURE_SOAK    2.0f
+#define FRACTURE_WALL    0.45f // Max shell thickness relative to the wall
 
 typedef struct mesh_fracture {
 	i32    np;
 	i32    nt;
+	i32    nv;
 	f32    seed;
 	f32    blast;
 	f32    spin;
@@ -36,6 +38,7 @@ typedef struct mesh_fracture {
 	void **cb;  // Moving body of each contact
 	i32    nc;
 	f32   *touch;
+	f32   *th; // Thickness per vertex
 } mesh_fracture_t;
 
 static f32 fracture_rnd(mesh_fracture_t *fr, f32 n) {
@@ -457,6 +460,116 @@ static void fracture_step(mesh_fracture_t *fr, f32 dt, physics_sim_t *grid) {
 	}
 }
 
+static vec4_t fracture_vert(f32 *p, i32 i) {
+	return (vec4_t){p[i * 3], p[i * 3 + 1], p[i * 3 + 2], 1.0f};
+}
+
+static i32 fracture_cell(f32 x, f32 mn, f32 cell, i32 n) {
+	i32 i = (i32)floorf((x - mn) / cell);
+	return i < 0 ? 0 : i >= n ? n - 1 : i;
+}
+
+// Shell thickness per vertex, limited by the distance to the opposite surface so thin parts do not poke through
+static f32 *fracture_thickness(mesh_geo_t *in, f32 thick) {
+	i32  nv  = in->vertex_count;
+	i32  nt  = in->index_count / 3;
+	f32 *ip  = in->pos;
+	u32 *ii  = in->ind;
+	f32 *th  = malloc(sizeof(f32) * nv);
+	f32  len = thick / FRACTURE_WALL;
+
+	// Grid with cells at least as long as the rays, a ray touches up to 8 cells
+	f32 mn[3] = {1e9f, 1e9f, 1e9f};
+	f32 mx[3] = {-1e9f, -1e9f, -1e9f};
+	for (i32 i = 0; i < nv * 3; i++) {
+		mn[i % 3] = fminf(mn[i % 3], ip[i]);
+		mx[i % 3] = fmaxf(mx[i % 3], ip[i]);
+	}
+	f32 cell = fmaxf(fmaxf(len, fmaxf(mx[0] - mn[0], fmaxf(mx[1] - mn[1], mx[2] - mn[2])) / 64.0f), 1e-6f);
+	i32 n[3];
+	for (i32 a = 0; a < 3; a++) {
+		n[a] = (i32)((mx[a] - mn[a]) / cell) + 1;
+	}
+
+	// Triangles per cell
+	i32  cells = n[0] * n[1] * n[2];
+	i32 *gs    = calloc(cells + 1, sizeof(i32));
+	i32 *gl    = NULL;
+	i32  lo[3], hi[3];
+	for (i32 fill = 0; fill < 2; fill++) {
+		for (i32 t = 0; t < nt; t++) {
+			for (i32 a = 0; a < 3; a++) {
+				f32 x = ip[ii[t * 3] * 3 + a], y = ip[ii[t * 3 + 1] * 3 + a], z = ip[ii[t * 3 + 2] * 3 + a];
+				lo[a] = fracture_cell(fminf(x, fminf(y, z)), mn[a], cell, n[a]);
+				hi[a] = fracture_cell(fmaxf(x, fmaxf(y, z)), mn[a], cell, n[a]);
+			}
+			for (i32 z = lo[2]; z <= hi[2]; z++) {
+				for (i32 y = lo[1]; y <= hi[1]; y++) {
+					for (i32 x = lo[0]; x <= hi[0]; x++) {
+						i32 c = (z * n[1] + y) * n[0] + x;
+						if (fill) {
+							gl[--gs[c]] = t;
+						}
+						else {
+							gs[c]++;
+						}
+					}
+				}
+			}
+		}
+		// Cell ends, filling counts them down to the starts
+		if (!fill) {
+			for (i32 c = 1; c < cells; c++) {
+				gs[c] += gs[c - 1];
+			}
+			gs[cells] = gs[cells - 1];
+			gl        = malloc(sizeof(i32) * math_max(gs[cells], 1));
+		}
+	}
+
+	// Nearest hit along the inward normal
+	i32 *stamp = malloc(sizeof(i32) * nt);
+	for (i32 t = 0; t < nt; t++) {
+		stamp[t] = -1;
+	}
+	for (i32 v = 0; v < nv; v++) {
+		vec4_t o    = fracture_vert(ip, v);
+		ray_t  r    = {o, vec4_norm(vec4_mult(fracture_vert(in->nor, v), -1.0f))};
+		f32    best = len;
+		for (i32 a = 0; a < 3; a++) {
+			f32 x = (&o.x)[a], y = x + (&r.dir.x)[a] * len;
+			lo[a] = fracture_cell(fminf(x, y), mn[a], cell, n[a]);
+			hi[a] = fracture_cell(fmaxf(x, y), mn[a], cell, n[a]);
+		}
+		for (i32 z = lo[2]; z <= hi[2]; z++) {
+			for (i32 y = lo[1]; y <= hi[1]; y++) {
+				for (i32 x = lo[0]; x <= hi[0]; x++) {
+					i32 c = (z * n[1] + y) * n[0] + x;
+					for (i32 j = gs[c]; j < gs[c + 1]; j++) {
+						i32 t = gl[j];
+						if (stamp[t] == v) {
+							continue;
+						}
+						stamp[t] = v;
+						vec4_t h =
+						    ray_intersect_triangle(&r, fracture_vert(ip, ii[t * 3]), fracture_vert(ip, ii[t * 3 + 1]), fracture_vert(ip, ii[t * 3 + 2]), false);
+						f32 d = vec4_isnan(h) ? best : vec4_dist(h, o);
+						// Triangles sharing the vertex hit at zero
+						if (d > len * 0.001f) {
+							best = fminf(best, d);
+						}
+					}
+				}
+			}
+		}
+		th[v] = fminf(thick, best * FRACTURE_WALL);
+	}
+	free(stamp);
+	free(gs);
+	free(gl);
+	return th;
+}
+
 // NULL when there are no chunks
 mesh_fracture_t *mesh_fracture_create(mesh_geo_t *in, ui_node_t *node) {
 	i32 np     = (i32)floorf(nodes_mesh_value(node, 1) + 0.5f);
@@ -472,6 +585,8 @@ mesh_fracture_t *mesh_fracture_create(mesh_geo_t *in, ui_node_t *node) {
 	mesh_fracture_t *fr = calloc(1, sizeof(mesh_fracture_t));
 	fr->np              = np;
 	fr->nt              = nt;
+	fr->nv              = nv;
+	fr->th              = fracture_thickness(in, thick);
 	fr->start           = start;
 	fr->blast           = nodes_mesh_value(node, 4);
 	fr->spin            = nodes_mesh_value(node, 5);
@@ -612,7 +727,7 @@ mesh_fracture_t *mesh_fracture_create(mesh_geo_t *in, ui_node_t *node) {
 				}
 				stamp[v] = p;
 				for (i32 f = 0; f < 2; f++) {
-					f32 o = thick * f;
+					f32 o = fr->th[v] * f;
 					for (i32 a = 0; a < 3; a++) {
 						fr->lg[ng * 3 + a] = (ip[v * 3 + a] - inn[v * 3 + a] * o - pc[p * 4 + a]) * shrink;
 					}
@@ -656,13 +771,14 @@ mesh_fracture_t *mesh_fracture_create(mesh_geo_t *in, ui_node_t *node) {
 			f32  ny = na[1] + nb[1] + nc[1];
 			f32  nz = na[2] + nb[2] + nc[2];
 			f32  nl = fmaxf(sqrtf(nx * nx + ny * ny + nz * nz), 1e-6f);
+			f32  ht = (fr->th[ii[pick * 3]] + fr->th[ii[pick * 3 + 1]] + fr->th[ii[pick * 3 + 2]]) / 6.0f;
 			nx /= nl;
 			ny /= nl;
 			nz /= nl;
 			f32 *l = fr->lp + (p * FRACTURE_K + i) * 3;
-			l[0]   = x - nx * thick * 0.5f - pc[p * 4];
-			l[1]   = y - ny * thick * 0.5f - pc[p * 4 + 1];
-			l[2]   = z - nz * thick * 0.5f - pc[p * 4 + 2];
+			l[0]   = x - nx * ht - pc[p * 4];
+			l[1]   = y - ny * ht - pc[p * 4 + 1];
+			l[2]   = z - nz * ht - pc[p * 4 + 2];
 			f32 ll = l[0] * l[0] + l[1] * l[1] + l[2] * l[2];
 			r2 += ll;
 			fr->rad[p] = fmaxf(fr->rad[p], sqrtf(ll) + fmaxf(fr->rp[p], thick * 0.5f));
@@ -733,6 +849,7 @@ void mesh_fracture_destroy(mesh_fracture_t *fr) {
 	free(fr->ct);
 	free(fr->cb);
 	free(fr->touch);
+	free(fr->th);
 	free(fr);
 }
 
@@ -821,7 +938,7 @@ mesh_geo_t *mesh_fracture_node_eval(ui_node_t *node) {
 	f32             *frm;
 	mesh_fracture_t *fr    = sim_world_fracture(o->base->uid, node->id, &frm);
 	i32              frame = tab_timeline_selected_frame;
-	if (fr == NULL || fr->nt != in->index_count / 3) {
+	if (fr == NULL || fr->nt != in->index_count / 3 || fr->nv != in->vertex_count) {
 		return in; // Not simulated yet
 	}
 	i32  np       = fr->np;
@@ -844,7 +961,7 @@ mesh_geo_t *mesh_fracture_node_eval(ui_node_t *node) {
 	f32 *pc     = fr->pc;
 	i32 *pid    = fr->pid;
 	f32  shrink = fr->shrink;
-	f32  thick  = fmaxf(nodes_mesh_value(node, 6), 0.001f);
+	f32 *th     = fr->th;
 
 	// Outer face, inner face, side walls
 	mesh_geo_t *g  = util_geo_create(nt * 18, nt * 24);
@@ -857,7 +974,7 @@ mesh_geo_t *mesh_fracture_node_eval(ui_node_t *node) {
 		for (i32 k = 0; k < 3; k++) {
 			i32 s = ii[t * 3 + k];
 			f32 x = ip[s * 3], y = ip[s * 3 + 1], z = ip[s * 3 + 2];
-			f32 ix = x - inn[s * 3] * thick, iy = y - inn[s * 3 + 1] * thick, iz = z - inn[s * 3 + 2] * thick;
+			f32 ix = x - inn[s * 3] * th[s], iy = y - inn[s * 3 + 1] * th[s], iz = z - inn[s * 3 + 2] * th[s];
 			i32 kn               = k == 2 ? 0 : k + 1;
 			i32 j                = k + 3;
 			op[(vb + k) * 3]     = x;
@@ -887,9 +1004,9 @@ mesh_geo_t *mesh_fracture_node_eval(ui_node_t *node) {
 			op[(w + 2) * 3]     = ix;
 			op[(w + 2) * 3 + 1] = iy;
 			op[(w + 2) * 3 + 2] = iz;
-			op[(w + 3) * 3]     = ip[s2 * 3] - inn[s2 * 3] * thick;
-			op[(w + 3) * 3 + 1] = ip[s2 * 3 + 1] - inn[s2 * 3 + 1] * thick;
-			op[(w + 3) * 3 + 2] = ip[s2 * 3 + 2] - inn[s2 * 3 + 2] * thick;
+			op[(w + 3) * 3]     = ip[s2 * 3] - inn[s2 * 3] * th[s2];
+			op[(w + 3) * 3 + 1] = ip[s2 * 3 + 1] - inn[s2 * 3 + 1] * th[s2];
+			op[(w + 3) * 3 + 2] = ip[s2 * 3 + 2] - inn[s2 * 3 + 2] * th[s2];
 			// Flat wall normal
 			f32 e1x = op[(w + 2) * 3] - x, e1y = op[(w + 2) * 3 + 1] - y, e1z = op[(w + 2) * 3 + 2] - z;
 			f32 e2x = op[(w + 1) * 3] - x, e2y = op[(w + 1) * 3 + 1] - y, e2z = op[(w + 1) * 3 + 2] - z;
