@@ -525,12 +525,13 @@ mesh_object_t_array_t *util_mesh_get_merged_objects() {
 }
 
 bool util_mesh_merged_partial() {
-	if (!g_context->merged_object_is_atlas || util_mesh_merged_objects == NULL) {
+	if (util_mesh_merged_objects == NULL) {
 		return false;
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
-		if (po->base->visible && array_index_of(util_mesh_merged_objects, po) < 0) {
+		mesh_object_t *po     = g_project->_->paint_objects->buffer[i];
+		bool           merged = array_index_of(util_mesh_merged_objects, po) >= 0;
+		if (po->base->visible ? !merged && g_context->merged_object_is_atlas : merged) {
 			return true;
 		}
 	}
