@@ -361,7 +361,10 @@ static void ui_node_params_draw_buttons(ui_node_t *node) {
 		ui_node_button_t *but = node->buttons->buffer[i];
 		f32              *val = but->output == -1 ? but->default_value->buffer : node->outputs->buffer[but->output]->default_value->buffer;
 		if (string_equals(but->type, "VALUE")) {
+			ui_slider_decimals   = UI_NODES_VALUE_DECIMALS;
+			ui_slider_trim_zeros = UI_NODES_VALUE_TRIM_ZEROS;
 			ui_slider(val, tr(but->name), but->min, but->max, true, but->precision, true, UI_ALIGN_LEFT, true);
+			ui_slider_decimals = -1;
 		}
 		else if (string_equals(but->type, "BOOL")) {
 			bool value = val[0] != 0.0;
