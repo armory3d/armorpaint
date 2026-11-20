@@ -152,6 +152,7 @@ typedef struct ui {
 	bool                highlight_on_select; // Highlight text edit contents on selection
 	bool                tab_switch_enabled;  // Allow switching focus to the next element by pressing tab
 	ui_text_coloring_t *text_coloring;       // Set coloring scheme for ui_draw_string() calls
+	int                 slider_decimals;     // Decimals of ui_slider() values, 0: up to 2
 	int                 window_border_top;
 	int                 window_border_bottom;
 	int                 window_border_left;
@@ -325,12 +326,6 @@ int   ui_combo(int *value, string_array_t *texts, char *label, bool show_label, 
 void  ui_combo_open(ui_id_t id, int value, string_array_t *texts, char *label, int align, bool search_bar);
 float ui_parse_float(char *text);
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit);
-// Decimals of the value fields of nodes, fields of whole numbers (precision 1) show none.
-// Fixed: 1 -> "1.000". Trimmed (UI_NODES_VALUE_TRIM_ZEROS true): 1 -> "1", 0.5 -> "0.5".
-#define UI_NODES_VALUE_DECIMALS 3
-#define UI_NODES_VALUE_TRIM_ZEROS false
-extern int  ui_slider_decimals;   // >= 0: decimals shown by ui_slider, -1: default (up to 2)
-extern bool ui_slider_trim_zeros; // With ui_slider_decimals: strip trailing zeros
 void  ui_row(f32_array_t *ratios);
 void  ui_row2();
 void  ui_row3();
@@ -603,6 +598,7 @@ extern void (*ui_nodes_on_link_drag)(int, bool);
 extern void (*ui_nodes_on_node_remove)(ui_node_t *);
 extern void (*ui_nodes_on_node_changed)(ui_node_t *);
 extern bool ui_nodes_grid_snap;
+extern int  ui_nodes_value_decimals;
 
 void     ui_node_canvas_encode(ui_node_canvas_t *canvas);
 uint32_t ui_node_canvas_encoded_size(ui_node_canvas_t *canvas);

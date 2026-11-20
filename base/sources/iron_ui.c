@@ -2711,27 +2711,7 @@ float ui_parse_float(char *text) {
 #endif
 }
 
-int  ui_slider_decimals   = -1;
-bool ui_slider_trim_zeros = false;
-
-// Value text of a slider. decimals < 0 is the default format: the value rounded to
-// 1 / precision, shown with up to 2 decimals. Otherwise the value is shown with
-// exactly `decimals` decimals and is not rounded to the drag step.
-static void ui_slider_format(char *buf, float value, float precision, int decimals, bool trim_zeros) {
-	if (decimals < 0) {
-		sprintf(buf, "%.2f", round(value * precision) / precision);
-		string_strip_trailing_zeros(buf);
-		return;
-	}
-	sprintf(buf, "%.*f", decimals, value);
-	if (trim_zeros && decimals > 0) {
-		string_strip_trailing_zeros(buf);
-	}
-}
-
 float ui_slider(float *value, char *text, float from, float to, bool filled, float precision, bool display_value, int align, bool text_edit) {
-	// ui_slider_decimals overrides the decimals shown, a precision of 1 (whole numbers) never has decimals
-	int decimals = ui_slider_decimals < 0 ? -1 : (precision > 1.0 ? ui_slider_decimals : 0);
 	current->item_changed = false;
 	ui_id_t     id        = ui_widget_id(value, UI_ID_SLIDER);
 	static char temp[1024];
@@ -2778,17 +2758,14 @@ float ui_slider(float *value, char *text, float from, float to, bool filled, flo
 	bool hover = ui_get_hover(UI_ELEMENT_H());
 	ui_draw_slider((*value), from, to, filled, hover); // Slider
 
+	int decimals = precision > 1.0 ? current->slider_decimals : 0; // Whole numbers have no decimals
+
 	// Text edit
 	bool start_edit = (ui_get_released(UI_ELEMENT_H()) || current->tab_pressed) && text_edit;
 	if (start_edit) { // Mouse did not move
 		char tmp[256];
-		if (decimals < 0) {
-			sprintf(tmp, "%.2f", (*value));
-			string_strip_trailing_zeros(tmp);
-		}
-		else {
-			ui_slider_format(tmp, *value, precision, decimals, decimals > 0);
-		}
+		sprintf(tmp, "%.*f", decimals > 0 ? decimals : 2, (*value));
+		string_strip_trailing_zeros(tmp);
 		ui_start_edit(id, tmp, UI_ALIGN_LEFT);
 		current->item_changed = current->changed = true;
 	}
@@ -2808,7 +2785,13 @@ float ui_slider(float *value, char *text, float from, float to, bool filled, flo
 	if (display_value) {
 		draw_set_color(theme->TEXT_COL); // Value
 		if (current->text_selected_id != id) {
-			ui_slider_format(temp, *value, precision, decimals, ui_slider_trim_zeros);
+			if (decimals > 0) {
+				sprintf(temp, "%.*f", decimals, (*value));
+			}
+			else {
+				sprintf(temp, "%.2f", round((*value) * precision) / precision);
+				string_strip_trailing_zeros(temp);
+			}
 			ui_draw_string(temp, theme->TEXT_OFFSET, 0, lalign, true);
 		}
 		else {
