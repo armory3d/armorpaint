@@ -183,17 +183,8 @@ void noise_texture_node_init() {
 	                                                                 .max           = 1.0,
 	                                                                 .precision     = 100,
 	                                                                 .height        = 0}),
-	                                   ALLOC_INIT(ui_node_button_t, {.name          = _tr("Normalize"),
-	                                                                 .type          = "BOOL",
-	                                                                 .output        = -1,
-	                                                                 .default_value = f32_array_create_x(0),
-	                                                                 .data          = NULL,
-	                                                                 .min           = 0.0,
-	                                                                 .max           = 1.0,
-	                                                                 .precision     = 100,
-	                                                                 .height        = 0}),
 	                               },
-	                               3),
+	                               2),
 	                           .width = 0,
 	                           .flags = 0});
 
