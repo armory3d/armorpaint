@@ -135,6 +135,10 @@ static bool render_path_base_path_trace() {
 	return g_context->viewport_mode == VIEWPORT_MODE_PATH_TRACE && g_context->tool != TOOL_TYPE_COLORID && !render_path_raytrace_bake_lightmap_busy();
 }
 
+bool render_path_base_path_trace_converging() {
+	return render_path_base_path_trace() && render_path_raytrace_frame < g_config->pathtrace_frames;
+}
+
 void render_path_base_begin() {
 	// Begin split
 	if (base_is_split() && !g_context->paint2d_view) {
@@ -215,7 +219,7 @@ void render_path_base_draw_split(void (*draw_commands)(void)) {
 
 		bool use_live_layer = g_context->tool == TOOL_TYPE_MATERIAL;
 		bool path_trace     = render_path_base_path_trace();
-        path_trace ? render_path_raytrace_draw(use_live_layer) : draw_commands();
+		path_trace ? render_path_raytrace_draw(use_live_layer) : draw_commands();
 		render_path_base_draw_outline();
 
 		g_context->view_index = g_context->view_index == 0 ? 1 : 0;

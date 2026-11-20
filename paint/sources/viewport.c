@@ -73,7 +73,7 @@ void viewport_orbit_opposite() {
 	camera_object_t *cam  = scene_camera;
 	vec4_t           look = camera_object_look(cam);
 	f32              z    = math_abs(look.z) - 1.0;
-    (z < 0.0001 && z > -0.0001) ? viewport_orbit(0, math_pi()) : viewport_orbit(math_pi(), 0);
+	(z < 0.0001 && z > -0.0001) ? viewport_orbit(0, math_pi()) : viewport_orbit(math_pi(), 0);
 }
 
 void viewport_zoom(f32 f) {
@@ -175,6 +175,9 @@ void viewport_capture_video_frame() {
 	f64 time = iron_time();
 	if (viewport_video_stepped) {
 		if (viewport_video_time < 0.0) {
+			return;
+		}
+		if (render_path_base_path_trace_converging()) {
 			return;
 		}
 		time                = viewport_video_time;
