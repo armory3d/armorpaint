@@ -279,6 +279,43 @@ void *io_gltf_parse(char *buf, size_t size, const char *path) {
 	return raw;
 }
 
+gpu_texture_t *gpu_create_texture_from_encoded_bytes(buffer_t *data, char *format);
+
+static gpu_texture_t *io_gltf_texture(cgltf_texture_view *v) {
+	if (v->texture == NULL || v->texture->image == NULL || v->texture->image->buffer_view == NULL) {
+		return NULL;
+	}
+	cgltf_buffer_view *bv = v->texture->image->buffer_view;
+	buffer_t           b  = {.buffer = (uint8_t *)bv->buffer->data + bv->offset, .length = (uint32_t)bv->size};
+	return gpu_create_texture_from_encoded_bytes(&b, "png");
+}
+
+// Embedded images of the first material: base color, normal, occlusion-roughness-metallic
+any_array_t *io_gltf_parse_textures(char *buf, size_t size, const char *path) {
+	cgltf_options options = {0};
+	cgltf_data   *data    = NULL;
+	if (cgltf_parse(&options, buf, size, &data) != cgltf_result_success) {
+		return NULL;
+	}
+	cgltf_load_buffers(&options, data, path);
+	any_array_t *textures = NULL;
+	if (data->materials_count > 0) {
+		cgltf_material     *m      = &data->materials[0];
+		cgltf_texture_view *mr     = &m->pbr_metallic_roughness.metallic_roughness_texture;
+		cgltf_texture_view *occ    = &m->occlusion_texture;
+		bool                is_orm = mr->texture != NULL && occ->texture != NULL && mr->texture->image == occ->texture->image; // Occlusion packed into red
+		textures                   = any_array_create_from_raw(
+		    (void *[]){
+		        io_gltf_texture(&m->pbr_metallic_roughness.base_color_texture),
+		        io_gltf_texture(&m->normal_texture),
+		        is_orm ? io_gltf_texture(mr) : NULL,
+		    },
+		    3);
+	}
+	cgltf_free(data);
+	return textures;
+}
+
 buffer_t *util_skin_blob_create(char *name, int vc, float *pos, float *nor, float *tex, int ic, uint32_t *ind, uint16_t *joints, float *weights, int jc, int fc,
                                 float *mats, int *parents, float *heads, float *tails);
 
@@ -447,8 +484,9 @@ static void json_buf_append(json_buf_t *j, const char *fmt, ...) {
 	j->len += (size_t)tl;
 }
 
-void export_glb_run(char *path, any_array_t *paint_objects) {
-	int n = (int)paint_objects->length;
+void export_glb_run(char *path, any_array_t *paint_objects, any_array_t *textures) {
+	int n  = (int)paint_objects->length;
+	int nt = textures != NULL ? (int)textures->length : 0; // base, nor, orm png
 
 	int      *vcs     = (int *)malloc(n * sizeof(int));
 	int      *ics     = (int *)malloc(n * sizeof(int));
@@ -557,6 +595,22 @@ void export_glb_run(char *path, any_array_t *paint_objects) {
 		}
 	}
 
+	// Embedded png images, 4-byte aligned
+	uint32_t img_off[3];
+	for (int i = 0; i < nt; i++) {
+		buffer_t *b = (buffer_t *)textures->buffer[i];
+		while (bin_len + b->length + 4 > bin_cap) {
+			bin_cap *= 2;
+			bin = (uint8_t *)realloc(bin, bin_cap);
+		}
+		while (bin_len % 4 != 0) {
+			bin[bin_len++] = 0;
+		}
+		img_off[i] = (uint32_t)bin_len;
+		memcpy(bin + bin_len, b->buffer, b->length);
+		bin_len += b->length;
+	}
+
 	// Pad to 4-byte boundary with zeros
 	while (bin_len % 4 != 0) {
 		if (bin_len >= bin_cap) {
@@ -596,8 +650,8 @@ void export_glb_run(char *path, any_array_t *paint_objects) {
 			json_buf_append(&j, ",");
 		mesh_object_t *p       = (mesh_object_t *)paint_objects->buffer[i];
 		int            base_ac = i * 4;
-		json_buf_append(&j, "{\"name\":\"%s\",\"primitives\":[{\"attributes\":{\"POSITION\":%d,\"NORMAL\":%d,\"TEXCOORD_0\":%d},\"indices\":%d}]}",
-		                p->base->name, base_ac, base_ac + 1, base_ac + 2, base_ac + 3);
+		json_buf_append(&j, "{\"name\":\"%s\",\"primitives\":[{\"attributes\":{\"POSITION\":%d,\"NORMAL\":%d,\"TEXCOORD_0\":%d},\"indices\":%d%s}]}",
+		                p->base->name, base_ac, base_ac + 1, base_ac + 2, base_ac + 3, nt == 3 ? ",\"material\":0" : "");
 	}
 	json_buf_append(&j, "],");
 
@@ -635,7 +689,22 @@ void export_glb_run(char *path, any_array_t *paint_objects) {
 		json_buf_append(&j, ",{\"buffer\":0,\"byteOffset\":%u,\"byteLength\":%u}", tex_off[i], (uint32_t)(vc * 8));
 		json_buf_append(&j, ",{\"buffer\":0,\"byteOffset\":%u,\"byteLength\":%u}", idx_off[i], (uint32_t)(ic * 4));
 	}
+	for (int i = 0; i < nt; i++) {
+		json_buf_append(&j, ",{\"buffer\":0,\"byteOffset\":%u,\"byteLength\":%u}", img_off[i], ((buffer_t *)textures->buffer[i])->length);
+	}
 	json_buf_append(&j, "],");
+
+	// materials
+	if (nt == 3) {
+		int bv = n * 4;
+		json_buf_append(&j,
+		                "\"images\":[{\"bufferView\":%d,\"mimeType\":\"image/png\"},{\"bufferView\":%d,\"mimeType\":\"image/png\"},"
+		                "{\"bufferView\":%d,\"mimeType\":\"image/png\"}],",
+		                bv, bv + 1, bv + 2);
+		json_buf_append(&j, "\"textures\":[{\"source\":0},{\"source\":1},{\"source\":2}],");
+		json_buf_append(&j, "\"materials\":[{\"name\":\"Material\",\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0},"
+		                    "\"metallicRoughnessTexture\":{\"index\":2}},\"normalTexture\":{\"index\":1},\"occlusionTexture\":{\"index\":2}}],");
+	}
 
 	// buffers
 	json_buf_append(&j, "\"buffers\":[{\"byteLength\":%u}]}", (uint32_t)bin_len);
@@ -691,4 +760,13 @@ void export_glb_run(char *path, any_array_t *paint_objects) {
 	free(pmaxs);
 	free(bin);
 	free(j.buf);
+	for (int i = 0; i < nt; i++) {
+		buffer_t *b = (buffer_t *)textures->buffer[i];
+		free(b->buffer);
+		free(b);
+	}
+	if (textures != NULL) {
+		array_free(textures);
+		free(textures);
+	}
 }

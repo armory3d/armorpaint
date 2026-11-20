@@ -18,6 +18,8 @@ void     *util_skin_raw_mesh(buffer_t *blob);
 void     *io_fbx_parse(char *buf, size_t size);
 void     *io_fbx_parse_skinned(char *buf, size_t size);
 
+any_array_t *io_gltf_parse_textures(char *buf, size_t size, const char *path);
+
 typedef struct asset {
 	i32   id;
 	char *name;
@@ -38,6 +40,9 @@ void                   bake_maps_init(void);
 
 int plugins_skinning_frame = -1;
 int plugins_split_by       = 0;
+
+bool                plugins_import_textures = false;
+extern any_array_t *import_mesh_textures;
 
 void io_psd_import_layer(char *file_name, char *layer_name, void *tex) {
 	char *path = string("%s.%s.png", file_name, layer_name);
@@ -89,6 +94,9 @@ static void *import_gltf_glb(char *path) {
 	buffer_t *b = data_get_blob(path);
 	if (b == NULL) {
 		return NULL;
+	}
+	if (plugins_import_textures && import_mesh_textures == NULL) { // Parsed once for all meshes
+		import_mesh_textures = io_gltf_parse_textures((char *)b->buffer, b->length, path);
 	}
 	if (plugins_skinning_frame != -1) {
 		buffer_t *blob = io_gltf_skin_blob((char *)b->buffer, b->length, path);
