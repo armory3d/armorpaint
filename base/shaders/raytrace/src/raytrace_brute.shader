@@ -4,9 +4,8 @@
 #define _SUBSURFACE
 #define _TRANSLUCENCY
 #define _ROULETTE
-#else
-#define _ENV_SAMPLING
 #endif
+#define _ENV_SAMPLING
 
 #ifndef _EMISSION
 #ifndef _SUBSURFACE
@@ -46,20 +45,26 @@ const int SAMPLES = 32;
 #endif
 #endif
 
+#ifdef _SUBSURFACE
+const int DEPTH = 32;
+#else
 #ifdef _TRANSLUCENCY
 const int DEPTH = 16;
 #else
 const int DEPTH = 3; // Opaque hits
 #endif
+#endif
 
-// Sample dimensions of a bounce: [roulette], select, [select2], dir.xy, [light.xy]
+// Sample dimensions of a bounce: [roulette], select, [select2], dir.xy, [medium.xyz], light.xy
 const int DIM_BOUNCE = 2;
 #ifdef _FULL
 const int DIM_RR         = 0;
 const int DIM_SELECT     = 1;
 const int DIM_SELECT2    = 2;
 const int DIM_DIR        = 3;
-const int DIM_PER_BOUNCE = 5;
+const int DIM_MEDIUM     = 5; // Free flight, scatter.xy
+const int DIM_LIGHT      = 6; // Shares scatter.xy, a medium scatter and a surface light sample never happen in the same bounce
+const int DIM_PER_BOUNCE = 8;
 #else
 const int DIM_SELECT     = 0;
 const int DIM_DIR        = 1;
@@ -260,6 +265,35 @@ float3 sample_ggx_vndf(float3 ve, float alpha, float u1, float u2) {
 	float3 nh  = p1 * t1 + p2 * t2 + sqrt(max(0.0, 1.0 - p1 * p1 - p2 * p2)) * vh;
 	return normalize(float3(alpha * nh.x, alpha * nh.y, max(0.000001, nh.z)));
 }
+
+#ifdef _SUBSURFACE
+float fresnel_dielectric(float cos_i, float eta) {
+	float sin2_t = eta * eta * (1.0 - cos_i * cos_i);
+	if (sin2_t >= 1.0) {
+		return 1.0;
+	}
+	float cos_t = sqrt(1.0 - sin2_t);
+	float rs    = (eta * cos_i - cos_t) / (eta * cos_i + cos_t);
+	float rp    = (cos_i - eta * cos_t) / (cos_i + eta * cos_t);
+	return 0.5 * (rs * rs + rp * rp);
+}
+
+float3 refract_dir(float3 i, float3 n, float eta) {
+	float c = -dot(i, n);
+	float k = 1.0 - eta * eta * (1.0 - c * c);
+	if (k < 0.0) {
+		return float3(0.0, 0.0, 0.0);
+	}
+	return i * eta + n * (eta * c - sqrt(k));
+}
+
+float3 uniform_sphere(float u1, float u2) {
+	float z   = 1.0 - 2.0 * u1;
+	float r   = sqrt(max(0.0, 1.0 - z * z));
+	float phi = PI2 * u2;
+	return float3(r * cos(phi), r * sin(phi), z);
+}
+#endif
 
 float3 offset_ray(float3 p, float3 ng, float3 dir) {
 	if (dot(dir, ng) < 0.0) {
@@ -473,18 +507,18 @@ void raytrace() {
 		float bsdf_pdf = -1.0;
 #endif
 
+#ifdef _ROULETTE
+		int scatters = 0;
+#endif
+
+#ifdef _SUBSURFACE
+		int    medium_depth = 0;
+		float  medium_sigma = 0.0;
+		float3 medium_color = float3(1.0, 1.0, 1.0);
+#endif
+
 		for (int i = 0; i < DEPTH; i += 1) {
 			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
-
-#ifdef _ROULETTE
-			if (i >= rr_start) {
-				float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
-				if (rnd(id.xy, sample_index, dim_base + DIM_RR, cache, frame) > rr_probability) {
-					break;
-				}
-				throughput = throughput / rr_probability;
-			}
-#endif
 
 			ray_query q;
 			ray_query_trace(q, scene, r);
@@ -524,6 +558,36 @@ void raytrace() {
 
 			float  ray_t = ray_query_distance(q);
 			float3 hit   = r.origin + r.direction * ray_t;
+
+#ifdef _SUBSURFACE
+			if (medium_depth > 0) {
+				// Free flight through the medium, scatter before the surface or absorb along the way
+				float sigma = medium_sigma * float(medium_depth);
+				float ts    = ray_t + 1.0;
+				if (sigma > 0.0) {
+					ts = -log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001)) / sigma;
+				}
+				if (ts < ray_t) {
+					throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ts);
+#ifdef _ROULETTE
+					if (scatters >= rr_start) {
+						float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+						if (rnd(id.xy, sample_index, dim_base + DIM_RR, cache, frame) > rr_probability) {
+							break;
+						}
+						throughput = throughput / rr_probability;
+					}
+					scatters += 1;
+#endif
+					r.origin    = r.origin + r.direction * ts;
+					r.direction = uniform_sphere(rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 1, cache, frame),
+					                             rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 2, cache, frame));
+					bsdf_pdf    = -1.0; // Not covered by light sampling
+					continue;
+				}
+				throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ray_t);
+			}
+#endif
 
 			float2 zw0 = s16_to_f32(a0.y);
 			float2 zw1 = s16_to_f32(a1.y);
@@ -572,8 +636,14 @@ void raytrace() {
 
 			float3 texcolor = srgb_to_linear(tex0.rgb);
 
+#ifdef _SUBSURFACE
+			bool medium_surface = int(tex1.a * 255.0) % 3 == 2;
+#else
+			bool medium_surface = false;
+#endif
+
 #ifdef _TRANSLUCENCY
-			if (!ray_query_front_face(q)) {
+			if (!medium_surface && !ray_query_front_face(q)) {
 				throughput *= pow(max(texcolor, 0.001), ray_t * tex0.a);
 			}
 #endif
@@ -587,6 +657,59 @@ void raytrace() {
 
 			float4 tex2 = geometry_texture2(g, texel);
 
+#ifdef _SUBSURFACE
+			if (medium_surface) {
+				// Smooth to rough dielectric with ior = 1 + metallic
+				// Inside, 1 - occlusion sets the scattering density and base color the transmittance per unit of distance
+				float  ior      = 1.0 + tex2.b;
+				bool   entering = !back_face;
+				bool   crosses  = true;
+				float3 sdir     = r.direction;
+				if (ior > 1.001) {
+					float3        wo      = -r.direction;
+					tangent_basis mbasis  = create_basis(n);
+					float         malpha  = max(tex2.g * tex2.g, 0.001);
+					float3        v_local = float3(dot(wo, mbasis.tangent), dot(wo, mbasis.binormal), max(dot(wo, n), 0.001));
+					float3        h_local = sample_ggx_vndf(v_local, malpha, rnd(id.xy, sample_index, dim_base + DIM_DIR, cache, frame),
+					                                        rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
+					float3        h       = normalize(mbasis.tangent * h_local.x + mbasis.binormal * h_local.y + n * h_local.z);
+					float         eta     = 1.0 / ior;
+					if (!entering) {
+						eta = ior;
+					}
+					float  cos_i = max(dot(wo, h), 0.0);
+					float3 t     = refract_dir(r.direction, h, eta);
+					if (rnd(id.xy, sample_index, dim_base + DIM_SELECT, cache, frame) < fresnel_dielectric(cos_i, eta) || dot(t, t) == 0.0) {
+						sdir    = reflect(r.direction, h);
+						crosses = false;
+						if (dot(sdir, ng) <= 0.0) {
+							sdir = reflect(r.direction, ng); // Microfacet pointed it below the surface
+						}
+					}
+					else {
+						sdir = normalize(t);
+						if (dot(sdir, ng) >= 0.0) {
+							sdir = r.direction;
+						}
+					}
+				}
+				if (crosses) {
+					if (entering) {
+						medium_depth += 1;
+						medium_sigma = (1.0 - tex2.r) * (1.0 - tex2.r) * 16.0;
+						medium_color = texcolor;
+					}
+					else if (medium_depth > 0) {
+						medium_depth -= 1;
+					}
+				}
+				r.direction = sdir;
+				r.origin    = offset_ray(hit, ng, sdir);
+				bsdf_pdf    = -1.0; // Shadow rays stop at media boundaries, only this path reaches the light
+				continue;
+			}
+#endif
+
 			float f = rnd(id.xy, sample_index, dim_base + DIM_SELECT, cache, frame);
 
 #ifdef _TRANSLUCENCY
@@ -596,10 +719,22 @@ void raytrace() {
 				                                     rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
 				r.direction = normalize(lerp(r.direction, sdir, tex2.g * tex2.g * 0.5));
 				r.origin    = offset_ray(hit, ng, r.direction);
+				bsdf_pdf    = -1.0; // Shadow rays stop at translucent surfaces, only this path reaches the light
 				continue;
 			}
 
 			f = rnd(id.xy, sample_index, dim_base + DIM_SELECT2, cache, frame);
+#endif
+
+#ifdef _ROULETTE
+			if (scatters >= rr_start) {
+				float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+				if (rnd(id.xy, sample_index, dim_base + DIM_RR, cache, frame) > rr_probability) {
+					break;
+				}
+				throughput = throughput / rr_probability;
+			}
+			scatters += 1;
 #endif
 
 			float3 tangent;
@@ -709,15 +844,6 @@ void raytrace() {
 			bsdf_pdf         = next_eval.w;
 #endif
 
-#ifdef _SUBSURFACE
-			if (int(tex1.a * 255.0) % 3 == 2) {
-				float d = min(1.0 / min(ray_t * 2.0, 1.0) / 10.0, 0.5);
-				throughput += throughput * d;
-				if (f < 0.5) {
-					r.origin += r.direction * f * 0.001;
-				}
-			}
-#endif
 		}
 	}
 
