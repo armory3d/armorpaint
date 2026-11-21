@@ -666,7 +666,7 @@ raw_mesh_t *obj_parse(buffer_t *file_bytes, char split_code, uint64_t start_pos,
 			}
 
 			// Normalize uvs to 0-1 range
-			int16_t *uvtiles = (int16_t *)malloc(uv_temp.length * sizeof(int16_t));
+			int16_t *uvtiles = (int16_t *)calloc(uv_temp.length, sizeof(int16_t));
 			for (int i = 0; i < (int)(inda_length / 3); ++i) { // TODO: merge loops
 				int i1                                 = part->inda->buffer[i * 3];
 				int i2                                 = part->inda->buffer[i * 3 + 1];
