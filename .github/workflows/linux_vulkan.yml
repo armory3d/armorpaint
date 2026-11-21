@@ -8,13 +8,18 @@ on:
     branches:
     - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v7.0.1
+      with:
+        persist-credentials: false
     - name: Apt Update
       run: sudo apt-get update
     - name: Apt Install
