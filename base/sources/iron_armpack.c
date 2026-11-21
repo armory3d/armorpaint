@@ -4,6 +4,7 @@
 #include "iron_alloc.h"
 #include "iron_json.h"
 #include "iron_string.h"
+#include <setjmp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,6 +20,8 @@ static uint32_t ei;     // Encoded index
 static uint32_t bottom; // Decoded bottom
 static uint8_t *decoded;
 static uint8_t *encoded;
+static uint32_t encoded_length;
+static jmp_buf *decode_guard; // Set while armpack_decode runs, a read past the end of the data returns NULL from it
 static uint32_t capacity;
 static uint32_t array_count;
 static uint32_t str_len;
@@ -86,38 +89,50 @@ static void store_string(char *str) {
 	di     = _di;
 }
 
+static inline void read_check(uint32_t n) {
+	if (decode_guard != NULL && (uint64_t)ei + n > encoded_length) {
+		longjmp(*decode_guard, 1);
+	}
+}
+
 static uint8_t read_u8() {
+	read_check(1);
 	uint8_t u8 = *(uint8_t *)(encoded + ei);
 	ei += 1;
 	return u8;
 }
 
 static int16_t read_i16() {
+	read_check(2);
 	int16_t i16 = *(int16_t *)(encoded + ei);
 	ei += 2;
 	return i16;
 }
 
 static int32_t read_i32() {
+	read_check(4);
 	int32_t i32 = *(int32_t *)(encoded + ei);
 	ei += 4;
 	return i32;
 }
 
 static uint32_t read_u32() {
+	read_check(4);
 	uint32_t u32 = *(uint32_t *)(encoded + ei);
 	ei += 4;
 	return u32;
 }
 
 static float read_f32() {
+	read_check(4);
 	float f32 = *(float *)(encoded + ei);
 	ei += 4;
 	return f32;
 }
 
 static char *read_string() {
-	str_len   = read_u32();
+	str_len = read_u32();
+	read_check(str_len);
 	char *str = (char *)(encoded + ei);
 	ei += str_len;
 	return str;
@@ -401,13 +416,22 @@ static void reset() {
 	bottom = 0;
 }
 
+// Returns NULL when the data ends before the structure does
 void *armpack_decode(buffer_t *b) {
+	jmp_buf guard;
 	reset();
-	encoded  = b->buffer;
-	capacity = traverse(0, true);
+	encoded        = b->buffer;
+	encoded_length = b->length;
+	if (setjmp(guard) != 0) {
+		decode_guard = NULL;
+		return NULL;
+	}
+	decode_guard = &guard;
+	capacity     = traverse(0, true);
 	reset();
 	decoded = calloc(1, capacity);
 	read_store();
+	decode_guard = NULL;
 	return decoded;
 }
 
@@ -735,11 +759,21 @@ any_map_t *_armpack_decode_to_map() {
 	return result;
 }
 
+// Returns NULL when the data ends before the structure does
 any_map_t *armpack_decode_to_map(buffer_t *b) {
-	encoded = b->buffer;
-	ei      = 0;
+	jmp_buf guard;
+	encoded        = b->buffer;
+	encoded_length = b->length;
+	ei             = 0;
+	if (setjmp(guard) != 0) {
+		decode_guard = NULL;
+		return NULL;
+	}
+	decode_guard = &guard;
 	read_u8(); // Must be 0xdf for a map
-	return _armpack_decode_to_map();
+	any_map_t *map = _armpack_decode_to_map();
+	decode_guard   = NULL;
+	return map;
 }
 
 static void     armpack_to_json_value();
