@@ -150,10 +150,6 @@ project_t *main() {
 		add_assets(project, "sources/backends/data/wasm/*", NULL, 0);
 	}
 
-	if (graphics == GRAPHICS_METAL || (graphics == GRAPHICS_VULKAN && platform != PLATFORM_ANDROID)) {
-		add_define(project, "IRON_BGRA");
-	}
-
 	if (flags->with_kong) {
 		add_define(project, "WITH_KONG");
 		add_cfiles(project, "sources/kong/dir.c");
@@ -186,15 +182,13 @@ project_t *main() {
 	if (flags->with_raytrace) {
 		add_define(project, "WITH_RAYTRACE");
 		add_assets(project, "assets/raytrace/*", "data/{name}", 0);
-		if (graphics == GRAPHICS_VULKAN) {
-			add_assets(project, "shaders/raytrace/*.spirv", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_METAL) {
-			add_assets(project, "shaders/raytrace/*.metal", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_WEBGPU) {
-			add_assets(project, "shaders/raytrace/*.wgsl", "data/{name}", 0);
-		}
+		char *low = graphics == GRAPHICS_VULKAN ? "" : "_LOW_SAMPLES";
+		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_core", low);
+		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_full", string("%s _FULL", low));
+		add_shader(project, "shaders/raytrace/raytrace_bake_ao.shader", "raytrace_bake_ao", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_light.shader", "raytrace_bake_light", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_bent.shader", "raytrace_bake_bent", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_thick.shader", "raytrace_bake_thick", low);
 	}
 
 	if (flags->export_version_info) {
