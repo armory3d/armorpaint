@@ -82,7 +82,9 @@ static void ui_node_params_update(void *_) {
 				ui_node_params_update_brush();
 			}
 			else if (layers_is_fill_material()) {
-				layers_update_fill_layers();
+				if (!ui_node_params_pending || g_ui->input_down) {
+					layers_update_fill_layers_live();
+				}
 			}
 			else if (layers_is_path_material()) {
 				layers_update_path_layers();
@@ -115,7 +117,7 @@ static void ui_node_params_update(void *_) {
 	else {
 		make_material_parse_paint_material(true);
 		if (layers_is_fill_material()) {
-			layers_update_fill_layers();
+			layers_update_fill_layers_keep_paint();
 		}
 		if (layers_is_path_material()) {
 			layers_update_path_layers();
