@@ -415,9 +415,7 @@ char *account_token = NULL; // NULL when signed out
 char *account_email = NULL; // NULL until /auth/me answers
 char *account_code  = NULL; // Shown while signing in, "" until the server hands one out
 
-#ifdef IRON_DIRECT3D12
-char *render_path_raytrace_ext = ".cso";
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 char *render_path_raytrace_ext = ".metal";
 #elif defined(IRON_WEBGPU)
 char *render_path_raytrace_ext = ".wgsl";
