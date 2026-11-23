@@ -253,7 +253,7 @@ config_t *config_create_default() {
 	c->pressure_hardness = false;
 	c->pressure_angle    = false;
 	c->pressure_opacity  = false;
-#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_MACOS)
+#if defined(IRON_ANDROID) || defined(IRON_IOS)
 	c->material_live = false;
 #else
 	c->material_live = true;
