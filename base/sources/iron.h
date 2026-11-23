@@ -186,13 +186,6 @@ char *iron_get_arg(i32 index) {
 #include <stdio.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#ifdef IRON_DIRECT3D12
-#include <d3d12.h>
-#endif
-#ifdef WITH_D3DCOMPILER
-#include <D3Dcompiler.h>
-#include <d3d11.h>
-#endif
 #ifdef WITH_COMPRESS
 #include "iron_compress.h"
 void untar_here(const char *path);
@@ -701,12 +694,7 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 gpu_shader_t *gpu_create_shader_from_source(char *source, int source_size, gpu_shader_type_t shader_type) {
 	gpu_shader_t *shader = (gpu_shader_t *)malloc(sizeof(gpu_shader_t));
 
-#ifdef WITH_D3DCOMPILER
-
-	gpu_shader_init(shader, source, strlen(source) + 1, shader_type);
-	shader->impl.is_source = true;
-
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 
 	gpu_shader_init(shader, source, strlen(source), shader_type);
 

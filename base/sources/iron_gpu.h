@@ -7,9 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#if defined(IRON_WINDOWS)
-#include "backends/direct3d12_gpu.h"
-#elif defined(IRON_MACOS) || defined(IRON_IOS)
+#if defined(IRON_MACOS) || defined(IRON_IOS)
 #include "backends/metal_gpu.h"
 #elif defined(IRON_WASM)
 #include "backends/webgpu_gpu.h"
@@ -29,7 +27,7 @@
 #define GPU_FRAMEBUFFER_COUNT 3
 #endif
 
-#if defined(IRON_VULKAN) || defined(IRON_METAL) || defined(IRON_DIRECT3D12)
+#if defined(IRON_VULKAN) || defined(IRON_METAL)
 #define GPU_FRAMES_IN_FLIGHT 2
 #else
 #define GPU_FRAMES_IN_FLIGHT 1

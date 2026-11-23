@@ -1087,14 +1087,12 @@ i32 sys_display_ppi(void) {
 }
 
 char *sys_shader_ext(void) {
-#if defined(IRON_VULKAN)
-	return ".spirv";
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 	return ".metal";
 #elif defined(IRON_WASM)
 	return ".wgsl";
 #else
-	return ".d3d11";
+	return ".spirv";
 #endif
 }
 

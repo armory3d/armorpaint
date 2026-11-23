@@ -1,3 +1,3 @@
 # iron
 
-3D engine targeting Direct3D12, Vulkan, Metal and WebGPU. Based on [Kore](https://github.com/Kode/Kore).
+3D engine targeting Vulkan, Metal and WebGPU. Based on [Kore](https://github.com/Kode/Kore).

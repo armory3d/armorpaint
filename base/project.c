@@ -16,14 +16,14 @@ project_t *main() {
 		add_cfiles(project, "sources/backends/windows_system.*");
 		add_cfiles(project, "sources/backends/windows_net.*");
 		add_cfiles(project, "sources/backends/windows_thread.*");
-		add_cfiles(project, "sources/backends/direct3d12_gpu.*");
+		add_cfiles(project, "sources/backends/vulkan_gpu.*");
 		add_define(project, "_CRT_SECURE_NO_WARNINGS");
 		add_define(project, "_WINSOCK_DEPRECATED_NO_WARNINGS");
-		add_define(project, "IRON_DIRECT3D12");
-		add_lib(project, "dxguid");
+		add_define(project, "IRON_VULKAN");
+		add_define(project, "VK_USE_PLATFORM_WIN32_KHR");
+		add_include_dir(project, "$(VULKAN_SDK)/Include"); // https://vulkan.lunarg.com/sdk/home
+		add_lib(project, "$(VULKAN_SDK)/Lib/vulkan-1");
 		add_lib(project, "Winhttp");
-		add_lib(project, "dxgi");
-		add_lib(project, "d3d12");
 		add_lib(project, "Dwmapi"); // DWMWA_USE_IMMERSIVE_DARK_MODE
 		if (flags->with_audio) {
 			add_lib(project, "dsound");
@@ -31,11 +31,6 @@ project_t *main() {
 		}
 		if (flags->with_gamepad) {
 			add_lib(project, "dinput8");
-		}
-		if (flags->with_d3dcompiler) {
-			add_define(project, "WITH_D3DCOMPILER");
-			add_lib(project, "d3d11");
-			add_lib(project, "d3dcompiler");
 		}
 	}
 	else if (platform == PLATFORM_LINUX) {
@@ -166,10 +161,8 @@ project_t *main() {
 		add_cfiles(project, "sources/kong/kong_cstyle.c");
 		add_cfiles(project, "sources/kong/stb_ds.c");
 		add_cfiles(project, "sources/kong/kong_spirv.c");
+		add_cfiles(project, "sources/kong/kong_spirv_opt.c");
 		add_cfiles(project, "sources/kong/kong_wgsl.c");
-		if (platform == PLATFORM_WINDOWS) {
-			add_cfiles(project, "sources/kong/kong_hlsl.c");
-		}
 		if (platform == PLATFORM_MACOS || platform == PLATFORM_IOS) {
 			add_cfiles(project, "sources/kong/kong_metal.c");
 		}
@@ -193,10 +186,7 @@ project_t *main() {
 	if (flags->with_raytrace) {
 		add_define(project, "WITH_RAYTRACE");
 		add_assets(project, "assets/raytrace/*", "data/{name}", 0);
-		if (graphics == GRAPHICS_DIRECT3D12) {
-			add_assets(project, "shaders/raytrace/*.cso", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_VULKAN) {
+		if (graphics == GRAPHICS_VULKAN) {
 			add_assets(project, "shaders/raytrace/*.spirv", "data/{name}", 0);
 		}
 		else if (graphics == GRAPHICS_METAL) {
