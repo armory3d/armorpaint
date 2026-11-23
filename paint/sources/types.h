@@ -44,7 +44,6 @@ typedef struct mesh_geo_image {
 	i32  height;
 	u8  *pixels;  // As stored in the texture, rows from v 0, read with mesh_geo_image_sample
 	i32  format;  // gpu_texture_format_t of the pixels
-	bool bgra;    // 8 bit rgba pixels in bgra order
 	i32  channel; // 0 - 3 reads that channel in all four, -1 rgba
 } mesh_geo_image_t;
 

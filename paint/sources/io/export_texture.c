@@ -5,7 +5,6 @@ static f32             export_texture_gamma       = 1.0 / 2.2;
 static string_array_t *export_texture_baked_files = NULL;
 static any_array_t    *export_texture_embedded    = NULL; // Encoded png buffers instead of files
 
-static i32  _export_texture_channel(i32 c, i32 bits);
 static f32  _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bits);
 static void export_texture_bake_material_add_texture(char *file);
 
@@ -14,7 +13,7 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 	buffer_t *rgba = buffer_create(count * 4);
 	i32       ch[4];
 	for (i32 c = 0; c < 4; ++c) {
-		ch[c] = format >= 3 ? _export_texture_channel(format - 3, bits) : _export_texture_channel(c, bits);
+		ch[c] = format >= 3 ? format - 3 : c;
 	}
 	for (i32 i = 0; i < count; ++i) {
 		for (i32 c = 0; c < 4; ++c) {
@@ -121,15 +120,6 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 	export_texture_bake_material_add_texture(file);
 }
 
-static i32 _export_texture_channel(i32 c, i32 bits) {
-#ifdef IRON_BGRA
-	if (bits == 8) {
-		return c == 0 ? 2 : c == 2 ? 0 : c;
-	}
-#endif
-	return c;
-}
-
 static i32 _export_texture_pixel_count(buffer_t *b, i32 bits) {
 	return b->length / (4 * (bits / 8));
 }
@@ -174,9 +164,7 @@ static void export_texture_to_srgb(buffer_t *to, i32 to_channel, i32 bits) {
 }
 
 static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, _export_texture_get_value(from, i, from_channel, bits));
 	}
@@ -186,9 +174,7 @@ static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer
 }
 
 static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, 1.0 - _export_texture_get_value(from, i, from_channel, bits));
 	}
@@ -198,9 +184,7 @@ static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, bu
 }
 
 static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 step, i32 mask, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		i32 id = math_floor(_export_texture_get_value(from, i, from_channel, bits) * 255.0 + 0.5);
 		_export_texture_set_value(to, i, to_channel, bits, id % step == mask ? 1.0 : 0.0);
@@ -212,9 +196,7 @@ static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buf
 
 static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buffer_t *from_pack, i32 albedo_channel, buffer_t *to, i32 to_channel, i32 bits,
                                                      bool linear, bool is_specular) {
-	albedo_channel    = _export_texture_channel(albedo_channel, bits);
-	to_channel        = _export_texture_channel(to_channel, bits);
-	i32 metal_channel = _export_texture_channel(2, bits);
+	i32 metal_channel = 2;
 	i32 count         = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		f32 albedo = _export_texture_get_value(from_albedo, i, albedo_channel, bits);
@@ -234,8 +216,7 @@ static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buff
 }
 
 static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	to_channel = _export_texture_channel(to_channel, bits);
-	i32 count  = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, value);
 	}

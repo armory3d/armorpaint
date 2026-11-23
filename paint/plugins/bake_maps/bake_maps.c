@@ -1741,10 +1741,6 @@ static void bake_maps_gpu_done(void *_) {
 		bake_maps_gpu_h   = t->height;
 	}
 	memcpy(bake_maps_gpu_out, pixels->buffer, t->width * t->height * 4);
-#ifdef IRON_BGRA
-	buffer_t out = {.buffer = bake_maps_gpu_out, .length = t->width * t->height * 4};
-	buffer_bgra_swap(&out); // Render targets read back in the native order
-#endif
 	bake_maps_gpu_last = true;
 }
 
@@ -1867,13 +1863,7 @@ static minic_val_t bake_maps_save(minic_val_t *a, int n) {
 	i32      h      = bake_maps_gpu_last ? bake_maps_gpu_h : bake_rays_h;
 	char    *file   = string("%s%s%s", folder, PATH_SEP, file_name);
 	buffer_t pixels = {.buffer = out, .length = w * h * 4};
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&pixels); // The png writer takes the native order, the bake is RGBA
-#endif
 	iron_write_png(file, &pixels, w, h, 0);
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&pixels);
-#endif
 
 	asset_t_array_t *assets = g_project->_->assets;
 	for (i32 i = 0; i < assets->length; ++i) {
@@ -2593,9 +2583,6 @@ static minic_val_t bake_maps_inpaint_apply(minic_val_t *a, int n) {
 		inpaint_normalize(&j, todo, count);
 	}
 	buffer_t b = {.buffer = px, .length = w * h * 4};
-#ifdef IRON_BGRA
-	buffer_bgra_swap(&b); // The png writer takes the native order, the decoded png is RGBA
-#endif
 	iron_write_png(path, &b, w, h, 0);
 	project_reimport_texture(asset);
 	free(j.known);

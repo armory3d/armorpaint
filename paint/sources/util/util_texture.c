@@ -1,7 +1,7 @@
 
 #include "../global.h"
 
-void util_texture_capture_output(gpu_texture_t *img, char *basename, bool bgra) {
+void util_texture_capture_output(gpu_texture_t *img, char *basename) {
 	if (img == NULL) {
 		return;
 	}
@@ -22,13 +22,6 @@ void util_texture_capture_output(gpu_texture_t *img, char *basename, bool bgra) 
 	}
 
 	buffer_t *buf = gpu_get_texture_pixels(img);
-
-#ifdef IRON_BGRA
-	if (bgra && img->format == GPU_TEXTURE_FORMAT_RGBA32) {
-		buf = buffer_bgra_swap(buf); // Vulkan non-rt textures need a flip
-	}
-#endif
-
 	u8_array_t     *bytes = iron_encode_png(buf, img->width, img->height, 0);
 	packed_asset_t *pa    = ALLOC_INIT(packed_asset_t, {.name = abs, .bytes = bytes});
 	any_array_push(g_project->packed_assets, pa);

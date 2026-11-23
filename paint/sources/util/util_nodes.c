@@ -236,19 +236,11 @@ void ui_viewnodes_on_node_changed(ui_node_t *n) {
 	ui_nodes_node_changed = n;
 }
 
-bool ui_nodes_node_preview_is_bgra(ui_node_t *n) {
-#ifdef IRON_BGRA
-	return n != NULL && (string_equals(n->type, "TEX_IMAGE") || starts_with(n->type, "NEURAL_"));
-#else
-	return false;
-#endif
-}
-
 void ui_nodes_capture_output() {
 	ui_nodes_t       *ui_nodes = ui_nodes_get_nodes();
 	ui_node_canvas_t *c        = ui_nodes_get_canvas(true);
 	ui_node_t        *sel      = ui_get_node(c->nodes, ui_nodes->nodes_selected_id->buffer[0]);
-	util_texture_capture_output(ui_nodes_get_node_preview_image(sel), "node_preview", ui_nodes_node_preview_is_bgra(sel));
+	util_texture_capture_output(ui_nodes_get_node_preview_image(sel), "node_preview");
 }
 
 void ui_viewnodes_on_canvas_capture_output(void *_) {
@@ -319,7 +311,9 @@ void ui_nodes_recompile() {
 		}
 		else {
 			if (layers_is_fill_material()) {
-				layers_update_fill_layers();
+				if (!ui_nodes_recompile_mat_final) {
+					layers_update_fill_layers_live();
+				}
 			}
 			else if (layers_is_path_material()) {
 				layers_update_path_layers();
@@ -345,7 +339,7 @@ void ui_nodes_recompile() {
 
 		if (ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
 			if (layers_is_fill_material()) {
-				layers_update_fill_layers();
+				layers_update_fill_layers_keep_paint();
 				util_render_make_material_preview();
 			}
 			if (layers_is_path_material()) {

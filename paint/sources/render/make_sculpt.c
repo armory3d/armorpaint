@@ -1785,11 +1785,6 @@ bool sculpt_layer_mask_texels(slot_layer_t *l, f32 *out, i32 len) {
 	if (masks == NULL) {
 		return false;
 	}
-#ifdef IRON_BGRA
-	i32 r_off = 2;
-#else
-	i32 r_off = 0;
-#endif
 	bool any = false;
 	for (i32 mi = 0; mi < masks->length; ++mi) {
 		slot_layer_t *m = masks->buffer[mi];
@@ -1813,7 +1808,7 @@ bool sculpt_layer_mask_texels(slot_layer_t *l, f32 *out, i32 len) {
 			i32          y    = math_floor(texa->buffer[v * 2 + 1] / 32767.0 * mh);
 			x                 = x < 0 ? 0 : (x >= mw ? mw - 1 : x);
 			y                 = y < 0 ? 0 : (y >= mh ? mh - 1 : y);
-			f32 r             = buffer_get_u8(mp, (y * mw + x) * 4 + r_off) / 255.0;
+			f32 r             = buffer_get_u8(mp, (y * mw + x) * 4) / 255.0;
 			out[t] *= (1.0 - opac) + r * opac;
 		}
 	}

@@ -45,8 +45,8 @@ static mesh_geo_image_t *mesh_image_cache_add(gpu_texture_t *texture, i32 channe
 	return img;
 }
 
-// The pixels as stored, 8, 16 or 32 bits, decoded when sampled. Render targets read back bgra on vulkan and metal,
-// textures created from images rgba. A pixel buffer the texture did not keep before is taken over and freed with the image.
+// The pixels as stored, 8, 16 or 32 bits, decoded when sampled.
+// A pixel buffer the texture did not keep before is taken over and freed with the image.
 static u8 *mesh_image_read(gpu_texture_t *texture, bool *owns) {
 	gpu_texture_t *current = _draw_current;
 	bool           in_use  = gpu_in_use;
@@ -98,9 +98,6 @@ mesh_geo_image_t *mesh_image_texture_get(gpu_texture_t *texture, bool render_tar
 	img->pixels           = pixels;
 	img->format           = format == GPU_TEXTURE_FORMAT_RGBA32_BC7 ? GPU_TEXTURE_FORMAT_RGBA32 : format; // Decompressed on read
 	img->channel          = channel;
-#ifdef IRON_BGRA
-	img->bgra = render_target && format == GPU_TEXTURE_FORMAT_RGBA32;
-#endif
 	return mesh_image_cache_add(texture, channel, img, owns);
 }
 
@@ -164,7 +161,7 @@ vec4_t mesh_image_texel(mesh_geo_image_t *img, i32 x, i32 y) {
 	}
 	default: {
 		u8 *p = img->pixels + i * 4;
-		c     = img->bgra ? (vec4_t){p[2] / 255.0, p[1] / 255.0, p[0] / 255.0, p[3] / 255.0} : (vec4_t){p[0] / 255.0, p[1] / 255.0, p[2] / 255.0, p[3] / 255.0};
+		c     = (vec4_t){p[0] / 255.0, p[1] / 255.0, p[2] / 255.0, p[3] / 255.0};
 		break;
 	}
 	}

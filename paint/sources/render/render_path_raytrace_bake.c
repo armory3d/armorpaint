@@ -462,12 +462,7 @@ static void lightmap_write(lightmap_job_t *job) {
 		for (i32 c = 0; c < 3; ++c) {
 			f32 v = m[i] ? px[i * 4 + c] / job->range : 0.0f;
 			v     = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
-#ifdef IRON_BGRA
-			i32 oc = 2 - c; // Png writer expects the render target byte order
-#else
-			i32 oc = c;
-#endif
-			out->buffer[i * 4 + oc] = (u8)(powf(v, 1.0f / 2.2f) * 255.0f + 0.5f);
+			out->buffer[i * 4 + c] = (u8)(powf(v, 1.0f / 2.2f) * 255.0f + 0.5f);
 		}
 		out->buffer[i * 4 + 3] = 255;
 	}

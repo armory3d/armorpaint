@@ -16,11 +16,7 @@ void upscale_image_node_button(i32 node_id) {
 		if (input != NULL) {
 			char *dir = neural_node_dir();
 
-#ifdef IRON_BGRA
-			buffer_t *input_buf = buffer_bgra_swap(gpu_get_texture_pixels(input)); // Vulkan non-rt textures need a flip
-#else
 			buffer_t *input_buf = gpu_get_texture_pixels(input);
-#endif
 			iron_write_png(string("%s%sinput.png", dir, PATH_SEP), input_buf, input->width, input->height, 0);
 
 			string_array_t *argv = any_array_create_from_raw(
