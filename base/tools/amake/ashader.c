@@ -12,15 +12,8 @@
 #include <Windows.h>
 #endif
 
-extern uint64_t    next_variable_id;
-extern size_t      allocated_globals_size;
-extern function_id next_function_index;
-extern global_id   globals_size;
-extern name_id     names_index;
-extern size_t      sets_count;
-extern type_id     next_type_index;
-void               spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
-void               wgsl_export2(char **vs, char **fs);
+void spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
+void wgsl_export2(char **vs, char **fs);
 
 static bool has_compute_function(void) {
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
@@ -67,16 +60,7 @@ void kong_compile(char *shader_lang, const char *from, const char *to, char **de
 	fclose(fp);
 	data = kong_preprocess(data, defines, defines_count);
 
-	next_variable_id       = 1;
-	allocated_globals_size = 0;
-	next_function_index    = 0;
-	globals_size           = 0;
-	names_index            = 1;
-	sets_count             = 0;
-	next_type_index        = 0;
-	names_init();
-	types_init();
-	functions_init();
+	kong_reset();
 	tokens tokens = tokenize(from, data);
 	parse(from, &tokens);
 	resolve_types();
