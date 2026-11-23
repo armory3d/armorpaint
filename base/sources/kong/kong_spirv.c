@@ -1806,9 +1806,10 @@ static spirv_id write_op_load_aligned(instructions_buffer *instructions, spirv_i
 }
 
 static instructions_buffer *compute_decorations = NULL;
-static spirv_id             storage_image_type;
-static spirv_id             storage_image_pointer_type;
+static spirv_id             storage_image_types[TEXTURE_FORMAT_R32 + 1]; // Per texture_format
+static spirv_id             storage_image_pointer_types[TEXTURE_FORMAT_R32 + 1];
 static uint64_t             storage_image_vars[64];
+static spirv_id             storage_image_var_types[64];
 static size_t               storage_image_vars_count = 0;
 static spirv_id             acceleration_structure_type;
 
@@ -1840,6 +1841,28 @@ static bool is_storage_image(uint64_t var_index) {
 		}
 	}
 	return false;
+}
+
+static spirv_id storage_image_type(uint64_t var_index) {
+	for (size_t i = 0; i < storage_image_vars_count; ++i) {
+		if (storage_image_vars[i] == var_index) {
+			return storage_image_var_types[i];
+		}
+	}
+	return (spirv_id){0};
+}
+
+static image_format storage_image_format(texture_format format) {
+	switch (format) {
+	case TEXTURE_FORMAT_RGBA32:
+		return IMAGE_FORMAT_RGBA8;
+	case TEXTURE_FORMAT_RGBA128:
+		return IMAGE_FORMAT_RGBA32F;
+	case TEXTURE_FORMAT_R32:
+		return IMAGE_FORMAT_R32F;
+	default:
+		return IMAGE_FORMAT_RGBA16F;
+	}
 }
 
 static struct {
@@ -2022,7 +2045,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id value;
 
 				if (is_storage_image(o->op_load_access_list.from.index)) {
-					spirv_id image      = write_op_load(instructions, storage_image_type, convert_kong_index_to_spirv_id(o->op_load_access_list.from.index));
+					spirv_id image      = write_op_load(instructions, storage_image_type(o->op_load_access_list.from.index),
+					                                    convert_kong_index_to_spirv_id(o->op_load_access_list.from.index));
 					spirv_id coordinate = get_var(instructions, coordinate_var);
 					value               = write_op_image_read(instructions, spirv_float4_type, image, coordinate);
 				}
@@ -2668,7 +2692,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				uint64_t tex_index = o->op_call.parameters[0].index;
 				spirv_id id;
 				if (is_storage_image(tex_index)) {
-					uint32_t operands[] = {write_op_load(instructions, storage_image_type, convert_kong_index_to_spirv_id(tex_index)).id};
+					uint32_t operands[] = {write_op_load(instructions, storage_image_type(tex_index), convert_kong_index_to_spirv_id(tex_index)).id};
 					id                  = write_op_result(instructions, SPIRV_OPCODE_IMAGE_QUERY_SIZE, spirv_uint2_type, operands, 1);
 				}
 				else {
@@ -2836,7 +2860,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				kong_assert(indices_size == 1);
 				kong_assert(o->op_store_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
-				spirv_id image_type = is_storage_image(o->op_store_access_list.to.index) ? storage_image_type : spirv_readwrite_image_type;
+				spirv_id image_type = is_storage_image(o->op_store_access_list.to.index) ? storage_image_type(o->op_store_access_list.to.index)
+				                                                                         : spirv_readwrite_image_type;
 				spirv_id image      = write_op_load(instructions, image_type, convert_kong_index_to_spirv_id(o->op_store_access_list.to.index));
 
 				variable coordinate_var = o->op_store_access_list.access_list[0].access_element.index;
@@ -3705,14 +3730,19 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 				kong_assert(false);
 			}
 			else if (storage) {
-				if (storage_image_type.id == 0) {
-					storage_image_type         = write_type_image(aggregate_types_block, spirv_float_type, DIM_2D, 0, 0, 0, 2, IMAGE_FORMAT_RGBA16F);
-					storage_image_pointer_type = write_type_pointer(aggregate_types_block, STORAGE_CLASS_UNIFORM_CONSTANT, storage_image_type);
+				// One type per format, the default and rgba64 are both rgba16f
+				texture_format format = g->format == TEXTURE_FORMAT_NONE ? TEXTURE_FORMAT_RGBA64 : g->format;
+				if (storage_image_types[format].id == 0) {
+					storage_image_types[format] =
+					    write_type_image(aggregate_types_block, spirv_float_type, DIM_2D, 0, 0, 0, 2, storage_image_format(format));
+					storage_image_pointer_types[format] = write_type_pointer(aggregate_types_block, STORAGE_CLASS_UNIFORM_CONSTANT, storage_image_types[format]);
 				}
 
 				spirv_id spirv_var_id = convert_kong_index_to_spirv_id(g->var_index);
-				write_op_variable_preallocated(global_vars_block, storage_image_pointer_type, spirv_var_id, STORAGE_CLASS_UNIFORM_CONSTANT);
-				storage_image_vars[storage_image_vars_count++] = g->var_index;
+				write_op_variable_preallocated(global_vars_block, storage_image_pointer_types[format], spirv_var_id, STORAGE_CLASS_UNIFORM_CONSTANT);
+				storage_image_vars[storage_image_vars_count]      = g->var_index;
+				storage_image_var_types[storage_image_vars_count] = storage_image_types[format];
+				storage_image_vars_count++;
 
 				write_op_decorate_value(decorations, spirv_var_id, DECORATION_DESCRIPTOR_SET, 0);
 				write_op_decorate_value(decorations, spirv_var_id, DECORATION_BINDING, binding);
@@ -3894,7 +3924,8 @@ void init_maps(void) {
 	init_float_constants();
 	hmfree(uint_constants);
 	hmfree(bool_constants);
-	storage_image_type               = (spirv_id){0};
+	memset(storage_image_types, 0, sizeof(storage_image_types));
+	memset(storage_image_pointer_types, 0, sizeof(storage_image_pointer_types));
 	storage_image_vars_count         = 0;
 	acceleration_structure_type      = (spirv_id){0};
 	storage_buffer_uint_pointer_type = (spirv_id){0};

@@ -530,6 +530,19 @@ static bool uses_geometry_texture(function *main, int index) {
 	return calls_function(main, name);
 }
 
+static const char *storage_texture_format(texture_format format) {
+	switch (format) {
+	case TEXTURE_FORMAT_RGBA32:
+		return "rgba8unorm";
+	case TEXTURE_FORMAT_RGBA64:
+		return "rgba16float";
+	case TEXTURE_FORMAT_R32:
+		return "r32float";
+	default:
+		return "rgba32float";
+	}
+}
+
 // All set globals are declared, referenced or not, the backend builds the bind group layout from these declarations
 static void write_compute_globals(char *wgsl, size_t *offset, function *main) {
 	for (global_id i = 0; get_global(i) != NULL && get_global(i)->type != NO_TYPE; ++i) {
@@ -573,11 +586,10 @@ static void write_compute_globals(char *wgsl, size_t *offset, function *main) {
 			else if (get_type(base_type)->tex_kind != TEXTURE_KIND_NONE) {
 				check(t->array_size == 0, context, "Texture arrays are not supported in WGSL compute shaders");
 				if (writable) {
-					// The backend patches the format to match the target texture
 					check(compute_target_var == UINT64_MAX, context, "WGSL compute shaders support one writable texture");
 					compute_target_var = var;
-					*offset +=
-					    sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": texture_storage_2d<rgba32float, write>;\n\n", binding, var);
+					*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": texture_storage_2d<%s, write>;\n\n", binding, var,
+					                   storage_texture_format(g->format));
 				}
 				else {
 					*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var _set0_%" PRIu64 ": texture_2d<f32>;\n\n", binding, var);
@@ -1348,7 +1360,11 @@ static char *wgsl_export_fragment2(function *main) {
 }
 
 char *wgsl_export_compute(void) {
-	compute_functions_size = 0;
+	vertex_inputs_size      = 0;
+	fragment_inputs_size    = 0;
+	vertex_functions_size   = 0;
+	fragment_functions_size = 0;
+	compute_functions_size  = 0;
 
 	function *kernel = NULL;
 	for (function_id i = 0; get_function(i) != NULL; ++i) {

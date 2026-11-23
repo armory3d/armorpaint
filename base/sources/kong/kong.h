@@ -97,6 +97,14 @@ typedef enum texture_kind {
 	TEXTURE_KIND_2D,
 } texture_kind;
 
+typedef enum texture_format {
+	TEXTURE_FORMAT_NONE,
+	TEXTURE_FORMAT_RGBA32,
+	TEXTURE_FORMAT_RGBA64,
+	TEXTURE_FORMAT_RGBA128,
+	TEXTURE_FORMAT_R32,
+} texture_format;
+
 typedef size_t   name_id;
 typedef uint32_t type_id;
 typedef uint32_t function_id;
@@ -439,6 +447,7 @@ typedef struct global {
 	uint64_t               var_index;
 	global_value           value;
 	attribute_list         attributes;
+	texture_format         format;
 	struct descriptor_set *sets[64];
 	size_t                 sets_count;
 	uint32_t               usage;
@@ -929,3 +938,4 @@ char *spirv_export_compute(int *size);
 size_t spirv_optimize(uint32_t *words, size_t word_count, size_t capacity);
 char *wgsl_export_compute(void);
 char *kong_preprocess(const char *source, char **defines, int defines_count);
+void  kong_reset(void);

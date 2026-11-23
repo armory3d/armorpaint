@@ -2456,6 +2456,7 @@ global_id add_global(type_id type, attribute_list attributes, name_id name) {
 	globals[index].var_index  = 0;
 	globals[index].value.kind = GLOBAL_VALUE_NONE;
 	globals[index].attributes = attributes;
+	globals[index].format     = TEXTURE_FORMAT_NONE;
 	globals[index].sets_count = 0;
 	globals[index].usage      = 0;
 	globals_size += 1;
@@ -2469,6 +2470,7 @@ global_id add_global_with_value(type_id type, attribute_list attributes, name_id
 	globals[index].var_index  = 0;
 	globals[index].value      = value;
 	globals[index].attributes = attributes;
+	globals[index].format     = TEXTURE_FORMAT_NONE;
 	globals[index].sets_count = 0;
 	globals[index].usage      = 0;
 	globals_size += 1;
@@ -2712,6 +2714,18 @@ static void add_resource_to_set(definition d) {
 	}
 }
 
+static texture_format parse_texture_format(state_t *state, name_id name) {
+	const char    *names[]   = {"rgba32", "rgba64", "rgba128", "r32"};
+	texture_format formats[] = {TEXTURE_FORMAT_RGBA32, TEXTURE_FORMAT_RGBA64, TEXTURE_FORMAT_RGBA128, TEXTURE_FORMAT_R32};
+	for (int i = 0; i < 4; ++i) {
+		if (strcmp(get_name(name), names[i]) == 0) {
+			return formats[i];
+		}
+	}
+	error(state->context, "Unknown texture format %s, expected rgba32, rgba64, rgba128 or r32", get_name(name));
+	return TEXTURE_FORMAT_NONE;
+}
+
 static double attribute_parameter_to_number(name_id parameter_name) {
 	type_id type = find_type_by_name(parameter_name);
 	if (type != NO_TYPE) {
@@ -2797,9 +2811,11 @@ static definition parse_definition(state_t *state) {
 		type_ref type = parse_type_ref(state);
 
 		// Texture formats, as in tex2d<rgba32>
+		texture_format format = TEXTURE_FORMAT_NONE;
 		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
 			advance_state(state);
 			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+			format = parse_texture_format(state, current(state).identifier);
 			advance_state(state);
 
 			if (current(state).kind == TOKEN_LEFT_PAREN) {
@@ -2833,6 +2849,12 @@ static definition parse_definition(state_t *state) {
 		}
 
 		definition d = parse_global(state, attributes, type.unresolved.name, name);
+		if (format != TEXTURE_FORMAT_NONE) {
+			if (d.kind != DEFINITION_TEX2D) {
+				error(state->context, "Only a tex2d has a format");
+			}
+			get_global(d.global)->format = format;
+		}
 		add_resource_to_set(d);
 		return d;
 	}
@@ -3874,7 +3896,9 @@ void add_definition_to_set(descriptor_set *set, definition def) {
 
 	get_global(def.global)->sets[get_global(def.global)->sets_count] = set;
 	get_global(def.global)->sets_count += 1;
-	set->globals.globals[set->globals.size] = def.global;
+	set->globals.globals[set->globals.size]  = def.global;
+	set->globals.readable[set->globals.size] = false; // The set storage is reused when compiling several shaders in one process
+	set->globals.writable[set->globals.size] = false;
 	set->globals.size += 1;
 }
 
@@ -6084,7 +6108,7 @@ static struct {
 	return clone;
 }
 
-void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size, int *fs_size) {
+void kong_reset(void) {
 	static bool first = true;
 	if (first) {
 		first = false;
@@ -6133,6 +6157,10 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		statement_index  = _statement_index;
 		names_generation += 1;
 	}
+}
+
+void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size, int *fs_size) {
+	kong_reset();
 
 	kong_error = false;
 #ifdef IRON_WASM
