@@ -55,18 +55,6 @@ static bool               window_vsync;
 static VkSurfaceKHR       surface;
 static VkSurfaceFormatKHR surface_format;
 
-typedef struct {
-	gpu_pipeline_t         pipeline;
-	gpu_vertex_structure_t input_layout;
-	VkShaderModule         vert_module;
-	VkShaderModule         frag_module;
-	VkPipeline             main;
-	VkPipeline             framebuffer;
-} framebuffer_variant_t;
-
-static framebuffer_variant_t *bound_variant = NULL;
-static VkPipeline             pipeline_build(gpu_pipeline_t *pipeline, VkShaderModule vert_shader_module, VkShaderModule frag_shader_module,
-                                             VkFormat attachment0_format);
 static VkSwapchainKHR     swapchain;
 static VkImage            window_images[GPU_FRAMEBUFFER_COUNT];
 static bool               framebuffer_acquired = false;
@@ -114,6 +102,8 @@ static VkFormat convert_image_format(gpu_texture_format_t format) {
 		return VK_FORMAT_R32_SFLOAT;
 	case GPU_TEXTURE_FORMAT_D32:
 		return VK_FORMAT_D32_SFLOAT;
+	case GPU_TEXTURE_FORMAT_FRAMEBUFFER:
+		return surface_format.format;
 	default:
 		return VK_FORMAT_R8G8B8A8_UNORM;
 	}
@@ -1052,7 +1042,7 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 		surface_format.format = VK_FORMAT_R8G8B8A8_UNORM; // Any format allowed
 	}
 	else {
-		// Prefer rgba8 to match the textures, other formats get pipeline variants
+		// Prefer rgba8 to match the textures
 		bool found = false;
 		for (uint32_t i = 0; i < format_count; ++i) {
 			if (surf_formats[i].format == VK_FORMAT_R8G8B8A8_UNORM) {
@@ -1132,25 +1122,6 @@ void gpu_acquire_framebuffer() {
 	}
 }
 
-static bool drawing_to_framebuffer(void) {
-	return gpu_in_use && current_render_targets_count == 1 && current_render_targets[0] == &framebuffers[framebuffer_index];
-}
-
-static VkPipeline variant_for_target(framebuffer_variant_t *variant) {
-	if (!drawing_to_framebuffer()) {
-		return variant->main;
-	}
-	if (variant->framebuffer == VK_NULL_HANDLE) {
-		variant->framebuffer = pipeline_build(&variant->pipeline, variant->vert_module, variant->frag_module, surface_format.format);
-	}
-	return variant->framebuffer;
-}
-
-static VkPipeline pipeline_for_target(gpu_pipeline_t *pipeline) {
-	framebuffer_variant_t *variant = pipeline->impl.framebuffer_variant;
-	return variant != NULL ? variant_for_target(variant) : pipeline->impl.pipeline;
-}
-
 void gpu_begin_internal(gpu_clear_t flags, uint32_t color, float depth) {
 	gpu_acquire_framebuffer();
 
@@ -1205,11 +1176,6 @@ void gpu_begin_internal(gpu_clear_t flags, uint32_t color, float depth) {
 	    .pDepthAttachment     = current_depth_buffer == NULL ? VK_NULL_HANDLE : &current_depth_attachment_info,
 	};
 	vkCmdBeginRendering(command_buffer, &current_rendering_info);
-
-	if (bound_variant != NULL) {
-		// Pipeline bound before this pass: pick the variant for the new target
-		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, variant_for_target(bound_variant));
-	}
 
 	for (size_t i = 0; i < current_render_targets_count; ++i) {
 		current_color_attachment_infos[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
@@ -1267,7 +1233,7 @@ void gpu_execute_and_wait() {
 
 	if (gpu_in_use) {
 		vkCmdBeginRendering(command_buffer, &current_rendering_info);
-		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_for_target(current_pipeline));
+		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->impl.pipeline);
 		VkBuffer     buffers[1];
 		VkDeviceSize offsets[1];
 		buffers[0] = current_vb->impl.buf;
@@ -1375,8 +1341,7 @@ void gpu_set_pipeline_internal(gpu_pipeline_t *pipeline) {
 		return;
 	}
 	current_pipeline = pipeline;
-	bound_variant    = pipeline->impl.framebuffer_variant;
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_for_target(current_pipeline));
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, current_pipeline->impl.pipeline);
 }
 
 void gpu_set_vertex_buffer(gpu_buffer_t *buffer) {
@@ -1459,6 +1424,15 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 	vkMapMemory(device, readback_mem, 0, VK_WHOLE_SIZE, 0, (void **)&p);
 	memcpy(data, p, buffer_size);
 	vkUnmapMemory(device, readback_mem);
+
+	// Return framebuffer formats as rgba
+	if (render_target->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER && surface_format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+		for (int i = 0; i < buffer_size; i += 4) {
+			uint8_t b   = data[i];
+			data[i]     = data[i + 2];
+			data[i + 2] = b;
+		}
+	}
 }
 
 static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
@@ -1530,19 +1504,6 @@ void gpu_use_linear_sampling(bool b) {
 }
 
 void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipeline) {
-	framebuffer_variant_t *variant = pipeline->impl.framebuffer_variant;
-	if (variant != NULL) {
-		if (bound_variant == variant) {
-			bound_variant = NULL;
-		}
-		if (variant->framebuffer != VK_NULL_HANDLE) {
-			vkDestroyPipeline(device, variant->framebuffer, NULL);
-		}
-		vkDestroyShaderModule(device, variant->vert_module, NULL);
-		vkDestroyShaderModule(device, variant->frag_module, NULL);
-		free(variant);
-		pipeline->impl.framebuffer_variant = NULL;
-	}
 	vkDestroyPipeline(device, pipeline->impl.pipeline, NULL);
 	vkDestroyPipelineLayout(device, pipeline->impl.pipeline_layout, NULL);
 }
@@ -1557,7 +1518,19 @@ static VkShaderModule create_shader_module(const void *code, size_t size) {
 	return module;
 }
 
-static VkPipeline pipeline_build(gpu_pipeline_t *pipeline, VkShaderModule vert_shader_module, VkShaderModule frag_shader_module, VkFormat attachment0_format) {
+void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
+	if (pipeline->vertex_shader->impl.length == 0 || pipeline->fragment_shader->impl.length == 0) {
+		// Shader compilation error
+		return;
+	}
+
+	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+	    .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	    .setLayoutCount = 1,
+	    .pSetLayouts    = &descriptor_layout,
+	};
+	vkCreatePipelineLayout(device, &pipeline_layout_create_info, NULL, &pipeline->impl.pipeline_layout);
+
 	VkGraphicsPipelineCreateInfo           pipeline_info = {0};
 	VkPipelineInputAssemblyStateCreateInfo ia            = {0};
 	VkPipelineRasterizationStateCreateInfo rs            = {0};
@@ -1686,11 +1659,13 @@ static VkPipeline pipeline_build(gpu_pipeline_t *pipeline, VkShaderModule vert_s
 
 	shaderStages[0].sType             = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStages[0].stage             = VK_SHADER_STAGE_VERTEX_BIT;
+	VkShaderModule vert_shader_module = create_shader_module(pipeline->vertex_shader->impl.source, pipeline->vertex_shader->impl.length);
 	shaderStages[0].module            = vert_shader_module;
 	shaderStages[0].pName             = "main";
 
 	shaderStages[1].sType             = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	shaderStages[1].stage             = VK_SHADER_STAGE_FRAGMENT_BIT;
+	VkShaderModule frag_shader_module = create_shader_module(pipeline->fragment_shader->impl.source, pipeline->fragment_shader->impl.length);
 	shaderStages[1].module            = frag_shader_module;
 	shaderStages[1].pName             = "main";
 
@@ -1708,7 +1683,6 @@ static VkPipeline pipeline_build(gpu_pipeline_t *pipeline, VkShaderModule vert_s
 	for (int i = 0; i < pipeline->color_attachment_count; ++i) {
 		color_attachment_formats[i] = convert_image_format(pipeline->color_attachment[i]);
 	}
-	color_attachment_formats[0] = attachment0_format;
 
 	VkPipelineRenderingCreateInfo rendering_info = {
 	    .sType                   = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
@@ -1718,46 +1692,9 @@ static VkPipeline pipeline_build(gpu_pipeline_t *pipeline, VkShaderModule vert_s
 	};
 	pipeline_info.pNext = &rendering_info;
 
-	VkPipeline result = VK_NULL_HANDLE;
-	vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &result);
-	return result;
-}
-
-void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
-	if (pipeline->vertex_shader->impl.length == 0 || pipeline->fragment_shader->impl.length == 0) {
-		// Shader compilation error
-		return;
-	}
-
-	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-	    .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-	    .setLayoutCount = 1,
-	    .pSetLayouts    = &descriptor_layout,
-	};
-	vkCreatePipelineLayout(device, &pipeline_layout_create_info, NULL, &pipeline->impl.pipeline_layout);
-
-	VkShaderModule vert_shader_module = create_shader_module(pipeline->vertex_shader->impl.source, pipeline->vertex_shader->impl.length);
-	VkShaderModule frag_shader_module = create_shader_module(pipeline->fragment_shader->impl.source, pipeline->fragment_shader->impl.length);
-	VkFormat       attachment0_format = pipeline->color_attachment_count > 0 ? convert_image_format(pipeline->color_attachment[0]) : VK_FORMAT_UNDEFINED;
-	pipeline->impl.pipeline           = pipeline_build(pipeline, vert_shader_module, frag_shader_module, attachment0_format);
-	pipeline->impl.framebuffer_variant = NULL;
-
-	// Only a single rgba8 attachment pipeline can draw to the framebuffer
-	if (pipeline->impl.pipeline != VK_NULL_HANDLE && pipeline->color_attachment_count == 1 && attachment0_format == VK_FORMAT_R8G8B8A8_UNORM &&
-	    surface_format.format != VK_FORMAT_R8G8B8A8_UNORM) {
-		framebuffer_variant_t *variant = calloc(1, sizeof(framebuffer_variant_t));
-		variant->pipeline              = *pipeline;
-		variant->input_layout          = *pipeline->input_layout; // Can point to a stack copy
-		variant->pipeline.input_layout = &variant->input_layout;
-		variant->vert_module           = vert_shader_module;
-		variant->frag_module           = frag_shader_module;
-		variant->main                  = pipeline->impl.pipeline;
-		pipeline->impl.framebuffer_variant = variant;
-	}
-	else {
-		vkDestroyShaderModule(device, frag_shader_module, NULL);
-		vkDestroyShaderModule(device, vert_shader_module, NULL);
-	}
+	vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &pipeline->impl.pipeline);
+	vkDestroyShaderModule(device, frag_shader_module, NULL);
+	vkDestroyShaderModule(device, vert_shader_module, NULL);
 }
 
 void gpu_shader_init(gpu_shader_t *shader, const void *source, size_t length, gpu_shader_type_t type) {

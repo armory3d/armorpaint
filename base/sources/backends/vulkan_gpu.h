@@ -13,8 +13,6 @@ typedef struct gpu_pipeline_impl {
 
 	VkDescriptorSet       descriptor_set;
 	VkDescriptorSetLayout descriptor_set_layout;
-
-	void *framebuffer_variant;
 } gpu_pipeline_impl_t;
 
 typedef struct {

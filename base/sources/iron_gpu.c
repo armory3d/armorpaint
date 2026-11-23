@@ -275,7 +275,7 @@ void gpu_pipeline_init(gpu_pipeline_t *pipe) {
 
 void gpu_create_framebuffers(int depth_buffer_bits) {
 	for (int i = 0; i < GPU_FRAMEBUFFER_COUNT; ++i) {
-		gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32, i);
+		gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER, i);
 	}
 	if (depth_buffer_bits > 0) {
 		gpu_render_target_init(&framebuffer_depth, iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_D32);
@@ -301,6 +301,14 @@ void gpu_set_pipeline(gpu_pipeline_t *pipeline) {
 	}
 	if (pipeline->impl.pipeline == NULL) {
 		return;
+	}
+	bool pipeline_fb = pipeline->color_attachment[0] == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	bool target_fb   = current_render_targets_count > 0 && current_render_targets[0]->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	static bool reported = false;
+	if (gpu_in_use && pipeline_fb != target_fb && !reported) {
+		reported = true;
+		iron_error(target_fb ? "Pipeline without a framebuffer attachment bound to the framebuffer"
+		                     : "Framebuffer pipeline bound to a render target");
 	}
 	gpu_set_pipeline_internal(pipeline);
 }

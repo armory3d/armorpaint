@@ -769,6 +769,8 @@ gpu_texture_format_t shader_context_get_tex_format(char *s) {
 		return GPU_TEXTURE_FORMAT_R16;
 	if (strcmp(s, "R8") == 0)
 		return GPU_TEXTURE_FORMAT_R8;
+	if (strcmp(s, "FB") == 0)
+		return GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 	return GPU_TEXTURE_FORMAT_RGBA32;
 }
 

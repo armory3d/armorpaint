@@ -97,6 +97,8 @@ static MTLPixelFormat convert_texture_format(gpu_texture_format_t format) {
 		return MTLPixelFormatR8Unorm;
 	case GPU_TEXTURE_FORMAT_D32:
 		return MTLPixelFormatDepth32Float;
+	case GPU_TEXTURE_FORMAT_FRAMEBUFFER:
+		return MTLPixelFormatBGRA8Unorm;
 	default:
 		return MTLPixelFormatRGBA8Unorm;
 	}
@@ -142,7 +144,7 @@ void gpu_acquire_framebuffer() {
 	if (resized) {
 		layer.drawableSize = CGSizeMake(iron_window_width(), iron_window_height());
 		for (int i = 0; i < GPU_FRAMEBUFFER_COUNT; ++i) {
-			gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32, i);
+			gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER, i);
 		}
 		resized = false;
 	}
@@ -196,23 +198,6 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	argument_buffer      = [device newBufferWithLength:(argument_buffer_step * GPU_CONSTANT_BUFFER_MULTIPLE) options:MTLResourceStorageModeShared];
 
 	gpu_create_framebuffers(depth_buffer_bits);
-}
-
-static id<MTLRenderPipelineState> pipeline_for_target(gpu_pipeline_t *pipeline) {
-	bool to_framebuffer = current_render_targets_count == 1 && current_render_targets[0] == &framebuffers[framebuffer_index];
-	if (!to_framebuffer || pipeline->impl.framebuffer_desc == NULL) {
-		return (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
-	}
-	if (pipeline->impl.framebuffer_pipeline == NULL) {
-		MTLRenderPipelineDescriptor *desc   = (__bridge MTLRenderPipelineDescriptor *)pipeline->impl.framebuffer_desc;
-		NSError                     *error  = nil;
-		pipeline->impl.framebuffer_pipeline = (__bridge_retained void *)[get_metal_device() newRenderPipelineStateWithDescriptor:desc error:&error];
-		if (pipeline->impl.framebuffer_pipeline == NULL) {
-			iron_error("%s", error.localizedDescription.UTF8String);
-			return (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
-		}
-	}
-	return (__bridge id<MTLRenderPipelineState>)pipeline->impl.framebuffer_pipeline;
 }
 
 void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
@@ -300,7 +285,8 @@ void gpu_execute_and_wait() {
 		}
 		render_pass_desc.depthAttachment.loadAction = MTLLoadActionLoad;
 		command_encoder                             = [command_buffer renderCommandEncoderWithDescriptor:render_pass_desc];
-		[command_encoder setRenderPipelineState:pipeline_for_target(current_pipeline)];
+		id<MTLRenderPipelineState> pipe             = (__bridge id<MTLRenderPipelineState>)current_pipeline->impl.pipeline;
+		[command_encoder setRenderPipelineState:pipe];
 		id<MTLDepthStencilState> depth_state = (__bridge id<MTLDepthStencilState>)current_pipeline->impl.depth;
 		[command_encoder setDepthStencilState:depth_state];
 		[command_encoder setFrontFacingWinding:MTLWindingClockwise];
@@ -384,7 +370,8 @@ void gpu_disable_scissor() {
 }
 
 void gpu_set_pipeline_internal(gpu_pipeline_t *pipeline) {
-	[command_encoder setRenderPipelineState:pipeline_for_target(pipeline)];
+	id<MTLRenderPipelineState> pipe = (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
+	[command_encoder setRenderPipelineState:pipe];
 	id<MTLDepthStencilState> depth_state = (__bridge id<MTLDepthStencilState>)pipeline->impl.depth;
 	[command_encoder setDepthStencilState:depth_state];
 	[command_encoder setFrontFacingWinding:MTLWindingClockwise];
@@ -438,7 +425,16 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 
 	// Read buffer
 	id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)readback_buffer;
-	memcpy(data, [buffer contents], render_target->width * render_target->height * gpu_texture_format_size(render_target->format));
+	memcpy(data, [buffer contents], buffer_size);
+
+	// Return framebuffer formats as rgba
+	if (render_target->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER) {
+		for (int i = 0; i < buffer_size; i += 4) {
+			uint8_t b   = data[i];
+			data[i]     = data[i + 2];
+			data[i + 2] = b;
+		}
+	}
 }
 
 void gpu_set_constant_buffer(gpu_buffer_t *buffer, uint32_t offset, size_t size) {
@@ -471,17 +467,6 @@ void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipeline) {
 	id<MTLRenderPipelineState> pipe = (__bridge_transfer id<MTLRenderPipelineState>)pipeline->impl.pipeline;
 	pipe                            = nil;
 	pipeline->impl.pipeline         = NULL;
-
-	if (pipeline->impl.framebuffer_desc != NULL) {
-		MTLRenderPipelineDescriptor *desc = (__bridge_transfer MTLRenderPipelineDescriptor *)pipeline->impl.framebuffer_desc;
-		desc                              = nil;
-		pipeline->impl.framebuffer_desc   = NULL;
-	}
-	if (pipeline->impl.framebuffer_pipeline != NULL) {
-		id<MTLRenderPipelineState> fb_pipe  = (__bridge_transfer id<MTLRenderPipelineState>)pipeline->impl.framebuffer_pipeline;
-		fb_pipe                             = nil;
-		pipeline->impl.framebuffer_pipeline = NULL;
-	}
 
 	id<MTLDepthStencilState> depth_state = (__bridge_transfer id<MTLDepthStencilState>)pipeline->impl.depth;
 	depth_state                          = nil;
@@ -583,16 +568,6 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	                                                                                         options:MTLPipelineOptionBufferTypeInfo
 	                                                                                      reflection:&reflection
 	                                                                                           error:&errors];
-
-	// Only a single rgba8 attachment pipeline can draw to the framebuffer
-	pipeline->impl.framebuffer_desc     = NULL;
-	pipeline->impl.framebuffer_pipeline = NULL;
-	if (pipeline->impl.pipeline != NULL && pipeline->color_attachment_count == 1 &&
-	    render_pipeline_desc.colorAttachments[0].pixelFormat == MTLPixelFormatRGBA8Unorm) {
-		MTLRenderPipelineDescriptor *fb_desc            = [render_pipeline_desc copy];
-		fb_desc.colorAttachments[0].pixelFormat         = MTLPixelFormatBGRA8Unorm;
-		pipeline->impl.framebuffer_desc                 = (__bridge_retained void *)fb_desc;
-	}
 
 	MTLDepthStencilDescriptor *depth_descriptor = [MTLDepthStencilDescriptor new];
 	depth_descriptor.depthCompareFunction       = convert_compare_mode(pipeline->depth_mode);

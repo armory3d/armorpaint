@@ -59,6 +59,8 @@ static WGPUTextureFormat convert_image_format(gpu_texture_format_t format) {
 		return WGPUTextureFormat_R32Float;
 	case GPU_TEXTURE_FORMAT_D32:
 		return WGPUTextureFormat_Depth32Float;
+	case GPU_TEXTURE_FORMAT_FRAMEBUFFER:
+		return surface_format;
 	default:
 		return WGPUTextureFormat_RGBA8Unorm;
 	}

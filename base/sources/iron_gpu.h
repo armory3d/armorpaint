@@ -56,7 +56,8 @@ typedef enum {
 	GPU_TEXTURE_FORMAT_R16,
 	GPU_TEXTURE_FORMAT_R32,
 	GPU_TEXTURE_FORMAT_D32,
-	GPU_TEXTURE_FORMAT_RGBA32_BC7
+	GPU_TEXTURE_FORMAT_RGBA32_BC7,
+	GPU_TEXTURE_FORMAT_FRAMEBUFFER // 8-bit rgba in the swapchains channel order
 } gpu_texture_format_t;
 
 typedef enum {

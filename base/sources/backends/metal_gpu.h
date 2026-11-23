@@ -3,8 +3,6 @@
 typedef struct {
 	void *pipeline;
 	void *depth;
-	void *framebuffer_desc;
-	void *framebuffer_pipeline;
 } gpu_pipeline_impl_t;
 
 typedef struct {
