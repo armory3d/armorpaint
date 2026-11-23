@@ -1448,8 +1448,8 @@ static void render_path_paint_dilate_update_index() {
 
 	f32 params[4] = {(f32)g_config->dilate_radius, 0.0, 0.0, 0.0};
 	gpu_compute_set_pipeline(&render_path_paint_dilate_index_pipe);
-	gpu_compute_set_texture(0, map);
-	gpu_compute_set_texture(1, render_path_paint_dilate_index);
+	gpu_compute_set_texture(0, render_path_paint_dilate_index);
+	gpu_compute_set_texture(1, map);
 	gpu_compute_set_constants(params, sizeof(params));
 	gpu_compute_dispatch(map->width, map->height);
 }
@@ -1478,15 +1478,15 @@ static void render_path_paint_dilate_compute(char *target) {
 	render_path_paint_dilate_load(format);
 
 	gpu_compute_set_pipeline(&render_path_paint_dilate_pipes[format]);
-	gpu_compute_set_texture(0, t);
-	gpu_compute_set_texture(1, render_path_paint_dilate_index);
-	gpu_compute_set_texture(2, temp);
+	gpu_compute_set_texture(0, temp);
+	gpu_compute_set_texture(1, t);
+	gpu_compute_set_texture(2, render_path_paint_dilate_index);
 	gpu_compute_dispatch(t->width, t->height);
 
 	gpu_compute_set_pipeline(&render_path_paint_dilate_copy_pipes[format]);
-	gpu_compute_set_texture(0, render_path_paint_dilate_index);
-	gpu_compute_set_texture(1, temp);
-	gpu_compute_set_texture(2, t);
+	gpu_compute_set_texture(0, t);
+	gpu_compute_set_texture(1, render_path_paint_dilate_index);
+	gpu_compute_set_texture(2, temp);
 	gpu_compute_dispatch(t->width, t->height);
 }
 

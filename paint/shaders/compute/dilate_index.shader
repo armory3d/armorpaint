@@ -3,8 +3,8 @@ cbuffer constants {
 	float4 params; // x: dilate radius
 };
 
-tex2d      texdilate; // Uv island mask
 tex2d<r32> target;    // Index map, ring * 8 + direction + 1, 0 inside of the islands or with no island in reach
+tex2d      texdilate; // Uv island mask
 
 float2 get_offset(int i) {
 	if (i == 0) {

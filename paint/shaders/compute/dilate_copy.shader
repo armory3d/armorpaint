@@ -1,7 +1,4 @@
 
-tex2d texindex; // Dilation index map
-tex2d source;   // Temp texture
-
 #ifdef FORMAT_RGBA32
 tex2d<rgba32> target;
 #endif
@@ -11,6 +8,9 @@ tex2d<rgba64> target;
 #ifdef FORMAT_RGBA128
 tex2d<rgba128> target;
 #endif
+
+tex2d texindex; // Dilation index map
+tex2d source;   // Temp texture
 
 #[compute, threads(8, 8, 1)]
 void dilate_copy() {

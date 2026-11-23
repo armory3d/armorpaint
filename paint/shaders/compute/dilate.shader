@@ -1,7 +1,4 @@
 
-tex2d tex;      // Layer texture
-tex2d texindex; // Dilation index map
-
 #ifdef FORMAT_RGBA32
 tex2d<rgba32> target;
 #endif
@@ -11,6 +8,9 @@ tex2d<rgba64> target;
 #ifdef FORMAT_RGBA128
 tex2d<rgba128> target;
 #endif
+
+tex2d tex;      // Layer texture
+tex2d texindex; // Dilation index map
 
 float4 load_wrap(int x, int y, int w, int h) {
 	int wx = x;
