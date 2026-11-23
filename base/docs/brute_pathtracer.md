@@ -1,4 +1,4 @@
-Brute Pathtracer is a custom built path-tracing engine used in armorcore which trades correctness for speed. It is powered by hardware accelerated ray-tracing and runs on Direct3D12, Vulkan and Metal.
+Brute path tracer is a custom built path-tracing engine used in iron. It is powered by hardware accelerated ray-tracing and runs on Vulkan and Metal. On WebGPU it runs via compute shaders.
 
 In ArmorPaint, it is used for rendering the path-traced viewport mode and for ray-traced baking features.
 
