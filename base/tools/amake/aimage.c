@@ -73,8 +73,11 @@ static void write_ico_entry(FILE *file, int width, int height, int size, int off
 }
 
 void export_ico(const char *from, const char *to) {
-	gpu_texture_t img  = read_png_jpg(from);
-	FILE         *file = fopen(to, "wb");
+	gpu_texture_t img = read_png_jpg(from);
+	if (img.data == NULL) {
+		return;
+	}
+	FILE *file = fopen(to, "wb");
 
 	unsigned char *data256 = scale_image(img, 256, 256);
 	unsigned char *data48  = scale_image(img, 48, 48);
@@ -114,6 +117,7 @@ void export_ico(const char *from, const char *to) {
 	fwrite(png256, 1, png256_len, file);
 	fclose(file);
 
+	free(img.data);
 	free(data256);
 	free(data48);
 	free(data32);
@@ -128,6 +132,9 @@ void export_ico(const char *from, const char *to) {
 
 void export_png(const char *from, const char *to, int width, int height) {
 	gpu_texture_t img = read_png_jpg(from);
+	if (img.data == NULL) {
+		return;
+	}
 
 	if (width > 0 && height > 0) {
 		unsigned char *scaled = scale_image(img, width, height);
