@@ -402,6 +402,63 @@ static type_id find_access_type(int *indices, access_kind *access_kinds, int ind
 	}
 }
 
+#define SECTION_BUFFER_SIZE (1024 * 1024)
+
+static uint32_t *section_buffers[16];
+static int       section_buffers_count = 0;
+
+static uint32_t *section_buffer_get(void) {
+	if (section_buffers_count > 0) {
+		return section_buffers[--section_buffers_count];
+	}
+	uint32_t *buffer = (uint32_t *)calloc(SECTION_BUFFER_SIZE, 1);
+	kong_assert(buffer != NULL);
+	return buffer;
+}
+
+static void section_buffer_put(instructions_buffer *buffer) {
+	memset(buffer->instructions, 0, buffer->offset * sizeof(uint32_t));
+	if (section_buffers_count < (int)(sizeof(section_buffers) / sizeof(section_buffers[0]))) {
+		section_buffers[section_buffers_count++] = buffer->instructions;
+	}
+	else {
+		free(buffer->instructions);
+	}
+	buffer->instructions = NULL;
+}
+
+// clang-format off
+#define BUILTIN_NAMES(X) \
+	X(sample) X(sample_lod) X(float) X(float2) X(float3) X(float4) X(float3x3) X(float4x4) X(int) X(int2) X(int3) X(int4) X(uint) X(uint2) \
+	X(uint3) X(uint4) X(dispatch_thread_id) X(vertex_id) X(dot) X(ddx) X(ddy) X(round) X(floor) X(sin) X(cos) X(length) X(abs) X(ceil) X(frac) \
+	X(asin) X(acos) X(atan) X(atan2) X(pow) X(sqrt) X(rsqrt) X(min) X(max) X(clamp) X(saturate) X(lerp) X(step) X(smoothstep) X(distance) \
+	X(cross) X(normalize) X(reflect) X(tan) X(log) X(exp) X(sign) X(trunc) X(sinh) X(cosh) X(tanh) X(radians) X(degrees) X(transpose) X(exp2) \
+	X(texture_size) X(ray_query_trace) X(ray_query_trace_any) X(ray_query_hit) X(ray_query_distance) X(ray_query_barycentrics) \
+	X(ray_query_front_face) X(ray_query_object_to_world) X(ray_query_geometry) X(ray_query_vertex)
+// clang-format on
+
+enum {
+#define X(name) BUILTIN_NAME_##name,
+	BUILTIN_NAMES(X)
+#undef X
+	BUILTIN_NAMES_COUNT
+};
+
+static name_id builtin_names[BUILTIN_NAMES_COUNT];
+
+#define BUILTIN(name) builtin_names[BUILTIN_NAME_##name]
+
+static void init_builtin_names(void) {
+	static const char *strings[] = {
+#define X(name) #name,
+	    BUILTIN_NAMES(X)
+#undef X
+	};
+	for (int i = 0; i < BUILTIN_NAMES_COUNT; ++i) {
+		builtin_names[i] = add_name((char *)strings[i]);
+	}
+}
+
 static void write_simple_instruction(instructions_buffer *instructions, spirv_opcode o) {
 	instructions->instructions[instructions->offset++] = (1 << 16) | (uint16_t)o;
 }
@@ -2122,7 +2179,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 
 			char *func_name = get_name(func);
 
-			if (func == add_name("sample")) {
+			if (func == BUILTIN(sample)) {
 				variable image_var = o->op_call.parameters[0];
 
 				spirv_id image_type;
@@ -2142,7 +2199,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("sample_lod")) {
+			else if (func == BUILTIN(sample_lod)) {
 				variable image_var = o->op_call.parameters[0];
 
 				spirv_id image_type;
@@ -2162,7 +2219,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_image_sample_explicit_lod(instructions, spirv_float4_type, sampled_image, coordinate, lod);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float")) {
+			else if (func == BUILTIN(float)) {
 				if (o->op_call.parameters[0].type.type == int_id) {
 					spirv_id id = write_op_convert_s_to_f(instructions, spirv_float_type, get_var(instructions, o->op_call.parameters[0]));
 					hmput(index_map, o->op_call.var.index, id);
@@ -2179,7 +2236,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					kong_assert(false);
 				}
 			}
-			else if (func == add_name("float2")) {
+			else if (func == BUILTIN(float2)) {
 				if (o->op_call.parameters_size == 1) {
 					variable parameter = o->op_call.parameters[0];
 					if (parameter.type.type == int2_id) {
@@ -2206,15 +2263,15 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					kong_assert(false);
 				}
 			}
-			else if (func == add_name("float3") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int3_id) {
+			else if (func == BUILTIN(float3) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int3_id) {
 				spirv_id id = write_op_convert_s_to_f(instructions, spirv_float3_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float3") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == uint3_id) {
+			else if (func == BUILTIN(float3) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == uint3_id) {
 				spirv_id id = write_op_convert_u_to_f(instructions, spirv_float3_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float3")) {
+			else if (func == BUILTIN(float3)) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2222,15 +2279,15 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_float3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float4") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int4_id) {
+			else if (func == BUILTIN(float4) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int4_id) {
 				spirv_id id = write_op_convert_s_to_f(instructions, spirv_float4_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float4") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == uint4_id) {
+			else if (func == BUILTIN(float4) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == uint4_id) {
 				spirv_id id = write_op_convert_u_to_f(instructions, spirv_float4_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float4")) {
+			else if (func == BUILTIN(float4)) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2238,7 +2295,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_float4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float3x3")) {
+			else if (func == BUILTIN(float3x3)) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2246,7 +2303,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_float3x3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("float4x4")) {
+			else if (func == BUILTIN(float4x4)) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2254,7 +2311,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_float4x4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("int")) {
+			else if (func == BUILTIN(int)) {
 				if (o->op_call.parameters[0].type.type == float_id) {
 					spirv_id id = write_op_convert_f_to_s(instructions, spirv_int_type, get_var(instructions, o->op_call.parameters[0]));
 					hmput(index_map, o->op_call.var.index, id);
@@ -2270,7 +2327,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					kong_assert(false);
 				}
 			}
-			else if (func == add_name("int2")) {
+			else if (func == BUILTIN(int2)) {
 				if (o->op_call.parameters_size == 1) {
 					spirv_id constituent = get_var(instructions, o->op_call.parameters[0]);
 					if (o->op_call.parameters[0].type.type == uint2_id) {
@@ -2295,7 +2352,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					hmput(index_map, o->op_call.var.index, id);
 				}
 			}
-			else if (func == add_name("int3")) {
+			else if (func == BUILTIN(int3)) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2303,7 +2360,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_int3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("int4")) {
+			else if (func == BUILTIN(int4)) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2311,7 +2368,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_int4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("uint")) {
+			else if (func == BUILTIN(uint)) {
 				if (o->op_call.parameters[0].type.type == float_id) {
 					spirv_id id = write_op_convert_f_to_u(instructions, spirv_uint_type, get_var(instructions, o->op_call.parameters[0]));
 					hmput(index_map, o->op_call.var.index, id);
@@ -2327,15 +2384,15 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					kong_assert(false);
 				}
 			}
-			else if (func == add_name("uint2") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == float2_id) {
+			else if (func == BUILTIN(uint2) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == float2_id) {
 				spirv_id id = write_op_convert_f_to_u(instructions, spirv_uint2_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("uint2") && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int2_id) {
+			else if (func == BUILTIN(uint2) && o->op_call.parameters_size == 1 && o->op_call.parameters[0].type.type == int2_id) {
 				spirv_id id = write_op_bitcast(instructions, spirv_uint2_type, get_var(instructions, o->op_call.parameters[0]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("uint2")) {
+			else if (func == BUILTIN(uint2)) {
 				spirv_id constituents[2];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2343,7 +2400,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint2_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("uint3")) {
+			else if (func == BUILTIN(uint3)) {
 				spirv_id constituents[3];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2351,7 +2408,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint3_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("uint4")) {
+			else if (func == BUILTIN(uint4)) {
 				spirv_id constituents[4];
 				for (int i = 0; i < o->op_call.parameters_size; ++i) {
 					constituents[i] = get_constituent(instructions, o, constituents, i);
@@ -2359,125 +2416,125 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_composite_construct(instructions, spirv_uint4_type, constituents, o->op_call.parameters_size);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("dispatch_thread_id")) {
+			else if (func == BUILTIN(dispatch_thread_id)) {
 				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint3_id), dispatch_thread_id_variable);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("vertex_id")) {
+			else if (func == BUILTIN(vertex_id)) {
 				spirv_id id = write_op_load(instructions, convert_type_to_spirv_id(uint_id), vertex_id_variable);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("dot")) {
+			else if (func == BUILTIN(dot)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id       = write_op_dot(instructions, spirv_float_type, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("ddx")) {
+			else if (func == BUILTIN(ddx)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_dpdx(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("ddy")) {
+			else if (func == BUILTIN(ddy)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_dpdy(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("round")) {
+			else if (func == BUILTIN(round)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ROUND, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("floor")) {
+			else if (func == BUILTIN(floor)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FLOOR, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("sin")) {
+			else if (func == BUILTIN(sin)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SIN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("cos")) {
+			else if (func == BUILTIN(cos)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_COS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("length")) {
+			else if (func == BUILTIN(length)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_LENGTH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("abs")) {
+			else if (func == BUILTIN(abs)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FABS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("ceil")) {
+			else if (func == BUILTIN(ceil)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_CEIL, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("frac")) {
+			else if (func == BUILTIN(frac)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FRACT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("asin")) {
+			else if (func == BUILTIN(asin)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ASIN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("acos")) {
+			else if (func == BUILTIN(acos)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ACOS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("atan")) {
+			else if (func == BUILTIN(atan)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ATAN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("atan2")) {
+			else if (func == BUILTIN(atan2)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
 				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_ATAN2, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("pow")) {
+			else if (func == BUILTIN(pow)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
 				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_POW, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("sqrt")) {
+			else if (func == BUILTIN(sqrt)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SQRT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("rsqrt")) {
+			else if (func == BUILTIN(rsqrt)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id =
 				    write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_INVERSE_SQRT, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("min")) {
+			else if (func == BUILTIN(min)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
 				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMIN, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("max")) {
+			else if (func == BUILTIN(max)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
 				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("clamp")) {
+			else if (func == BUILTIN(clamp)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
@@ -2485,7 +2542,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				                                 operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("saturate")) {
+			else if (func == BUILTIN(saturate)) {
 				type_id  t       = o->op_call.var.type.type;
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id zero    = get_float_constant(0.0f);
@@ -2499,7 +2556,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(t), glsl_import, SPIRV_GLSL_STD_FCLAMP, operand, zero, one);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("lerp")) {
+			else if (func == BUILTIN(lerp)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
@@ -2507,14 +2564,14 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				                                 operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("step")) {
+			else if (func == BUILTIN(step)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
 				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_STEP, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("smoothstep")) {
+			else if (func == BUILTIN(smoothstep)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
@@ -2522,92 +2579,92 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				                                       operand1, operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("distance")) {
+			else if (func == BUILTIN(distance)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id       = write_op_ext_inst2(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_DISTANCE, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("cross")) {
+			else if (func == BUILTIN(cross)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_CROSS, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("normalize")) {
+			else if (func == BUILTIN(normalize)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id =
 				    write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_NORMALIZE, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("reflect")) {
+			else if (func == BUILTIN(reflect)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id       = write_op_ext_inst2(instructions, spirv_float3_type, glsl_import, SPIRV_GLSL_STD_REFLECT, operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("tan")) {
+			else if (func == BUILTIN(tan)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TAN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("log")) {
+			else if (func == BUILTIN(log)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_LOG, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("exp")) {
+			else if (func == BUILTIN(exp)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_EXP, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("sign")) {
+			else if (func == BUILTIN(sign)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FSIGN, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("trunc")) {
+			else if (func == BUILTIN(trunc)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TRUNC, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("sinh")) {
+			else if (func == BUILTIN(sinh)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_SINH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("cosh")) {
+			else if (func == BUILTIN(cosh)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_COSH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("tanh")) {
+			else if (func == BUILTIN(tanh)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_TANH, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("radians")) {
+			else if (func == BUILTIN(radians)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_RADIANS, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("degrees")) {
+			else if (func == BUILTIN(degrees)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_DEGREES, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 
-			else if (func == add_name("transpose")) {
+			else if (func == BUILTIN(transpose)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_transpose(instructions, spirv_float3x3_type, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("exp2")) {
+			else if (func == BUILTIN(exp2)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_EXP2, operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("texture_size")) {
+			else if (func == BUILTIN(texture_size)) {
 				uint64_t tex_index = o->op_call.parameters[0].index;
 				spirv_id id;
 				if (is_storage_image(tex_index)) {
@@ -2620,7 +2677,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("ray_query_trace") || func == add_name("ray_query_trace_any")) {
+			else if (func == BUILTIN(ray_query_trace) || func == BUILTIN(ray_query_trace_any)) {
 				spirv_id query     = convert_kong_index_to_spirv_id(o->op_call.parameters[0].index);
 				spirv_id scene     = write_op_load(instructions, acceleration_structure_type, convert_kong_index_to_spirv_id(o->op_call.parameters[1].index));
 				spirv_id r         = get_var(instructions, o->op_call.parameters[2]);
@@ -2628,7 +2685,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				uint32_t direction = 1;
 				uint32_t min       = 2;
 				uint32_t max       = 3;
-				uint32_t flags     = func == add_name("ray_query_trace_any") ? 1 | 4 : 1; // Opaque, terminate on first hit
+				uint32_t flags     = func == BUILTIN(ray_query_trace_any) ? 1 | 4 : 1; // Opaque, terminate on first hit
 
 				uint32_t operands[] = {query.id,
 				                       scene.id,
@@ -2643,21 +2700,21 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				uint32_t proceed_operands[] = {query.id};
 				write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_PROCEED, spirv_bool_type, proceed_operands, 1);
 			}
-			else if (func == add_name("ray_query_hit") || func == add_name("ray_query_distance") || func == add_name("ray_query_barycentrics") ||
-			         func == add_name("ray_query_front_face") || func == add_name("ray_query_object_to_world")) {
+			else if (func == BUILTIN(ray_query_hit) || func == BUILTIN(ray_query_distance) || func == BUILTIN(ray_query_barycentrics) ||
+			         func == BUILTIN(ray_query_front_face) || func == BUILTIN(ray_query_object_to_world)) {
 				uint32_t operands[] = {convert_kong_index_to_spirv_id(o->op_call.parameters[0].index).id, get_int_constant(1).id}; // Committed
 				spirv_id id;
-				if (func == add_name("ray_query_hit")) {
+				if (func == BUILTIN(ray_query_hit)) {
 					spirv_id type = write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_GET_INTERSECTION_TYPE, spirv_uint_type, operands, 2);
 					id            = write_op_i_equal(instructions, spirv_bool_type, type, get_uint_constant(1)); // Triangle
 				}
-				else if (func == add_name("ray_query_distance")) {
+				else if (func == BUILTIN(ray_query_distance)) {
 					id = write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_GET_INTERSECTION_T, spirv_float_type, operands, 2);
 				}
-				else if (func == add_name("ray_query_barycentrics")) {
+				else if (func == BUILTIN(ray_query_barycentrics)) {
 					id = write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_GET_INTERSECTION_BARYCENTRICS, spirv_float2_type, operands, 2);
 				}
-				else if (func == add_name("ray_query_front_face")) {
+				else if (func == BUILTIN(ray_query_front_face)) {
 					id = write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_GET_INTERSECTION_FRONT_FACE, spirv_bool_type, operands, 2);
 				}
 				else {
@@ -2671,13 +2728,13 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				}
 				hmput(index_map, o->op_call.var.index, id);
 			}
-			else if (func == add_name("ray_query_geometry") || func == add_name("ray_query_vertex")) {
+			else if (func == BUILTIN(ray_query_geometry) || func == BUILTIN(ray_query_vertex)) {
 				spirv_id query            = convert_kong_index_to_spirv_id(o->op_call.parameters[0].index);
 				uint32_t index_operands[] = {query.id, get_int_constant(1).id};
 				spirv_id instance = write_op_result(instructions, SPIRV_OPCODE_RAY_QUERY_GET_INTERSECTION_CUSTOM_INDEX, spirv_uint_type, index_operands, 2);
 				spirv_id geometry_indices[] = {get_int_constant(0), instance, get_int_constant(3)};
 
-				if (func == add_name("ray_query_geometry")) {
+				if (func == BUILTIN(ray_query_geometry)) {
 					spirv_id pointer = write_op_access_chain(instructions, instances_uint_pointer_type, instances_var, geometry_indices, 3);
 					hmput(index_map, o->op_call.var.index, write_op_load(instructions, spirv_uint_type, pointer));
 				}
@@ -3801,29 +3858,20 @@ static void write_globals(instructions_buffer *decorations, instructions_buffer 
 
 static void init_index_map(void) {
 	spirv_id default_id = {0};
+	hmfree(index_map);
 	hmdefault(index_map, default_id);
-	size_t size = hmlenu(index_map);
-	for (size_t i = 0; i < size; ++i) {
-		hmdel(index_map, index_map[i].key);
-	}
 }
 
 static void init_type_map(void) {
 	spirv_id default_id = {0};
+	hmfree(type_map);
 	hmdefault(type_map, default_id);
-	size_t size = hmlenu(type_map);
-	for (size_t i = 0; i < size; ++i) {
-		hmdel(type_map, type_map[i].key);
-	}
 }
 
 static void init_function_map(void) {
 	spirv_id default_id = {0};
+	hmfree(function_map);
 	hmdefault(function_map, default_id);
-	size_t size = hmlenu(function_map);
-	for (size_t i = 0; i < size; ++i) {
-		hmdel(function_map, function_map[i].key);
-	}
 }
 
 static void init_int_constants(void) {
@@ -3833,19 +3881,19 @@ static void init_int_constants(void) {
 
 static void init_float_constants(void) {
 	spirv_id default_id = {0};
+	hmfree(float_constants);
 	hmdefault(float_constants, default_id);
-	size_t size = hmlenu(float_constants);
-	for (size_t i = 0; i < size; ++i) {
-		hmdel(float_constants, float_constants[i].key);
-	}
 }
 
 void init_maps(void) {
+	init_builtin_names();
 	init_index_map();
 	init_type_map();
 	init_function_map();
 	init_int_constants();
 	init_float_constants();
+	hmfree(uint_constants);
+	hmfree(bool_constants);
 	storage_image_type               = (spirv_id){0};
 	storage_image_vars_count         = 0;
 	acceleration_structure_type      = (spirv_id){0};
@@ -3896,6 +3944,9 @@ static char *write_bytecode2(char *buffer, int *size_out, instructions_buffer *h
 		*size_out = output_header_size + output_decorations_size + output_base_types_size + output_constants_size + output_aggregate_types_size +
 		            output_global_vars_size + output_instructions_size;
 
+		// buffer is 1024 * 1024 bytes in all callers
+		*size_out = (int)(spirv_optimize((uint32_t *)buffer, *size_out / 4, (1024 * 1024) / 4) * 4);
+
 		return buffer;
 	}
 }
@@ -3908,31 +3959,31 @@ static char *spirv_export_vertex2(function *main, bool debug, int *size_out) {
 	find_used_capabilities(main);
 
 	instructions_buffer header = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer decorations = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer base_types = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer constants = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer aggregate_types = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer global_vars = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer instructions = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	kong_assert(main->parameters_size > 0);
@@ -4054,13 +4105,13 @@ static char *spirv_export_vertex2(function *main, bool debug, int *size_out) {
 
 	static char _buffer[1024 * 1024];
 	char *result = write_bytecode2(&_buffer[0], size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars, &instructions, debug);
-	free(header.instructions);
-	free(decorations.instructions);
-	free(base_types.instructions);
-	free(constants.instructions);
-	free(aggregate_types.instructions);
-	free(global_vars.instructions);
-	free(instructions.instructions);
+	section_buffer_put(&header);
+	section_buffer_put(&decorations);
+	section_buffer_put(&base_types);
+	section_buffer_put(&constants);
+	section_buffer_put(&aggregate_types);
+	section_buffer_put(&global_vars);
+	section_buffer_put(&instructions);
 	return result;
 }
 
@@ -4072,31 +4123,31 @@ static char *spirv_export_fragment2(function *main, bool debug, int *size_out) {
 	find_used_capabilities(main);
 
 	instructions_buffer header = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer decorations = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer base_types = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer constants = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer aggregate_types = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer global_vars = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	instructions_buffer instructions = {
-	    .instructions = (uint32_t *)calloc(1024 * 1024, 1),
+	    .instructions = section_buffer_get(),
 	};
 
 	kong_assert(main->parameters_size > 0);
@@ -4200,13 +4251,13 @@ static char *spirv_export_fragment2(function *main, bool debug, int *size_out) {
 
 	static char _buffer[1024 * 1024];
 	char *result = write_bytecode2(&_buffer[0], size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars, &instructions, debug);
-	free(header.instructions);
-	free(decorations.instructions);
-	free(base_types.instructions);
-	free(constants.instructions);
-	free(aggregate_types.instructions);
-	free(global_vars.instructions);
-	free(instructions.instructions);
+	section_buffer_put(&header);
+	section_buffer_put(&decorations);
+	section_buffer_put(&base_types);
+	section_buffer_put(&constants);
+	section_buffer_put(&aggregate_types);
+	section_buffer_put(&global_vars);
+	section_buffer_put(&instructions);
 	return result;
 }
 
@@ -4284,13 +4335,13 @@ char *spirv_export_compute(int *size_out) {
 	bool ray_query = calls_function(main, "ray_query_trace") || calls_function(main, "ray_query_trace_any");
 	bool geometry  = calls_function(main, "ray_query_geometry") || calls_function(main, "ray_query_vertex");
 
-	instructions_buffer header          = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer decorations     = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer base_types      = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer constants       = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer aggregate_types = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer global_vars     = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
-	instructions_buffer instructions    = {.instructions = (uint32_t *)calloc(1024 * 1024, 1)};
+	instructions_buffer header          = {.instructions = section_buffer_get()};
+	instructions_buffer decorations     = {.instructions = section_buffer_get()};
+	instructions_buffer base_types      = {.instructions = section_buffer_get()};
+	instructions_buffer constants       = {.instructions = section_buffer_get()};
+	instructions_buffer aggregate_types = {.instructions = section_buffer_get()};
+	instructions_buffer global_vars     = {.instructions = section_buffer_get()};
+	instructions_buffer instructions    = {.instructions = section_buffer_get()};
 	compute_decorations                 = &decorations;
 
 	write_capability(&decorations, CAPABILITY_SHADER);
@@ -4365,12 +4416,12 @@ char *spirv_export_compute(int *size_out) {
 
 	static char _buffer[1024 * 1024];
 	char *result = write_bytecode2(&_buffer[0], size_out, &header, &decorations, &base_types, &constants, &aggregate_types, &global_vars, &instructions, false);
-	free(header.instructions);
-	free(decorations.instructions);
-	free(base_types.instructions);
-	free(constants.instructions);
-	free(aggregate_types.instructions);
-	free(global_vars.instructions);
-	free(instructions.instructions);
+	section_buffer_put(&header);
+	section_buffer_put(&decorations);
+	section_buffer_put(&base_types);
+	section_buffer_put(&constants);
+	section_buffer_put(&aggregate_types);
+	section_buffer_put(&global_vars);
+	section_buffer_put(&instructions);
 	return result;
 }

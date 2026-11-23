@@ -47,15 +47,6 @@
 	}                                     \
 	array->values[array->size++] = value;
 
-typedef enum api_kind {
-	API_DEFAULT,
-	API_DIRECT3D11,
-	API_DIRECT3D12,
-	API_METAL,
-	API_WEBGPU,
-	API_VULKAN
-} api_kind;
-
 typedef enum variable_kind {
 	VARIABLE_GLOBAL,
 	VARIABLE_LOCAL,
@@ -934,7 +925,7 @@ void  cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_fun
 char *cstyle_float(char *buffer, float value);
 char *metal_export(char *directory);
 char *metal_export_compute(void);
-char *hlsl_export_compute(void);
 char *spirv_export_compute(int *size);
+size_t spirv_optimize(uint32_t *words, size_t word_count, size_t capacity);
 char *wgsl_export_compute(void);
 char *kong_preprocess(const char *source, char **defines, int defines_count);

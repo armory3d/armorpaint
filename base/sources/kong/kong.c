@@ -775,6 +775,9 @@ variable allocate_variable(type_ref type, variable_kind kind) {
 	return v;
 }
 
+// Invalidating cached name ids
+static uint32_t names_generation = 1;
+
 opcode *emit_op(opcodes *code, opcode *o) {
 	kong_assert(code->size + o->size < OPCODES_SIZE);
 
@@ -795,8 +798,21 @@ static bool is_component_wise(name_id func) {
 	static const char *names[] = {"abs",      "frac", "floor", "ceil", "round", "trunc", "sin",  "cos",  "tan",  "asin",       "acos",     "atan",
 	                              "atan2",    "sinh", "cosh",  "tanh", "exp",   "exp2",  "log",  "sign", "sqrt", "rsqrt",      "radians",  "degrees",
 	                              "saturate", "ddx",  "ddy",   "min",  "max",   "clamp", "step", "pow",  "lerp", "smoothstep", "normalize"};
-	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
-		if (func == add_name((char *)names[i])) {
+	enum {
+		NAMES_COUNT = sizeof(names) / sizeof(names[0])
+	};
+
+	static name_id  ids[NAMES_COUNT];
+	static uint32_t ids_generation = 0;
+	if (ids_generation != names_generation) {
+		for (size_t i = 0; i < NAMES_COUNT; ++i) {
+			ids[i] = add_name((char *)names[i]);
+		}
+		ids_generation = names_generation;
+	}
+
+	for (size_t i = 0; i < NAMES_COUNT; ++i) {
+		if (func == ids[i]) {
 			return true;
 		}
 	}
@@ -2491,6 +2507,7 @@ void names_init(void) {
 	names[0] = 0; // make NO_NAME a proper string
 
 	sh_new_arena(hash); // TODO: Get rid of this by using indices internally in the hash-map so it can survive grow_if_needed
+	names_generation += 1;
 }
 
 static void grow_names_if_needed(size_t size) {
@@ -3919,8 +3936,12 @@ static void tokenizer_state_advance(debug_context *context, tokenizer_state *sta
 }
 
 static void tokenizer_buffer_init(tokenizer_buffer *buffer) {
+	static char *buf = NULL; // Reused by every tokenize call
+	if (buf == NULL) {
+		buf = (char *)malloc(1024 * 1024);
+	}
 	buffer->max_size     = 1024 * 1024;
-	buffer->buf          = (char *)malloc(buffer->max_size);
+	buffer->buf          = buf;
 	buffer->current_size = 0;
 	buffer->column = buffer->line = 0;
 }
@@ -3993,55 +4014,43 @@ static void tokens_add(tokens *tokens, token token) {
 	tokens->current_size += 1;
 }
 
+// Keywords are only compared against identifiers of their length
+static int keyword_kind(tokenizer_buffer *buffer) {
+#define KEYWORD(text, kind) {text, sizeof(text) - 1, kind}
+	static const struct {
+		const char *text;
+		size_t      length;
+		int         kind;
+	} keywords[] = {
+	    KEYWORD("true", TOKEN_BOOLEAN),    KEYWORD("false", TOKEN_BOOLEAN), KEYWORD("if", TOKEN_IF),
+	    KEYWORD("else", TOKEN_ELSE),       KEYWORD("while", TOKEN_WHILE),   KEYWORD("do", TOKEN_DO),
+	    KEYWORD("for", TOKEN_FOR),         KEYWORD("in", TOKEN_IN),         KEYWORD("struct", TOKEN_STRUCT),
+	    KEYWORD("cbuffer", TOKEN_CBUFFER), KEYWORD("const", TOKEN_CONST),   KEYWORD("return", TOKEN_RETURN),
+	    KEYWORD("discard", TOKEN_DISCARD), KEYWORD("break", TOKEN_BREAK),   KEYWORD("continue", TOKEN_CONTINUE),
+	};
+#undef KEYWORD
+	size_t length = buffer->current_size;
+	if (length < 2 || length > 8) {
+		return TOKEN_IDENTIFIER;
+	}
+	for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); ++i) {
+		if (keywords[i].length == length && memcmp(buffer->buf, keywords[i].text, length) == 0) {
+			return keywords[i].kind;
+		}
+	}
+	return TOKEN_IDENTIFIER;
+}
+
 static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokenizer_buffer *buffer) {
 	token token;
 
-	if (tokenizer_buffer_equals(buffer, "true")) {
+	int kind = keyword_kind(buffer);
+	if (kind == TOKEN_BOOLEAN) {
 		token         = token_create(TOKEN_BOOLEAN, state);
-		token.boolean = true;
+		token.boolean = buffer->buf[0] == 't';
 	}
-	else if (tokenizer_buffer_equals(buffer, "false")) {
-		token         = token_create(TOKEN_BOOLEAN, state);
-		token.boolean = false;
-	}
-	else if (tokenizer_buffer_equals(buffer, "if")) {
-		token = token_create(TOKEN_IF, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "else")) {
-		token = token_create(TOKEN_ELSE, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "while")) {
-		token = token_create(TOKEN_WHILE, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "do")) {
-		token = token_create(TOKEN_DO, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "for")) {
-		token = token_create(TOKEN_FOR, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "in")) {
-		token = token_create(TOKEN_IN, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "struct")) {
-		token = token_create(TOKEN_STRUCT, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "cbuffer")) {
-		token = token_create(TOKEN_CBUFFER, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "const")) {
-		token = token_create(TOKEN_CONST, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "return")) {
-		token = token_create(TOKEN_RETURN, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "discard")) {
-		token = token_create(TOKEN_DISCARD, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "break")) {
-		token = token_create(TOKEN_BREAK, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "continue")) {
-		token = token_create(TOKEN_CONTINUE, state);
+	else if (kind != TOKEN_IDENTIFIER) {
+		token = token_create(kind, state);
 	}
 	else {
 		token            = token_create(TOKEN_IDENTIFIER, state);
@@ -4091,7 +4100,6 @@ tokens tokenize(const char *filename, const char *source) {
 			}
 
 			tokens_add(&tokens, token_create(TOKEN_NONE, &state));
-			free(buffer.buf);
 			return tokens;
 		}
 		else {
@@ -4427,13 +4435,13 @@ void transform(uint32_t flags) {
 						                     .type = from_base_type,
 						                     .kind = ACCESS_SWIZZLE,
 						                     .access_swizzle =
-                                            {
+							                {
 						                             .swizzle =
                                                     {
 						                                     .size    = 1,
 						                                     .indices = {swizzle_index},
                                                     },
-                                            },
+							                },
                                     }},
 						        },
 						};
@@ -6050,7 +6058,6 @@ struct {
 }   *_hash;
 int  _expression_index;
 int  _statement_index;
-void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
 void spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
 void wgsl_export2(char **vs, char **fs);
 void console_info(char *s);
@@ -6124,6 +6131,7 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		hash             = _clone_hash(_hash);
 		expression_index = _expression_index;
 		statement_index  = _statement_index;
+		names_generation += 1;
 	}
 
 	kong_error = false;
@@ -6163,11 +6171,7 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	analyze();
 	KONG_CHECK_ERROR();
 
-#ifdef _WIN32
-
-	hlsl_export2(vs, fs, API_DIRECT3D11, false);
-
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 
 	static char vs_temp[1024 * 128];
 	strcpy(vs_temp, "//>vert\n");
