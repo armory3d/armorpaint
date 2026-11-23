@@ -3593,13 +3593,32 @@ static void write_constants(instructions_buffer *instructions) {
 	}
 }
 
-static void assign_bindings(uint32_t *bindings, function *shader) {
+static bool is_constant_buffer(global *g) {
+	type *t = get_type(g->type);
+	return t->array_size == 0 && g->type != sampler_type_id && t->tex_kind == TEXTURE_KIND_NONE && g->type != bvh_type_id && !t->built_in;
+}
+
+// Compute shaders bind the constants at 0, the one written texture at 1 and the read textures from 2, for a fixed layout.
+// Texture units follow the declaration order on every backend, so the written texture is declared before the read ones
+static void assign_bindings(uint32_t *bindings, function *shader, shader_stage stage) {
 	descriptor_set_group *set_group = get_descriptor_set_group(shader->descriptor_set_group_index);
+	bool                  compute   = stage == SHADER_STAGE_COMPUTE;
+	debug_context         context   = {0};
 
 	for (size_t group_index = 0; group_index < set_group->size; ++group_index) {
 		uint32_t binding = 0;
 
 		descriptor_set *set = set_group->values[group_index];
+
+		bool textures_seen = false;
+		if (compute) {
+			binding = 1; // Kept for the constants when there are none
+			for (size_t g_index = 0; g_index < set->globals.size; ++g_index) {
+				if (is_constant_buffer(get_global(set->globals.globals[g_index]))) {
+					binding = 0;
+				}
+			}
+		}
 
 		for (size_t g_index = 0; g_index < set->globals.size; ++g_index) {
 			global_id global_index = set->globals.globals[g_index];
@@ -3618,6 +3637,16 @@ static void assign_bindings(uint32_t *bindings, function *shader) {
 					bindings[global_index] = 0;
 				}
 				else {
+					if (compute) {
+						bool written = set->globals.writable[g_index];
+						if (written && textures_seen) {
+							error(context, "Compute shaders write one texture, declared before the read textures");
+						}
+						if (!written && !textures_seen) {
+							binding += 1; // Kept for the written texture when there is none
+						}
+						textures_seen = true;
+					}
 					bindings[global_index] = binding;
 					binding += 1;
 				}
@@ -3638,6 +3667,9 @@ static void assign_bindings(uint32_t *bindings, function *shader) {
 					binding += 1;
 				}
 				else {
+					if (compute && binding != 0) {
+						error(context, "Compute shaders declare the constants before the other resources");
+					}
 					bindings[global_index] = binding;
 					binding += 1;
 				}
@@ -3678,7 +3710,7 @@ static uint32_t member_padding(uint32_t offset, uint32_t size) {
 static void write_globals(instructions_buffer *decorations, instructions_buffer *aggregate_types_block, instructions_buffer *global_vars_block, function *main,
                           shader_stage stage) {
 	uint32_t bindings[512] = {0};
-	assign_bindings(bindings, main);
+	assign_bindings(bindings, main, stage);
 
 	global_array globals = {0};
 
