@@ -348,9 +348,7 @@ static void tab_timeline_copy_path_points_to_layer(slot_layer_t *l, f32_array_t 
 }
 
 static gpu_texture_format_t tab_timeline_tex_format() {
-	return base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-	       : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-	                                          : GPU_TEXTURE_FORMAT_RGBA128;
+	return base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 }
 
 static i32 tab_timeline_find_keyframe(i32 frame, i32 layer_index) {
@@ -1252,7 +1250,7 @@ static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) 
 	gpu_texture_format_t fmt               = tab_timeline_tex_format();
 	i32                  w                 = config_get_texture_res_x();
 	i32                  h                 = config_get_texture_res_y();
-	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : base_bits == TEXTURE_BITS_BITS16 ? 2 : 4;
+	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : 2;
 	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
 	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes_raw(pixels, w, h, fmt);
 	array_free(pixels);

@@ -327,14 +327,6 @@ static bool import_arm_has_alpha(buffer_t *pixels, i32 format) {
 			}
 		}
 	}
-	else if (format == GPU_TEXTURE_FORMAT_RGBA128) {
-		f32 *p = (f32 *)pixels->buffer;
-		for (u32 i = 3; i < pixels->length / 4; i += 4) {
-			if (p[i] < 1.0) {
-				return true;
-			}
-		}
-	}
 	else {
 		for (u32 i = 3; i < pixels->length; i += 4) {
 			if (pixels->buffer[i] < 255) {
@@ -825,10 +817,10 @@ void import_arm_run_project(char *path) {
 	base_res                             = config_get_texture_res_pos(l0->res);
 	base_res_x                           = (f32)l0->res;
 	base_res_y                           = (f32)l0->res;
-	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : l0->bpp == 16 ? TEXTURE_BITS_BITS16 : TEXTURE_BITS_BITS32;
+	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : TEXTURE_BITS_BITS16;
 	base_bits                            = bits_pos;
 	i32                  bytes_per_pixel = math_floor(l0->bpp / 8.0);
-	gpu_texture_format_t format          = l0->bpp == 8 ? GPU_TEXTURE_FORMAT_RGBA32 : l0->bpp == 16 ? GPU_TEXTURE_FORMAT_RGBA64 : GPU_TEXTURE_FORMAT_RGBA128;
+	gpu_texture_format_t format          = l0->bpp == 8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 
 	char *base = path_base_dir(path);
 	if (g_project->envmap != NULL) {

@@ -9,8 +9,8 @@ static int              _bake_to_target_bits;
 static void (*_bake_to_target_done)(void *);
 static void *_bake_to_target_data;
 
-// Normal, Height and Derivative bake the high poly data first, RGBA128 prevents artifacts
-static bool bake_to_target_rgba128(bake_type_t type) {
+// Normal, Height and Derivative bake the high poly data first, RGBA64 prevents artifacts
+static bool bake_to_target_rgba64(bake_type_t type) {
 	return type == BAKE_TYPE_NORMAL || type == BAKE_TYPE_HEIGHT || type == BAKE_TYPE_DERIVATIVE;
 }
 
@@ -28,8 +28,8 @@ static void bake_to_target_check_result(void *_) {
 	sys_remove_update(bake_to_target_check_result);
 
 	render_target_t *rt      = _bake_to_target_rt;
-	bool             rgba128 = bake_to_target_rgba128(_bake_to_target_type);
-	if (rgba128) {
+	bool             rgba64  = bake_to_target_rgba64(_bake_to_target_type);
+	if (rgba64) {
 		gpu_texture_t *_image = rt->_image;
 		rt->format            = "RGBA32";
 		rt->_image            = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
@@ -46,7 +46,7 @@ static void bake_to_target_check_result(void *_) {
 	bake_texture_node_baking   = false;
 	make_material_parse_paint_material(true);
 
-	if (rgba128) {
+	if (rgba64) {
 		base_bits = _bake_to_target_bits;
 		layers_set_bits();
 	}
@@ -79,13 +79,13 @@ bool bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(voi
 	g_context->tool      = TOOL_TYPE_BAKE;
 	g_context->bake_type = bake_type;
 
-	if (bake_to_target_rgba128(bake_type)) {
+	if (bake_to_target_rgba64(bake_type)) {
 		gpu_delete_texture(rt->_image);
-		rt->format = "RGBA128";
-		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
+		rt->format = "RGBA64";
+		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA64);
 
 		_bake_to_target_bits   = base_bits;
-		base_bits              = TEXTURE_BITS_BITS32;
+		base_bits              = TEXTURE_BITS_BITS16;
 		gpu_texture_t *current = _draw_current; // Called from the node ui or from an update
 		if (current != NULL) {
 			draw_end();

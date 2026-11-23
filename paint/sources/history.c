@@ -637,13 +637,9 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_path_bind_target(string("texpaint_nor%s", from_id_s), "tex1");
 		render_path_bind_target(string("texpaint_pack%s", from_id_s), "tex2");
 
-		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-		                              : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-		                                                                 : GPU_TEXTURE_FORMAT_RGBA128;
+		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 
-		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32   ? "copy_mrt3_pass"
-		             : format == GPU_TEXTURE_FORMAT_RGBA64 ? "copy_mrt3RGBA64_pass"
-		                                                   : "copy_mrt3RGBA128_pass";
+		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32 ? "copy_mrt3_pass" : "copy_mrt3RGBA64_pass";
 		render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 	}
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;

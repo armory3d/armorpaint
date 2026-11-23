@@ -9,7 +9,6 @@ static i32         _export_exr_width;
 static i32         _export_exr_stride;
 static u8_array_t *_export_exr_out;
 static buffer_t   *_export_exr_src_view;
-static void (*_export_exr_write_line)(i32);
 
 static void export_exr_write_string(u8_array_t *out, char *str) {
 	for (i32 i = 0; i < string_length(str); ++i) {
@@ -17,37 +16,28 @@ static void export_exr_write_string(u8_array_t *out, char *str) {
 	}
 }
 
-static void export_exr_write_line16(i32 byte_pos) {
+// Half float pixels
+static void export_exr_write_line(i32 byte_pos) {
 	for (i32 x = 0; x < _export_exr_width; ++x) {
 		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos));
 		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos + 1));
-		byte_pos += _export_exr_stride;
-	}
-}
-
-static void export_exr_write_line32(i32 byte_pos) {
-	for (i32 x = 0; x < _export_exr_width; ++x) {
-		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos));
-		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos + 1));
-		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos + 2));
-		u8_array_push(_export_exr_out, buffer_get_u8(_export_exr_src_view, byte_pos + 3));
 		byte_pos += _export_exr_stride;
 	}
 }
 
 static void export_exr_write_bgr(i32 off, i32 pos, i32 byte_size) {
-	_export_exr_write_line(pos + byte_size * 2);
-	_export_exr_write_line(pos + byte_size);
-	_export_exr_write_line(pos);
+	export_exr_write_line(pos + byte_size * 2);
+	export_exr_write_line(pos + byte_size);
+	export_exr_write_line(pos);
 }
 
 static void export_exr_write_single(i32 off, i32 pos, i32 byte_size) {
-	_export_exr_write_line(pos + off * byte_size);
-	_export_exr_write_line(pos + off * byte_size);
-	_export_exr_write_line(pos + off * byte_size);
+	export_exr_write_line(pos + off * byte_size);
+	export_exr_write_line(pos + off * byte_size);
+	export_exr_write_line(pos + off * byte_size);
 }
 
-buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 type, i32 off) {
+buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 type, i32 off) {
 	u8_array_t *out = u8_array_create_from_raw((u8[]){}, 0);
 	u8_array_push(out, 0x76); // magic
 	u8_array_push(out, 0x2f);
@@ -67,7 +57,7 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	u8_array_push(out, 0);
 	u8_array_push(out, 0);
 
-	i32 attrib = bits == 16 ? 1 : 2; // half, float
+	i32 attrib = 1; // half
 
 	u8_array_push(out, char_code_at("B", 0)); // B
 	u8_array_push(out, 0);
@@ -280,7 +270,7 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	u8_array_push(out, 0); // end of header
 
 	i32 channels              = 4;
-	i32 byte_size             = bits == 16 ? 2 : 4;
+	i32 byte_size             = 2;
 	i32 k_header_size         = out->length;
 	i32 k_scanline_table_size = 8 * height;
 	i32 pixel_row_size        = width * 3 * byte_size;
@@ -308,7 +298,6 @@ buffer_t *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 typ
 	_export_exr_stride                = stride;
 	_export_exr_out                   = out;
 	_export_exr_src_view              = src;
-	_export_exr_write_line            = bits == 16 ? export_exr_write_line16 : export_exr_write_line32;
 	void (*write_data)(i32, i32, i32) = type == 1 || type == 3 ? export_exr_write_bgr : export_exr_write_single; // RGB1, RGBA
 
 	for (i32 y = 0; y < height; ++y) {

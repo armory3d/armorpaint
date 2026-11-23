@@ -28,8 +28,7 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
 	i32 res_x       = config_get_texture_res_x();
 	i32 res_y       = config_get_texture_res_y();
-	i32 bits_handle = base_bits;
-	i32 bits        = bits_handle == TEXTURE_BITS_BITS8 ? 8 : bits_handle == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32 bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
 	i32 format      = 0; // RGBA
 	if (type == 1) {
 		format = 2; // RGB1
@@ -112,7 +111,7 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		iron_write_jpg(file, pixels, res_x, res_y, format, math_floor(g_context->format_quality));
 	}
 	else { // Exr
-		buffer_t *b = export_exr_run(res_x, res_y, pixels, bits, type, off);
+		buffer_t *b = export_exr_run(res_x, res_y, pixels, type, off);
 		iron_file_save_bytes(file, b, b->length);
 		array_free(b);
 		free(b);
@@ -129,10 +128,7 @@ static f32 _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bi
 	if (bits == 8) {
 		return buffer_get_u8(b, pos) / 255.0;
 	}
-	if (bits == 16) {
-		return buffer_get_f16(b, pos * 2);
-	}
-	return buffer_get_f32(b, pos * 4);
+	return buffer_get_f16(b, pos * 2);
 }
 
 static void _export_texture_set_value(buffer_t *b, i32 pixel, i32 channel, i32 bits, f32 value) {
@@ -141,11 +137,8 @@ static void _export_texture_set_value(buffer_t *b, i32 pixel, i32 channel, i32 b
 		value = value < 0.0 ? 0.0 : value > 1.0 ? 1.0 : value;
 		buffer_set_u8(b, pos, (u8)math_floor(value * 255.0 + 0.5));
 	}
-	else if (bits == 16) {
-		buffer_set_u16(b, pos * 2, float_to_half_fast(value));
-	}
 	else {
-		buffer_set_f32(b, pos * 4, value);
+		buffer_set_u16(b, pos * 2, float_to_half_fast(value));
 	}
 }
 
@@ -237,7 +230,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string_copy(tr("untitled"));
 	}
 	texture_ldr_format_t format_type = g_context->format_type;
-	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : base_bits == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
 	char                *ext         = bits > 8 ? ".exr" : format_type == TEXTURE_LDR_FORMAT_PNG ? ".png" : ".jpg";
 	if (ends_with(f, ext)) {
 		f = string_copy(substring(f, 0, string_length(f) - 4));

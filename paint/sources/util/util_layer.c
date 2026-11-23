@@ -195,7 +195,7 @@ void layers_make_temp_img() {
 	}
 
 	if (layers_temp_image == NULL) {
-		char            *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char            *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 		render_target_t *t      = render_target_create();
 		t->name                 = "temptex0";
 		t->width                = l->texpaint->width;
@@ -238,7 +238,7 @@ void layers_make_export_img() {
 		map_delete(render_path_render_targets, "expc");
 	}
 	if (layers_expa == NULL) {
-		char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 		{
 			render_target_t *t  = render_target_create();
 			t->name             = "expa";
@@ -1356,7 +1356,7 @@ static slot_layer_t *layers_move_preview(slot_layer_t *l) {
 		moved.texpaint = _layers_move_copy(&layers_move_mask, l->texpaint, pipes_copy8, dx, dy);
 	}
 	else {
-		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64;
 		moved.texpaint       = _layers_move_copy(&layers_move_a, l->texpaint, pipe, dx, dy);
 		moved.texpaint_nor   = _layers_move_copy(&layers_move_b, l->texpaint_nor, pipe, dx, dy);
 		moved.texpaint_pack  = _layers_move_copy(&layers_move_c, l->texpaint_pack, pipe, dx, dy);

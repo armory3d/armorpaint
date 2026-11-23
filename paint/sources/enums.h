@@ -194,7 +194,6 @@ typedef enum {
 typedef enum {
 	TEXTURE_BITS_BITS8  = 0,
 	TEXTURE_BITS_BITS16 = 1,
-	TEXTURE_BITS_BITS32 = 2,
 } texture_bits_t;
 
 typedef enum {

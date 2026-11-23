@@ -73,9 +73,8 @@ void box_export_tab_export_textures(char *title, bool bake_material) {
 		    (void *[]){
 		        "8bit",
 		        "16bit",
-		        "32bit",
 		    },
-		    3);
+		    2);
 #endif
 
 		ui_combo(&base_bits, base_bits_combo, tr("Color"), true, UI_ALIGN_LEFT, true);

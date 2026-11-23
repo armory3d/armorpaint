@@ -237,7 +237,7 @@ buffer_t *export_arm_encode_project(char *path) {
 	string_array_t *mesh_files    = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
-	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : 16;
 
 	layer_data_t_array_t *ld = any_array_create_from_raw((void *[]){}, 0);
 	export_arm_progress(0.1);

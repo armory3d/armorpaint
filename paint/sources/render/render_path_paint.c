@@ -120,7 +120,6 @@ void render_path_paint_init() {
 
 	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3_pass");
 	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3RGBA64_pass");
-	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3RGBA128_pass");
 }
 
 void render_path_paint_draw_fullscreen_triangle() {
@@ -306,7 +305,7 @@ static void render_path_paint_ref_snapshot(i32 tid, bool is_mask) {
 		render_path_draw_shader("Scene/copy_pass/copy_pass");
 		return;
 	}
-	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 	render_path_paint_ref_target("texpaint_ref", format);
 	render_path_paint_ref_target("texpaint_nor_ref", format);
 	render_path_paint_ref_target("texpaint_pack_ref", format);
@@ -320,14 +319,14 @@ static void render_path_paint_ref_snapshot(i32 tid, bool is_mask) {
 	render_path_bind_target(string_tmp("texpaint%d", tid), "tex0");
 	render_path_bind_target(string_tmp("texpaint_nor%d", tid), "tex1");
 	render_path_bind_target(string_tmp("texpaint_pack%d", tid), "tex2");
-	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : string_equals(format, "RGBA64") ? "copy_mrt3RGBA64_pass" : "copy_mrt3RGBA128_pass";
+	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : "copy_mrt3RGBA64_pass";
 	render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 }
 
 // Clone source for the visible layers mode
 static void render_path_paint_clone_snapshot() {
 	layers_flatten(false, NULL);
-	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 	render_path_paint_ref_target("texpaint_ref", format);
 	render_path_paint_ref_target("texpaint_nor_ref", format);
 	render_path_paint_ref_target("texpaint_pack_ref", format);
@@ -341,7 +340,7 @@ static void render_path_paint_clone_snapshot() {
 	render_path_bind_target("expa", "tex0");
 	render_path_bind_target("expb", "tex1");
 	render_path_bind_target("expc", "tex2");
-	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : string_equals(format, "RGBA64") ? "copy_mrt3RGBA64_pass" : "copy_mrt3RGBA128_pass";
+	char *pipe = string_equals(format, "RGBA32") ? "copy_mrt3_pass" : "copy_mrt3RGBA64_pass";
 	render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 }
 
@@ -1398,14 +1397,14 @@ void render_path_paint_unbind_layers() {
 }
 
 static gpu_compute_pipeline_t render_path_paint_dilate_index_pipe;
-static gpu_compute_pipeline_t render_path_paint_dilate_pipes[3]; // Indexed by the layer format
-static gpu_compute_pipeline_t render_path_paint_dilate_copy_pipes[3];
+static gpu_compute_pipeline_t render_path_paint_dilate_pipes[2]; // Indexed by the layer format
+static gpu_compute_pipeline_t render_path_paint_dilate_copy_pipes[2];
 static bool                   render_path_paint_dilate_ready         = false;
-static bool                   render_path_paint_dilate_loaded[3]     = {false, false, false}; // Per layer format
+static bool                   render_path_paint_dilate_loaded[2]     = {false, false}; // Per layer format
 static gpu_texture_t         *render_path_paint_dilate_index         = NULL;
 static i32                    render_path_paint_dilate_index_version = -1;
 static i32                    render_path_paint_dilate_index_radius  = -1;
-static gpu_texture_t         *render_path_paint_dilate_temp          = NULL; // For masks in 16 and 32 bit projects
+static gpu_texture_t         *render_path_paint_dilate_temp          = NULL; // For masks in 16 bit projects
 
 static void render_path_paint_dilate_load_pipeline(gpu_compute_pipeline_t *pipe, char *name) {
 	char     *file   = string_tmp("%s%s", name, sys_shader_ext());
@@ -1417,7 +1416,7 @@ static void render_path_paint_dilate_load_pipeline(gpu_compute_pipeline_t *pipe,
 
 static void render_path_paint_dilate_load(gpu_texture_format_t format) {
 	if (!render_path_paint_dilate_loaded[format]) {
-		char *formats[] = {"rgba32", "rgba64", "rgba128"};
+		char *formats[] = {"rgba32", "rgba64"};
 		render_path_paint_dilate_load_pipeline(&render_path_paint_dilate_pipes[format], string_tmp("dilate_%s", formats[format]));
 		render_path_paint_dilate_load_pipeline(&render_path_paint_dilate_copy_pipes[format], string_tmp("dilate_copy_%s", formats[format]));
 		render_path_paint_dilate_loaded[format] = true;

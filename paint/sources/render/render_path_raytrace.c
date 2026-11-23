@@ -290,7 +290,7 @@ static bool render_path_raytrace_override_targets(i32 count) {
 	if (count == 0) {
 		return false;
 	}
-	char *format    = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	char *format    = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 	i32   width     = config_get_texture_res_x();
 	i32   height    = config_get_texture_res_y();
 	bool  recreated = false;

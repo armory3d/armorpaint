@@ -1570,7 +1570,7 @@ scene_t *startup_get_scene(void) {
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "copy_mrt3_pass";
-		sd->contexts      = any_array_create(3);
+		sd->contexts      = any_array_create(2);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
 			sc->name                         = "copy_mrt3_pass";
@@ -1648,45 +1648,6 @@ scene_t *startup_get_scene(void) {
 				sc->texture_units->buffer[2] = tu;
 			}
 			sd->contexts->buffer[1] = sc;
-		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "copy_mrt3RGBA128_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "copy_mrt3_pass.vert";
-			sc->fragment_shader              = "copy_mrt3_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(3);
-			sc->color_attachments->buffer[0] = "RGBA128";
-			sc->color_attachments->buffer[1] = "RGBA128";
-			sc->color_attachments->buffer[2] = "RGBA128";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants     = (shader_const_t_array_t *)any_array_create(0);
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(3);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex0";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex1";
-				sc->texture_units->buffer[1] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex2";
-				sc->texture_units->buffer[2] = tu;
-			}
-			sd->contexts->buffer[2] = sc;
 		}
 		scene->shader_datas->buffer[11] = sd;
 	}

@@ -1177,9 +1177,8 @@ void tab_layers_draw_edit() {
 	    (void *[]){
 	        "8",
 	        "16",
-	        "32",
 	    },
-	    3);
+	    2);
 	ui_inline_radio(&base_bits, bits_items, UI_ALIGN_LEFT);
 	if (ui_item_changed()) {
 		sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_set_bits, NULL);

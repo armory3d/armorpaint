@@ -1180,7 +1180,7 @@ void                      export_obj_run(char *path, mesh_object_t_array_t *pain
 void                      export_obj_run_sculpt(char *path, mesh_object_t_array_t *paint_objects);
 void                      make_blur_run(node_shader_t *kong);
 void                      import_font_run(char *path);
-buffer_t                 *export_exr_run(i32 width, i32 height, buffer_t *src, i32 bits, i32 type, i32 off);
+buffer_t                 *export_exr_run(i32 width, i32 height, buffer_t *src, i32 type, i32 off);
 void                      nodes_material_init();
 ui_node_t                *nodes_material_get_node_t(char *node_type);
 ui_node_t                *nodes_material_create_node(char *node_type, node_group_t *group);
