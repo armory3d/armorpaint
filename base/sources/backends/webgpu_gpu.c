@@ -370,7 +370,7 @@ void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
 	         .g = ((color & 0x0000ff00) >> 8) / 255.0,
 	         .b = ((color & 0x000000ff)) / 255.0,
 	         .a = ((color & 0xff000000) >> 24) / 255.0,
-    };
+	};
 
 	for (size_t i = 0; i < current_render_targets_count; ++i) {
 		current_color_attachment_infos[i].view       = current_render_targets[i]->impl.view;
@@ -1114,6 +1114,267 @@ static int        rt_instances_count = 0;
 static WGPUBuffer rt_buffers[4]; // nodes, indices, vertices, instances
 static uint32_t   rt_buffer_sizes[4];
 
+#define COMPUTE_UNIFORM 0
+#define COMPUTE_TEXTURE 1
+#define COMPUTE_STORAGE 2
+
+static gpu_compute_pipeline_t *compute_pipeline = NULL;
+static gpu_texture_t          *compute_textures[GPU_COMPUTE_MAX_BINDINGS];
+static uint8_t                 compute_constants[256];
+static int                     compute_constants_size = 0;
+
+static uint32_t compute_parse_u32(const char *c) {
+	uint32_t value = 0;
+	while (*c >= '0' && *c <= '9') {
+		value = value * 10 + (*c++ - '0');
+	}
+	return value;
+}
+
+static WGPUTextureFormat compute_storage_format(const char *name) {
+	const char       *names[]   = {"rgba8unorm", "rgba16float", "rgba32float", "r32float"};
+	WGPUTextureFormat formats[] = {WGPUTextureFormat_RGBA8Unorm, WGPUTextureFormat_RGBA16Float, WGPUTextureFormat_RGBA32Float, WGPUTextureFormat_R32Float};
+	for (int i = 0; i < 4; ++i) {
+		size_t length = strlen(names[i]);
+		if (strncmp(name, names[i], length) == 0 && name[length] == ',') {
+			return formats[i];
+		}
+	}
+	return WGPUTextureFormat_Undefined;
+}
+
+bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *shader, int shader_size) {
+	gpu_compute_pipeline_impl_t *impl = &pipeline->impl;
+	memset(impl, 0, sizeof(*impl));
+	char *source = malloc(shader_size + 1);
+	memcpy(source, shader, shader_size);
+	source[shader_size] = '\0';
+	bool ok             = false;
+
+	const char *size = strstr(source, "@workgroup_size(");
+	if (size == NULL) {
+		goto done;
+	}
+	size += 16;
+	impl->workgroup_size[0] = compute_parse_u32(size);
+	size                    = strchr(size, ',');
+	impl->workgroup_size[1] = size != NULL ? compute_parse_u32(size + 1 + (size[1] == ' ')) : 1;
+
+	WGPUBindGroupLayoutEntry entries[GPU_COMPUTE_MAX_BINDINGS];
+	memset(entries, 0, sizeof(entries));
+	int         unit = 0;
+	const char *c    = source;
+	while ((c = strstr(c, "@binding(")) != NULL) {
+		if (impl->binding_count == GPU_COMPUTE_MAX_BINDINGS) {
+			goto done;
+		}
+		int         i     = impl->binding_count++;
+		const char *eol   = strchr(c, '\n');
+		const char *var   = strstr(c, " var");
+		const char *colon = var != NULL ? strchr(var, ':') : NULL;
+		if (var == NULL || colon == NULL || (eol != NULL && colon > eol)) {
+			goto done;
+		}
+		WGPUBindGroupLayoutEntry *e = &entries[i];
+		impl->bindings[i]           = compute_parse_u32(c + 9);
+		impl->units[i]              = -1;
+		e->binding                  = impl->bindings[i];
+		e->visibility               = WGPUShaderStage_Compute;
+		const char *type            = colon + 2;
+		if (strncmp(var + 4, "<uniform>", 9) == 0) {
+			impl->kinds[i] = COMPUTE_UNIFORM;
+			e->buffer.type = WGPUBufferBindingType_Uniform;
+		}
+		else if (strncmp(type, "texture_storage_2d<", 19) == 0) {
+			impl->kinds[i]                  = COMPUTE_STORAGE;
+			impl->units[i]                  = unit++;
+			impl->storage_format            = compute_storage_format(type + 19);
+			e->storageTexture.access        = WGPUStorageTextureAccess_WriteOnly;
+			e->storageTexture.format        = impl->storage_format;
+			e->storageTexture.viewDimension = WGPUTextureViewDimension_2D;
+			if (impl->storage_format == WGPUTextureFormat_Undefined) {
+				iron_error("gpu_compute_pipeline_init: unsupported storage texture format");
+				goto done;
+			}
+		}
+		else if (strncmp(type, "texture_2d<", 11) == 0) {
+			// Loaded from, of any float format
+			impl->kinds[i]           = COMPUTE_TEXTURE;
+			impl->units[i]           = unit++;
+			e->texture.sampleType    = WGPUTextureSampleType_UnfilterableFloat;
+			e->texture.viewDimension = WGPUTextureViewDimension_2D;
+		}
+		else {
+			iron_error("gpu_compute_pipeline_init: unsupported resource, compute shaders have no samplers");
+			goto done;
+		}
+		c = eol != NULL ? eol : c + 9;
+	}
+
+	WGPUBindGroupLayoutDescriptor layout_desc = {.entryCount = impl->binding_count, .entries = entries};
+	impl->layout                              = wgpuDeviceCreateBindGroupLayout(device, &layout_desc);
+
+	WGPUPipelineLayoutDescriptor  pipeline_layout_desc = {.bindGroupLayoutCount = 1, .bindGroupLayouts = &impl->layout};
+	WGPUPipelineLayout            pipeline_layout      = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_desc);
+	WGPUShaderModule              module               = create_shader_module(source, shader_size);
+	WGPUComputePipelineDescriptor desc                 = {
+	                    .layout  = pipeline_layout,
+	                    .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
+	};
+	impl->pipeline = wgpuDeviceCreateComputePipeline(device, &desc);
+	wgpuShaderModuleRelease(module);
+	wgpuPipelineLayoutRelease(pipeline_layout);
+	ok = impl->pipeline != NULL;
+
+done:
+	free(source);
+	if (!ok) {
+		gpu_compute_pipeline_destroy(pipeline);
+	}
+	return ok;
+}
+
+void gpu_compute_pipeline_destroy(gpu_compute_pipeline_t *pipeline) {
+	gpu_compute_pipeline_impl_t *impl = &pipeline->impl;
+	if (impl->pipeline != NULL) {
+		wgpuComputePipelineRelease(impl->pipeline);
+	}
+	if (impl->layout != NULL) {
+		wgpuBindGroupLayoutRelease(impl->layout);
+	}
+	memset(impl, 0, sizeof(*impl));
+	if (compute_pipeline == pipeline) {
+		compute_pipeline = NULL;
+	}
+}
+
+void gpu_compute_set_pipeline(gpu_compute_pipeline_t *pipeline) {
+	compute_pipeline = pipeline;
+}
+
+void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture) {
+	if (unit < GPU_COMPUTE_MAX_BINDINGS) {
+		compute_textures[unit] = texture;
+	}
+}
+
+void gpu_compute_set_constants(const void *data, int size) {
+	compute_constants_size = size < (int)sizeof(compute_constants) ? size : (int)sizeof(compute_constants);
+	memcpy(compute_constants, data, compute_constants_size);
+}
+
+static void compute_make_storage(gpu_texture_t *texture) {
+	if (texture->gpu_write) {
+		return;
+	}
+	gpu_texture_t old = *texture;
+
+	WGPUTextureFormat     format = convert_image_format(texture->format);
+	WGPUTextureDescriptor image  = {
+	     .size          = {texture->width, texture->height, 1},
+	     .mipLevelCount = 1,
+	     .sampleCount   = 1,
+	     .dimension     = WGPUTextureDimension_2D,
+	     .format        = format,
+	     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_CopyDst |
+	              WGPUTextureUsage_StorageBinding,
+	};
+	texture->impl.texture = wgpuDeviceCreateTexture(device, &image);
+
+	WGPUTextureViewDescriptor view_desc = {
+	    .dimension       = WGPUTextureViewDimension_2D,
+	    .format          = format,
+	    .mipLevelCount   = 1,
+	    .arrayLayerCount = 1,
+	    .aspect          = WGPUTextureAspect_All,
+	};
+	texture->impl.view = wgpuTextureCreateView(texture->impl.texture, &view_desc);
+	texture->gpu_write = true;
+
+	WGPUTexelCopyTextureInfo src    = {.texture = old.impl.texture};
+	WGPUTexelCopyTextureInfo dst    = {.texture = texture->impl.texture};
+	WGPUExtent3D             extent = {texture->width, texture->height, 1};
+	wgpuCommandEncoderCopyTextureToTexture(command_encoder, &src, &dst, &extent);
+	gpu_texture_destroy(&old); // Deferred until the copy is submitted
+}
+
+void gpu_compute_dispatch(uint32_t width, uint32_t height) {
+	if (gpu_in_use) {
+		iron_error("gpu_compute_dispatch: called inside of a render pass");
+		return;
+	}
+	gpu_compute_pipeline_impl_t *impl = compute_pipeline != NULL ? &compute_pipeline->impl : NULL;
+	if (impl == NULL || impl->pipeline == NULL) {
+		return;
+	}
+
+	gpu_texture_t *storage = NULL;
+	for (int i = 0; i < impl->binding_count; ++i) {
+		if (impl->kinds[i] == COMPUTE_STORAGE) {
+			storage = compute_textures[impl->units[i]];
+		}
+	}
+	if (storage == NULL || convert_image_format(storage->format) != impl->storage_format) {
+		iron_error("gpu_compute_dispatch: missing storage texture or one of another format");
+		return;
+	}
+
+	end_render_pass();
+	if (command_encoder == NULL) {
+		command_encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+	}
+	compute_make_storage(storage);
+
+	// The constants get their own buffer, a queue write to a shared one would land before earlier dispatches run
+	uint32_t   constants_size = (uint32_t)((compute_constants_size + 15) & ~15);
+	WGPUBuffer constants      = NULL;
+	if (constants_size == 0) {
+		constants_size = 16;
+	}
+
+	WGPUBindGroupEntry entries[GPU_COMPUTE_MAX_BINDINGS];
+	memset(entries, 0, sizeof(entries));
+	for (int i = 0; i < impl->binding_count; ++i) {
+		WGPUBindGroupEntry *e = &entries[i];
+		e->binding            = impl->bindings[i];
+		if (impl->kinds[i] == COMPUTE_UNIFORM) {
+			if (constants == NULL) {
+				WGPUBufferDescriptor desc = {.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst, .size = constants_size};
+				constants                 = wgpuDeviceCreateBuffer(device, &desc);
+				if (compute_constants_size > 0) {
+					wgpuQueueWriteBuffer(queue, constants, 0, compute_constants, constants_size);
+				}
+			}
+			e->buffer = constants;
+			e->size   = constants_size;
+		}
+		else {
+			gpu_texture_t *t = compute_textures[impl->units[i]];
+			e->textureView   = t != NULL ? t->impl.view : dummy_view;
+		}
+	}
+
+	WGPUBindGroupDescriptor bind_group_desc = {.layout = impl->layout, .entryCount = impl->binding_count, .entries = entries};
+	WGPUBindGroup           bind_group      = wgpuDeviceCreateBindGroup(device, &bind_group_desc);
+
+	WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(command_encoder, NULL);
+	wgpuComputePassEncoderSetPipeline(pass, impl->pipeline);
+	wgpuComputePassEncoderSetBindGroup(pass, 0, bind_group, 0, NULL);
+	wgpuComputePassEncoderDispatchWorkgroups(pass, (width + impl->workgroup_size[0] - 1) / impl->workgroup_size[0],
+	                                         (height + impl->workgroup_size[1] - 1) / impl->workgroup_size[1], 1);
+	wgpuComputePassEncoderEnd(pass);
+	wgpuComputePassEncoderRelease(pass);
+	wgpuBindGroupRelease(bind_group);
+	if (constants != NULL) {
+		wgpuBufferRelease(constants);
+	}
+
+	for (int i = 0; i < GPU_COMPUTE_MAX_BINDINGS; ++i) {
+		compute_textures[i] = NULL;
+	}
+	compute_constants_size = 0;
+}
+
 bool gpu_raytrace_supported(void) {
 	return true;
 }
@@ -1259,7 +1520,7 @@ static rt_variant_t *rt_get_variant(gpu_texture_format_t format) {
 	WGPUComputePipelineDescriptor desc   = {
 	      .layout  = v->pipeline_layout,
 	      .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
-    };
+	};
 	v->pipeline = wgpuDeviceCreateComputePipeline(device, &desc);
 	wgpuShaderModuleRelease(module);
 	free(source);
@@ -1648,7 +1909,7 @@ void gpu_raytrace_set_target(gpu_texture_t *output) {
 		     .dimension     = WGPUTextureDimension_2D,
 		     .format        = format,
 		     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_StorageBinding,
-        };
+		};
 		output->impl.texture = wgpuDeviceCreateTexture(device, &image);
 
 		WGPUTextureViewDescriptor view_desc = {
@@ -1685,7 +1946,7 @@ static void rt_update_prev(void) {
 	     .dimension     = WGPUTextureDimension_2D,
 	     .format        = format,
 	     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
-    };
+	};
 	rt_prev                             = wgpuDeviceCreateTexture(device, &image);
 	WGPUTextureViewDescriptor view_desc = {
 	    .dimension       = WGPUTextureViewDimension_2D,

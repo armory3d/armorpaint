@@ -98,7 +98,7 @@ static MTLPixelFormat convert_texture_format(gpu_texture_format_t format) {
 	case GPU_TEXTURE_FORMAT_D32:
 		return MTLPixelFormatDepth32Float;
 	default:
-		return MTLPixelFormatBGRA8Unorm;
+		return MTLPixelFormatRGBA8Unorm;
 	}
 }
 
@@ -198,6 +198,23 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	gpu_create_framebuffers(depth_buffer_bits);
 }
 
+static id<MTLRenderPipelineState> pipeline_for_target(gpu_pipeline_t *pipeline) {
+	bool to_framebuffer = current_render_targets_count == 1 && current_render_targets[0] == &framebuffers[framebuffer_index];
+	if (!to_framebuffer || pipeline->impl.framebuffer_desc == NULL) {
+		return (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
+	}
+	if (pipeline->impl.framebuffer_pipeline == NULL) {
+		MTLRenderPipelineDescriptor *desc   = (__bridge MTLRenderPipelineDescriptor *)pipeline->impl.framebuffer_desc;
+		NSError                     *error  = nil;
+		pipeline->impl.framebuffer_pipeline = (__bridge_retained void *)[get_metal_device() newRenderPipelineStateWithDescriptor:desc error:&error];
+		if (pipeline->impl.framebuffer_pipeline == NULL) {
+			iron_error("%s", error.localizedDescription.UTF8String);
+			return (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
+		}
+	}
+	return (__bridge id<MTLRenderPipelineState>)pipeline->impl.framebuffer_pipeline;
+}
+
 void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
 	render_pass_desc = [MTLRenderPassDescriptor renderPassDescriptor];
 	for (int i = 0; i < current_render_targets_count; ++i) {
@@ -283,8 +300,7 @@ void gpu_execute_and_wait() {
 		}
 		render_pass_desc.depthAttachment.loadAction = MTLLoadActionLoad;
 		command_encoder                             = [command_buffer renderCommandEncoderWithDescriptor:render_pass_desc];
-		id<MTLRenderPipelineState> pipe             = (__bridge id<MTLRenderPipelineState>)current_pipeline->impl.pipeline;
-		[command_encoder setRenderPipelineState:pipe];
+		[command_encoder setRenderPipelineState:pipeline_for_target(current_pipeline)];
 		id<MTLDepthStencilState> depth_state = (__bridge id<MTLDepthStencilState>)current_pipeline->impl.depth;
 		[command_encoder setDepthStencilState:depth_state];
 		[command_encoder setFrontFacingWinding:MTLWindingClockwise];
@@ -368,8 +384,7 @@ void gpu_disable_scissor() {
 }
 
 void gpu_set_pipeline_internal(gpu_pipeline_t *pipeline) {
-	id<MTLRenderPipelineState> pipe = (__bridge id<MTLRenderPipelineState>)pipeline->impl.pipeline;
-	[command_encoder setRenderPipelineState:pipe];
+	[command_encoder setRenderPipelineState:pipeline_for_target(pipeline)];
 	id<MTLDepthStencilState> depth_state = (__bridge id<MTLDepthStencilState>)pipeline->impl.depth;
 	[command_encoder setDepthStencilState:depth_state];
 	[command_encoder setFrontFacingWinding:MTLWindingClockwise];
@@ -457,9 +472,29 @@ void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipeline) {
 	pipe                            = nil;
 	pipeline->impl.pipeline         = NULL;
 
+	if (pipeline->impl.framebuffer_desc != NULL) {
+		MTLRenderPipelineDescriptor *desc = (__bridge_transfer MTLRenderPipelineDescriptor *)pipeline->impl.framebuffer_desc;
+		desc                              = nil;
+		pipeline->impl.framebuffer_desc   = NULL;
+	}
+	if (pipeline->impl.framebuffer_pipeline != NULL) {
+		id<MTLRenderPipelineState> fb_pipe  = (__bridge_transfer id<MTLRenderPipelineState>)pipeline->impl.framebuffer_pipeline;
+		fb_pipe                             = nil;
+		pipeline->impl.framebuffer_pipeline = NULL;
+	}
+
 	id<MTLDepthStencilState> depth_state = (__bridge_transfer id<MTLDepthStencilState>)pipeline->impl.depth;
 	depth_state                          = nil;
 	pipeline->impl.depth                 = NULL;
+}
+
+static MTLCompileOptions *compile_options(void) {
+	static MTLCompileOptions *options = nil;
+	if (options == nil) {
+		options                 = [[MTLCompileOptions alloc] init];
+		options.languageVersion = MTLLanguageVersion2_2;
+	}
+	return options;
 }
 
 void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
@@ -473,8 +508,8 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	id<MTLLibrary> library = [device newLibraryWithSource:[[NSString alloc] initWithBytes:pipeline->vertex_shader->impl.source
 	                                                                               length:pipeline->vertex_shader->impl.length
 	                                                                             encoding:NSUTF8StringEncoding]
-	                                              options:nil
-	                                                error:&error];
+                                                  options:compile_options()
+                                                    error:&error];
 	if (library == nil) {
 		iron_error("%s", error.localizedDescription.UTF8String);
 		return;
@@ -548,6 +583,16 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	                                                                                         options:MTLPipelineOptionBufferTypeInfo
 	                                                                                      reflection:&reflection
 	                                                                                           error:&errors];
+
+	// Only a single rgba8 attachment pipeline can draw to the framebuffer
+	pipeline->impl.framebuffer_desc     = NULL;
+	pipeline->impl.framebuffer_pipeline = NULL;
+	if (pipeline->impl.pipeline != NULL && pipeline->color_attachment_count == 1 &&
+	    render_pipeline_desc.colorAttachments[0].pixelFormat == MTLPixelFormatRGBA8Unorm) {
+		MTLRenderPipelineDescriptor *fb_desc            = [render_pipeline_desc copy];
+		fb_desc.colorAttachments[0].pixelFormat         = MTLPixelFormatBGRA8Unorm;
+		pipeline->impl.framebuffer_desc                 = (__bridge_retained void *)fb_desc;
+	}
 
 	MTLDepthStencilDescriptor *depth_descriptor = [MTLDepthStencilDescriptor new];
 	depth_descriptor.depthCompareFunction       = convert_compare_mode(pipeline->depth_mode);
@@ -658,9 +703,6 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	texture->buffer = NULL;
 
 	MTLPixelFormat mtlformat = convert_texture_format(format);
-	if (mtlformat == MTLPixelFormatBGRA8Unorm) {
-		mtlformat = MTLPixelFormatRGBA8Unorm;
-	}
 
 	void *original_data   = data;
 	int   bytes_per_row   = width * gpu_texture_format_size(format);
@@ -875,7 +917,7 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 	NSError       *error   = nil;
 	id<MTLLibrary> library = [device newLibraryWithSource:[[NSString alloc] initWithBytes:shader length:ray_shader_size encoding:NSUTF8StringEncoding]
 	                                              options:nil
-	                                                error:&error];
+                                                    error:&error];
 	if (library == nil) {
 		iron_error("%s", error.localizedDescription.UTF8String);
 	}
@@ -888,6 +930,101 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 }
 
 void gpu_raytrace_pipeline_destroy(gpu_raytrace_pipeline_t *pipeline) {}
+
+#define GPU_COMPUTE_MAX_TEXTURES 16
+
+static gpu_compute_pipeline_t *compute_pipeline = NULL;
+static gpu_texture_t          *compute_textures[GPU_COMPUTE_MAX_TEXTURES];
+static uint8_t                 compute_constants[256];
+static int                     compute_constants_size = 0;
+
+bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *shader, int shader_size) {
+	pipeline->impl.pipeline = NULL;
+	id<MTLDevice>  device   = get_metal_device();
+	NSError       *error    = nil;
+	id<MTLLibrary> library  = [device newLibraryWithSource:[[NSString alloc] initWithBytes:shader length:shader_size encoding:NSUTF8StringEncoding]
+                                                  options:compile_options()
+                                                    error:&error];
+	if (library == nil) {
+		iron_error("%s", error.localizedDescription.UTF8String);
+		return false;
+	}
+
+	// The kernel is named after the kong compute function
+	id<MTLFunction> kernel = nil;
+	for (NSString *name in library.functionNames) {
+		id<MTLFunction> function = [library newFunctionWithName:name];
+		if (function.functionType == MTLFunctionTypeKernel) {
+			kernel = function;
+			break;
+		}
+	}
+	if (kernel == nil) {
+		iron_error("Compute shader has no kernel");
+		return false;
+	}
+
+	id<MTLComputePipelineState> state = [device newComputePipelineStateWithFunction:kernel error:&error];
+	if (state == nil) {
+		iron_error("%s", error.localizedDescription.UTF8String);
+		return false;
+	}
+	pipeline->impl.pipeline = (__bridge_retained void *)state;
+	return true;
+}
+
+void gpu_compute_pipeline_destroy(gpu_compute_pipeline_t *pipeline) {
+	if (pipeline->impl.pipeline != NULL) {
+		id<MTLComputePipelineState> state = (__bridge_transfer id<MTLComputePipelineState>)pipeline->impl.pipeline;
+		state                             = nil;
+		pipeline->impl.pipeline           = NULL;
+	}
+}
+
+void gpu_compute_set_pipeline(gpu_compute_pipeline_t *pipeline) {
+	compute_pipeline = pipeline;
+}
+
+void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture) {
+	if (unit < GPU_COMPUTE_MAX_TEXTURES) {
+		compute_textures[unit] = texture;
+	}
+}
+
+void gpu_compute_set_constants(const void *data, int size) {
+	compute_constants_size = size < (int)sizeof(compute_constants) ? size : (int)sizeof(compute_constants);
+	memcpy(compute_constants, data, compute_constants_size);
+}
+
+void gpu_compute_dispatch(uint32_t width, uint32_t height) {
+	if (gpu_in_use) {
+		iron_error("Compute dispatch inside of a render pass");
+		return;
+	}
+	if (compute_pipeline == NULL || compute_pipeline->impl.pipeline == NULL) {
+		return;
+	}
+	if (command_buffer == nil) {
+		command_buffer = [get_metal_queue() commandBuffer];
+	}
+
+	id<MTLComputePipelineState>  state   = (__bridge id<MTLComputePipelineState>)compute_pipeline->impl.pipeline;
+	id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
+	[encoder setComputePipelineState:state];
+	for (int i = 0; i < GPU_COMPUTE_MAX_TEXTURES; ++i) {
+		if (compute_textures[i] != NULL) {
+			[encoder setTexture:(__bridge id<MTLTexture>)compute_textures[i]->impl._tex atIndex:i];
+		}
+	}
+	if (compute_constants_size > 0) {
+		[encoder setBytes:compute_constants length:compute_constants_size atIndex:0];
+	}
+	[encoder dispatchThreads:MTLSizeMake(width, height, 1) threadsPerThreadgroup:MTLSizeMake(8, 8, 1)];
+	[encoder endEncoding];
+
+	memset(compute_textures, 0, sizeof(compute_textures));
+	compute_constants_size = 0;
+}
 
 bool gpu_raytrace_supported() {
 	id<MTLDevice> device = get_metal_device();

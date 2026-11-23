@@ -1,5 +1,6 @@
 #pragma once
 #include "webgpu.h"
+#include <stdbool.h>
 
 #define GPU_RAYTRACE_MAX_OBJECTS 64
 
@@ -30,3 +31,16 @@ typedef struct {
 typedef struct {
 	int empty;
 } gpu_acceleration_structure_impl_t;
+
+#define GPU_COMPUTE_MAX_BINDINGS 16
+
+typedef struct {
+	WGPUComputePipeline pipeline;
+	WGPUBindGroupLayout layout;
+	WGPUTextureFormat   storage_format;
+	uint32_t            workgroup_size[2];
+	int                 binding_count;
+	uint32_t            bindings[GPU_COMPUTE_MAX_BINDINGS];
+	uint8_t             kinds[GPU_COMPUTE_MAX_BINDINGS];
+	int                 units[GPU_COMPUTE_MAX_BINDINGS];
+} gpu_compute_pipeline_impl_t;

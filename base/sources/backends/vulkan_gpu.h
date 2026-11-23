@@ -13,6 +13,8 @@ typedef struct gpu_pipeline_impl {
 
 	VkDescriptorSet       descriptor_set;
 	VkDescriptorSetLayout descriptor_set_layout;
+
+	void *framebuffer_variant;
 } gpu_pipeline_impl_t;
 
 typedef struct {
@@ -32,6 +34,12 @@ typedef struct {
 	VkBuffer       cpu_buf;
 	VkDeviceMemory cpu_mem;
 } gpu_buffer_impl_t;
+
+typedef struct {
+	VkPipeline pipeline;
+	uint32_t   local_size[2];
+	VkFormat   storage_format;
+} gpu_compute_pipeline_impl_t;
 
 typedef struct {
 	VkAccelerationStructureKHR top_level_acceleration_structure;
