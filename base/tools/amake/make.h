@@ -49,8 +49,9 @@ typedef struct {
 
 typedef struct {
 	char *match;
-	char *destination;
-	int   options; // ASSET_NOEMBED | ASSET_NOPROCESSING
+	char *destination; // Shaders: output name of a shader added with add_shader
+	int   options;     // ASSET_NOEMBED | ASSET_NOPROCESSING
+	char *defines;     // Shaders: space separated, add_shader
 } matcher_t;
 
 #define ASSET_NOEMBED      1

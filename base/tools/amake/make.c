@@ -339,6 +339,14 @@ static minic_val_t native_add_shaders(minic_val_t *args, int argc) {
 	return minic_val_void();
 }
 
+static minic_val_t native_add_shader(minic_val_t *args, int argc) {
+	project_t *project = minic_arg_p(args, argc, 0);
+	matcher_t *m       = matcher_create(project, arg_str(args, argc, 1), arg_str(args, argc, 2), 0);
+	m->defines         = arg_str(args, argc, 3);
+	any_array_push(project->shader_matchers, m);
+	return minic_val_void();
+}
+
 static minic_val_t native_add_assets(minic_val_t *args, int argc) {
 	project_t *project     = minic_arg_p(args, argc, 0);
 	char      *destination = minic_arg_p(args, argc, 2);
@@ -520,6 +528,7 @@ void minic_register_builtins(void) {
 	minic_register("add_include_dir", "v(p,p)", native_add_include_dir);
 	minic_register("add_lib", "v(p,p)", native_add_lib);
 	minic_register("add_shaders", "v(p,p)", native_add_shaders);
+	minic_register("add_shader", "v(p,p,p,p)", native_add_shader);
 	minic_register("add_assets", "v(p,p,p,i)", native_add_assets);
 	minic_register("project_flatten", "v(p)", native_project_flatten);
 	minic_register("has_arg", "b(p)", native_has_arg);
@@ -613,7 +622,7 @@ void export_icon_ico(char *icon, char *to, char *from) {
 		from = irondir;
 		icon = "icon.png";
 	}
-	if (fs_exists(to) && fs_mtime(to) > fs_mtime(from)) {
+	if (fs_exists(to) && fs_mtime(to) > fs_mtime(path_join(from, icon))) {
 		return;
 	}
 	export_ico(path_join(from, icon), to);
@@ -624,7 +633,7 @@ void export_png_icon(char *icon, char *to, int width, int height, char *from) {
 		from = irondir;
 		icon = "icon.png";
 	}
-	if (fs_exists(to) && fs_mtime(to) > fs_mtime(from)) {
+	if (fs_exists(to) && fs_mtime(to) > fs_mtime(path_join(from, icon))) {
 		return;
 	}
 	export_png(path_join(from, icon), to, width, height);
@@ -762,19 +771,24 @@ static char *shader_type(void) {
 	return "wgsl";
 }
 
-static void compile_shader(char *file, char *to_dir, char *temp) {
+static void compile_shader(char *file, char *name, char *defines, char *to_dir, char *temp) {
 	char *type = shader_type();
-	char *to   = path_join(to_dir, string("%s.%s", path_basename_noext(file), type));
+	char *to   = path_join(to_dir, string("%s.%s", name, type));
 	if (!fs_exists(file)) {
 		return;
 	}
 	double from_time = fs_mtime(file);
 
-	// Up to date when both outputs are newer than the source
+	// Up to date when the outputs are newer than the source, a compute shader has one output
 	char  *base     = js_substring(to, 0, str_last_index_of(to, ".") + 1);
 	char  *outs[2]  = {string("%svert.%s", base, type), string("%sfrag.%s", base, type)};
+	int    count    = 2;
 	double out_time = 0;
-	for (int i = 0; i < 2; ++i) {
+	if (fs_exists(to)) {
+		outs[0] = to;
+		count   = 1;
+	}
+	for (int i = 0; i < count; ++i) {
 		if (!fs_exists(outs[i])) {
 			out_time = 0;
 			break;
@@ -788,27 +802,49 @@ static void compile_shader(char *file, char *to_dir, char *temp) {
 		return;
 	}
 	fs_ensuredir(temp);
-	ashader(type, file, to, NULL, 0);
+	char *names[64];
+	int   names_count = 0;
+	char *d           = defines != NULL ? string_copy(defines) : NULL;
+	for (char *t = d != NULL ? strtok(d, " ") : NULL; t != NULL && names_count < 64; t = strtok(NULL, " ")) {
+		names[names_count++] = t;
+	}
+	ashader(type, file, to, names, names_count);
 }
+
 
 static any_array_t *export_shaders(project_t *project, char *to_dir, char *temp) {
 	any_array_t *shaders = list_create();
 	char        *type    = shader_type();
 	for (int i = 0; i < project->shader_matchers->length; ++i) {
-		matcher_t *m = project->shader_matchers->buffer[i];
-		char      *basedir;
-		char      *pattern;
-		split_match(m->match, &basedir, &pattern);
-		any_array_t *files = search_files2(basedir, pattern);
+		matcher_t   *m     = project->shader_matchers->buffer[i];
+		bool         alone = m->destination != NULL; // add_shader
+		any_array_t *files;
+		if (alone) {
+			files = list_create();
+			any_array_push(files, m->match);
+		}
+		else {
+			char *basedir;
+			char *pattern;
+			split_match(m->match, &basedir, &pattern);
+			files = search_files2(basedir, pattern);
+		}
 		for (int j = 0; j < files->length; ++j) {
 			char *file = files->buffer[j];
-			printf("Compiling shader %d of %d (%s).\n", j + 1, files->length, path_basename(file));
-			compile_shader(file, to_dir, temp);
-			compiled_shader_t *shader = calloc(1, sizeof(compiled_shader_t));
-			char              *base   = path_resolve("build", "temp", path_basename_noext(file));
-			shader->files[0]          = string("%s.vert.%s", base, type);
-			shader->files[1]          = string("%s.frag.%s", base, type);
-			create_export_info(file, false, m, &shader->name);
+			char *name = alone ? m->destination : path_basename_noext(file);
+			printf("Compiling shader %d of %d (%s).\n", j + 1, files->length, alone ? string("%s as %s", path_basename(file), name) : path_basename(file));
+			compile_shader(file, name, m->defines, to_dir, temp);
+			compiled_shader_t *shader  = calloc(1, sizeof(compiled_shader_t));
+			char              *base    = path_resolve("build", "temp", name);
+			char              *compute = path_join(to_dir, string("%s.%s", name, type));
+			if (fs_exists(compute)) {
+				shader->files[0] = string("%s.%s", base, type); // Compute shader, one output
+			}
+			else {
+				shader->files[0] = string("%s.vert.%s", base, type);
+				shader->files[1] = string("%s.frag.%s", base, type);
+			}
+			shader->name = name;
 			any_array_push(shaders, shader);
 		}
 	}
@@ -831,7 +867,9 @@ static void write_embed_header(any_array_t *assets, any_array_t *shaders) {
 	for (int i = 0; i < shaders->length; ++i) {
 		compiled_shader_t *shader = shaders->buffer[i];
 		any_array_push(files, shader->files[0]);
-		any_array_push(files, shader->files[1]);
+		if (shader->files[1] != NULL) {
+			any_array_push(files, shader->files[1]);
+		}
 	}
 	if (files->length == 0) {
 		return;
