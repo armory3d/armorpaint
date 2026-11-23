@@ -464,6 +464,7 @@ void base_update(void *_) {
 	}
 	else if (g_context->frame == 3) {
 		g_context->ddirty = 3;
+		render_path_paint_dilate_init();
 	}
 
 	g_context->frame++;

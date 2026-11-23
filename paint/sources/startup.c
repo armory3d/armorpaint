@@ -751,7 +751,7 @@ scene_t *startup_get_scene(void) {
 	}
 
 	// shader_datas
-	scene->shader_datas = any_array_create(17);
+	scene->shader_datas = any_array_create(16);
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "armdefault";
@@ -1692,151 +1692,6 @@ scene_t *startup_get_scene(void) {
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "dilate_pass";
-		sd->contexts      = any_array_create(3);
-		{
-			shader_context_t *sc   = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name               = "dilate_pass";
-			sc->depth_write        = false;
-			sc->compare_mode       = "always";
-			sc->cull_mode          = "none";
-			sc->vertex_shader      = "dilate_pass.vert";
-			sc->fragment_shader    = "dilate_pass.frag";
-			sc->shader_from_source = false;
-			sc->vertex_elements    = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[0] = sc;
-		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "dilateRGBA64_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "dilate_pass.vert";
-			sc->fragment_shader              = "dilate_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(1);
-			sc->color_attachments->buffer[0] = "RGBA64";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[1] = sc;
-		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "dilateRGBA128_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "dilate_pass.vert";
-			sc->fragment_shader              = "dilate_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(1);
-			sc->color_attachments->buffer[0] = "RGBA128";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[2] = sc;
-		}
-		scene->shader_datas->buffer[12] = sd;
-	}
-	{
-		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "histogram_pass";
 		sd->contexts      = any_array_create(1);
 		{
@@ -1866,7 +1721,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[13] = sd;
+		scene->shader_datas->buffer[12] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2023,7 +1878,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[14] = sd;
+		scene->shader_datas->buffer[13] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2078,7 +1933,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[15] = sd;
+		scene->shader_datas->buffer[14] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2118,7 +1973,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[16] = sd;
+		scene->shader_datas->buffer[15] = sd;
 	}
 
 	// objects

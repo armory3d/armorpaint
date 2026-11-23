@@ -34,6 +34,13 @@ project_t *main() {
 	add_cfiles(project, "sources/minic_api.c");
 	add_cfiles(project, "sources/main.c");
 	add_shaders(project, "shaders/*.shader");
+	add_shader(project, "shaders/compute/dilate_index.shader", "dilate_index", "");
+	add_shader(project, "shaders/compute/dilate.shader", "dilate_rgba32", "FORMAT_RGBA32");
+	add_shader(project, "shaders/compute/dilate.shader", "dilate_rgba64", "FORMAT_RGBA64");
+	add_shader(project, "shaders/compute/dilate.shader", "dilate_rgba128", "FORMAT_RGBA128");
+	add_shader(project, "shaders/compute/dilate_copy.shader", "dilate_copy_rgba32", "FORMAT_RGBA32");
+	add_shader(project, "shaders/compute/dilate_copy.shader", "dilate_copy_rgba64", "FORMAT_RGBA64");
+	add_shader(project, "shaders/compute/dilate_copy.shader", "dilate_copy_rgba128", "FORMAT_RGBA128");
 	add_assets(project, "assets/*", "data/{name}", 0);
 	add_assets(project, "assets/export_presets/*", "data/export_presets/{name}", 0);
 	add_assets(project, "assets/keymap_presets/*", "data/keymap_presets/{name}", 0);

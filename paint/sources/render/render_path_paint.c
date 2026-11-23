@@ -121,9 +121,6 @@ void render_path_paint_init() {
 	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3_pass");
 	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3RGBA64_pass");
 	render_path_load_shader("Scene/copy_mrt3_pass/copy_mrt3RGBA128_pass");
-	render_path_load_shader("Scene/dilate_pass/dilate_pass");
-	render_path_load_shader("Scene/dilate_pass/dilateRGBA64_pass");
-	render_path_load_shader("Scene/dilate_pass/dilateRGBA128_pass");
 }
 
 void render_path_paint_draw_fullscreen_triangle() {
@@ -383,11 +380,7 @@ static mesh_object_t *render_path_paint_pick_object() {
 	render_target_t *rt    = any_map_get(render_path_render_targets, "texpaint_picker");
 	buffer_t        *pixel = gpu_get_texture_pixels(rt->_image);
 	if (buffer_get_u8(pixel, 3) > 0) {
-#ifdef IRON_BGRA
-		i32 r_byte = buffer_get_u8(pixel, 2);
-#else
 		i32 r_byte = buffer_get_u8(pixel, 0);
-#endif
 		i32 g_byte = buffer_get_u8(pixel, 1);
 		i32 index  = r_byte + g_byte * 256 - 1;
 		if (index >= 0 && index < g_project->_->paint_objects->length) {
@@ -421,18 +414,9 @@ void render_path_paint_commands_paint(bool dilation) {
 		render_path_paint_draw_fullscreen_triangle();
 		render_target_t *rt = any_map_get(render_path_render_targets, "texpaint_colorid");
 		buffer_t        *a  = gpu_get_texture_pixels(rt->_image);
-#ifdef IRON_BGRA
-		i32 i0 = 2;
-		i32 i1 = 1;
-		i32 i2 = 0;
-#else
-		i32 i0 = 0;
-		i32 i1 = 1;
-		i32 i2 = 2;
-#endif
-		g_context->colorid_picked_color = color_set_rb(g_context->colorid_picked_color, buffer_get_u8(a, i0));
-		g_context->colorid_picked_color = color_set_gb(g_context->colorid_picked_color, buffer_get_u8(a, i1));
-		g_context->colorid_picked_color = color_set_bb(g_context->colorid_picked_color, buffer_get_u8(a, i2));
+		g_context->colorid_picked_color = color_set_rb(g_context->colorid_picked_color, buffer_get_u8(a, 0));
+		g_context->colorid_picked_color = color_set_gb(g_context->colorid_picked_color, buffer_get_u8(a, 1));
+		g_context->colorid_picked_color = color_set_bb(g_context->colorid_picked_color, buffer_get_u8(a, 2));
 		ui_header_handle->redraws       = 2;
 		ui_toolbar_handle->redraws      = 1;
 	}
@@ -521,35 +505,25 @@ void render_path_paint_commands_paint(bool dilation) {
 			}
 
 // Picked surface values
-#ifdef IRON_BGRA
-			i32 i0 = 2;
-			i32 i1 = 1;
-			i32 i2 = 0;
-#else
-			i32 i0 = 0;
-			i32 i1 = 1;
-			i32 i2 = 2;
-#endif
-			i32 i3                           = 3;
-			g_context->picked_color->base    = color_set_rb(g_context->picked_color->base, buffer_get_u8(a, i0));
-			g_context->picked_color->base    = color_set_gb(g_context->picked_color->base, buffer_get_u8(a, i1));
-			g_context->picked_color->base    = color_set_bb(g_context->picked_color->base, buffer_get_u8(a, i2));
-			g_context->picked_color->opacity = buffer_get_u8(a, i3) / 255.0;
-			g_context->uvx_picked            = buffer_get_u8(d, i0) / 255.0;
-			g_context->uvy_picked            = buffer_get_u8(d, i1) / 255.0;
+			g_context->picked_color->base    = color_set_rb(g_context->picked_color->base, buffer_get_u8(a, 0));
+			g_context->picked_color->base    = color_set_gb(g_context->picked_color->base, buffer_get_u8(a, 1));
+			g_context->picked_color->base    = color_set_bb(g_context->picked_color->base, buffer_get_u8(a, 2));
+			g_context->picked_color->opacity = buffer_get_u8(a, 3) / 255.0;
+			g_context->uvx_picked            = buffer_get_u8(d, 0) / 255.0;
+			g_context->uvy_picked            = buffer_get_u8(d, 1) / 255.0;
 
 			if (!is_mask) {
 				render_target_t *texpaint_nor_picker  = any_map_get(render_path_render_targets, "texpaint_nor_picker");
 				render_target_t *texpaint_pack_picker = any_map_get(render_path_render_targets, "texpaint_pack_picker");
 				buffer_t        *b                    = gpu_get_texture_pixels(texpaint_nor_picker->_image);
 				buffer_t        *c                    = gpu_get_texture_pixels(texpaint_pack_picker->_image);
-				g_context->picked_color->normal       = color_set_rb(g_context->picked_color->normal, buffer_get_u8(b, i0));
-				g_context->picked_color->normal       = color_set_gb(g_context->picked_color->normal, buffer_get_u8(b, i1));
-				g_context->picked_color->normal       = color_set_bb(g_context->picked_color->normal, buffer_get_u8(b, i2));
-				g_context->picked_color->occlusion    = buffer_get_u8(c, i0) / 255.0;
-				g_context->picked_color->roughness    = buffer_get_u8(c, i1) / 255.0;
-				g_context->picked_color->metallic     = buffer_get_u8(c, i2) / 255.0;
-				g_context->picked_color->height       = buffer_get_u8(c, i3) / 255.0;
+				g_context->picked_color->normal       = color_set_rb(g_context->picked_color->normal, buffer_get_u8(b, 0));
+				g_context->picked_color->normal       = color_set_gb(g_context->picked_color->normal, buffer_get_u8(b, 1));
+				g_context->picked_color->normal       = color_set_bb(g_context->picked_color->normal, buffer_get_u8(b, 2));
+				g_context->picked_color->occlusion    = buffer_get_u8(c, 0) / 255.0;
+				g_context->picked_color->roughness    = buffer_get_u8(c, 1) / 255.0;
+				g_context->picked_color->metallic     = buffer_get_u8(c, 2) / 255.0;
+				g_context->picked_color->height       = buffer_get_u8(c, 3) / 255.0;
 
 				// Pick material
 				if (g_context->color_picker_callback == NULL) {
@@ -1423,37 +1397,120 @@ void render_path_paint_unbind_layers() {
 	}
 }
 
+static gpu_compute_pipeline_t render_path_paint_dilate_index_pipe;
+static gpu_compute_pipeline_t render_path_paint_dilate_pipes[3]; // Indexed by the layer format
+static gpu_compute_pipeline_t render_path_paint_dilate_copy_pipes[3];
+static bool                   render_path_paint_dilate_ready         = false;
+static bool                   render_path_paint_dilate_loaded[3]     = {false, false, false}; // Per layer format
+static gpu_texture_t         *render_path_paint_dilate_index         = NULL;
+static i32                    render_path_paint_dilate_index_version = -1;
+static i32                    render_path_paint_dilate_index_radius  = -1;
+static gpu_texture_t         *render_path_paint_dilate_temp          = NULL; // For masks in 16 and 32 bit projects
+
+static void render_path_paint_dilate_load_pipeline(gpu_compute_pipeline_t *pipe, char *name) {
+	char     *file   = string_tmp("%s%s", name, sys_shader_ext());
+	buffer_t *shader = data_get_blob(file);
+	if (shader == NULL || !gpu_compute_pipeline_init(pipe, shader->buffer, shader->length)) {
+		iron_error("Could not load compute shader %s", file);
+	}
+}
+
+static void render_path_paint_dilate_load(gpu_texture_format_t format) {
+	if (!render_path_paint_dilate_loaded[format]) {
+		char *formats[] = {"rgba32", "rgba64", "rgba128"};
+		render_path_paint_dilate_load_pipeline(&render_path_paint_dilate_pipes[format], string_tmp("dilate_%s", formats[format]));
+		render_path_paint_dilate_load_pipeline(&render_path_paint_dilate_copy_pipes[format], string_tmp("dilate_copy_%s", formats[format]));
+		render_path_paint_dilate_loaded[format] = true;
+	}
+}
+
+void render_path_paint_dilate_init() {
+	render_path_paint_dilate_load_pipeline(&render_path_paint_dilate_index_pipe, "dilate_index");
+	render_path_paint_dilate_load(g_context->layer->texpaint->format);
+	render_path_paint_dilate_ready = true;
+}
+
+static void render_path_paint_dilate_update_index() {
+	gpu_texture_t *map = util_uv_dilatemap;
+	if (render_path_paint_dilate_index != NULL &&
+	    (render_path_paint_dilate_index->width != map->width || render_path_paint_dilate_index->height != map->height)) {
+		gpu_delete_texture(render_path_paint_dilate_index);
+		render_path_paint_dilate_index = NULL;
+	}
+	if (render_path_paint_dilate_index == NULL) {
+		render_path_paint_dilate_index         = gpu_create_render_target(map->width, map->height, GPU_TEXTURE_FORMAT_R32);
+		render_path_paint_dilate_index_version = -1;
+	}
+	if (render_path_paint_dilate_index_version == util_uv_dilatemap_version && render_path_paint_dilate_index_radius == g_config->dilate_radius) {
+		return;
+	}
+	render_path_paint_dilate_index_version = util_uv_dilatemap_version;
+	render_path_paint_dilate_index_radius  = g_config->dilate_radius;
+
+	f32 params[4] = {(f32)g_config->dilate_radius, 0.0, 0.0, 0.0};
+	gpu_compute_set_pipeline(&render_path_paint_dilate_index_pipe);
+	gpu_compute_set_texture(0, map);
+	gpu_compute_set_texture(1, render_path_paint_dilate_index);
+	gpu_compute_set_constants(params, sizeof(params));
+	gpu_compute_dispatch(map->width, map->height);
+}
+
+static gpu_texture_t *render_path_paint_dilate_get_temp(gpu_texture_t *t) {
+	gpu_texture_t *temp = ((render_target_t *)any_map_get(render_path_render_targets, "temptex0"))->_image;
+	if (temp->format == t->format) {
+		return temp;
+	}
+	if (render_path_paint_dilate_temp != NULL &&
+	    (render_path_paint_dilate_temp->width != t->width || render_path_paint_dilate_temp->height != t->height ||
+	     render_path_paint_dilate_temp->format != t->format)) {
+		gpu_delete_texture(render_path_paint_dilate_temp);
+		render_path_paint_dilate_temp = NULL;
+	}
+	if (render_path_paint_dilate_temp == NULL) {
+		render_path_paint_dilate_temp = gpu_create_render_target(t->width, t->height, t->format);
+	}
+	return render_path_paint_dilate_temp;
+}
+
+static void render_path_paint_dilate_compute(char *target) {
+	gpu_texture_t       *t      = ((render_target_t *)any_map_get(render_path_render_targets, target))->_image;
+	gpu_texture_t       *temp   = render_path_paint_dilate_get_temp(t);
+	gpu_texture_format_t format = t->format;
+	render_path_paint_dilate_load(format);
+
+	gpu_compute_set_pipeline(&render_path_paint_dilate_pipes[format]);
+	gpu_compute_set_texture(0, t);
+	gpu_compute_set_texture(1, render_path_paint_dilate_index);
+	gpu_compute_set_texture(2, temp);
+	gpu_compute_dispatch(t->width, t->height);
+
+	gpu_compute_set_pipeline(&render_path_paint_dilate_copy_pipes[format]);
+	gpu_compute_set_texture(0, render_path_paint_dilate_index);
+	gpu_compute_set_texture(1, temp);
+	gpu_compute_set_texture(2, t);
+	gpu_compute_dispatch(t->width, t->height);
+}
+
 void render_path_paint_dilate(bool base, bool nor_pack) {
 	if (g_config->dilate_radius > 0 && !g_context->paint2d) {
 		util_uv_cache_dilate_map();
 		layers_make_temp_img();
 		i32 tid = g_context->layer->id;
 
-		char *format      = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
-		char *copy_pass   = string_equals(format, "RGBA64") ? "copyRGBA64_pass" : string_equals(format, "RGBA128") ? "copyRGBA128_pass" : "copy_pass";
-		char *dilate_pass = string_equals(format, "RGBA64") ? "dilateRGBA64_pass" : string_equals(format, "RGBA128") ? "dilateRGBA128_pass" : "dilate_pass";
-
+		// Compute runs between render passes
+		if (_render_path_current_image != NULL) {
+			render_path_end();
+		}
+		if (gpu_in_use || !render_path_paint_dilate_ready) {
+			return;
+		}
+		render_path_paint_dilate_update_index();
 		if (base) {
-			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string_tmp("texpaint%d", tid), "tex");
-			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string_tmp("texpaint%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
+			render_path_paint_dilate_compute(string_tmp("texpaint%d", tid));
 		}
 		if (nor_pack && !slot_layer_is_mask(g_context->layer)) {
-			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string_tmp("texpaint_nor%d", tid), "tex");
-			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string_tmp("texpaint_nor%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
-			render_path_set_target("temptex0", NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target(string_tmp("texpaint_pack%d", tid), "tex");
-			render_path_draw_shader(string_tmp("Scene/copy_pass/%s", copy_pass));
-			render_path_set_target(string_tmp("texpaint_pack%d", tid), NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			render_path_bind_target("temptex0", "tex");
-			render_path_draw_shader(string_tmp("Scene/dilate_pass/%s", dilate_pass));
+			render_path_paint_dilate_compute(string_tmp("texpaint_nor%d", tid));
+			render_path_paint_dilate_compute(string_tmp("texpaint_pack%d", tid));
 		}
 	}
 }

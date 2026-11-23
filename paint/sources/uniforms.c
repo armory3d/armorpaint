@@ -119,9 +119,6 @@ f32 uniforms_ext_f32_link(object_t *object, shader_data_t *mat, char *link) {
 	else if (string_equals(link, "_sculpt_cloth_drag")) {
 		return sculpt_get_cloth_drag();
 	}
-	else if (string_equals(link, "_dilate_radius")) {
-		return util_uv_dilatemap != NULL ? g_config->dilate_radius : 0.0;
-	}
 	else if (string_equals(link, "_particle_radius")) {
 		i32 idx           = g_context->particle_index;
 		f32 speed         = g_context->particles[idx].body != NULL ? physics_body_get_speed(g_context->particles[idx].body) : 0.0f;
@@ -483,9 +480,6 @@ gpu_texture_t *uniforms_ext_tex_link(object_t *object, shader_data_t *mat, char 
 			render_target_t *rt = any_map_get(render_path_render_targets, "empty_black");
 			return rt->_image;
 		}
-	}
-	else if (string_equals(link, "_texdilatemap")) {
-		return util_uv_dilatemap;
 	}
 	if (starts_with(link, "_texpaint_pack_vert")) {
 		render_target_t *rt = any_map_get(render_path_render_targets, string_tmp("texpaint_pack%c", link[string_length(link) - 1]));

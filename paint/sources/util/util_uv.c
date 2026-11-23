@@ -132,6 +132,7 @@ void util_uv_cache_dilate_map() {
 	gpu_end();
 	util_uv_dilatemap_cached = true;
 	util_uv_dilate_bytes     = NULL;
+	util_uv_dilatemap_version++;
 }
 
 void _util_uv_check(i32 cx, i32 cy, i32 w, i32 h, i32 r, buffer_t *view, i32_array_t *coords_x, i32_array_t *coords_y) {

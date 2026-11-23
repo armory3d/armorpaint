@@ -389,6 +389,7 @@ gpu_texture_t  *util_uv_trianglemap              = NULL;
 bool            util_uv_trianglemap_cached       = false;
 gpu_texture_t  *util_uv_dilatemap                = NULL;
 bool            util_uv_dilatemap_cached         = false;
+i32             util_uv_dilatemap_version        = 0;
 gpu_texture_t  *util_uv_uvislandmap              = NULL;
 bool            util_uv_uvislandmap_cached       = false;
 bool            util_uv_seammap_cached           = false;
