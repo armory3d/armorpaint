@@ -17,17 +17,7 @@ void _write_image(char *path, buffer_t *bytes, i32 w, i32 h, i32 format, int ima
 	unsigned char *rgba   = (unsigned char *)bytes->buffer;
 	if (format == 0) { // RGBA
 		comp = 4;
-#ifdef IRON_BGRA
-		pixels = (unsigned char *)malloc(w * h * comp);
-		for (int i = 0; i < w * h; ++i) {
-			pixels[i * 4]     = rgba[i * 4 + 2];
-			pixels[i * 4 + 1] = rgba[i * 4 + 1];
-			pixels[i * 4 + 2] = rgba[i * 4];
-			pixels[i * 4 + 3] = rgba[i * 4 + 3];
-		}
-#else
 		pixels = rgba;
-#endif
 	}
 	else if (format == 1) { // R
 		comp   = 1;
@@ -37,24 +27,15 @@ void _write_image(char *path, buffer_t *bytes, i32 w, i32 h, i32 format, int ima
 		comp   = 3;
 		pixels = (unsigned char *)malloc(w * h * comp);
 		for (int i = 0; i < w * h; ++i) {
-#ifdef IRON_BGRA
-			pixels[i * 3]     = rgba[i * 4 + 2];
-			pixels[i * 3 + 1] = rgba[i * 4 + 1];
-			pixels[i * 3 + 2] = rgba[i * 4];
-#else
 			pixels[i * 3]     = rgba[i * 4];
 			pixels[i * 3 + 1] = rgba[i * 4 + 1];
 			pixels[i * 3 + 2] = rgba[i * 4 + 2];
-#endif
 		}
 	}
 	else if (format > 2) { // RRR1, GGG1, BBB1, AAA1
 		comp    = 1;
 		pixels  = (unsigned char *)malloc(w * h * comp);
 		int off = format - 3;
-#ifdef IRON_BGRA
-		off = off == 0 ? 2 : off == 2 ? 0 : off; // Alpha stays in place
-#endif
 		for (int i = 0; i < w * h; ++i) {
 			pixels[i] = rgba[i * 4 + off];
 		}
@@ -84,14 +65,6 @@ void           _encode_image_func(void *context, void *data, int size) {
 }
 
 buffer_t *_encode_image(buffer_t *bytes, i32 w, i32 h, i32 format, i32 quality) {
-#ifdef IRON_BGRA
-	unsigned char *pixels = bytes->buffer;
-	for (int i = 0; i < w * h; ++i) {
-		unsigned char c   = pixels[i * 4];
-		pixels[i * 4]     = pixels[i * 4 + 2];
-		pixels[i * 4 + 2] = c;
-	}
-#endif
 	_encode_data = (unsigned char *)malloc(w * h * 4);
 	_encode_size = 0;
 	format == 0 ? stbi_write_jpg_to_func(&_encode_image_func, NULL, w, h, 4, bytes->buffer, quality)
@@ -330,11 +303,7 @@ void iron_mp4_encode(buffer_t *pixels, f64 time) {
 		iron_mp4_times = realloc(iron_mp4_times, iron_mp4_cap * sizeof(double));
 	}
 
-#ifdef IRON_BGRA
-	int ri = 2, bi = 0;
-#else
 	int ri = 0, bi = 2;
-#endif
 
 	// Slice header, idr picture or p picture referencing the previous frame
 	bool key = iron_mp4_count % IRON_MP4_KEY_INTERVAL == 0;
