@@ -22,14 +22,13 @@ project_t *main() {
 	add_cfiles(project, "../../sources/kong/kong_cstyle.c");
 	add_cfiles(project, "../../sources/kong/stb_ds.c");
 	add_cfiles(project, "../../sources/kong/kong_spirv.c");
+	add_cfiles(project, "../../sources/kong/kong_spirv_opt.c");
 	add_cfiles(project, "../../sources/kong/kong_wgsl.c");
-	add_cfiles(project, "../../sources/kong/kong_hlsl.c");
 	add_cfiles(project, "../../sources/kong/kong_metal.c");
 
 	if (platform == PLATFORM_WINDOWS) {
 		add_define(project, "_CRT_SECURE_NO_WARNINGS");
-		add_lib(project, "d3dcompiler");
-		add_lib(project, "dxguid");
+		add_include_dir(project, "$(VULKAN_SDK)/Include"); // vulkan_gpu.h types
 	}
 	else if (platform == PLATFORM_MACOS) {
 		add_cfiles(project, "../../sources/backends/data/mac.plist");

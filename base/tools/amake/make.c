@@ -201,7 +201,8 @@ void project_internal_flatten(project_t *project) {
 			any_array_push(project->files, f);
 		}
 		for (int j = 0; j < sub->includedirs->length; ++j) {
-			char *dir = path_resolve(sub->basedir, sub->includedirs->buffer[j]);
+			char *inc = sub->includedirs->buffer[j];
+			char *dir = strncmp(inc, "$(", 2) == 0 ? inc : path_resolve(sub->basedir, inc); // Keep "$(ENV_VAR)/..." as is
 			if (!list_contains(project->includedirs, dir)) {
 				any_array_push(project->includedirs, dir);
 			}
@@ -486,7 +487,6 @@ void minic_register_builtins(void) {
 	MINIC_B(release);
 	MINIC_B(embed);
 	MINIC_B(with_physics);
-	MINIC_B(with_d3dcompiler);
 	MINIC_B(with_nfd);
 	MINIC_B(with_compress);
 	MINIC_B(with_image_write);
@@ -505,8 +505,8 @@ void minic_register_builtins(void) {
 
 	static const char *platforms[] = {"PLATFORM_WINDOWS", "PLATFORM_LINUX", "PLATFORM_MACOS", "PLATFORM_IOS", "PLATFORM_ANDROID", "PLATFORM_WASM"};
 	minic_register_enum("platform_t", platforms, NULL, 6);
-	static const char *graphics[] = {"GRAPHICS_DIRECT3D12", "GRAPHICS_VULKAN", "GRAPHICS_METAL", "GRAPHICS_WEBGPU"};
-	minic_register_enum("graphics_t", graphics, NULL, 4);
+	static const char *graphics[] = {"GRAPHICS_VULKAN", "GRAPHICS_METAL", "GRAPHICS_WEBGPU"};
+	minic_register_enum("graphics_t", graphics, NULL, 3);
 	minic_enum_const_add("ASSET_NOEMBED", ASSET_NOEMBED);
 	minic_enum_const_add("ASSET_NOPROCESSING", ASSET_NOPROCESSING);
 	minic_register_global("platform", &platform_value, MINIC_T_INT);
@@ -548,9 +548,9 @@ project_t *load_project(char *directory, bool is_root) {
 
 	if (is_root) {
 		static char *platforms[] = {"windows", "linux", "macos", "ios", "android", "wasm"};
-		static char *graphics[]  = {"direct3d12", "vulkan", "metal", "webgpu"};
+		static char *graphics[]  = {"vulkan", "metal", "webgpu"};
 		platform_value           = enum_index(goptions.target, platforms, 6);
-		graphics_value           = enum_index(goptions.graphics, graphics, 4);
+		graphics_value           = enum_index(goptions.graphics, graphics, 3);
 		memset(&flags, 0, sizeof(flags));
 		flags.name    = "Armory";
 		flags.package = "org.armory3d";
@@ -759,9 +759,6 @@ static char *shader_type(void) {
 	else if (strcmp(goptions.graphics, "metal") == 0) {
 		return "metal";
 	}
-	else if (strcmp(goptions.graphics, "direct3d12") == 0) {
-		return "hlsl";
-	}
 	return "wgsl";
 }
 
@@ -774,9 +771,8 @@ static void compile_shader(char *file, char *to_dir, char *temp) {
 	double from_time = fs_mtime(file);
 
 	// Up to date when both outputs are newer than the source
-	char  *ext      = strcmp(type, "hlsl") == 0 ? "d3d11" : type;
 	char  *base     = js_substring(to, 0, str_last_index_of(to, ".") + 1);
-	char  *outs[2]  = {string("%svert.%s", base, ext), string("%sfrag.%s", base, ext)};
+	char  *outs[2]  = {string("%svert.%s", base, type), string("%sfrag.%s", base, type)};
 	double out_time = 0;
 	for (int i = 0; i < 2; ++i) {
 		if (!fs_exists(outs[i])) {
@@ -798,9 +794,6 @@ static void compile_shader(char *file, char *to_dir, char *temp) {
 static any_array_t *export_shaders(project_t *project, char *to_dir, char *temp) {
 	any_array_t *shaders = list_create();
 	char        *type    = shader_type();
-	if (strcmp(type, "hlsl") == 0) {
-		type = "d3d11";
-	}
 	for (int i = 0; i < project->shader_matchers->length; ++i) {
 		matcher_t *m = project->shader_matchers->buffer[i];
 		char      *basedir;

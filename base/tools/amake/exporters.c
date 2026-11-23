@@ -45,6 +45,21 @@ static bool is_source(char *file) {
 	return ends_with(file, ".c");
 }
 
+// "$(ENV_VAR)/..." paths, kept as is for msbuild to expand
+static bool is_env_path(char *path) {
+	return strncmp(path, "$(", 2) == 0 && strchr(path, ')') != NULL;
+}
+
+static char *expand_env_path(char *path) {
+	char *end   = strchr(path, ')');
+	char *value = os_env(js_substring(path, 2, (int)(end - path)));
+	return string("%s%s", value != NULL ? value : "", end + 1);
+}
+
+static char *resolve_include_dir(char *from, char *dir) {
+	return is_env_path(dir) ? path_resolve(expand_env_path(dir)) : path_resolve(from, dir);
+}
+
 // Unique object file names for sources, parallel to project->files, NULL for non-sources
 static any_array_t *object_names(project_t *project) {
 	any_array_t *names = list_create();
@@ -108,7 +123,7 @@ static void make_export(project_t *project, char *ccompiler, char *cflags, char 
 	string_buffer_init(&line);
 	string_buffer_append(&line, "-I./ "); // Local directory to pick up the precompiled headers
 	for (int i = 0; i < project->includedirs->length; ++i) {
-		string_buffer_append(&line, string("-I%s ", path_relative(output_path, path_resolve(from, project->includedirs->buffer[i]))));
+		string_buffer_append(&line, string("-I%s ", path_relative(output_path, resolve_include_dir(from, project->includedirs->buffer[i]))));
 	}
 	p(0, "INC=%s", string_buffer_get(&line));
 
@@ -199,7 +214,7 @@ static void compile_commands_export(project_t *project) {
 	any_array_t *includes = list_create();
 	for (int i = 0; i < project->includedirs->length; ++i) {
 		any_array_push(includes, "-I");
-		any_array_push(includes, path_resolve(from, project->includedirs->buffer[i]));
+		any_array_push(includes, resolve_include_dir(from, project->includedirs->buffer[i]));
 	}
 	any_array_t *defines = list_create();
 	for (int i = 0; i < project->defines->length; ++i) {
@@ -359,10 +374,6 @@ static bool filter_c(char *file) {
 	return ends_with(file, ".c");
 }
 
-static bool filter_hlsl(char *file) {
-	return ends_with(file, ".hlsl");
-}
-
 static bool filter_rc(char *file) {
 	return ends_with(file, ".rc");
 }
@@ -416,7 +427,6 @@ static void vs_export_filters(char *from, char *to, project_t *project) {
 	p(1, "</ItemGroup>");
 	vs_item_group(from, to, project, "ClInclude", filter_h);
 	vs_item_group(from, to, project, "ClCompile", filter_c);
-	vs_item_group(from, to, project, "CustomBuild", filter_hlsl);
 	if (strcmp(goptions.target, "windows") == 0) {
 		vs_item_group(from, to, project, "ResourceCompile", filter_rc);
 	}
@@ -587,7 +597,12 @@ static void vs_export_project(char *from, char *to, project_t *project) {
 	}
 	any_array_t *includes = list_create();
 	for (int i = 0; i < project->includedirs->length; ++i) {
-		char *relativized = path_relative(to, path_resolve(from, project->includedirs->buffer[i]));
+		char *dir = project->includedirs->buffer[i];
+		if (is_env_path(dir)) {
+			any_array_push(includes, dir);
+			continue;
+		}
+		char *relativized = path_relative(to, path_resolve(from, dir));
 		any_array_push(includes, relativized[0] == '\0' ? "." : relativized);
 	}
 	char *incstring    = str_join(includes, ";");

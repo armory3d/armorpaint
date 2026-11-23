@@ -10,7 +10,7 @@
 
 typedef struct {
 	char *target;   // windows, linux, macos, ios, android, wasm
-	char *graphics; // direct3d12, vulkan, metal, webgpu
+	char *graphics; // vulkan, metal, webgpu
 	char *ccompiler;
 	char *arch;
 	char *build_path; // Debug or Release
@@ -91,7 +91,6 @@ typedef struct {
 	bool  release;
 	bool  embed;
 	bool  with_physics;
-	bool  with_d3dcompiler;
 	bool  with_nfd;
 	bool  with_compress;
 	bool  with_image_write;
