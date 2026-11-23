@@ -706,24 +706,3 @@ buffer_t *buffer_half_to_u8(buffer_t *buffer) {
 	}
 	return buffer;
 }
-
-buffer_t *buffer_bgra_swap(buffer_t *buffer) {
-	for (uint32_t i = 0; i < buffer->length / 4; ++i) {
-		uint8_t r                 = buffer->buffer[i * 4];
-		buffer->buffer[i * 4]     = buffer->buffer[i * 4 + 2];
-		buffer->buffer[i * 4 + 2] = r;
-	}
-	return buffer;
-}
-
-buffer_t *buffer_bgra64_swap(buffer_t *buffer) {
-	for (uint32_t i = 0; i < buffer->length / 8; ++i) {
-		uint8_t r_low             = buffer->buffer[i * 8 + 4];
-		uint8_t r_high            = buffer->buffer[i * 8 + 5];
-		buffer->buffer[i * 8 + 4] = buffer->buffer[i * 8 + 0];
-		buffer->buffer[i * 8 + 5] = buffer->buffer[i * 8 + 1];
-		buffer->buffer[i * 8]     = r_low;
-		buffer->buffer[i * 8 + 1] = r_high;
-	}
-	return buffer;
-}
