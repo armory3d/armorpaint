@@ -101,9 +101,11 @@ void render_path_base_init() {
 	render_path_load_shader("Scene/copy_pass/copyR8_pass");
 	render_path_load_shader("Scene/copy_pass/copyRGBA64_pass");
 	render_path_load_shader("Scene/copy_pass/copyRGBA128_pass");
+	render_path_load_shader("Scene/copy_pass/copyFB_pass");
 	render_path_load_shader("Scene/taa_pass/taa_pass");
 	render_path_load_shader("Scene/supersample_resolve/supersample_resolve");
 	render_path_load_shader("Scene/supersample_resolve/supersample_resolveRGBA64");
+	render_path_load_shader("Scene/supersample_resolve/supersample_resolveFB");
 
 	render_path_paint_init();
 	render_path_preview_init();
@@ -460,10 +462,10 @@ void render_path_base_draw_taa(char *bufa, char *bufb) {
 	render_path_set_target("", NULL, NULL, args_player ? GPU_CLEAR_DONT_LOAD_COLOR : GPU_CLEAR_NONE, 0, 0.0);
 	render_path_bind_target(bufb, "tex");
 	if (render_path_base_ssaa4()) {
-		render_path_draw_shader("Scene/supersample_resolve/supersample_resolveRGBA64");
+		render_path_draw_shader("Scene/supersample_resolve/supersample_resolveFB");
 	}
 	else {
-		render_path_draw_shader("Scene/copy_pass/copy_pass");
+		render_path_draw_shader("Scene/copy_pass/copyFB_pass");
 	}
 
 	render_path_base_swap_buf(bufa);

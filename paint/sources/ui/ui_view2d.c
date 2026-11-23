@@ -31,6 +31,16 @@ void ui_view2d_init() {
 	ui_view2d_pipe->blend_destination         = GPU_BLEND_ZERO;
 	ui_view2d_pipe->color_write_mask_alpha[0] = false;
 	gpu_pipeline_compile(ui_view2d_pipe);
+
+	ui_view2d_pipe_fb                            = gpu_create_pipeline();
+	ui_view2d_pipe_fb->vertex_shader             = ui_view2d_pipe->vertex_shader;
+	ui_view2d_pipe_fb->fragment_shader           = ui_view2d_pipe->fragment_shader;
+	ui_view2d_pipe_fb->input_layout              = vs;
+	ui_view2d_pipe_fb->blend_source              = GPU_BLEND_ONE;
+	ui_view2d_pipe_fb->blend_destination         = GPU_BLEND_ZERO;
+	ui_view2d_pipe_fb->color_write_mask_alpha[0] = false;
+	ui_view2d_pipe_fb->color_attachment[0]       = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	gpu_pipeline_compile(ui_view2d_pipe_fb);
 	pipes_offset = 0;
 	pipes_get_constant_location("float4"); // empty
 	ui_view2d_channel_loc = pipes_get_constant_location("int");
@@ -642,7 +652,7 @@ void ui_view2d_update(void *_) {
 		bool pixel_view = tex != NULL && math_round(tw / (float)tex->width * 100) >= 1600;
 		if (tex != NULL) {
 			if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
-				draw_set_pipeline(ui_view2d_pipe);
+				draw_set_pipeline(ui_view2d_pipe_fb);
 			}
 
 			if (pixel_view) {

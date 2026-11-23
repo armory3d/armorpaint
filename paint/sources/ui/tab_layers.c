@@ -119,7 +119,7 @@ ui_state_t tab_layers_draw_layer_icon(slot_layer_t *l, i32 i, f32 uix, f32 uiy, 
 			g_ui->_w = _w;
 		}
 		if (l->fill_material == NULL && slot_layer_is_mask(l)) {
-			draw_set_pipeline(ui_view2d_pipe);
+			draw_set_pipeline(ui_view2d_pipe_fb);
 			gpu_set_int(ui_view2d_channel_loc, 1);
 		}
 

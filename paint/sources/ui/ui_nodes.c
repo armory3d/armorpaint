@@ -1106,7 +1106,7 @@ void ui_nodes_update(void *_) {
 				}
 				bool single_channel = string_equals(sel->type, "LAYER_MASK");
 				if (single_channel) {
-					draw_set_pipeline(ui_view2d_pipe);
+					draw_set_pipeline(ui_view2d_pipe_fb);
 					gpu_set_int(ui_view2d_channel_loc, 1);
 				}
 				draw_set_color(0xffffffff);

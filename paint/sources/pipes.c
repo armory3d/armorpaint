@@ -71,6 +71,13 @@ void pipes_init() {
 		gpu_vertex_structure_add(vs, "col", GPU_VERTEX_DATA_F32_4X);
 		pipes_copy->input_layout = vs;
 		gpu_pipeline_compile(pipes_copy);
+
+		pipes_copy_fb                      = gpu_create_pipeline();
+		pipes_copy_fb->vertex_shader       = pipes_copy->vertex_shader;
+		pipes_copy_fb->fragment_shader     = pipes_copy->fragment_shader;
+		pipes_copy_fb->input_layout        = vs;
+		pipes_copy_fb->color_attachment[0] = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+		gpu_pipeline_compile(pipes_copy_fb);
 	}
 
 	{
@@ -218,6 +225,7 @@ void pipes_init() {
 		pipes_cursor->alpha_blend_destination = GPU_BLEND_INV_SOURCE_ALPHA;
 		pipes_cursor->depth_write             = false;
 		pipes_cursor->depth_mode              = GPU_COMPARE_MODE_ALWAYS;
+		pipes_cursor->color_attachment[0]     = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 		gpu_pipeline_compile(pipes_cursor);
 		pipes_offset              = 0;
 		pipes_cursor_vp           = pipes_get_constant_location("float4x4");
@@ -247,6 +255,7 @@ void pipes_init() {
 		pipes_cursor_decal->alpha_blend_destination = GPU_BLEND_INV_SOURCE_ALPHA;
 		pipes_cursor_decal->depth_write             = false;
 		pipes_cursor_decal->depth_mode              = GPU_COMPARE_MODE_ALWAYS;
+		pipes_cursor_decal->color_attachment[0]     = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 		gpu_pipeline_compile(pipes_cursor_decal);
 		pipes_offset                    = 0;
 		pipes_cursor_decal_vp           = pipes_get_constant_location("float4x4");
@@ -278,6 +287,7 @@ void pipes_init() {
 		pipes_cursor_2d->blend_destination       = GPU_BLEND_INV_SOURCE_ALPHA;
 		pipes_cursor_2d->alpha_blend_source      = GPU_BLEND_ONE;
 		pipes_cursor_2d->alpha_blend_destination = GPU_BLEND_INV_SOURCE_ALPHA;
+		pipes_cursor_2d->color_attachment[0]     = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 		gpu_pipeline_compile(pipes_cursor_2d);
 		pipes_offset           = 0;
 		pipes_cursor_2d_center = pipes_get_constant_location("float2");
@@ -298,6 +308,7 @@ void pipes_init() {
 		pipes_outline->blend_destination       = GPU_BLEND_INV_SOURCE_ALPHA;
 		pipes_outline->alpha_blend_source      = GPU_BLEND_ZERO;
 		pipes_outline->alpha_blend_destination = GPU_BLEND_ONE;
+		pipes_outline->color_attachment[0]     = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 		gpu_pipeline_compile(pipes_outline);
 		pipes_offset           = 0;
 		pipes_outline_color    = pipes_get_constant_location("float4");
