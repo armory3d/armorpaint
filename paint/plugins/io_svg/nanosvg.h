@@ -651,7 +651,7 @@ error:
 		if (p->image) free(p->image);
 		free(p);
 	}
-	return NULL;
+    return NULL;
 }
 
 static void nsvg__deletePaths(NSVGpath* path)
@@ -813,7 +813,7 @@ static NSVGgradientData* nsvg__findGradientData(NSVGparser* p, const char* id)
 			return grad;
 		grad = grad->next;
 	}
-	return NULL;
+    return NULL;
 }
 
 static NSVGgradient* nsvg__createGradient(NSVGparser* p, const char* id, const float* localBounds, char* paintType)
@@ -1212,9 +1212,9 @@ static unsigned int nsvg__parseColorHex(const char* str)
 	while(str[n] && !nsvg__isspace(str[n]))
 		n++;
 	if (n == 6) {
-		sscanf(str, "%x", &c);
+		c = (unsigned int)strtoul(str, NULL, 16);
 	} else if (n == 3) {
-		sscanf(str, "%x", &c);
+		c = (unsigned int)strtoul(str, NULL, 16);
 		c = (c&0xf) | ((c&0xf0) << 4) | ((c&0xf00) << 8);
 		c |= c<<4;
 	}
@@ -1226,13 +1226,27 @@ static unsigned int nsvg__parseColorHex(const char* str)
 
 static unsigned int nsvg__parseColorRGB(const char* str)
 {
-	int r = -1, g = -1, b = -1;
-	char s1[32]="", s2[32]="";
-	sscanf(str + 4, "%d%[%%, \t]%d%[%%, \t]%d", &r, s1, &g, s2, &b);
-	if (strchr(s1, '%')) {
-		return NSVG_RGB((r*255)/100,(g*255)/100,(b*255)/100);
+	// Same as sscanf(str + 4, "%d%[%%, \t]%d%[%%, \t]%d", ...)
+	int c[3] = {-1, -1, -1};
+	int i, percent = 0;
+	const char* s = str + 4;
+	char* end;
+	for (i = 0; i < 3; i++) {
+		const char* sep;
+		long v = strtol(s, &end, 10);
+		if (end == s) break;
+		c[i] = (int)v;
+		s = end;
+		if (i == 2) break;
+		sep = s;
+		while (*s == '%' || *s == ',' || *s == ' ' || *s == '\t') s++;
+		if (s == sep) break;
+		if (i == 0 && memchr(sep, '%', s - sep) != NULL) percent = 1;
+	}
+	if (percent) {
+		return NSVG_RGB((c[0]*255)/100,(c[1]*255)/100,(c[2]*255)/100);
 	} else {
-		return NSVG_RGB(r,g,b);
+		return NSVG_RGB(c[0],c[1],c[2]);
 	}
 }
 
@@ -2880,7 +2894,7 @@ NSVGimage* nsvgParse(char* input, const char* units, float dpi)
 
 	p = nsvg__createParser();
 	if (p == NULL) {
-		return NULL;
+        return NULL;
 	}
 	p->dpi = dpi;
 
@@ -2923,7 +2937,7 @@ error:
 	if (fp) fclose(fp);
 	if (data) free(data);
 	if (image) nsvgDelete(image);
-	return NULL;
+    return NULL;
 }
 
 NSVGpath* nsvgDuplicatePath(NSVGpath* p)
@@ -2952,7 +2966,7 @@ error:
     if (res != NULL) {
         free(res->pts);
         free(res);
-    }
+	}
     return NULL;
 }
 
