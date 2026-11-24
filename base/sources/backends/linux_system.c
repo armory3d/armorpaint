@@ -13,6 +13,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 #include <vulkan/vulkan.h>
@@ -1112,9 +1113,16 @@ bool iron_keyboard_active() {
 
 void iron_load_url(const char *url) {
 	if (strncmp(url, "http://", sizeof("http://") - 1) == 0 || strncmp(url, "https://", sizeof("https://") - 1) == 0) {
-		char openUrlCommand[256];
-		snprintf(openUrlCommand, 256, "xdg-open %s", url);
-		system(openUrlCommand);
+		// No shell, '&' and other metacharacters in the url are passed as is
+		pid_t pid = fork();
+		if (pid == 0) {
+			execlp("xdg-open", "xdg-open", url, (char *)NULL);
+			_exit(1);
+		}
+		else if (pid > 0) {
+			int status;
+			waitpid(pid, &status, 0);
+		}
 	}
 }
 
