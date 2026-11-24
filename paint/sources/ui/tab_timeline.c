@@ -29,14 +29,16 @@ typedef struct {
 	bool           scripted; // Written by a script, kept until the key is loaded
 } tab_timeline_mesh_keyframe_t;
 
-i32  tab_timeline_selected_frame = 0;
-i32  tab_timeline_selected_row   = 0;
-bool tab_timeline_playing        = false;
-f64  tab_timeline_play_time      = 0.0;
-i32  tab_timeline_scroll         = 0;
-bool tab_timeline_scrolling      = false;
-f32  tab_timeline_scroll_drag_x  = 0.0f;
-i32  tab_timeline_scroll_drag_v  = 0;
+i32        tab_timeline_selected_frame  = 0;
+i32        tab_timeline_selected_row    = 0;
+bool       tab_timeline_playing         = false;
+f64        tab_timeline_play_time       = 0.0;
+static f64 tab_timeline_play_time_last  = 0.0;
+static f64 tab_timeline_play_frame_last = 0.0;
+i32        tab_timeline_scroll          = 0;
+bool       tab_timeline_scrolling       = false;
+f32        tab_timeline_scroll_drag_x   = 0.0f;
+i32        tab_timeline_scroll_drag_v   = 0;
 
 static i32          tab_timeline_max_frames = 200;
 static i32          tab_timeline_frame_rate = 24;
@@ -1177,7 +1179,7 @@ void tab_timeline_export(project_t *raw) {
 		bool                            pixels = kf->frame > 0;
 		timeline_layer_keyframe_data_t *d =
 		    ALLOC_INIT(timeline_layer_keyframe_data_t,
-		               {
+			           {
 		                   .frame              = kf->frame,
 		                   .layer_index        = kf->layer_index,
 		                   .texpaint           = pixels ? tab_timeline_encode_tex(kf->texpaint) : NULL,
@@ -1675,6 +1677,13 @@ void tab_timeline_update() {
 
 	// Keep nested clips continuous when the main timeline wraps
 	f64 playback_frame = (sys_time() - tab_timeline_play_time) * tab_timeline_frame_rate;
+	if (tab_timeline_play_time == tab_timeline_play_time_last && playback_frame >= floor(tab_timeline_play_frame_last) + 2.0) {
+		// Fell behind - enter the next frame instead of skipping to the clock
+		playback_frame         = floor(tab_timeline_play_frame_last) + 1.0;
+		tab_timeline_play_time = sys_time() - playback_frame / tab_timeline_frame_rate;
+	}
+	tab_timeline_play_time_last  = tab_timeline_play_time;
+	tab_timeline_play_frame_last = playback_frame;
 	if (tab_timeline_capturing) {
 		// Step one frame per recorded video frame, however long it takes to render
 		if (viewport_video_time >= 0.0) {
@@ -1682,7 +1691,7 @@ void tab_timeline_update() {
 			return;
 		}
 		g_context->ddirty = 2;
-		playback_frame = tab_timeline_capture_frame;
+		playback_frame    = tab_timeline_capture_frame;
 		if (playback_frame >= tab_timeline_max_frames) {
 			// Played once, the last frame was already recorded
 			tab_timeline_capture_end();
