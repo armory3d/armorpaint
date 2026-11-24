@@ -791,6 +791,12 @@ bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 			}
 			texture_format = GPU_TEXTURE_FORMAT_RGBA32;
 		}
+		else if (strcmp(fourcc, "LZ4R") == 0) {
+			int output_size = width * height;
+			texture_data    = (unsigned char *)malloc(output_size);
+			LZ4_decompress_safe((char *)data->buffer + 12, (char *)texture_data, compressed_size, output_size);
+			texture_format = GPU_TEXTURE_FORMAT_R8;
+		}
 		else { // "LZ4F"
 			int output_size = width * height * 8;
 			texture_data    = (unsigned char *)malloc(output_size);
