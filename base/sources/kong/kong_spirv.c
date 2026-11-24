@@ -128,6 +128,7 @@ typedef enum spirv_opcode {
 typedef enum spirv_glsl_std {
 	SPIRV_GLSL_STD_ROUND        = 1,
 	SPIRV_GLSL_STD_FABS         = 4,
+	SPIRV_GLSL_STD_SABS         = 5,
 	SPIRV_GLSL_STD_FLOOR        = 8,
 	SPIRV_GLSL_STD_CEIL         = 9,
 	SPIRV_GLSL_STD_FRACT        = 10,
@@ -152,8 +153,14 @@ typedef enum spirv_glsl_std {
 	SPIRV_GLSL_STD_SQRT         = 31,
 	SPIRV_GLSL_STD_INVERSE_SQRT = 32,
 	SPIRV_GLSL_STD_FMIN         = 37,
+	SPIRV_GLSL_STD_UMIN         = 38,
+	SPIRV_GLSL_STD_SMIN         = 39,
 	SPIRV_GLSL_STD_FMAX         = 40,
+	SPIRV_GLSL_STD_UMAX         = 41,
+	SPIRV_GLSL_STD_SMAX         = 42,
 	SPIRV_GLSL_STD_FCLAMP       = 43,
+	SPIRV_GLSL_STD_UCLAMP       = 44,
+	SPIRV_GLSL_STD_SCLAMP       = 45,
 	SPIRV_GLSL_STD_FMIX         = 46,
 	SPIRV_GLSL_STD_STEP         = 48,
 	SPIRV_GLSL_STD_SMOOTHSTEP   = 49,
@@ -1575,6 +1582,12 @@ static spirv_id write_op_transpose(instructions_buffer *instructions, spirv_id t
 	return result;
 }
 
+// The float, signed or unsigned variant of a GLSL.std.450 instruction for the result type
+static uint32_t spirv_integer_inst(type_id t, uint32_t float_inst, uint32_t signed_inst, uint32_t unsigned_inst) {
+	type_id base = vector_base_type(t);
+	return base == int_id ? signed_inst : base == uint_id ? unsigned_inst : float_inst;
+}
+
 static spirv_id write_op_ext_inst(instructions_buffer *instructions, spirv_id result_type, spirv_id set, uint32_t instruction, spirv_id operand) {
 	spirv_id result = allocate_index();
 
@@ -2491,7 +2504,8 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			}
 			else if (func == BUILTIN(abs)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
-				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FABS, operand);
+				spirv_id id = write_op_ext_inst(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import,
+				                              spirv_integer_inst(o->op_call.var.type.type, SPIRV_GLSL_STD_FABS, SPIRV_GLSL_STD_SABS, SPIRV_GLSL_STD_SABS), operand);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == BUILTIN(ceil)) {
@@ -2548,21 +2562,24 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
-				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMIN, operand1, operand2);
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import,
+				                       spirv_integer_inst(o->op_call.var.type.type, SPIRV_GLSL_STD_FMIN, SPIRV_GLSL_STD_SMIN, SPIRV_GLSL_STD_UMIN), operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == BUILTIN(max)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id id =
-				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FMAX, operand1, operand2);
+				    write_op_ext_inst2(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import,
+				                       spirv_integer_inst(o->op_call.var.type.type, SPIRV_GLSL_STD_FMAX, SPIRV_GLSL_STD_SMAX, SPIRV_GLSL_STD_UMAX), operand1, operand2);
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == BUILTIN(clamp)) {
 				spirv_id operand1 = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id operand2 = get_var(instructions, o->op_call.parameters[1]);
 				spirv_id operand3 = get_var(instructions, o->op_call.parameters[2]);
-				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import, SPIRV_GLSL_STD_FCLAMP, operand1,
+				spirv_id id = write_op_ext_inst3(instructions, convert_type_to_spirv_id(o->op_call.var.type.type), glsl_import,
+				                                 spirv_integer_inst(o->op_call.var.type.type, SPIRV_GLSL_STD_FCLAMP, SPIRV_GLSL_STD_SCLAMP, SPIRV_GLSL_STD_UCLAMP), operand1,
 				                                 operand2, operand3);
 				hmput(index_map, o->op_call.var.index, id);
 			}

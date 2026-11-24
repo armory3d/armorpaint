@@ -1219,7 +1219,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		bool splat = is_component_wise(e->call.func_name) && is_vector(t.type);
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			o.op_call.parameters[i] = emit_expression(code, parent, e->call.parameters.e[i]);
-			if (splat && o.op_call.parameters[i].type.type == float_id) {
+			if (splat && !is_vector(o.op_call.parameters[i].type.type)) {
 				o.op_call.parameters[i] = emit_splat(code, o.op_call.parameters[i], t.type);
 			}
 		}
@@ -5390,6 +5390,22 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 					size = vector_size(t);
 				}
 			}
+
+			// min, max, clamp and abs of integers stay integers
+			type_id integer = NO_TYPE;
+			if (e->call.func_name == add_name("min") || e->call.func_name == add_name("max") || e->call.func_name == add_name("clamp") ||
+			    e->call.func_name == add_name("abs")) {
+				for (size_t i = 0; i < e->call.parameters.size; ++i) {
+					type_id t    = e->call.parameters.e[i]->type.type;
+					type_id base = is_vector_or_scalar(t) ? vector_base_type(t) : NO_TYPE;
+					if ((base != int_id && base != uint_id) || (i > 0 && base != integer)) {
+						integer = NO_TYPE;
+						break;
+					}
+					integer = base;
+				}
+			}
+
 			for (size_t i = 0; i < e->call.parameters.size; ++i) {
 				expression *p = e->call.parameters.e[i];
 				type_id     t = p->type.type;
@@ -5398,12 +5414,15 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 					error(context, "Parameter %zu of %s has type %s, expected a scalar or a vector of size %u", i, get_name(e->call.func_name),
 					      t == NO_TYPE ? "unknown" : get_name(get_type(t)->name), size);
 				}
+				if (integer != NO_TYPE) {
+					continue;
+				}
 				type_ref to;
 				init_type_ref(&to, NO_NAME);
 				to.type = vector_to_size(float_id, vector_size(t));
 				convert_to_float(p, to);
 			}
-			e->type.type = vector_to_size(float_id, size);
+			e->type.type = vector_to_size(integer != NO_TYPE ? integer : float_id, size);
 			break;
 		}
 
