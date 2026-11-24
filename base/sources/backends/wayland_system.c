@@ -1342,10 +1342,10 @@ void iron_gamepad_rumble(int gamepad, float left, float right) {}
 extern void (*iron_save_and_quit)(bool);
 
 #ifdef WITH_NFD // Has gtk
-#include <gtk/gtk.h>
+#include "../libs/nfd_gtk.h"
 static bool iron_gtk_setlocale_disabled = false;
 void        iron_gtk_disable_setlocale() {
-	if (iron_gtk_setlocale_disabled) {
+	if (iron_gtk_setlocale_disabled || !iron_gtk_load()) {
 		return;
 	}
 	gtk_disable_setlocale();
@@ -1356,7 +1356,7 @@ void        iron_gtk_disable_setlocale() {
 bool _save_and_quit_callback_internal() {
 	bool save = false;
 #ifdef WITH_NFD // Has gtk
-	if (strstr(wl.title, "* - ArmorPaint") != NULL) {
+	if (strstr(wl.title, "* - ArmorPaint") != NULL && iron_gtk_load()) {
 		iron_gtk_disable_setlocale();
 		gtk_init(NULL, NULL);
 		GtkWidget *dialog = gtk_message_dialog_new(NULL, GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_YES_NO, "Project has been modified, save changes?");

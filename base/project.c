@@ -280,9 +280,7 @@ project_t *main() {
 			add_include_dir(project, "/usr/lib64/glib-2.0/include");
 			add_include_dir(project, "/usr/lib/glib-2.0/include");
 			add_include_dir(project, "/usr/include/harfbuzz");
-			add_lib(project, "gtk-3");
-			add_lib(project, "gobject-2.0");
-			add_lib(project, "glib-2.0");
+			add_lib(project, "dl"); // gtk-3 is loaded at runtime, see nfd_gtk.h
 		}
 		else if (platform == PLATFORM_MACOS) {
 			add_cfiles(project, "sources/libs/nfd.m");
