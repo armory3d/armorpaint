@@ -1248,9 +1248,16 @@ void iron_set_keep_screen_on(bool on) {}
 
 void iron_load_url(const char *url) {
 	if (strncmp(url, "http://", 7) == 0 || strncmp(url, "https://", 8) == 0) {
-		char cmd[256];
-		snprintf(cmd, sizeof(cmd), "xdg-open %s", url);
-		system(cmd);
+		// No shell, '&' and other metacharacters in the url are passed as is
+		pid_t pid = fork();
+		if (pid == 0) {
+			execlp("xdg-open", "xdg-open", url, (char *)NULL);
+			_exit(1);
+		}
+		else if (pid > 0) {
+			int status;
+			waitpid(pid, &status, 0);
+		}
 	}
 }
 
