@@ -204,7 +204,6 @@ void base_init_undo_layers() {
 			slot_layer_t *l   = slot_layer_create_undo(ext);
 			any_array_push(history_undo_layers, l);
 		}
-		slot_layer_alloc_textures(history_undo_layers->buffer[history_undo_i]);
 	}
 }
 
