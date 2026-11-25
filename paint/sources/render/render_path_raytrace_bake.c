@@ -348,7 +348,7 @@ static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
 		lightmap_base         = malloc(sizeof(gpu_texture_t));
 		lightmap_base->buffer = NULL;
 		gpu_texture_init_from_bytes(lightmap_base, grey, 1, 1, GPU_TEXTURE_FORMAT_RGBA32, false);
-		lightmap_f32a = f32_array_create(24);
+		lightmap_f32a = f32_array_create(28);
 	}
 
 	lightmap_scene_init();

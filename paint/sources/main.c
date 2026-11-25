@@ -123,6 +123,7 @@
 #include "nodes_mesh/mesh_script_node.c"
 #include "nodes_mesh/mesh_shape_node.c"
 #include "nodes_mesh/mesh_smoke_node.c"
+#include "nodes_mesh/mesh_fire_node.c"
 #include "nodes_mesh/mesh_smooth_node.c"
 #include "nodes_mesh/mesh_subdivide_node.c"
 #include "nodes_mesh/mesh_transform_node.c"
@@ -409,7 +410,7 @@ void _kickstart() {
 	ui_sidebar_w_mini             = ui_sidebar_default_w_mini;
 	console_last_traces           = any_array_create(0);
 	ui_box_hwnd                   = ui_window_create();
-	render_path_raytrace_f32a     = f32_array_create(24);
+	render_path_raytrace_f32a     = f32_array_create(28);
 	render_path_raytrace_help_mat = mat4_identity();
 	neural_node_results           = any_imap_create();
 

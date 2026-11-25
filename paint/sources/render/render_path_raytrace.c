@@ -22,6 +22,30 @@ static i32          render_path_raytrace_override_height    = 0;
 gpu_texture_t *render_path_raytrace_env_cdf      = NULL;
 static char   *render_path_raytrace_env_cdf_file = NULL;
 
+static u32 render_path_raytrace_grain_mask = 0; // Geometries rendered as grains, bit per geometry index
+static u32 render_path_raytrace_volume_mask = 0; // Geometries of smoke and fire, holding the grid and sparks
+static u32 render_path_raytrace_volume_list = 0; // Their geometry indices, 5 bits each
+static i32 render_path_raytrace_volume_count = 0;
+#define VOLUME_MAX 4
+
+// Geometry index as the backend assigns it, one per distinct vertex buffer
+#define GRAIN_GEOMETRY_MAX 22 // Mask bits that stay exact in the float constant next to the env sampling bit
+static gpu_buffer_t *render_path_raytrace_geometry_vb[GRAIN_GEOMETRY_MAX];
+static i32           render_path_raytrace_geometry_count = 0;
+
+static i32 render_path_raytrace_geometry_index(gpu_buffer_t *vb) {
+	for (i32 i = 0; i < render_path_raytrace_geometry_count; ++i) {
+		if (render_path_raytrace_geometry_vb[i] == vb) {
+			return i;
+		}
+	}
+	if (render_path_raytrace_geometry_count == GRAIN_GEOMETRY_MAX) {
+		return -1;
+	}
+	render_path_raytrace_geometry_vb[render_path_raytrace_geometry_count] = vb;
+	return render_path_raytrace_geometry_count++;
+}
+
 float render_path_raytrace_half_to_float(uint16_t h) {
 	uint32_t sign = (uint32_t)(h >> 15) << 31;
 	uint32_t exp  = (h >> 10) & 0x1f;
@@ -414,6 +438,134 @@ static bool render_path_raytrace_overrides_visible() {
 	return false;
 }
 
+// Look of the smoke from the constant inputs of the material assigned to the object: base color is the transmittance
+// per unit of distance, 1 - occlusion sets the scattering, as for the medium materials
+static void render_path_raytrace_volume_look(mesh_object_t *po, f32 *color, f32 *sigma) {
+	f32 rgb[3] = {0.75f, 0.75f, 0.78f};
+	f32 occ    = 0.9f;
+	i32 index  = tab_meshes_get_linked_override(po);
+	if (index >= 0 && index < g_project->_->materials->length) {
+		slot_material_t  *m = g_project->_->materials->buffer[index];
+		ui_node_canvas_t *c = m->canvas;
+		for (i32 i = 0; c != NULL && i < c->nodes->length; ++i) {
+			ui_node_t *n = c->nodes->buffer[i];
+			if (!string_equals(n->type, "OUTPUT_MATERIAL_PBR")) {
+				continue;
+			}
+			bool linked[3] = {false, false, false};
+			for (i32 l = 0; l < c->links->length; ++l) {
+				ui_node_link_t *link = c->links->buffer[l];
+				if (link->to_id == n->id && link->to_socket < 3) {
+					linked[link->to_socket] = true;
+				}
+			}
+			ui_node_socket_t *base = n->inputs->buffer[0];
+			ui_node_socket_t *ao   = n->inputs->buffer[2];
+			if (!linked[0]) {
+				memcpy(rgb, base->default_value->buffer, sizeof(f32) * 3);
+			}
+			if (!linked[2]) {
+				occ = ao->default_value->buffer[0];
+			}
+			break;
+		}
+	}
+	for (i32 k = 0; k < 3; ++k) {
+		color[k] = powf(fmaxf(rgb[k], 0.0f), 2.2f);
+	}
+	*sigma = (1.0f - occ) * (1.0f - occ) * 16.0f;
+}
+
+// Triangles of the sparks, their tex coords below 0. One empty triangle when there are none, which keeps the geometry
+// holding the grid. The surface of the gas only shows in the other render modes
+static gpu_buffer_t *render_path_raytrace_volume_sparks(mesh_volume_t *v, mesh_data_t *data) {
+	u32 version = data->_->index_buffer->version;
+	if (v->sparks != NULL && v->sparks_data == data && v->sparks_version == version) {
+		return v->sparks;
+	}
+	if (v->sparks != NULL) {
+		gpu_buffer_destroy(v->sparks);
+		free(v->sparks);
+	}
+	u32_array_t    *ind   = data->index_array;
+	vertex_array_t *tex   = mesh_data_get_vertex_array(data, "tex");
+	i32             count = 0;
+	for (i32 t = 0; tex != NULL && t + 2 < (i32)ind->length; t += 3) {
+		count += tex->values->buffer[ind->buffer[t] * 2 + 1] < 0 ? 3 : 0;
+	}
+	v->sparks   = gpu_create_index_buffer(count > 0 ? count : 3);
+	u32 *out    = gpu_index_buffer_lock(v->sparks);
+	i32  n      = 0;
+	for (i32 t = 0; tex != NULL && t + 2 < (i32)ind->length; t += 3) {
+		if (tex->values->buffer[ind->buffer[t] * 2 + 1] < 0) {
+			out[n++] = ind->buffer[t];
+			out[n++] = ind->buffer[t + 1];
+			out[n++] = ind->buffer[t + 2];
+		}
+	}
+	if (count == 0) {
+		out[0] = out[1] = out[2] = 0;
+	}
+	gpu_index_buffer_unlock(v->sparks);
+	v->sparks_data    = data;
+	v->sparks_version = version;
+	return v->sparks;
+}
+
+// Smoke or fire object, added with its grid as the texture
+static bool render_path_raytrace_add_volume(mesh_object_t *po, i32 g) {
+	mesh_volume_t *v = nodes_mesh_is_volume(po) ? mesh_volume_get(po->base->uid) : NULL;
+	if (v == NULL || render_path_raytrace_volume_count >= VOLUME_MAX) {
+		return false;
+	}
+	if (v->texture == NULL || v->texture_version != v->version) {
+		if (v->texture != NULL) {
+			gpu_delete_texture(v->texture);
+		}
+		buffer_t b         = {.buffer = v->atlas, .length = v->width * v->height * 4};
+		v->texture         = gpu_create_texture_from_bytes_raw(&b, v->width, v->height, GPU_TEXTURE_FORMAT_RGBA32);
+		v->texture_version = v->version;
+	}
+	// Record of the volume for the shader, a texel per row, see vol_record in raytrace_brute
+	f32 color[3], sigma;
+	render_path_raytrace_volume_look(po, color, &sigma);
+	f32 rec[20] = {
+	    v->min[0],     v->min[1],     v->min[2],     v->cell,     // Grid corner, cell size
+	    v->n[0],       v->n[1],       v->n[2],       0.0f,        // Cells
+	    color[0],      color[1],      color[2],      sigma,       // Smoke
+	    v->box_min[0], v->box_min[1], v->box_min[2], v->emission, // Box around the gas, flame glow
+	    v->box_max[0], v->box_max[1], v->box_max[2], 0.0f,
+	};
+	if (v->record == NULL || memcmp(v->record_data, rec, sizeof(rec)) != 0) {
+		if (v->record != NULL) {
+			gpu_delete_texture(v->record);
+		}
+		memcpy(v->record_data, rec, sizeof(rec));
+		buffer_t b = {.buffer = (u8 *)v->record_data, .length = sizeof(rec)};
+		v->record  = gpu_create_texture_from_bytes_raw(&b, 5, 1, GPU_TEXTURE_FORMAT_RGBA128);
+	}
+	render_path_raytrace_volume_list |= (u32)g << (5 * render_path_raytrace_volume_count);
+	render_path_raytrace_volume_count++;
+	render_path_raytrace_volume_mask |= 1u << g;
+	gpu_texture_t *textures[3] = {v->texture, v->record, v->texture};
+	_gpu_raytrace_as_add(po->data->_->vertex_buffer, render_path_raytrace_volume_sparks(v, po->data), po->base->transform->world_unpack, textures);
+	return true;
+}
+
+// Sand and fire, the shader tells them apart by geometry
+static bool render_path_raytrace_special_visible() {
+	if (render_path_raytrace_is_bake) {
+		return false;
+	}
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
+		if (po->base->visible && (nodes_mesh_is_granular(po) || nodes_mesh_is_volume(po))) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool render_path_raytrace_overrides_changed() {
 	if (render_path_raytrace_sculpt_visible()) {
 		return false;
@@ -529,7 +681,11 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	}
 	render_path_raytrace_f32a->buffer[21] = g_context->envmap_angle;
 	render_path_raytrace_f32a->buffer[22] = render_path_raytrace_uv_scale;
-	render_path_raytrace_f32a->buffer[23] = render_path_raytrace_env_cdf != NULL ? 1.0f : 0.0f;
+	// Env sampling in bit 0, grain geometries above
+	render_path_raytrace_f32a->buffer[23] = (f32)((render_path_raytrace_env_cdf != NULL ? 1u : 0u) | (render_path_raytrace_grain_mask << 1));
+	render_path_raytrace_f32a->buffer[24] = (f32)render_path_raytrace_volume_mask;
+	render_path_raytrace_f32a->buffer[25] = (f32)render_path_raytrace_volume_count;
+	render_path_raytrace_f32a->buffer[26] = (f32)render_path_raytrace_volume_list;
 
 	if (render_path_base_buf_swapped) {
 		render_path_base_swap_buf("buf");
@@ -559,11 +715,17 @@ void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 	}
 
 	_gpu_raytrace_as_init();
+	render_path_raytrace_grain_mask     = 0;
+	render_path_raytrace_volume_mask    = 0;
+	render_path_raytrace_volume_list    = 0;
+	render_path_raytrace_volume_count   = 0;
+	render_path_raytrace_geometry_count = 0;
 
 	mesh_object_t *merged = g_context->merged_object;
 	bool           moving = render_path_raytrace_moving || tab_timeline_playing;
 	if (merged != NULL && (merged->base->visible || util_mesh_udim_active()) && !util_mesh_merged_stale &&
-	    (render_path_raytrace_sculpt_visible() || (!render_path_raytrace_overrides_visible() && !moving && !util_mesh_merged_partial()))) {
+	    (render_path_raytrace_sculpt_visible() ||
+	     (!render_path_raytrace_overrides_visible() && !moving && !util_mesh_merged_partial() && !render_path_raytrace_special_visible()))) {
 		render_path_raytrace_override_count = 0;
 		transform_t *t                      = merged->base->transform;
 		t->scale_world                      = merged->data->scale_pos;
@@ -576,6 +738,15 @@ void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 			mesh_object_t *po = g_project->_->paint_objects->buffer[i];
 			if (!po->base->visible) {
 				continue;
+			}
+			if (!render_path_raytrace_is_bake && po->data->_->index_buffer->count > 0) {
+				i32 g = render_path_raytrace_geometry_index(po->data->_->vertex_buffer);
+				if (g >= 0 && nodes_mesh_is_granular(po)) {
+					render_path_raytrace_grain_mask |= 1u << g;
+				}
+				if (g >= 0 && render_path_raytrace_add_volume(po, g)) {
+					continue;
+				}
 			}
 			i32 slot = render_path_raytrace_override_slot(po->data);
 			if (slot < 0) {
