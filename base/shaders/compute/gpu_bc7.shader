@@ -1,6 +1,5 @@
 // BC7 mode 6 encoder, a port of libs/bc7enc.c
 // One thread per 4x4 block (dispatched as ceil(blocks_x / 64) x blocks_y groups), rgba8 pixels in, 128-bit blocks out
-// Run gpu_bc7.sh after editing to regenerate vulkan_bc7.h and metal_bc7.h
 
 cbuffer constant_buffer {
 	float4 size; // width, height, blocks_x, blocks_y
