@@ -590,14 +590,22 @@ static void tab_timeline_sync_mesh_body(i32 mi, f32 dt) {
 	physics_body_move(body, dt);
 }
 
+// Placed by the simulation, keys do not apply
+static bool tab_timeline_mesh_dynamic(i32 mi) {
+	if (mi == TAB_TIMELINE_CAMERA) {
+		return false;
+	}
+	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
+	return body != NULL && body->mass > 0.0 && (body->shape == PHYSICS_SHAPE_BOX || body->shape == PHYSICS_SHAPE_SPHERE);
+}
+
 static bool tab_timeline_skip_mesh(i32 mi) {
 	if (tab_timeline_edit_stage != NULL)
 		return !tab_timeline_mesh_in_edit(mi);
 	if (mi == TAB_TIMELINE_CAMERA) {
 		return !tab_timeline_camera_enabled() || !tab_timeline_mesh_keyed(mi);
 	}
-	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
-	return body != NULL && body->mass > 0.0 && (body->shape == PHYSICS_SHAPE_BOX || body->shape == PHYSICS_SHAPE_SPHERE); // Dynamic
+	return tab_timeline_mesh_dynamic(mi);
 }
 
 static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
@@ -635,7 +643,7 @@ static void tab_timeline_mesh_moved() {
 
 static void tab_timeline_save_mesh_to_keyframes(i32 frame) {
 	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
-		if (!tab_timeline_mesh_in_edit(mi) || (mi == TAB_TIMELINE_CAMERA && !tab_timeline_camera_enabled()))
+		if (!tab_timeline_mesh_in_edit(mi) || (mi == TAB_TIMELINE_CAMERA && !tab_timeline_camera_enabled()) || tab_timeline_mesh_dynamic(mi))
 			continue;
 		i32 kfi = tab_timeline_find_mesh_keyframe(frame, mi);
 		if (kfi < 0) {
@@ -712,6 +720,31 @@ void tab_timeline_pose_meshes(f32 frame) {
 	tab_timeline_posing = true;
 	tab_timeline_load_mesh_keyframes(frame, false, frame);
 	tab_timeline_posing = false;
+}
+
+// Meshes moved by hand on a keyed frame keep the move before the simulation world poses them again
+void tab_timeline_keep_mesh_edits() {
+	if (tab_timeline_mesh_keyframes == NULL || tab_timeline_playing || tab_timeline_pending_to >= 0) {
+		return;
+	}
+	tab_timeline_save_mesh_to_keyframes(tab_timeline_last_frame);
+}
+
+// Changes when the keys of a mesh do, in any order
+u32 tab_timeline_mesh_keys_hash(i32 mi) {
+	u32 sum = 0;
+	for (i32 i = 0; tab_timeline_mesh_keyframes != NULL && i < tab_timeline_mesh_keyframes->length; i++) {
+		tab_timeline_mesh_keyframe_t *kf = tab_timeline_mesh_keyframes->buffer[i];
+		if (kf->mesh_index != mi || kf->stage != tab_timeline_key_stage(mi)) {
+			continue;
+		}
+		u32 h = 2166136261u;
+		h     = nodes_mesh_hash_bytes(h, &kf->frame, sizeof(i32));
+		h     = nodes_mesh_hash_bytes(h, &kf->tween, sizeof(bool));
+		h     = nodes_mesh_hash_bytes(h, &kf->transform, sizeof(mat4_t));
+		sum += h;
+	}
+	return sum;
 }
 
 static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
