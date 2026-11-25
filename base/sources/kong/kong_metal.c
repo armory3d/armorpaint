@@ -303,7 +303,14 @@ static bool      resource_writable[512];
 static bool      resource_readable[512];
 
 static bool uses_geometry(function *f) {
-	return calls_function(f, "ray_query_geometry") || calls_function(f, "ray_query_vertex");
+	static const char *names[] = {"ray_query_geometry",     "ray_query_vertex",       "geometry_texture0",      "geometry_texture1",
+	                              "geometry_texture2",      "geometry_texture0_size", "geometry_texture1_size", "geometry_texture2_size"};
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+		if (calls_function(f, names[i])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 static size_t function_resources(function *f, global_id *resources) {
