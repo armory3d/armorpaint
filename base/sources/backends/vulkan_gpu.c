@@ -43,6 +43,7 @@ static VkPhysicalDevice gpu;
 static VkDevice         device;
 static VkCommandPool    cmd_pool;
 static VkQueue          queue;
+static uint32_t         queue_family;
 #ifndef NDEBUG
 static bool                     validation_found;
 static VkDebugUtilsMessengerEXT debug_messenger;
@@ -55,17 +56,17 @@ static bool               window_vsync;
 static VkSurfaceKHR       surface;
 static VkSurfaceFormatKHR surface_format;
 
-static VkSwapchainKHR     swapchain;
-static VkImage            window_images[GPU_FRAMEBUFFER_COUNT];
-static bool               framebuffer_acquired = false;
-static bool               framebuffer_undefined[GPU_FRAMEBUFFER_COUNT];
-static bool               framebuffer_wait_pending = false;
-static VkBuffer           readback_buffer;
-static int                readback_buffer_size = 0;
-static VkDeviceMemory     readback_mem;
-static VkBuffer           upload_buffer;
-static uint32_t           upload_buffer_size = 0;
-static VkDeviceMemory     upload_mem;
+static VkSwapchainKHR swapchain;
+static VkImage        window_images[GPU_FRAMEBUFFER_COUNT];
+static bool           framebuffer_acquired = false;
+static bool           framebuffer_undefined[GPU_FRAMEBUFFER_COUNT];
+static bool           framebuffer_wait_pending = false;
+static VkBuffer       readback_buffer;
+static int            readback_buffer_size = 0;
+static VkDeviceMemory readback_mem;
+static VkBuffer       upload_buffer;
+static uint32_t       upload_buffer_size = 0;
+static VkDeviceMemory upload_mem;
 
 #define GPU_COMPUTE_MAX_TEXTURES   16
 #define GPU_COMPUTE_SETS_PER_FRAME 256
@@ -1002,6 +1003,7 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	}
 
 	vkGetDeviceQueue(device, graphics_queue_node_index, 0, &queue);
+	queue_family = graphics_queue_node_index;
 	vkGetPhysicalDeviceMemoryProperties(gpu, &memory_properties);
 	VkCommandPoolCreateInfo cmd_pool_info = {
 	    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1711,8 +1713,9 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 #ifdef WITH_BC7
 
 // Gpu bc7 encoder: rgba8 pixels in the upload buffer -> compute shader -> bc7 blocks buffer -> image
-// Bindings follow kong's declaration order in gpu_bc7.shader: constant buffer 0, src 1, dst 2
-#include "vulkan_bc7.h"
+// Bindings follow kong's declaration order in gpu_bc7.shader: constant buffer 0, src 1, dst 2. base/project.c compiles it
+buffer_t *iron_load_blob(char *file);
+void      iron_delete_blob(buffer_t *buffer);
 
 static bool                  bc7_compute_checked = false;
 static bool                  bc7_compute_ready   = false;
@@ -1777,13 +1780,21 @@ static bool bc7_compute_init() {
 	}
 	vkBindBufferMemory(device, bc7_constants, bc7_constants_mem, 0);
 
+	char path[512];
+	snprintf(path, sizeof(path), "%sgpu_bc7.spirv", data_path());
+	buffer_t *shader = iron_load_blob(path);
+	if (shader == NULL) {
+		return false;
+	}
 	VkShaderModuleCreateInfo module_info = {
 	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-	    .codeSize = sizeof(vulkan_bc7_spirv),
-	    .pCode    = vulkan_bc7_spirv,
+	    .codeSize = shader->length,
+	    .pCode    = (const uint32_t *)shader->buffer,
 	};
 	VkShaderModule shader_module;
-	if (vkCreateShaderModule(device, &module_info, NULL, &shader_module) != VK_SUCCESS) {
+	VkResult       result = vkCreateShaderModule(device, &module_info, NULL, &shader_module);
+	iron_delete_blob(shader);
+	if (result != VK_SUCCESS) {
 		return false;
 	}
 	VkComputePipelineCreateInfo pipeline_info = {
@@ -1797,7 +1808,7 @@ static bool bc7_compute_init() {
 	        },
 	    .layout = bc7_pipeline_layout,
 	};
-	VkResult result = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &bc7_pipeline);
+	result = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &bc7_pipeline);
 	vkDestroyShaderModule(device, shader_module, NULL);
 	if (result != VK_SUCCESS) {
 		return false;
@@ -2658,8 +2669,8 @@ bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *sha
 	        },
 	    .layout = compute_layout,
 	};
-	VkResult result = module != VK_NULL_HANDLE ? vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &impl->pipeline)
-	                                           : VK_ERROR_INITIALIZATION_FAILED;
+	VkResult result =
+	    module != VK_NULL_HANDLE ? vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &impl->pipeline) : VK_ERROR_INITIALIZATION_FAILED;
 	vkDestroyShaderModule(device, module, NULL);
 	if (result != VK_SUCCESS) {
 		gpu_compute_pipeline_destroy(pipeline);
@@ -2773,8 +2784,8 @@ static bool compute_make_storage(gpu_texture_t *texture) {
 	    .arrayLayers   = 1,
 	    .samples       = VK_SAMPLE_COUNT_1_BIT,
 	    .tiling        = VK_IMAGE_TILING_OPTIMAL,
-	    .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-	             VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+	    .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+		                 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
 	};
 	VkImage image;
 	if (vkCreateImage(device, &image_info, NULL, &image) != VK_SUCCESS) {
@@ -2807,26 +2818,26 @@ static bool compute_make_storage(gpu_texture_t *texture) {
 	VkImageView view;
 	vkCreateImageView(device, &view_info, NULL, &view);
 
-	VkImageSubresourceRange range       = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-	VkImageMemoryBarrier    to_copy[2]  = {
-        {
-            .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask    = VK_ACCESS_MEMORY_WRITE_BIT,
-            .dstAccessMask    = VK_ACCESS_TRANSFER_READ_BIT,
-            .oldLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .image            = old.impl.image,
-            .subresourceRange = range,
-        },
-        {
-            .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask    = 0,
-            .dstAccessMask    = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
-            .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .image            = image,
-            .subresourceRange = range,
-        },
+	VkImageSubresourceRange range      = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	VkImageMemoryBarrier    to_copy[2] = {
+	    {
+	        .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	        .srcAccessMask    = VK_ACCESS_MEMORY_WRITE_BIT,
+	        .dstAccessMask    = VK_ACCESS_TRANSFER_READ_BIT,
+	        .oldLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	        .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	        .image            = old.impl.image,
+	        .subresourceRange = range,
+	    },
+	    {
+	        .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	        .srcAccessMask    = 0,
+	        .dstAccessMask    = VK_ACCESS_TRANSFER_WRITE_BIT,
+	        .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
+	        .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	        .image            = image,
+	        .subresourceRange = range,
+	    },
 	};
 	vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 2, to_copy);
 	VkImageCopy region = {
@@ -2869,7 +2880,7 @@ static void compute_storage_barrier(gpu_texture_t *texture, bool to_storage) {
 }
 
 void gpu_compute_dispatch(uint32_t width, uint32_t height) {
-	gpu_compute_pipeline_impl_t *impl = compute_pipeline != NULL ? &compute_pipeline->impl : NULL;
+	gpu_compute_pipeline_impl_t *impl    = compute_pipeline != NULL ? &compute_pipeline->impl : NULL;
 	gpu_texture_t               *storage = NULL;
 	if (gpu_in_use) {
 		iron_error("Compute dispatch inside of a render pass");
@@ -3628,4 +3639,320 @@ void gpu_raytrace_dispatch_rays() {
 	vkCmdDispatch(command_buffer, group_count_x, group_count_y, 1);
 
 	set_image_layout(output->impl.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+// Storage buffer kernels
+#define STORAGE_RING_SIZE     (4 * 1024 * 1024)
+#define STORAGE_CONSTANTS_MAX 256
+
+typedef struct {
+	VkBuffer        buffer;
+	VkDeviceMemory  memory;
+	VkDescriptorSet set;
+	uint64_t        size;
+} storage_t;
+
+static int                   storage_state = 0; // 0 not initialized, 1 ready, 2 failed
+static VkDescriptorSetLayout storage_set_layout;
+static VkPipelineLayout      storage_pipeline_layout;
+static VkDescriptorPool      storage_pool;
+static VkCommandPool         storage_cmd_pool;
+static VkCommandBuffer       storage_cmd;
+static VkFence               storage_fence;
+static bool                  storage_recording = false;
+static VkPipeline            storage_bound     = VK_NULL_HANDLE;
+static VkBuffer              storage_ring;
+static VkDeviceMemory        storage_ring_mem;
+static uint8_t              *storage_ring_data;
+static uint32_t              storage_ring_offset = 0;
+static uint32_t              storage_ring_align  = 256;
+static VkBuffer              storage_staging;
+static VkDeviceMemory        storage_staging_mem;
+static uint8_t              *storage_staging_data;
+static uint64_t              storage_staging_size = 0;
+static uint64_t              storage_max_range;
+
+static bool storage_create_buffer(uint64_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags flags, VkBuffer *buffer, VkDeviceMemory *memory) {
+	VkBufferCreateInfo info = {
+	    .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .size        = size,
+	    .usage       = usage,
+	    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	};
+	if (vkCreateBuffer(device, &info, NULL, buffer) != VK_SUCCESS) {
+		return false;
+	}
+	VkMemoryRequirements reqs;
+	vkGetBufferMemoryRequirements(device, *buffer, &reqs);
+	VkMemoryAllocateInfo alloc = {
+	    .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+	    .allocationSize  = reqs.size,
+	    .memoryTypeIndex = memory_type_from_properties(reqs.memoryTypeBits, flags),
+	};
+	if (vkAllocateMemory(device, &alloc, NULL, memory) != VK_SUCCESS) {
+		vkDestroyBuffer(device, *buffer, NULL);
+		return false;
+	}
+	vkBindBufferMemory(device, *buffer, *memory, 0);
+	return true;
+}
+
+static bool storage_init() {
+	if (storage_state != 0) {
+		return storage_state == 1;
+	}
+	storage_state = 2;
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(gpu, &properties);
+	storage_max_range  = properties.limits.maxStorageBufferRange;
+	storage_ring_align = (uint32_t)properties.limits.minUniformBufferOffsetAlignment;
+	if (storage_ring_align < STORAGE_CONSTANTS_MAX) {
+		storage_ring_align = STORAGE_CONSTANTS_MAX;
+	}
+
+	VkDescriptorSetLayoutBinding    bindings[]  = {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+	                                               {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT}};
+	VkDescriptorSetLayoutCreateInfo layout_info = {
+	    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+	    .bindingCount = 2,
+	    .pBindings    = bindings,
+	};
+	if (vkCreateDescriptorSetLayout(device, &layout_info, NULL, &storage_set_layout) != VK_SUCCESS) {
+		return false;
+	}
+	VkPipelineLayoutCreateInfo pipeline_layout_info = {
+	    .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	    .setLayoutCount = 1,
+	    .pSetLayouts    = &storage_set_layout,
+	};
+	if (vkCreatePipelineLayout(device, &pipeline_layout_info, NULL, &storage_pipeline_layout) != VK_SUCCESS) {
+		return false;
+	}
+	VkDescriptorPoolSize       pool_sizes[] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 16}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16}};
+	VkDescriptorPoolCreateInfo pool_info    = {
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+	    .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+	    .maxSets       = 16,
+	    .poolSizeCount = 2,
+	    .pPoolSizes    = pool_sizes,
+	};
+	if (vkCreateDescriptorPool(device, &pool_info, NULL, &storage_pool) != VK_SUCCESS) {
+		return false;
+	}
+	VkCommandPoolCreateInfo cmd_pool_info = {
+	    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+	    .queueFamilyIndex = queue_family,
+	    .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+	};
+	if (vkCreateCommandPool(device, &cmd_pool_info, NULL, &storage_cmd_pool) != VK_SUCCESS) {
+		return false;
+	}
+	VkCommandBufferAllocateInfo cmd_info = {
+	    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+	    .commandPool        = storage_cmd_pool,
+	    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+	    .commandBufferCount = 1,
+	};
+	VkFenceCreateInfo fence_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+	if (vkAllocateCommandBuffers(device, &cmd_info, &storage_cmd) != VK_SUCCESS || vkCreateFence(device, &fence_info, NULL, &storage_fence) != VK_SUCCESS) {
+		return false;
+	}
+	if (!storage_create_buffer(STORAGE_RING_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storage_ring, &storage_ring_mem)) {
+		return false;
+	}
+	vkMapMemory(device, storage_ring_mem, 0, STORAGE_RING_SIZE, 0, (void **)&storage_ring_data);
+	storage_state = 1;
+	return true;
+}
+
+static void storage_begin() {
+	if (!storage_recording) {
+		VkCommandBufferBeginInfo begin_info = {
+		    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		};
+		vkBeginCommandBuffer(storage_cmd, &begin_info);
+		storage_recording = true;
+		storage_bound     = VK_NULL_HANDLE;
+	}
+}
+
+static void storage_flush() {
+	if (!storage_recording) {
+		return;
+	}
+	vkEndCommandBuffer(storage_cmd);
+	VkSubmitInfo submit_info = {
+	    .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .commandBufferCount = 1,
+	    .pCommandBuffers    = &storage_cmd,
+	};
+	vkQueueSubmit(queue, 1, &submit_info, storage_fence);
+	vkWaitForFences(device, 1, &storage_fence, VK_TRUE, UINT64_MAX);
+	vkResetFences(device, 1, &storage_fence);
+	storage_recording   = false;
+	storage_ring_offset = 0;
+}
+
+static void storage_barrier(VkPipelineStageFlags src_stage, VkAccessFlags src, VkPipelineStageFlags dst_stage, VkAccessFlags dst) {
+	VkMemoryBarrier barrier = {
+	    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+	    .srcAccessMask = src,
+	    .dstAccessMask = dst,
+	};
+	vkCmdPipelineBarrier(storage_cmd, src_stage, dst_stage, 0, 1, &barrier, 0, NULL, 0, NULL);
+}
+
+static bool storage_ensure_staging(uint64_t size) {
+	if (storage_staging_size >= size) {
+		return true;
+	}
+	if (storage_staging_size > 0) {
+		vkDestroyBuffer(device, storage_staging, NULL);
+		vkFreeMemory(device, storage_staging_mem, NULL);
+		storage_staging_size = 0;
+	}
+	if (!storage_create_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+	                           &storage_staging, &storage_staging_mem) &&
+	    !storage_create_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storage_staging, &storage_staging_mem)) {
+		return false;
+	}
+	vkMapMemory(device, storage_staging_mem, 0, size, 0, (void **)&storage_staging_data);
+	storage_staging_size = size;
+	return true;
+}
+
+void *gpu_kernel_create(const void *shader, int shader_size) {
+	if (!storage_init()) {
+		return NULL;
+	}
+	VkShaderModuleCreateInfo module_info = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .codeSize = shader_size,
+	    .pCode    = shader,
+	};
+	VkShaderModule module;
+	if (vkCreateShaderModule(device, &module_info, NULL, &module) != VK_SUCCESS) {
+		return NULL;
+	}
+	VkComputePipelineCreateInfo pipeline_info = {
+	    .sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+	    .stage  = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = module, .pName = "main"},
+	    .layout = storage_pipeline_layout,
+	};
+	VkPipeline *pipeline = malloc(sizeof(VkPipeline));
+	VkResult    result   = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, pipeline);
+	vkDestroyShaderModule(device, module, NULL);
+	if (result != VK_SUCCESS) {
+		free(pipeline);
+		return NULL;
+	}
+	return pipeline;
+}
+
+void *gpu_storage_create(uint64_t size) {
+	if (!storage_init() || size > storage_max_range) {
+		return NULL;
+	}
+	storage_t *s = calloc(1, sizeof(storage_t));
+	s->size      = size;
+	if (!storage_create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &s->buffer, &s->memory)) {
+		free(s);
+		return NULL;
+	}
+	VkDescriptorSetAllocateInfo alloc_info = {
+	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+	    .descriptorPool     = storage_pool,
+	    .descriptorSetCount = 1,
+	    .pSetLayouts        = &storage_set_layout,
+	};
+	if (vkAllocateDescriptorSets(device, &alloc_info, &s->set) != VK_SUCCESS) {
+		vkDestroyBuffer(device, s->buffer, NULL);
+		vkFreeMemory(device, s->memory, NULL);
+		free(s);
+		return NULL;
+	}
+	VkDescriptorBufferInfo infos[2]  = {{storage_ring, 0, STORAGE_CONSTANTS_MAX}, {s->buffer, 0, size}};
+	VkWriteDescriptorSet   writes[2] = {
+	    {.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		 .dstSet          = s->set,
+		 .dstBinding      = 0,
+		 .descriptorCount = 1,
+		 .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+		 .pBufferInfo     = &infos[0]},
+	    {.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		 .dstSet          = s->set,
+		 .dstBinding      = 1,
+		 .descriptorCount = 1,
+		 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		 .pBufferInfo     = &infos[1]},
+	};
+	vkUpdateDescriptorSets(device, 2, writes, 0, NULL);
+	return s;
+}
+
+void gpu_storage_destroy(void *storage) {
+	if (storage == NULL) {
+		return;
+	}
+	storage_t *s = storage;
+	storage_flush();
+	vkFreeDescriptorSets(device, storage_pool, 1, &s->set);
+	vkDestroyBuffer(device, s->buffer, NULL);
+	vkFreeMemory(device, s->memory, NULL);
+	free(s);
+}
+
+// Reads and writes wait for their copy, the staging buffer is free outside of them
+void gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size) {
+	storage_t *s = storage;
+	if (size == 0 || !storage_ensure_staging(size)) {
+		return;
+	}
+	memcpy(storage_staging_data, data, size);
+	storage_begin();
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+	                VK_ACCESS_TRANSFER_WRITE_BIT);
+	VkBufferCopy region = {0, offset, size};
+	vkCmdCopyBuffer(storage_cmd, storage_staging, s->buffer, 1, &region);
+	storage_barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+	storage_flush();
+}
+
+void gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size) {
+	storage_t *s = storage;
+	if (size == 0 || !storage_ensure_staging(size)) {
+		return;
+	}
+	storage_begin();
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+	VkBufferCopy region = {offset, 0, size};
+	vkCmdCopyBuffer(storage_cmd, s->buffer, storage_staging, 1, &region);
+	storage_flush();
+	memcpy(data, storage_staging_data, size);
+}
+
+void gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y) {
+	storage_t *s = storage;
+	if (storage_ring_offset + storage_ring_align > STORAGE_RING_SIZE) {
+		storage_flush();
+	}
+	uint32_t offset = storage_ring_offset;
+	memcpy(storage_ring_data + offset, constants, constants_size < STORAGE_CONSTANTS_MAX ? constants_size : STORAGE_CONSTANTS_MAX);
+	storage_ring_offset += storage_ring_align;
+	storage_begin();
+	VkPipeline pipeline = *(VkPipeline *)kernel;
+	if (pipeline != storage_bound) {
+		vkCmdBindPipeline(storage_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+		storage_bound = pipeline;
+	}
+	vkCmdBindDescriptorSets(storage_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, storage_pipeline_layout, 0, 1, &s->set, 1, &offset);
+	vkCmdDispatch(storage_cmd, groups_x, groups_y, 1);
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 }

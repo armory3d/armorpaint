@@ -368,10 +368,10 @@ void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth) {
 
 	gpu_texture_t *target      = current_render_targets[0];
 	WGPUColor      clear_value = {
-	         .r = ((color & 0x00ff0000) >> 16) / 255.0,
-	         .g = ((color & 0x0000ff00) >> 8) / 255.0,
-	         .b = ((color & 0x000000ff)) / 255.0,
-	         .a = ((color & 0xff000000) >> 24) / 255.0,
+	    .r = ((color & 0x00ff0000) >> 16) / 255.0,
+	    .g = ((color & 0x0000ff00) >> 8) / 255.0,
+	    .b = ((color & 0x000000ff)) / 255.0,
+	    .a = ((color & 0xff000000) >> 24) / 255.0,
 	};
 
 	for (size_t i = 0; i < current_render_targets_count; ++i) {
@@ -742,11 +742,11 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 		    pipeline->alpha_blend_destination != GPU_BLEND_ZERO) {
 			blend_states[i] = (WGPUBlendState){
 			    .color = {.srcFactor = convert_blend_factor(pipeline->blend_source),
-			              .dstFactor = convert_blend_factor(pipeline->blend_destination),
-			              .operation = WGPUBlendOperation_Add},
+				          .dstFactor = convert_blend_factor(pipeline->blend_destination),
+				          .operation = WGPUBlendOperation_Add},
 			    .alpha = {.srcFactor = convert_blend_factor(pipeline->alpha_blend_source),
-			              .dstFactor = convert_blend_factor(pipeline->alpha_blend_destination),
-			              .operation = WGPUBlendOperation_Add},
+				          .dstFactor = convert_blend_factor(pipeline->alpha_blend_destination),
+				          .operation = WGPUBlendOperation_Add},
 			};
 			color_targets[i].blend = &blend_states[i];
 		}
@@ -1220,8 +1220,8 @@ bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *sha
 	WGPUPipelineLayout            pipeline_layout      = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_desc);
 	WGPUShaderModule              module               = create_shader_module(source, shader_size);
 	WGPUComputePipelineDescriptor desc                 = {
-	                    .layout  = pipeline_layout,
-	                    .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
+	    .layout  = pipeline_layout,
+	    .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
 	};
 	impl->pipeline = wgpuDeviceCreateComputePipeline(device, &desc);
 	wgpuShaderModuleRelease(module);
@@ -1273,13 +1273,13 @@ static void compute_make_storage(gpu_texture_t *texture) {
 
 	WGPUTextureFormat     format = convert_image_format(texture->format);
 	WGPUTextureDescriptor image  = {
-	     .size          = {texture->width, texture->height, 1},
-	     .mipLevelCount = 1,
-	     .sampleCount   = 1,
-	     .dimension     = WGPUTextureDimension_2D,
-	     .format        = format,
-	     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_CopyDst |
-	              WGPUTextureUsage_StorageBinding,
+	    .size          = {texture->width, texture->height, 1},
+	    .mipLevelCount = 1,
+	    .sampleCount   = 1,
+	    .dimension     = WGPUTextureDimension_2D,
+	    .format        = format,
+	    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_CopyDst |
+		                 WGPUTextureUsage_StorageBinding,
 	};
 	texture->impl.texture = wgpuDeviceCreateTexture(device, &image);
 
@@ -1520,8 +1520,8 @@ static rt_variant_t *rt_get_variant(gpu_texture_format_t format) {
 
 	WGPUShaderModule              module = create_shader_module(source, strlen(source));
 	WGPUComputePipelineDescriptor desc   = {
-	      .layout  = v->pipeline_layout,
-	      .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
+	    .layout  = v->pipeline_layout,
+	    .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
 	};
 	v->pipeline = wgpuDeviceCreateComputePipeline(device, &desc);
 	wgpuShaderModuleRelease(module);
@@ -1905,12 +1905,12 @@ void gpu_raytrace_set_target(gpu_texture_t *output) {
 
 		WGPUTextureFormat     format = convert_image_format(output->format);
 		WGPUTextureDescriptor image  = {
-		     .size          = {output->width, output->height, 1},
-		     .mipLevelCount = 1,
-		     .sampleCount   = 1,
-		     .dimension     = WGPUTextureDimension_2D,
-		     .format        = format,
-		     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_StorageBinding,
+		    .size          = {output->width, output->height, 1},
+		    .mipLevelCount = 1,
+		    .sampleCount   = 1,
+		    .dimension     = WGPUTextureDimension_2D,
+		    .format        = format,
+		    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc | WGPUTextureUsage_StorageBinding,
 		};
 		output->impl.texture = wgpuDeviceCreateTexture(device, &image);
 
@@ -1942,12 +1942,12 @@ static void rt_update_prev(void) {
 
 	WGPUTextureFormat     format = convert_image_format(rt_prev_format);
 	WGPUTextureDescriptor image  = {
-	     .size          = {rt_prev_width, rt_prev_height, 1},
-	     .mipLevelCount = 1,
-	     .sampleCount   = 1,
-	     .dimension     = WGPUTextureDimension_2D,
-	     .format        = format,
-	     .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
+	    .size          = {rt_prev_width, rt_prev_height, 1},
+	    .mipLevelCount = 1,
+	    .sampleCount   = 1,
+	    .dimension     = WGPUTextureDimension_2D,
+	    .format        = format,
+	    .usage         = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst,
 	};
 	rt_prev                             = wgpuDeviceCreateTexture(device, &image);
 	WGPUTextureViewDescriptor view_desc = {
@@ -2048,4 +2048,159 @@ void gpu_raytrace_dispatch_rays() {
 	if (in_render_pass) {
 		restore_render_pass();
 	}
+}
+
+// Storage buffer kernels
+#define STORAGE_RING_SIZE  (4 * 1024 * 1024)
+#define STORAGE_RING_ALIGN 256
+#define STORAGE_MAX_SIZE   (128 * 1024 * 1024)
+
+typedef struct {
+	WGPUBuffer    buffer;
+	WGPUBindGroup group;
+} storage_t;
+
+static WGPUBindGroupLayout    storage_layout  = NULL;
+static WGPUCommandEncoder     storage_encoder = NULL;
+static WGPUComputePassEncoder storage_pass    = NULL;
+static WGPUComputePipeline    storage_bound   = NULL;
+static WGPUBuffer             storage_ring;
+static uint8_t               *storage_ring_data;
+static uint32_t               storage_ring_offset = 0;
+static WGPUBuffer             storage_readback;
+static uint64_t               storage_readback_size = 0;
+
+static void storage_init(void) {
+	if (storage_layout != NULL) {
+		return;
+	}
+	WGPUBindGroupLayoutEntry entries[2] = {
+	    {.binding = 0, .visibility = WGPUShaderStage_Compute, .buffer = {.type = WGPUBufferBindingType_Uniform, .hasDynamicOffset = true}},
+	    {.binding = 1, .visibility = WGPUShaderStage_Compute, .buffer = {.type = WGPUBufferBindingType_Storage}},
+	};
+	WGPUBindGroupLayoutDescriptor layout_desc = {.entryCount = 2, .entries = entries};
+	storage_layout                            = wgpuDeviceCreateBindGroupLayout(device, &layout_desc);
+	WGPUBufferDescriptor ring_desc            = {.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst, .size = STORAGE_RING_SIZE};
+	storage_ring                              = wgpuDeviceCreateBuffer(device, &ring_desc);
+	storage_ring_data                         = malloc(STORAGE_RING_SIZE);
+}
+
+static void storage_flush(void) {
+	if (storage_encoder == NULL) {
+		return;
+	}
+	if (storage_pass != NULL) {
+		wgpuComputePassEncoderEnd(storage_pass);
+		wgpuComputePassEncoderRelease(storage_pass);
+		storage_pass = NULL;
+	}
+	if (storage_ring_offset > 0) {
+		wgpuQueueWriteBuffer(queue, storage_ring, 0, storage_ring_data, storage_ring_offset);
+	}
+	WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(storage_encoder, NULL);
+	wgpuQueueSubmit(queue, 1, &command_buffer);
+	wgpuCommandBufferRelease(command_buffer);
+	wgpuCommandEncoderRelease(storage_encoder);
+	storage_encoder     = NULL;
+	storage_ring_offset = 0;
+}
+
+void *gpu_kernel_create(const void *shader, int shader_size) {
+	storage_init();
+	WGPUPipelineLayoutDescriptor  pipeline_layout_desc = {.bindGroupLayoutCount = 1, .bindGroupLayouts = &storage_layout};
+	WGPUPipelineLayout            pipeline_layout      = wgpuDeviceCreatePipelineLayout(device, &pipeline_layout_desc);
+	WGPUShaderModule              module               = create_shader_module(shader, shader_size);
+	WGPUComputePipelineDescriptor desc                 = {
+	    .layout  = pipeline_layout,
+	    .compute = {.module = module, .entryPoint = {.data = "main", .length = 4}},
+	};
+	WGPUComputePipeline pipeline = wgpuDeviceCreateComputePipeline(device, &desc);
+	wgpuShaderModuleRelease(module);
+	wgpuPipelineLayoutRelease(pipeline_layout);
+	return pipeline;
+}
+
+void *gpu_storage_create(uint64_t size) {
+	if (size > STORAGE_MAX_SIZE) {
+		return NULL;
+	}
+	storage_init();
+	storage_t           *s        = calloc(1, sizeof(storage_t));
+	WGPUBufferDescriptor desc     = {.usage = WGPUBufferUsage_Storage | WGPUBufferUsage_CopySrc | WGPUBufferUsage_CopyDst, .size = size};
+	s->buffer                     = wgpuDeviceCreateBuffer(device, &desc);
+	WGPUBindGroupEntry entries[2] = {
+	    {.binding = 0, .buffer = storage_ring, .size = STORAGE_RING_ALIGN},
+	    {.binding = 1, .buffer = s->buffer, .size = size},
+	};
+	WGPUBindGroupDescriptor group_desc = {.layout = storage_layout, .entryCount = 2, .entries = entries};
+	s->group                           = wgpuDeviceCreateBindGroup(device, &group_desc);
+	return s;
+}
+
+void gpu_storage_destroy(void *storage) {
+	if (storage == NULL) {
+		return;
+	}
+	storage_t *s = storage;
+	storage_flush();
+	wgpuBindGroupRelease(s->group);
+	wgpuBufferDestroy(s->buffer);
+	wgpuBufferRelease(s->buffer);
+	free(s);
+}
+
+// Queue writes land before the next submit, the dispatches recorded so far are submitted first
+void gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size) {
+	storage_t *s = storage;
+	storage_flush();
+	if (size > 0) {
+		wgpuQueueWriteBuffer(queue, s->buffer, offset, data, size);
+	}
+}
+
+void gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size) {
+	storage_t *s = storage;
+	if (size == 0) {
+		return;
+	}
+	storage_flush();
+	if (storage_readback_size < size) {
+		if (storage_readback_size > 0) {
+			wgpuBufferDestroy(storage_readback);
+			wgpuBufferRelease(storage_readback);
+		}
+		WGPUBufferDescriptor desc = {.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead, .size = size};
+		storage_readback          = wgpuDeviceCreateBuffer(device, &desc);
+		storage_readback_size     = size;
+	}
+	WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+	wgpuCommandEncoderCopyBufferToBuffer(encoder, s->buffer, offset, storage_readback, 0, size);
+	WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, NULL);
+	wgpuQueueSubmit(queue, 1, &command_buffer);
+	wgpuCommandBufferRelease(command_buffer);
+	wgpuCommandEncoderRelease(encoder);
+	wgpuBufferMapRead(storage_readback, 0, (uint32_t)size, data);
+}
+
+void gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y) {
+	storage_t *s = storage;
+	if (storage_ring_offset + STORAGE_RING_ALIGN > STORAGE_RING_SIZE) {
+		storage_flush();
+	}
+	uint32_t offset = storage_ring_offset;
+	memcpy(storage_ring_data + offset, constants, constants_size < STORAGE_RING_ALIGN ? constants_size : STORAGE_RING_ALIGN);
+	storage_ring_offset += STORAGE_RING_ALIGN;
+	if (storage_encoder == NULL) {
+		storage_encoder = wgpuDeviceCreateCommandEncoder(device, NULL);
+	}
+	if (storage_pass == NULL) {
+		storage_pass  = wgpuCommandEncoderBeginComputePass(storage_encoder, NULL);
+		storage_bound = NULL;
+	}
+	if (kernel != storage_bound) {
+		wgpuComputePassEncoderSetPipeline(storage_pass, kernel);
+		storage_bound = kernel;
+	}
+	wgpuComputePassEncoderSetBindGroup(storage_pass, 0, s->group, 1, &offset);
+	wgpuComputePassEncoderDispatchWorkgroups(storage_pass, groups_x, groups_y, 1);
 }

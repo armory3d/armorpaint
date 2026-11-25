@@ -256,6 +256,13 @@ void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture);
 void gpu_compute_set_constants(const void *data, int size);
 void gpu_compute_dispatch(uint32_t width, uint32_t height);
 
+void *gpu_kernel_create(const void *shader, int shader_size);
+void  gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y);
+void *gpu_storage_create(uint64_t size);
+void  gpu_storage_destroy(void *storage);
+void  gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size);
+void  gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size);
+
 bool gpu_raytrace_supported(void);
 void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader, int shader_size, gpu_buffer_t *constant_buffer);
 void gpu_raytrace_pipeline_destroy(gpu_raytrace_pipeline_t *pipeline);
