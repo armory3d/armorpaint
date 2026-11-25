@@ -103,6 +103,8 @@ typedef enum spirv_opcode {
 	SPIRV_OPCODE_BITWISE_AND               = 199,
 	SPIRV_OPCODE_DPDX                      = 207,
 	SPIRV_OPCODE_DPDY                      = 208,
+	SPIRV_OPCODE_ATOMIC_I_ADD              = 234,
+	SPIRV_OPCODE_ATOMIC_U_MAX              = 239,
 	SPIRV_OPCODE_LOOP_MERGE                = 246,
 	SPIRV_OPCODE_SELECTION_MERGE           = 247,
 	SPIRV_OPCODE_LABEL                     = 248,
@@ -441,7 +443,8 @@ static void section_buffer_put(instructions_buffer *buffer) {
 	X(asin) X(acos) X(atan) X(atan2) X(pow) X(sqrt) X(rsqrt) X(min) X(max) X(clamp) X(saturate) X(lerp) X(step) X(smoothstep) X(distance) \
 	X(cross) X(normalize) X(reflect) X(tan) X(log) X(exp) X(sign) X(trunc) X(sinh) X(cosh) X(tanh) X(radians) X(degrees) X(transpose) X(exp2) \
 	X(texture_size) X(ray_query_trace) X(ray_query_trace_any) X(ray_query_hit) X(ray_query_distance) X(ray_query_barycentrics) \
-	X(ray_query_front_face) X(ray_query_object_to_world) X(ray_query_geometry) X(ray_query_vertex)
+	X(ray_query_front_face) X(ray_query_object_to_world) X(ray_query_geometry) X(ray_query_vertex) X(asfloat) X(asuint) X(atomic_add) \
+	X(atomic_max)
 // clang-format on
 
 enum {
@@ -784,6 +787,7 @@ static spirv_id convert_pointer_type_to_spirv_id(type_id type, storage_class sto
 static void write_base_types(instructions_buffer *buffer) {
 	void_type          = write_type_void(buffer);
 	void_function_type = write_type_function(buffer, void_type, NULL, 0);
+	add_to_type_map(void_id, void_type, false, STORAGE_CLASS_NONE); // Return type of helper functions
 
 	spirv_float_type = write_type_float(buffer, 32);
 	add_to_type_map(float_id, spirv_float_type, false, STORAGE_CLASS_NONE);
@@ -1512,6 +1516,17 @@ static spirv_id write_op_convert_f_to_u(instructions_buffer *instructions, spirv
 	return result;
 }
 
+// Device scope, relaxed: kernels are ordered by barriers between dispatches
+static spirv_id write_op_atomic(instructions_buffer *instructions, spirv_opcode opcode, spirv_id result_type, spirv_id pointer, spirv_id value) {
+	spirv_id result = allocate_index();
+
+	uint32_t operands[] = {result_type.id, result.id, pointer.id, get_uint_constant(1).id, get_uint_constant(0).id, value.id};
+
+	write_instruction(instructions, WORD_COUNT(operands), opcode, operands);
+
+	return result;
+}
+
 static spirv_id write_op_bitcast(instructions_buffer *instructions, spirv_id result_type, spirv_id operand) {
 	spirv_id result = allocate_index();
 
@@ -1902,9 +1917,11 @@ static bool is_global_const(uint64_t index) {
 	return false;
 }
 
+static spirv_id get_var(instructions_buffer *instructions, variable param);
+
 // uint name[]: access chain to element index of the runtime array in member 0
 static spirv_id storage_buffer_element(instructions_buffer *instructions, uint64_t var_index, variable index) {
-	spirv_id indices[2] = {get_int_constant(0), convert_kong_index_to_spirv_id(index.index)};
+	spirv_id indices[2] = {get_int_constant(0), get_var(instructions, index)};
 	return write_op_access_chain(instructions, storage_buffer_uint_pointer_type, convert_kong_index_to_spirv_id(var_index), indices, 2);
 }
 
@@ -2500,6 +2517,16 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			else if (func == BUILTIN(length)) {
 				spirv_id operand = get_var(instructions, o->op_call.parameters[0]);
 				spirv_id id      = write_op_ext_inst(instructions, spirv_float_type, glsl_import, SPIRV_GLSL_STD_LENGTH, operand);
+				hmput(index_map, o->op_call.var.index, id);
+			}
+			else if (func == BUILTIN(asfloat) || func == BUILTIN(asuint)) {
+				spirv_id id = write_op_bitcast(instructions, func == BUILTIN(asfloat) ? spirv_float_type : spirv_uint_type, get_var(instructions, o->op_call.parameters[0]));
+				hmput(index_map, o->op_call.var.index, id);
+			}
+			else if (func == BUILTIN(atomic_add) || func == BUILTIN(atomic_max)) {
+				spirv_id pointer = storage_buffer_element(instructions, o->op_call.parameters[0].index, o->op_call.parameters[1]);
+				spirv_id id      = write_op_atomic(instructions, func == BUILTIN(atomic_add) ? SPIRV_OPCODE_ATOMIC_I_ADD : SPIRV_OPCODE_ATOMIC_U_MAX, spirv_uint_type,
+				                                   pointer, get_var(instructions, o->op_call.parameters[2]));
 				hmput(index_map, o->op_call.var.index, id);
 			}
 			else if (func == BUILTIN(abs)) {

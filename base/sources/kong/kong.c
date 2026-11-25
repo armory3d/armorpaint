@@ -1931,6 +1931,17 @@ static void add_raytrace_funcs(void) {
 	add_func_types("geometry_texture2_size", "uint2", geometry, 1);
 }
 
+// Bit casts, and atomics on an element of a uint[] storage buffer: atomic_add(buffer, index, value) returns the old value
+static void add_compute_funcs(void) {
+	char *u[]      = {"uint"};
+	char *f[]      = {"float"};
+	char *atomic[] = {"uint", "uint", "uint"};
+	add_func_types("asfloat", "float", u, 1);
+	add_func_types("asuint", "uint", f, 1);
+	add_func_types("atomic_add", "uint", atomic, 3);
+	add_func_types("atomic_max", "uint", atomic, 3);
+}
+
 void functions_init(void) {
 	function     *new_functions = realloc(functions, functions_size * sizeof(function));
 	debug_context context       = {0};
@@ -2409,6 +2420,7 @@ void functions_init(void) {
 	add_func_float_float("ddy");
 	add_func_float3x3_float3x3("transpose");
 	add_raytrace_funcs();
+	add_compute_funcs();
 }
 
 static void grow_functions_if_needed(uint64_t size) {

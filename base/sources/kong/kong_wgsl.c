@@ -293,7 +293,8 @@ static void write_globals(char *wgsl, size_t *offset, function *main, bool *fram
 		type   *t         = get_type(g->type);
 		type_id base_type = t->array_size > 0 ? t->base : g->type;
 		if (base_type == float_id) {
-			*offset += sprintf(&wgsl[*offset], "const _%" PRIu64 ": f32 = %f;\n\n", g->var_index, g->value.value.floats[0]);
+			char number[64];
+			*offset += sprintf(&wgsl[*offset], "const _%" PRIu64 ": f32 = %s;\n\n", g->var_index, cstyle_float(number, g->value.value.floats[0]));
 		}
 	}
 
@@ -601,6 +602,11 @@ static void write_compute_globals(char *wgsl, size_t *offset, function *main) {
 				uses_bvh = true;
 				binding += 1;
 			}
+			else if (is_storage_buffer(g->type)) {
+				// Atomic, WGSL has no plain access to an atomic array: loads and stores of it are atomic too
+				*offset += sprintf(&wgsl[*offset], "@group(0) @binding(%u) var<storage, read_write> _set0_%" PRIu64 ": array<atomic<u32>>;\n\n", binding, var);
+				binding += 1;
+			}
 			else if (t->built_in) {
 				check(t->array_size == 0, context, "Storage buffers are not supported in WGSL compute shaders");
 			}
@@ -645,7 +651,15 @@ static bool write_compute_builtin(char *code, size_t *offset, opcode *o, functio
 	char    *name   = get_name(func);
 	char    *result = type_string(o->op_call.var.type.type);
 
-	if (func == add_name("texture_size")) {
+	if (func == add_name("asfloat") || func == add_name("asuint")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = bitcast<%s>(_%" PRIu64 ");\n", var, result, result, p0);
+	}
+	else if (func == add_name("atomic_add") || func == add_name("atomic_max")) {
+		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": u32 = %s(&%s[_%" PRIu64 "], _%" PRIu64 ");\n", var,
+		                   func == add_name("atomic_add") ? "atomicAdd" : "atomicMax", get_var(o->op_call.parameters[0], f, main).str, p1,
+		                   o->op_call.parameters[2].index);
+	}
+	else if (func == add_name("texture_size")) {
 		*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = textureDimensions(%s);\n", var, result, get_var(o->op_call.parameters[0], f, main).str);
 	}
 	else if (func == add_name("ray_query_trace") || func == add_name("ray_query_trace_any")) {
@@ -927,6 +941,11 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str,
 					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str);
 				}
+				else if (o->op_load_access_list.from.kind == VARIABLE_GLOBAL && is_storage_buffer(from_type)) {
+					kong_assert(o->op_load_access_list.access_list_size == 1);
+					*offset += sprintf(&code[*offset], "var %s: u32 = atomicLoad(&%s[_%" PRIu64 "]);\n", get_var(o->op_load_access_list.to, f, main).str,
+					                   get_var(o->op_load_access_list.from, f, main).str, o->op_load_access_list.access_list[0].access_element.index.index);
+				}
 				else {
 					*offset += sprintf(&code[*offset], "var %s: %s = %s", get_var(o->op_load_access_list.to, f, main).str,
 					                   type_string(o->op_load_access_list.to.type.type), get_var(o->op_load_access_list.from, f, main).str);
@@ -980,6 +999,12 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					*offset += sprintf(&code[*offset], "textureStore(%s, vec2<u32>(u32(_%" PRIu64 ".x), u32(_%" PRIu64 ".y)), _%" PRIu64 ");\n",
 					                   get_var(o->op_store_access_list.to, f, main).str, o->op_store_access_list.access_list[0].access_element.index.index,
 					                   o->op_store_access_list.access_list[0].access_element.index.index, o->op_store_access_list.from.index);
+				}
+				else if (o->op_store_access_list.to.kind == VARIABLE_GLOBAL && is_storage_buffer(to_type)) {
+					kong_assert(o->type == OPCODE_STORE_ACCESS_LIST);
+					kong_assert(o->op_store_access_list.access_list_size == 1);
+					*offset += sprintf(&code[*offset], "atomicStore(&%s[_%" PRIu64 "], %s);\n", get_var(o->op_store_access_list.to, f, main).str,
+					                   o->op_store_access_list.access_list[0].access_element.index.index, get_var(o->op_store_access_list.from, f, main).str);
 				}
 				else {
 					*offset += sprintf(&code[*offset], "%s", get_var(o->op_store_access_list.to, f, main).str);
@@ -1139,11 +1164,13 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				write_binary(code, offset, o, ">>", indentation);
 				break;
 			}
-			case OPCODE_LOAD_FLOAT_CONSTANT:
+			case OPCODE_LOAD_FLOAT_CONSTANT: {
+				char number[64];
 				indent(code, offset, indentation);
-				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %f;\n", o->op_load_float_constant.to.index,
-				                   type_string(o->op_load_float_constant.to.type.type), o->op_load_float_constant.number);
+				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %s;\n", o->op_load_float_constant.to.index,
+				                   type_string(o->op_load_float_constant.to.type.type), cstyle_float(number, o->op_load_float_constant.number));
 				break;
+			}
 			case OPCODE_LOAD_INT_CONSTANT:
 				indent(code, offset, indentation);
 				*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %i;\n", o->op_load_int_constant.to.index,
@@ -1261,7 +1288,12 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					}
 
 					indent(code, offset, indentation);
-					*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %s(", o->op_call.var.index, type_string(o->op_call.var.type.type), func_name);
+					if (o->op_call.var.type.type == void_id) {
+						*offset += sprintf(&code[*offset], "%s(", func_name);
+					}
+					else {
+						*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %s(", o->op_call.var.index, type_string(o->op_call.var.type.type), func_name);
+					}
 					if (o->op_call.parameters_size > 0) {
 						*offset += sprintf(&code[*offset], "_%" PRIu64, o->op_call.parameters[0].index);
 						for (uint8_t i = 1; i < o->op_call.parameters_size; ++i) {
@@ -1389,7 +1421,8 @@ char *wgsl_export_compute(void) {
 	write_compute_globals(wgsl, &offset, kernel);
 	write_functions(wgsl, &offset, SHADER_STAGE_COMPUTE, kernel);
 
-	compute_export = false;
+	compute_export     = false;
+	compute_target_var = UINT64_MAX; // Not to match a variable of the next shader
 	return wgsl;
 }
 

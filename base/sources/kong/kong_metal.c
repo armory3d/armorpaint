@@ -450,7 +450,16 @@ static bool write_compute_builtin(char *code, size_t *offset, opcode *o) {
 	uint64_t p1   = o->op_call.parameters[1].index;
 	char    *name = get_name(func);
 
-	if (func == add_name("texture_size")) {
+	if (func == add_name("asfloat") || func == add_name("asuint")) {
+		char *t = func == add_name("asfloat") ? "float" : "uint";
+		*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = as_type<%s>(_%" PRIu64 ");\n", t, var, t, p0);
+	}
+	else if (func == add_name("atomic_add") || func == add_name("atomic_max")) {
+		// On an element of a device uint *, viewed as an atomic
+		*offset += sprintf(&code[*offset], "uint _%" PRIu64 " = %s((device atomic_uint *)&_%" PRIu64 "[_%" PRIu64 "], _%" PRIu64 ", memory_order_relaxed);\n", var,
+		                   func == add_name("atomic_add") ? "atomic_fetch_add_explicit" : "atomic_fetch_max_explicit", p0, p1, o->op_call.parameters[2].index);
+	}
+	else if (func == add_name("texture_size")) {
 		*offset += sprintf(&code[*offset], "uint2 _%" PRIu64 " = uint2(_%" PRIu64 ".get_width(), _%" PRIu64 ".get_height());\n", var, p0, p0);
 	}
 	else if (func == add_name("ray_query_trace") || func == add_name("ray_query_trace_any")) {
