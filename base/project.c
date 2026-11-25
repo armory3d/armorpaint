@@ -177,6 +177,7 @@ project_t *main() {
 
 	if (flags->with_physics) {
 		add_define(project, "WITH_PHYSICS");
+		add_shader(project, "shaders/compute/gpu_sim.shader", "gpu_sim", graphics == GRAPHICS_WEBGPU ? "_QUEUE_AHEAD" : "");
 	}
 
 	if (flags->with_raytrace) {
@@ -228,6 +229,9 @@ project_t *main() {
 	if (flags->with_bc7) {
 		add_define(project, "WITH_BC7");
 		add_cfiles(project, "sources/libs/bc7enc.c");
+		if (graphics != GRAPHICS_WEBGPU) {
+			add_shader(project, "shaders/compute/gpu_bc7.shader", "gpu_bc7", "");
+		}
 	}
 
 	if (flags->with_gamepad) {

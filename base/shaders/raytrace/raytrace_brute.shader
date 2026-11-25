@@ -4,6 +4,9 @@
 #define _SUBSURFACE
 #define _TRANSLUCENCY
 #define _ROULETTE
+#define _GRAINS
+#define _GRAIN_BOUNCE_LIMIT // Faster sand
+#define _VOLUMES
 #endif
 #define _ENV_SAMPLING
 
@@ -16,7 +19,8 @@
 cbuffer constant_buffer {
 	float4   eye; // xyz, frame
 	float4x4 inv_vp;
-	float4   params; // envstr, envangle, uvscale, env sampling enabled
+	float4   params; // envstr, envangle, uvscale, env sampling enabled in bit 0 | grain geometries as a bit per geometry above
+	float4   params2; // volume geometries as a bit per geometry, volume count, their geometry indices 5 bits each
 };
 
 bvh     scene;
@@ -401,8 +405,12 @@ float4 sample_env(float u1, float u2) {
 	return float4(env_dir(uv), pdf);
 }
 
+bool env_sampling() {
+	return (int(constant_buffer.params.w) & 1) != 0;
+}
+
 float env_pdf(float3 dir) {
-	if (constant_buffer.params.w == 0.0) {
+	if (!env_sampling()) {
 		return 0.0;
 	}
 	float2 uv      = equirect(dir, constant_buffer.params.y);
@@ -423,6 +431,14 @@ uint hash_u32(uint x) {
 	x = x * uint(668265261);
 	x = x ^ (x >> uint(15));
 	return x;
+}
+
+uint pixel_hash(uint2 pixel_coord, int sample_index, int dim) {
+	return hash_u32(pixel_coord.x ^ hash_u32(pixel_coord.y ^ hash_u32(uint(sample_index) ^ hash_u32(uint(dim)))));
+}
+
+float hash_unorm(uint h) {
+	return float(h >> uint(8)) / 16777216.0;
 }
 
 float rnd_fine(uint2 pixel_coord, int sample_index, int dim, sampler_cache cache, int frame) {
@@ -476,6 +492,414 @@ bool occluded(float3 origin, float3 dir) {
 }
 #endif
 
+#ifdef _GRAINS
+const float GRAIN_CELL   = 0.004; // Grain spacing in world units
+const float GRAIN_TOP    = 0.002; // Highest grain point above the plane, half a cell
+const int   GRAIN_STEPS  = 64;    // Half cells walked before a ray is lost in the packing
+#ifdef _GRAIN_BOUNCE_LIMIT
+const int GRAIN_BOUNCES = 3; // Grains a path scatters off, the last one only gathers direct light
+#endif
+const float GRAIN_BOTTOM = 0.04;  // Rays this far below the plane are lost
+
+struct grain_hit {
+	float3 pos;
+	float3 nor;
+	uint   id;
+	int    state; // 0 lost, 1 grain hit, 2 left the packing, above the plane or at the limit
+};
+
+uint grain_hash(float3 cell) {
+	return hash_u32(uint(int(cell.x)) ^ hash_u32(uint(int(cell.y)) ^ hash_u32(uint(int(cell.z)) ^ uint(1013904223))));
+}
+
+// Distance to the grain of a cell along the ray, -1 on miss; normal in xyz
+float4 grain_intersect(float3 cell, float3 o, float3 d, float3 p0, float3 pn) {
+	// Two hashes sliced into the grain's random values, 10 bits for the center, 8 for the rest
+	uint   h      = grain_hash(cell);
+	float3 jitter = float3(float(h & uint(1023)), float((h >> uint(10)) & uint(1023)), float((h >> uint(20)) & uint(1023)));
+	float3 center = (cell + (jitter + 0.5) / 1024.0) * GRAIN_CELL;
+	if (dot(center - p0, pn) > 0.0) {
+		return float4(0.0, 0.0, 0.0, -1.0);
+	}
+	uint  h1     = hash_u32(h);
+	float radius = GRAIN_CELL * (0.38 + 0.12 * float(h1 & uint(255)) / 255.0);
+
+	// Bounding sphere first, most candidates miss
+	float3 oc = o - center;
+	float  bs = dot(oc, d);
+	float  cs = dot(oc, oc) - radius * radius;
+	if (bs * bs - dot(d, d) * cs < 0.0 || (cs > 0.0 && bs > 0.0)) {
+		return float4(0.0, 0.0, 0.0, -1.0);
+	}
+
+	// Squashed along a random axis: x + k (x.a) a maps the ellipsoid to a sphere of the radius
+	float  az   = float((h1 >> uint(8)) & uint(255)) / 127.5 - 1.0;
+	float  aphi = PI2 * float((h1 >> uint(16)) & uint(255)) / 256.0;
+	float  ar   = sqrt(max(0.0, 1.0 - az * az));
+	float3 axis = float3(ar * cos(aphi), ar * sin(aphi), az);
+	float  k    = 1.0 / (0.55 + 0.45 * float(h1 >> uint(24)) / 255.0) - 1.0;
+
+	float3 os   = oc + axis * (k * dot(oc, axis));
+	float3 ds   = d + axis * (k * dot(d, axis));
+	float  a    = dot(ds, ds);
+	float  b    = dot(os, ds);
+	float  c    = dot(os, os) - radius * radius;
+	float  disc = b * b - a * c;
+	if (disc < 0.0) {
+		return float4(0.0, 0.0, 0.0, -1.0);
+	}
+	float t = (-b - sqrt(disc)) / a;
+	if (t < 0.0) {
+		return float4(0.0, 0.0, 0.0, -1.0);
+	}
+	float3 ps = os + ds * t;
+	float3 nr = normalize(ps + axis * (k * dot(ps, axis)));
+	return float4(nr, t);
+}
+
+grain_hit trace_grains(float3 o, float3 d, float3 p0, float3 pn, bool any, float t_limit) {
+	float  hc   = GRAIN_CELL * 0.5;
+	float3 half = floor(o / hc);
+	float3 stp  = step(float3(0.0, 0.0, 0.0), d) * 2.0 - 1.0;
+	float3 ad     = max(abs(d), float3(0.0000001, 0.0000001, 0.0000001));
+	float3 tdelta = float3(hc, hc, hc) / ad;
+	float3 bound  = (half + max(stp, float3(0.0, 0.0, 0.0))) * hc;
+	float3 tmax   = (bound - o) * stp / ad;
+	float  rise   = dot(d, pn);
+
+	grain_hit result;
+	result.pos   = o;
+	result.nor   = pn;
+	result.id    = uint(0);
+	result.state = 0;
+
+	// Nearest hit among the candidates, kept while the next half cells share them: every other step on an axis does
+	float3 last_lo = float3(0.5, 0.5, 0.5); // No lattice cell
+	float  near_t  = 1000000.0;
+	float3 near_n  = pn;
+	float3 near_c  = float3(0.0, 0.0, 0.0);
+
+	float t_enter = 0.0;
+	for (int s = 0; s < GRAIN_STEPS; s += 1) {
+		float t_exit = min(min(tmax.x, tmax.y), tmax.z);
+
+		// Cells whose grain can reach into this half cell
+		float3 full = floor(half * 0.5);
+		float3 lo   = full - float3(1.0, 1.0, 1.0) + (half - full * 2.0);
+		if (lo.x != last_lo.x || lo.y != last_lo.y || lo.z != last_lo.z) {
+			last_lo = lo;
+			near_t  = 1000000.0;
+			for (int k = 0; k < 8; k += 1) {
+				float3 cell = lo + float3(float(k & 1), float((k >> 1) & 1), float((k >> 2) & 1));
+				float4 g    = grain_intersect(cell, o, d, p0, pn);
+				if (g.w >= 0.0) {
+					if (any && g.w <= t_limit) {
+						result.state = 1;
+						return result;
+					}
+					if (g.w >= t_enter - 0.000001 && g.w < near_t) {
+						near_t = g.w;
+						near_n = g.xyz;
+						near_c = cell;
+					}
+				}
+			}
+		}
+		if (near_t <= min(t_exit, t_limit) + 0.000001) {
+			result.pos   = o + d * near_t;
+			result.nor   = near_n;
+			result.id    = grain_hash(near_c);
+			result.state = 1;
+			return result;
+		}
+
+		if (t_exit >= t_limit) {
+			result.pos   = o + d * t_limit;
+			result.state = 2;
+			return result;
+		}
+
+		float3 p = o + d * t_exit;
+		float  h = dot(p - p0, pn);
+		if (rise > 0.0 && h > GRAIN_TOP) {
+			result.pos   = p;
+			result.state = 2;
+			return result;
+		}
+		if (h + GRAIN_BOTTOM < 0.0) {
+			return result;
+		}
+
+		if (tmax.x < tmax.y && tmax.x < tmax.z) {
+			half.x += stp.x;
+			tmax.x += tdelta.x;
+		}
+		else if (tmax.y < tmax.z) {
+			half.y += stp.y;
+			tmax.y += tdelta.y;
+		}
+		else {
+			half.z += stp.z;
+			tmax.z += tdelta.z;
+		}
+		t_enter = t_exit;
+	}
+
+	// Skimming along the surface, out in the open
+	float3 p = o + d * t_enter;
+	if (dot(p - p0, pn) > 0.0) {
+		result.pos   = p;
+		result.state = 2;
+	}
+	return result;
+}
+
+// Whether the ray crosses the hit triangle from inside, the geometric normal facing the way of the vertex normals
+bool leaving_mesh(uint4 a0, uint4 a1, uint4 a2, float2 barycentrics, float3x3 obj_to_world, float3 dir) {
+	float2 zw0 = s16_to_f32(a0.y);
+	float2 zw1 = s16_to_f32(a1.y);
+	float2 zw2 = s16_to_f32(a2.y);
+	float3 vp0 = float3(s16_to_f32(a0.x), zw0.x);
+	float3 vp1 = float3(s16_to_f32(a1.x), zw1.x);
+	float3 vp2 = float3(s16_to_f32(a2.x), zw2.x);
+	float3 n   = hit_attribute(float3(s16_to_f32(a0.z), zw0.y), float3(s16_to_f32(a1.z), zw1.y), float3(s16_to_f32(a2.z), zw2.y), barycentrics);
+	float3 ng  = cross(vp1 - vp0, vp2 - vp0);
+	if (dot(ng, n) < 0.0) {
+		ng = -ng;
+	}
+	return dot(obj_to_world * ng, dir) > 0.0;
+}
+
+// Nearest texel the material was drawn to: slivers of the projected uvs can miss every texel center
+uint2 drawn_texel(uint g, uint2 texel, uint2 size) {
+	if (geometry_texture0(g, texel).a > 0.0) {
+		return texel;
+	}
+	for (int ring = 1; ring < 4; ring += 1) {
+		for (int y = -ring; y <= ring; y += 1) {
+			for (int x = -ring; x <= ring; x += 1) {
+				if (abs(x) == ring || abs(y) == ring) {
+					int2  c = int2(int(texel.x) + x, int(texel.y) + y);
+					uint2 t = uint2(uint(clamp_int(c.x, 0, int(size.x) - 1)), uint(clamp_int(c.y, 0, int(size.y) - 1)));
+					if (geometry_texture0(g, t).a > 0.0) {
+						return t;
+					}
+				}
+			}
+		}
+	}
+	return texel;
+}
+
+bool grain_geometry(uint g) {
+	if (g > uint(21)) {
+		return false;
+	}
+	return ((int(constant_buffer.params.w) >> (int(g) + 1)) & 1) != 0;
+}
+
+// Mineral mix around the material color: mostly quartz and feldspar tones, some white, iron stained and dark grains
+float3 grain_color(float3 base, uint id) {
+	float  u1 = hash_unorm(hash_u32(id + uint(11)));
+	float  u2 = hash_unorm(hash_u32(id + uint(12)));
+	float  u3 = hash_unorm(hash_u32(id + uint(13)));
+	float3 c  = base * (0.7 + 0.6 * u1);
+	c         = lerp(c, float3(luma(c), luma(c), luma(c)), 0.3 * u3);
+	if (u2 < 0.06) {
+		float l = luma(base) * (0.1 + 0.15 * u3);
+		c       = float3(l, l, l * 0.95);
+	}
+	else if (u2 < 0.16) {
+		c = lerp(c, float3(0.92, 0.9, 0.86), 0.6);
+	}
+	else if (u2 < 0.26) {
+		c = c * float3(1.12, 0.8, 0.6);
+	}
+	return saturate(c);
+}
+#endif
+
+#ifdef _VOLUMES
+const int   VOLUME_MAX          = 4;
+const int   VOLUME_STEPS        = 128;  // Most samples per segment
+const int   VOLUME_ITERS        = 192;  // Samples and skips of empty blocks per segment
+const float VOLUME_BLOCK        = 4.0;  // Cells per side of the blocks marked empty in blue, MESH_VOLUME_BLOCK
+const float VOLUME_DENSITY      = 3.0;  // Optical depth scale of the gas at full density
+const float FIRE_EMISSION_SCALE = 1000.0;
+const float FIRE_LEVEL          = 0.04; // Flame where it starts to glow, full heat 16 times that
+const float VOLUME_PHASE        = 0.0795775; // Isotropic scattering, 1 / (4 pi)
+
+bool volume_geometry(uint g) {
+	if (g > uint(23)) {
+		return false;
+	}
+	return ((int(constant_buffer.params2.x) >> int(g)) & 1) != 0;
+}
+
+// Geometry of a volume, its texture 1 holds the record of the volume, a texel per row:
+// grid corner xyz, cell size | cells xyz | transmittance per unit of distance rgb, scattering | box around the gas min xyz,
+// flame glow per unit of distance | box max xyz
+uint vol_geometry(int v) {
+	return (uint(constant_buffer.params2.z) >> uint(v * 5)) & uint(31);
+}
+
+float4 vol_record(uint g, int row) {
+	return geometry_texture1(g, uint2(uint(row), uint(0)));
+}
+
+float3 fire_color(float heat) {
+	float k = 1300.0 + 1000.0 * saturate(heat);
+	return float3(0.5961, 1.0, 2.3149) * exp(float3(11.3739, 11.3739, 11.3739) - float3(23586.9, 26160.0, 30941.9) / k);
+}
+
+float4 volume_cell(uint g, int i, int j, int k, int nx, int ny, int tiles) {
+	uint2 t = uint2(uint((k % tiles) * nx + i), uint((k / tiles) * ny + j));
+	return geometry_texture0(g, t);
+}
+
+struct volume_path {
+	float3 emission; // Glow reaching the start of the segment
+	float3 trans;    // Transmittance up to the end, or to the scattering
+	float  t;        // Where it scatters
+	int    state;    // 0 passed, 1 scattered, 2 absorbed
+};
+
+volume_path volume_march(float3 o, float3 d, float seg, float tau_target, float jitter, float step_cells, uint seed, bool shadow) {
+	volume_path res;
+	res.emission = float3(0.0, 0.0, 0.0);
+	res.trans    = float3(1.0, 1.0, 1.0);
+	res.t        = seg;
+	res.state    = 0;
+
+	float3 dd = d;
+	if (abs(dd.x) < 0.00000001) {
+		dd.x = 0.00000001;
+	}
+	if (abs(dd.y) < 0.00000001) {
+		dd.y = 0.00000001;
+	}
+	if (abs(dd.z) < 0.00000001) {
+		dd.z = 0.00000001;
+	}
+	float3 inv    = float3(1.0, 1.0, 1.0) / dd;
+	float3 toward = step(float3(0.0, 0.0, 0.0), dd); // Far side of a block per axis
+	int    count  = int(constant_buffer.params2.y);
+	int    passed = 0;
+	float  tau    = 0.0;
+	for (int n = 0; n < VOLUME_MAX; n += 1) {
+		// Nearest volume left
+		int   v     = -1;
+		float enter = seg;
+		float leave = 0.0;
+		for (int u = 0; u < VOLUME_MAX; u += 1) {
+			if (u < count && ((passed >> u) & 1) == 0) {
+				uint   gu  = vol_geometry(u);
+				float3 ta  = (vol_record(gu, 3).xyz - o) * inv;
+				float3 tb  = (vol_record(gu, 4).xyz - o) * inv;
+				float3 tmn = min(ta, tb);
+				float3 tmx = max(ta, tb);
+				float  en  = max(max(tmn.x, tmn.y), max(tmn.z, 0.0));
+				float  le  = min(min(tmx.x, tmx.y), min(tmx.z, seg));
+				if (en < le && en < enter) {
+					v     = u;
+					enter = en;
+					leave = le;
+				}
+			}
+		}
+		if (v < 0) {
+			return res;
+		}
+		passed           = passed + (1 << v);
+		uint   g         = vol_geometry(v);
+		float4 grid      = vol_record(g, 0);
+		float4 cells     = vol_record(g, 1);
+		float4 smoke     = vol_record(g, 2);
+		float  glow_unit = vol_record(g, 3).w;
+		int    nx        = int(cells.x);
+		int    ny        = int(cells.y);
+		int    nz        = int(cells.z);
+		int    tiles     = int(geometry_texture0_size(g).x) / nx;
+		float3 absorb    = log(max(smoke.xyz, float3(0.001, 0.001, 0.001))) * VOLUME_DENSITY; // Per unit of density and distance
+		float  scatter   = smoke.w * VOLUME_DENSITY;
+		if (shadow) {
+			absorb = absorb - scatter;
+		}
+		float3 dq = d / grid.w; // Cells per unit of distance
+
+		// Cells apart, fewer for long segments, the jitter evens the steps out over the samples
+		float dt = grid.w * step_cells;
+		if (leave - enter > dt * float(VOLUME_STEPS)) {
+			dt = (leave - enter) / float(VOLUME_STEPS);
+		}
+		float tb = enter; // Start of the interval the next sample stands for
+		for (int s = 0; s < VOLUME_ITERS && tb < leave; s += 1) {
+			float  t  = tb + jitter * dt;
+			float3 q  = (o - grid.xyz) / grid.w + dq * t;
+			uint   h  = hash_u32(seed ^ uint(s * 7919 + v * 104729));
+			float3 qs = q + float3(float(h & uint(1023)), float((h >> uint(10)) & uint(1023)), float((h >> uint(20)) & uint(1023))) / 1024.0 - 0.5;
+			float3 fl = floor(qs);
+			int    i  = clamp_int(int(fl.x), 0, nx - 1);
+			int    j  = clamp_int(int(fl.y), 0, ny - 1);
+			int    k  = clamp_int(int(fl.z), 0, nz - 1);
+			float4 c  = volume_cell(g, i, j, k, nx, ny, tiles);
+			if (c.b > 0.5) {
+				// Empty block, gas free a cell around it too, on to where the ray leaves it
+				float3 lo = floor(float3(float(i), float(j), float(k)) / VOLUME_BLOCK) * VOLUME_BLOCK;
+				float3 ex = (lo + toward * VOLUME_BLOCK - q) * grid.w * inv;
+				tb        = t + max(min(min(ex.x, ex.y), ex.z), 0.0) + grid.w * 0.01;
+			}
+			else {
+				float3 glow = float3(0.0, 0.0, 0.0);
+				if (c.r > FIRE_LEVEL && !shadow) {
+					float heat = saturate(log(c.r / FIRE_LEVEL) / 2.7725887); // log(16)
+					glow       = fire_color(heat) * (glow_unit * heat);
+				}
+				// Thin smoke changes little, twice as far
+				float h = dt;
+				if (c.r <= FIRE_LEVEL && c.g < 0.05) {
+					h = dt * 2.0;
+				}
+				// Glow of the step, dimmed by the gas before it
+				res.emission += res.trans * glow * h;
+				if (!shadow) {
+					tau += scatter * c.g * h;
+				}
+				if (tau >= tau_target) {
+					res.t     = t;
+					res.state = 1;
+					return res;
+				}
+				res.trans = res.trans * exp(absorb * (c.g * h));
+				if (max(max(res.trans.x, res.trans.y), res.trans.z) < 0.002) {
+					res.state = 2;
+					return res;
+				}
+				tb += h;
+			}
+		}
+	}
+	return res;
+}
+#endif
+
+#ifdef _ENV_SAMPLING
+// Of the gas between a point and the environment, 0 when anything solid is in the way
+float3 shadow_transmittance(float3 origin, float3 dir, uint seed) {
+	if (occluded(origin, dir)) {
+		return float3(0.0, 0.0, 0.0);
+	}
+#ifdef _VOLUMES
+	if (constant_buffer.params2.y > 0.0) {
+		float       jitter = hash_unorm(hash_u32(seed ^ uint(1640531527)));
+		volume_path vp     = volume_march(origin, dir, 100.0, 1000000.0, jitter, 4.0, seed, true);
+		return vp.trans;
+	}
+#endif
+	return float3(1.0, 1.0, 1.0);
+}
+#endif
+
 #[compute, threads(8, 8, 1)]
 void raytrace() {
 	uint3 id  = dispatch_thread_id();
@@ -517,58 +941,62 @@ void raytrace() {
 		float3 medium_color = float3(1.0, 1.0, 1.0);
 #endif
 
+#ifdef _GRAINS
+		bool   in_grains   = false;
+		float3 grain_p0    = float3(0.0, 0.0, 0.0);
+		float3 grain_n     = float3(0.0, 0.0, 1.0);
+		float3 grain_base  = float3(0.0, 0.0, 0.0);
+		float  grain_rough = 0.0;
+		float  grain_metal = 0.0;
+#endif
+		int lead = 0; // Iterations the camera ray spent crossing into the grains, before it met anything
+#ifdef _GRAIN_BOUNCE_LIMIT
+		int grain_bounces = 0;
+#endif
+
 		for (int i = 0; i < DEPTH; i += 1) {
 			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
 
+			// Shading point, from a surface or a grain
+			float3 hit         = float3(0.0, 0.0, 0.0);
+			float3 n           = float3(0.0, 0.0, 1.0);
+			float3 ng          = float3(0.0, 0.0, 1.0);
+			float3 texcolor    = float3(0.0, 0.0, 0.0);
+			float4 tex0        = float4(0.0, 0.0, 0.0, 1.0);
+			float4 tex1        = float4(0.0, 0.0, 0.0, 0.0);
+			float4 tex2        = float4(0.0, 0.0, 0.0, 0.0);
+			bool   back_face   = false;
+			bool   normal_map  = false;
+			float3 uv_tangent  = float3(1.0, 0.0, 0.0);
+			float3 uv_binormal = float3(0.0, 1.0, 0.0);
+			bool   grain_shade = false;
+
 			ray_query q;
 			ray_query_trace(q, scene, r);
+			r.min          = 0.0001;
+			bool scene_hit = ray_query_hit(q);
 
-			if (!ray_query_hit(q)) {
-				float3 texenv;
-				float  weight = 1.0;
-				if (i == 0 && constant_buffer.params.x < 0.0) {
-					texenv = float3(0.0275, 0.0275, 0.0275);
+#ifdef _VOLUMES
+			// Through the smoke and flame on the way to the hit
+			if (constant_buffer.params2.y > 0.0 && !in_grains) {
+				float seg = r.max;
+				if (scene_hit) {
+					seg = ray_query_distance(q);
 				}
-				else {
-					texenv = env_radiance(r.direction);
-#ifdef _ENV_SAMPLING
-					if (bsdf_pdf > 0.0) {
-						weight = mis_weight(bsdf_pdf, env_pdf(r.direction));
-					}
-#endif
+				float tau_target = 0.0 - log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001));
+				float jitter = hash_unorm(pixel_hash(id.xy, sample_index, dim_base + 977));
+				float step_cells = 4.0; // Coarser after a bounce
+				if (i == lead) {
+					step_cells = 2.0;
 				}
-				accum += clamp(throughput * texenv * weight, 0.0, 8.0);
-				break;
-			}
-
-			uint   g            = ray_query_geometry(q);
-			float2 barycentrics = ray_query_barycentrics(q);
-			uint4  a0           = ray_query_vertex(q, 0); // posxy, poszw, nor, tex
-			uint4  a1           = ray_query_vertex(q, 1);
-			uint4  a2           = ray_query_vertex(q, 2);
-
-			float2 uv0 = s16_to_f32(a0.w);
-			float2 uv1 = s16_to_f32(a1.w);
-			float2 uv2 = s16_to_f32(a2.w);
-			float2 tc  = hit_attribute2d(uv0, uv1, uv2, barycentrics) * constant_buffer.params.z;
-
-			uint2  size  = geometry_texture0_size(g);
-			uint2  texel = uint2(frac(tc) * float2(size));
-			float4 tex0  = geometry_texture0(g, texel);
-
-			float  ray_t = ray_query_distance(q);
-			float3 hit   = r.origin + r.direction * ray_t;
-
-#ifdef _SUBSURFACE
-			if (medium_depth > 0) {
-				// Free flight through the medium, scatter before the surface or absorb along the way
-				float sigma = medium_sigma * float(medium_depth);
-				float ts    = ray_t + 1.0;
-				if (sigma > 0.0) {
-					ts = -log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001)) / sigma;
+				uint seed = pixel_hash(id.xy, sample_index, dim_base + 1931);
+				volume_path vp = volume_march(r.origin, r.direction, seg, tau_target, jitter, step_cells, seed, false);
+				accum += throughput * vp.emission;
+				if (vp.state == 2) {
+					break;
 				}
-				if (ts < ray_t) {
-					throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ts);
+				throughput *= vp.trans;
+				if (vp.state == 1) {
 #ifdef _ROULETTE
 					if (scatters >= rr_start) {
 						float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
@@ -579,134 +1007,301 @@ void raytrace() {
 					}
 					scatters += 1;
 #endif
-					r.origin    = r.origin + r.direction * ts;
-					r.direction = uniform_sphere(rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 1, cache, frame),
-					                             rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 2, cache, frame));
-					bsdf_pdf    = -1.0; // Not covered by light sampling
+					r.origin = r.origin + r.direction * vp.t;
+#ifdef _ENV_SAMPLING
+					// Light of the environment scattered toward the ray, through the gas around
+					if (env_sampling()) {
+						float4 light = sample_env(rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT, cache, frame),
+						                          rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT + 1, cache, frame));
+						if (light.w > 0.0) {
+							float3 tr = shadow_transmittance(r.origin, light.xyz, hash_u32(seed ^ uint(374761393)));
+							accum += clamp(throughput * tr * env_radiance(light.xyz) * (VOLUME_PHASE * mis_weight(light.w, VOLUME_PHASE) / light.w), 0.0, 8.0);
+						}
+					}
+#endif
+					// Scattered evenly in all directions, the dimensions of a surface bounce are free here
+					r.direction = uniform_sphere(rnd(id.xy, sample_index, dim_base + DIM_DIR, cache, frame),
+					                             rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
+#ifdef _ENV_SAMPLING
+					bsdf_pdf = VOLUME_PHASE;
+#endif
 					continue;
 				}
-				throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ray_t);
 			}
 #endif
 
-			float2 zw0 = s16_to_f32(a0.y);
-			float2 zw1 = s16_to_f32(a1.y);
-			float2 zw2 = s16_to_f32(a2.y);
-			float3 vp0 = float3(s16_to_f32(a0.x), zw0.x);
-			float3 vp1 = float3(s16_to_f32(a1.x), zw1.x);
-			float3 vp2 = float3(s16_to_f32(a2.x), zw2.x);
-			float3 vn0 = float3(s16_to_f32(a0.z), zw0.y);
-			float3 vn1 = float3(s16_to_f32(a1.z), zw1.y);
-			float3 vn2 = float3(s16_to_f32(a2.z), zw2.y);
-			float3 n   = normalize(hit_attribute(vn0, vn1, vn2, barycentrics));
-
-			float3 ng = cross(vp1 - vp0, vp2 - vp0);
-			if (dot(ng, ng) > 0.00000000000000000001) {
-				ng = normalize(ng);
+#ifdef _GRAINS
+			grain_hit gh;
+			gh.pos   = r.origin;
+			gh.nor   = float3(0.0, 0.0, 1.0);
+			gh.id    = uint(0);
+			gh.state = 0;
+			if (in_grains) {
+				float t_limit = r.max;
+				if (scene_hit) {
+					t_limit = ray_query_distance(q);
+				}
+				gh = trace_grains(r.origin, r.direction, grain_p0, grain_n, false, t_limit);
+				if (gh.state == 0) {
+					break;
+				}
+				if (gh.state == 1) {
+					grain_shade = true;
+				}
+				else {
+					in_grains = false; // On to whatever the ray meets
+				}
 			}
-			else {
-				ng = n;
-			}
-			if (dot(ng, n) < 0.0) {
-				ng = -ng;
-			}
-
-			float3 n_object = n;
-
-			float3x3 obj_to_world = ray_query_object_to_world(q);
-			n                     = normalize(obj_to_world * n);
-			ng                    = normalize(obj_to_world * ng);
-
-			bool back_face = dot(ng, r.direction) > 0.0;
-			if (back_face) {
-				ng = -ng;
-				n  = -n;
-			}
-
-#ifdef _INDIRECT_SKIP_NORMAL
-			bool normal_map = i == 0;
-#else
-			bool normal_map = true;
 #endif
 
-			float4 tex1 = float4(0.0, 0.0, 0.0, 0.0);
-			if (normal_map) {
-				tex1 = geometry_texture1(g, texel);
-			}
+			if (!grain_shade) {
+				if (!scene_hit) {
+					float3 texenv;
+					float  weight = 1.0;
+					if (i == lead && constant_buffer.params.x < 0.0) {
+						texenv = float3(0.0275, 0.0275, 0.0275);
+					}
+					else {
+						texenv = env_radiance(r.direction);
+#ifdef _ENV_SAMPLING
+						if (bsdf_pdf > 0.0) {
+							weight = mis_weight(bsdf_pdf, env_pdf(r.direction));
+						}
+#endif
+					}
+					accum += clamp(throughput * texenv * weight, 0.0, 8.0);
+					break;
+				}
 
-			float3 texcolor = srgb_to_linear(tex0.rgb);
+				uint   g            = ray_query_geometry(q);
+				float2 barycentrics = ray_query_barycentrics(q);
+				uint4  a0           = ray_query_vertex(q, 0); // posxy, poszw, nor, tex
+				uint4  a1           = ray_query_vertex(q, 1);
+				uint4  a2           = ray_query_vertex(q, 2);
+
+				float2 uv0 = s16_to_f32(a0.w);
+				float2 uv1 = s16_to_f32(a1.w);
+				float2 uv2 = s16_to_f32(a2.w);
+				float2 tc  = hit_attribute2d(uv0, uv1, uv2, barycentrics) * constant_buffer.params.z;
+
+				uint2  size  = geometry_texture0_size(g);
+				uint2  texel = uint2(frac(tc) * float2(size));
+				tex0         = geometry_texture0(g, texel);
+
+				float  ray_t = ray_query_distance(q);
+				hit          = r.origin + r.direction * ray_t;
 
 #ifdef _SUBSURFACE
-			bool medium_surface = int(tex1.a * 255.0) % 3 == 2;
+				if (medium_depth > 0) {
+					// Free flight through the medium, scatter before the surface or absorb along the way
+					float sigma = medium_sigma * float(medium_depth);
+					float ts    = ray_t + 1.0;
+					if (sigma > 0.0) {
+						ts = -log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001)) / sigma;
+					}
+					if (ts < ray_t) {
+						throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ts);
+#ifdef _ROULETTE
+						if (scatters >= rr_start) {
+							float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+							if (rnd(id.xy, sample_index, dim_base + DIM_RR, cache, frame) > rr_probability) {
+								break;
+							}
+							throughput = throughput / rr_probability;
+						}
+						scatters += 1;
+#endif
+						r.origin    = r.origin + r.direction * ts;
+						r.direction = uniform_sphere(rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 1, cache, frame),
+						                             rnd(id.xy, sample_index, dim_base + DIM_MEDIUM + 2, cache, frame));
+						bsdf_pdf    = -1.0; // Not covered by light sampling
+						continue;
+					}
+					throughput *= pow(max(medium_color, float3(0.001, 0.001, 0.001)), ray_t);
+				}
+#endif
+
+				float2 zw0 = s16_to_f32(a0.y);
+				float2 zw1 = s16_to_f32(a1.y);
+				float2 zw2 = s16_to_f32(a2.y);
+				float3 vp0 = float3(s16_to_f32(a0.x), zw0.x);
+				float3 vp1 = float3(s16_to_f32(a1.x), zw1.x);
+				float3 vp2 = float3(s16_to_f32(a2.x), zw2.x);
+				float3 vn0 = float3(s16_to_f32(a0.z), zw0.y);
+				float3 vn1 = float3(s16_to_f32(a1.z), zw1.y);
+				float3 vn2 = float3(s16_to_f32(a2.z), zw2.y);
+				n          = normalize(hit_attribute(vn0, vn1, vn2, barycentrics));
+
+				ng = cross(vp1 - vp0, vp2 - vp0);
+				if (dot(ng, ng) > 0.00000000000000000001) {
+					ng = normalize(ng);
+				}
+				else {
+					ng = n;
+				}
+				if (dot(ng, n) < 0.0) {
+					ng = -ng;
+				}
+
+				float3 n_object = n;
+
+				float3x3 obj_to_world = ray_query_object_to_world(q);
+				n                     = normalize(obj_to_world * n);
+				ng                    = normalize(obj_to_world * ng);
+
+				back_face = dot(ng, r.direction) > 0.0;
+				if (back_face) {
+					ng = -ng;
+					n  = -n;
+				}
+
+#ifdef _VOLUMES
+				if (volume_geometry(g)) {
+					float2 vuv = hit_attribute2d(uv0, uv1, uv2, barycentrics);
+					// Spark, the only triangles of the gas the path tracer gets
+					accum += throughput * fire_color(vuv.x) * ((0.0 - max(vuv.y, -1.0)) * FIRE_EMISSION_SCALE);
+					break;
+				}
+#endif
+
+#ifdef _GRAINS
+				if (grain_geometry(g)) {
+					if (lead == i) {
+						lead += 1;
+					}
+					if (back_face) {
+						// Leaving the sand, not a surface
+						r.origin = offset_ray(hit, ng, r.direction);
+						continue;
+					}
+					uint2  gtexel = drawn_texel(g, texel, size);
+					float4 gtex0  = geometry_texture0(g, gtexel);
+					float4 gtex2  = geometry_texture2(g, gtexel);
+					// The smooth normal bounds the grains, facets of the quantized mesh can be far off.
+					// Where the ray would not run into the grains below it, the facet it hit does
+					in_grains    = true;
+					grain_p0     = hit;
+					grain_n      = n;
+					if (dot(r.direction, n) > -0.05) {
+						grain_n = ng;
+					}
+					grain_base   = srgb_to_linear(gtex0.rgb);
+					grain_rough  = gtex2.g;
+					grain_metal  = gtex2.b;
+					// Back up to where the ray crossed the top of the grains, the way there is clear,
+					// and trace again past this hit for where the ray leaves the mesh
+					float back = min(GRAIN_TOP / max(-dot(r.direction, grain_n), 0.05), ray_t * 0.999);
+					r.origin   = hit - r.direction * back;
+					r.min      = back + 0.0001;
+					continue;
+				}
+#endif
+
+#ifdef _INDIRECT_SKIP_NORMAL
+				normal_map = i == 0;
 #else
-			bool medium_surface = false;
+				normal_map = true;
+#endif
+
+				if (normal_map) {
+					tex1 = geometry_texture1(g, texel);
+
+					tangent_basis uv_basis = create_uv_basis(vp0, vp1, vp2, uv0, uv1, uv2, n_object);
+					uv_tangent             = obj_to_world * uv_basis.tangent;
+					uv_binormal            = obj_to_world * uv_basis.binormal;
+					uv_tangent             = normalize(uv_tangent - n * dot(n, uv_tangent));
+					uv_binormal            = normalize(uv_binormal - n * dot(n, uv_binormal) - uv_tangent * dot(uv_tangent, uv_binormal));
+					if (back_face) {
+						uv_binormal = -uv_binormal;
+					}
+				}
+
+				texcolor = srgb_to_linear(tex0.rgb);
+
+#ifdef _SUBSURFACE
+				bool medium_surface = int(tex1.a * 255.0) % 3 == 2;
+#else
+				bool medium_surface = false;
 #endif
 
 #ifdef _TRANSLUCENCY
-			if (!medium_surface && !ray_query_front_face(q)) {
-				throughput *= pow(max(texcolor, 0.001), ray_t * tex0.a);
-			}
+				if (!medium_surface && !ray_query_front_face(q)) {
+					throughput *= pow(max(texcolor, 0.001), ray_t * tex0.a);
+				}
 #endif
 
 #ifdef _EMISSION
-			if (int(tex1.a * 255.0) % 3 == 1) { // matid
-				accum += throughput * texcolor * 100.0;
-				break;
-			}
+				if (int(tex1.a * 255.0) % 3 == 1) { // matid
+					accum += throughput * texcolor * 100.0;
+					break;
+				}
 #endif
 
-			float4 tex2 = geometry_texture2(g, texel);
+				tex2 = geometry_texture2(g, texel);
 
 #ifdef _SUBSURFACE
-			if (medium_surface) {
-				// Smooth to rough dielectric with ior = 1 + metallic
-				// Inside, 1 - occlusion sets the scattering density and base color the transmittance per unit of distance
-				float  ior      = 1.0 + tex2.b;
-				bool   entering = !back_face;
-				bool   crosses  = true;
-				float3 sdir     = r.direction;
-				if (ior > 1.001) {
-					float3        wo      = -r.direction;
-					tangent_basis mbasis  = create_basis(n);
-					float         malpha  = max(tex2.g * tex2.g, 0.001);
-					float3        v_local = float3(dot(wo, mbasis.tangent), dot(wo, mbasis.binormal), max(dot(wo, n), 0.001));
-					float3        h_local = sample_ggx_vndf(v_local, malpha, rnd(id.xy, sample_index, dim_base + DIM_DIR, cache, frame),
-					                                        rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
-					float3        h       = normalize(mbasis.tangent * h_local.x + mbasis.binormal * h_local.y + n * h_local.z);
-					float         eta     = 1.0 / ior;
-					if (!entering) {
-						eta = ior;
-					}
-					float  cos_i = max(dot(wo, h), 0.0);
-					float3 t     = refract_dir(r.direction, h, eta);
-					if (rnd(id.xy, sample_index, dim_base + DIM_SELECT, cache, frame) < fresnel_dielectric(cos_i, eta) || dot(t, t) == 0.0) {
-						sdir    = reflect(r.direction, h);
-						crosses = false;
-						if (dot(sdir, ng) <= 0.0) {
-							sdir = reflect(r.direction, ng); // Microfacet pointed it below the surface
+				if (medium_surface) {
+					// Smooth to rough dielectric with ior = 1 + metallic
+					// Inside, 1 - occlusion sets the scattering density and base color the transmittance per unit of distance
+					float  ior      = 1.0 + tex2.b;
+					bool   entering = !back_face;
+					bool   crosses  = true;
+					float3 sdir     = r.direction;
+					if (ior > 1.001) {
+						float3        wo      = -r.direction;
+						tangent_basis mbasis  = create_basis(n);
+						float         malpha  = max(tex2.g * tex2.g, 0.001);
+						float3        v_local = float3(dot(wo, mbasis.tangent), dot(wo, mbasis.binormal), max(dot(wo, n), 0.001));
+						float3        h_local = sample_ggx_vndf(v_local, malpha, rnd(id.xy, sample_index, dim_base + DIM_DIR, cache, frame),
+						                                        rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
+						float3        h       = normalize(mbasis.tangent * h_local.x + mbasis.binormal * h_local.y + n * h_local.z);
+						float         eta     = 1.0 / ior;
+						if (!entering) {
+							eta = ior;
+						}
+						float  cos_i = max(dot(wo, h), 0.0);
+						float3 t     = refract_dir(r.direction, h, eta);
+						if (rnd(id.xy, sample_index, dim_base + DIM_SELECT, cache, frame) < fresnel_dielectric(cos_i, eta) || dot(t, t) == 0.0) {
+							sdir    = reflect(r.direction, h);
+							crosses = false;
+							if (dot(sdir, ng) <= 0.0) {
+								sdir = reflect(r.direction, ng); // Microfacet pointed it below the surface
+							}
+						}
+						else {
+							sdir = normalize(t);
+							if (dot(sdir, ng) >= 0.0) {
+								sdir = r.direction;
+							}
 						}
 					}
-					else {
-						sdir = normalize(t);
-						if (dot(sdir, ng) >= 0.0) {
-							sdir = r.direction;
+					if (crosses) {
+						if (entering) {
+							medium_depth += 1;
+							medium_sigma = (1.0 - tex2.r) * (1.0 - tex2.r) * 16.0;
+							medium_color = texcolor;
+						}
+						else if (medium_depth > 0) {
+							medium_depth -= 1;
 						}
 					}
+					r.direction = sdir;
+					r.origin    = offset_ray(hit, ng, sdir);
+					bsdf_pdf    = -1.0; // Shadow rays stop at media boundaries, only this path reaches the light
+					continue;
 				}
-				if (crosses) {
-					if (entering) {
-						medium_depth += 1;
-						medium_sigma = (1.0 - tex2.r) * (1.0 - tex2.r) * 16.0;
-						medium_color = texcolor;
-					}
-					else if (medium_depth > 0) {
-						medium_depth -= 1;
-					}
-				}
-				r.direction = sdir;
-				r.origin    = offset_ray(hit, ng, sdir);
-				bsdf_pdf    = -1.0; // Shadow rays stop at media boundaries, only this path reaches the light
-				continue;
+#endif
+			}
+
+#ifdef _GRAINS
+			if (grain_shade) {
+				hit      = gh.pos;
+				n        = gh.nor;
+				ng       = gh.nor;
+				texcolor = grain_color(grain_base, gh.id);
+				// Rounded, partly polished grains: some glint, most stay matte
+				float u  = hash_unorm(hash_u32(gh.id + uint(14)));
+				tex2     = float4(1.0, saturate(grain_rough * (0.45 + 0.5 * u)), grain_metal, 0.0);
 			}
 #endif
 
@@ -741,16 +1336,8 @@ void raytrace() {
 			float3 binormal;
 
 			if (normal_map) {
-				tangent_basis uv_basis = create_uv_basis(vp0, vp1, vp2, uv0, uv1, uv2, n_object);
-
-				tangent  = obj_to_world * uv_basis.tangent;
-				binormal = obj_to_world * uv_basis.binormal;
-				tangent  = normalize(tangent - n * dot(n, tangent));
-				binormal = normalize(binormal - n * dot(n, binormal) - tangent * dot(tangent, binormal));
-
-				if (back_face) {
-					binormal = -binormal;
-				}
+				tangent  = uv_tangent;
+				binormal = uv_binormal;
 
 				float3 tn = normalize(tex1.rgb * 2.0 - 1.0);
 				n         = normalize(tangent * tn.x - binormal * tn.y + n * tn.z);
@@ -763,7 +1350,7 @@ void raytrace() {
 			float3 wo    = -r.direction;
 			float  ndotv = dot(n, wo);
 			if (ndotv < 0.001) {
-				if (i > 0) {
+				if (i > lead) {
 					break;
 				}
 				n           = normalize(n + wo * (0.001 - ndotv));
@@ -791,7 +1378,7 @@ void raytrace() {
 			float alpha = max(roughness * roughness, 0.001);
 
 #ifdef _ENV_SAMPLING
-			if (constant_buffer.params.w != 0.0) {
+			if (env_sampling()) {
 				float4 light = sample_env(rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT, cache, frame), rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT + 1, cache, frame));
 				float3 wl        = light.xyz;
 				float  pdf_light = light.w;
@@ -799,10 +1386,48 @@ void raytrace() {
 					float4 eval  = bsdf_eval(wl, n, wo, ndotv, diffuse_weight, f0, alpha, specular_chance);
 					float3 f_cos = eval.xyz;
 					if (max(max(f_cos.r, f_cos.g), f_cos.b) > 0.0) {
-						if (!occluded(offset_ray(hit, ng, wl), wl)) {
-							accum += clamp(throughput * f_cos * env_radiance(wl) * (mis_weight(pdf_light, eval.w) / pdf_light), 0.0, 8.0);
+						float3 shadow_origin = offset_ray(hit, ng, wl);
+						bool   blocked       = false;
+#ifdef _GRAINS
+						if (grain_shade) {
+							// Through the grains up to what the ray meets, past the sand mesh when leaving it
+							ray sr;
+							sr.origin    = shadow_origin;
+							sr.direction = wl;
+							sr.min       = 0.0001;
+							sr.max       = 100.0;
+							ray_query sq;
+							ray_query_trace(sq, scene, sr);
+							float t_limit = sr.max;
+							if (ray_query_hit(sq)) {
+								t_limit = ray_query_distance(sq);
+							}
+							grain_hit sh = trace_grains(shadow_origin, wl, grain_p0, grain_n, true, t_limit);
+							blocked      = sh.state != 2;
+							if (!blocked && ray_query_hit(sq)) {
+								blocked = !grain_geometry(ray_query_geometry(sq)) ||
+								          !leaving_mesh(ray_query_vertex(sq, 0), ray_query_vertex(sq, 1), ray_query_vertex(sq, 2),
+								                        ray_query_barycentrics(sq), ray_query_object_to_world(sq), wl);
+								shadow_origin = shadow_origin + wl * (t_limit + 0.0001);
+							}
+						}
+#endif
+						if (!blocked) {
+							// Through the gas on the way, if any
+							uint   sseed = pixel_hash(id.xy, sample_index, dim_base + 3301);
+							float3 tr    = shadow_transmittance(shadow_origin, wl, sseed);
+							accum += clamp(throughput * f_cos * env_radiance(wl) * tr * (mis_weight(pdf_light, eval.w) / pdf_light), 0.0, 8.0);
 						}
 					}
+				}
+			}
+#endif
+
+#ifdef _GRAIN_BOUNCE_LIMIT
+			if (grain_shade) {
+				grain_bounces += 1;
+				if (grain_bounces >= GRAIN_BOUNCES) {
+					break;
 				}
 			}
 #endif
