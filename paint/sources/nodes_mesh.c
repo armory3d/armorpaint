@@ -91,6 +91,7 @@ void nodes_mesh_init() {
 	mesh_cloth_node_init();
 	mesh_fracture_node_init();
 	mesh_smoke_node_init();
+	mesh_fire_node_init();
 	mesh_script_node_init();
 
 	nodes_mesh_combine = any_array_create(0);
@@ -455,6 +456,28 @@ static bool nodes_mesh_has_node(ui_node_canvas_t *c, char *type) {
 	}
 	array_delete(nodes);
 	return found;
+}
+
+// Sand from the fluid node, rendered as individual grains by the full path tracer
+bool nodes_mesh_is_granular(mesh_object_t *o) {
+	mesh_nodes_t *slot = nodes_mesh_get(o, false);
+	if (slot == NULL || slot->canvas == NULL) {
+		return false;
+	}
+	ui_node_t_array_t *nodes = nodes_mesh_all_nodes(slot->canvas);
+	bool               found = false;
+	for (i32 i = 0; i < nodes->length && !found; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		found        = string_equals(n->type, "MESH_FLUID") && nodes_mesh_button(n, 0) == 2;
+	}
+	array_delete(nodes);
+	return found;
+}
+
+// Gas from the smoke and fire nodes, rendered as a volume by the full path tracer
+bool nodes_mesh_is_volume(mesh_object_t *o) {
+	mesh_nodes_t *slot = nodes_mesh_get(o, false);
+	return slot != NULL && slot->canvas != NULL && (nodes_mesh_has_node(slot->canvas, "MESH_SMOKE") || nodes_mesh_has_node(slot->canvas, "MESH_FIRE"));
 }
 
 static mesh_nodes_t *nodes_mesh_find(i32 uid) {
