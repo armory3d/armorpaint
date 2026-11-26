@@ -40,7 +40,7 @@ void make_clone_run(node_shader_t *kong, char *tex_src, char *tex_nor_src, char 
 	node_shader_write_frag(kong, "float mat_opacity = texpaint_undo_sample.a;");
 	node_shader_write_frag(kong, "float opacity = mat_opacity * constants.brush_opacity;");
 	if (g_context->material->paint_emis || g_context->material->paint_subs) {
-		node_shader_write_frag(kong, "float clone_matid_mod = float(int(texpaint_nor_undo_sample.a * 255.0)) % float(3);");
+		node_shader_write_frag(kong, "float clone_matid_mod = float(int(texpaint_nor_undo_sample.a * 255.0 + 0.5)) % float(3);");
 	}
 	if (g_context->material->paint_emis) {
 		node_shader_write_frag(kong, "float emis = 0.0; if (clone_matid_mod == 1.0) { emis = 1.0; }");

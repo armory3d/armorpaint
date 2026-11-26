@@ -1,56 +1,50 @@
 
 #include "global.h"
 
-gpu_pipeline_t *_pipes_make_merge(bool red, bool green, bool blue, bool alpha) {
-	gpu_pipeline_t *pipe       = gpu_create_pipeline();
-	pipe->vertex_shader        = sys_get_shader("layer_merge.vert");
-	pipe->fragment_shader      = sys_get_shader("layer_merge.frag");
+static gpu_pipeline_t *pipes_get_merge_channels(i32 i, bool red, bool green, bool blue, bool alpha) {
+	static gpu_pipeline_t *pipes[2][5] = {0};
+	gpu_pipeline_t       **pipe        = &pipes[base_bits][i];
+	if (*pipe != NULL) {
+		return *pipe;
+	}
+	*pipe                      = gpu_create_pipeline();
+	(*pipe)->vertex_shader     = sys_get_shader("layer_merge.vert");
+	(*pipe)->fragment_shader   = sys_get_shader("layer_merge.frag");
 	gpu_vertex_structure_t *vs = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	gpu_vertex_structure_add(vs, "pos", GPU_VERTEX_DATA_F32_2X);
-	pipe->input_layout              = vs;
-	pipe->color_write_mask_red[0]   = red;
-	pipe->color_write_mask_green[0] = green;
-	pipe->color_write_mask_blue[0]  = blue;
-	pipe->color_write_mask_alpha[0] = alpha;
-	gpu_pipeline_compile(pipe);
-	return pipe;
+	(*pipe)->input_layout              = vs;
+	(*pipe)->color_write_mask_red[0]   = red;
+	(*pipe)->color_write_mask_green[0] = green;
+	(*pipe)->color_write_mask_blue[0]  = blue;
+	(*pipe)->color_write_mask_alpha[0] = alpha;
+	(*pipe)->color_attachment_count    = 1;
+	(*pipe)->color_attachment[0]       = base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
+	gpu_pipeline_compile(*pipe);
+	return *pipe;
+}
+
+gpu_pipeline_t *pipes_get_merge() {
+	return pipes_get_merge_channels(0, true, true, true, true);
 }
 
 gpu_pipeline_t *pipes_get_merge_r() {
-	if (pipes_merge_r == NULL) {
-		pipes_merge_r = _pipes_make_merge(true, false, false, false);
-	}
-	return pipes_merge_r;
+	return pipes_get_merge_channels(1, true, false, false, false);
 }
 
 gpu_pipeline_t *pipes_get_merge_g() {
-	if (pipes_merge_g == NULL) {
-		pipes_merge_g = _pipes_make_merge(false, true, false, false);
-	}
-	return pipes_merge_g;
+	return pipes_get_merge_channels(2, false, true, false, false);
 }
 
 gpu_pipeline_t *pipes_get_merge_b() {
-	if (pipes_merge_b == NULL) {
-		pipes_merge_b = _pipes_make_merge(false, false, true, false);
-	}
-	return pipes_merge_b;
+	return pipes_get_merge_channels(3, false, false, true, false);
 }
 
 gpu_pipeline_t *pipes_get_merge_a() {
-	if (pipes_merge_a == NULL) {
-		pipes_merge_a = _pipes_make_merge(false, false, false, true);
-	}
-	return pipes_merge_a;
+	return pipes_get_merge_channels(4, false, false, false, true);
 }
 
 void pipes_init() {
 
-	pipes_merge = _pipes_make_merge(true, true, true, true);
-	// pipes_merge_r = _pipes_make_merge(true, false, false, false);
-	// pipes_merge_g = _pipes_make_merge(false, true, false, false);
-	// pipes_merge_b = _pipes_make_merge(false, false, true, false);
-	// pipes_merge_a = _pipes_make_merge(false, false, false, true);
 	pipes_tex0     = 0; // Always binding texpaint.a for blending
 	pipes_tex1     = 1;
 	pipes_texmask  = 2;
