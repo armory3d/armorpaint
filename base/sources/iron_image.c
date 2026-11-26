@@ -16,7 +16,7 @@ void _write_image(char *path, buffer_t *bytes, i32 w, i32 h, i32 format, int ima
 	unsigned char *pixels = NULL;
 	unsigned char *rgba   = (unsigned char *)bytes->buffer;
 	if (format == 0) { // RGBA
-		comp = 4;
+		comp   = 4;
 		pixels = rgba;
 	}
 	else if (format == 1) { // R
@@ -60,8 +60,8 @@ void iron_write_png(char *path, buffer_t *bytes, i32 w, i32 h, i32 format) {
 unsigned char *_encode_data;
 int            _encode_size;
 void           _encode_image_func(void *context, void *data, int size) {
-    memcpy(_encode_data + _encode_size, data, size);
-    _encode_size += size;
+	memcpy(_encode_data + _encode_size, data, size);
+	_encode_size += size;
 }
 
 buffer_t *_encode_image(buffer_t *bytes, i32 w, i32 h, i32 format, i32 quality) {
@@ -81,6 +81,37 @@ buffer_t *iron_encode_jpg(buffer_t *bytes, i32 w, i32 h, i32 format, i32 quality
 
 buffer_t *iron_encode_png(buffer_t *bytes, i32 w, i32 h, i32 format) {
 	return _encode_image(bytes, w, h, 1, 100);
+}
+
+static int  _encode_cap;
+static void _encode_hdr_func(void *context, void *data, int size) {
+	if (_encode_size + size > _encode_cap) {
+		while (_encode_size + size > _encode_cap) {
+			_encode_cap = _encode_cap > 0 ? _encode_cap * 2 : 65536;
+		}
+		_encode_data = (unsigned char *)realloc(_encode_data, _encode_cap);
+	}
+	memcpy(_encode_data + _encode_size, data, size);
+	_encode_size += size;
+}
+
+buffer_t *iron_encode_hdr(buffer_t *bytes, i32 w, i32 h) {
+	i32    count = w * h;
+	float *rgb   = (float *)malloc((size_t)count * 3 * sizeof(float));
+	for (i32 i = 0; i < count; ++i) {
+		rgb[i * 3]     = buffer_get_f16(bytes, i * 8);
+		rgb[i * 3 + 1] = buffer_get_f16(bytes, i * 8 + 2);
+		rgb[i * 3 + 2] = buffer_get_f16(bytes, i * 8 + 4);
+	}
+	_encode_cap  = count * 4 + 256;
+	_encode_data = (unsigned char *)malloc(_encode_cap);
+	_encode_size = 0;
+	stbi_write_hdr_to_func(&_encode_hdr_func, NULL, w, h, 3, rgb);
+	free(rgb);
+	buffer_t *buffer = malloc(sizeof(buffer_t));
+	buffer->buffer   = _encode_data;
+	buffer->length   = _encode_size;
+	return buffer;
 }
 #endif
 
