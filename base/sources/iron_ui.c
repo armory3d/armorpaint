@@ -628,9 +628,11 @@ bool ui_get_initial_hover(float elem_h) {
 
 bool ui_get_hover(float elem_h) {
 	if (current->scissor && current->input_y < current->_window_y + current->window_header_h) {
+		current->is_hovered = false;
 		return false;
 	}
 	if (current->current_window != NULL && !ui_input_in_rect(current->_window_x, current->_window_y, current->_window_w, current->_window_h)) {
+		current->is_hovered = false;
 		return false;
 	}
 	current->is_hovered = current->enabled && current->input_enabled && current->input_x >= current->_window_x + current->_x &&
