@@ -165,7 +165,7 @@ mesh_geo_t *nodes_mesh_shape(i32 shape, f32 *size, i32 segments) {
 		g = nodes_mesh_shape_grid(segments, math_max(segments / 2, 3), nodes_mesh_shape_torus);
 	}
 	else if (shape == 5) {
-		g = nodes_mesh_shape_grid(1, 1, nodes_mesh_shape_plane);
+		g = nodes_mesh_shape_grid(segments, segments, nodes_mesh_shape_plane);
 	}
 	else {
 		g = nodes_mesh_shape_box();
