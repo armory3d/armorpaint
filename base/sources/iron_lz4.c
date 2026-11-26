@@ -1,14 +1,11 @@
 
-// Based on https://github.com/gorhill/lz4-wasm by Raymond Hill
-// armorpaint/base/assets/licenses/license_lz4-wasm.md
 #include "iron_lz4.h"
 
 #include "iron_alloc.h"
 #include "iron_system.h"
 #include <stdint.h>
 #include <stdlib.h>
-
-static i32_array_t *_lz4_hash_table = NULL;
+#include <string.h>
 
 uint32_t lz4_encode_bound(uint32_t size) {
 	uint32_t i = size / 255;
@@ -16,196 +13,223 @@ uint32_t lz4_encode_bound(uint32_t size) {
 }
 
 buffer_t *lz4_encode(buffer_t *b) {
-	u8_array_t *ibuf = (u8_array_t *)b;
-	uint32_t    ilen = ibuf->length;
+	const uint8_t *src  = b->buffer;
+	uint32_t       ilen = b->length;
 	if (ilen >= 0x7e000000) {
 		iron_log("LZ4 range error");
 		return NULL;
 	}
 
-	uint32_t last_match_pos   = ilen - 12;
-	uint32_t last_literal_pos = ilen - 5;
+	uint32_t olen       = lz4_encode_bound(ilen);
+	uint8_t *dst        = (uint8_t *)malloc(olen);
+	uint32_t opos       = 0;
+	uint32_t anchor_pos = 0;
 
-	if (_lz4_hash_table == NULL) {
-		_lz4_hash_table = i32_array_create(65536);
-	}
-	for (uint32_t i = 0; i < _lz4_hash_table->length; ++i) {
-		_lz4_hash_table->buffer[i] = -65536;
-	}
+	if (ilen >= 13) {
+		uint32_t last_match_pos   = ilen - 12;
+		uint32_t last_literal_pos = ilen - 5;
+		int32_t *hash_table       = (int32_t *)malloc(65536 * sizeof(int32_t));
+		for (uint32_t i = 0; i < 65536; ++i) {
+			hash_table[i] = -65536;
+		}
 
-	uint32_t    olen       = lz4_encode_bound(ilen);
-	u8_array_t *obuf       = u8_array_create(olen);
-	uint32_t    ipos       = 0;
-	uint32_t    opos       = 0;
-	uint32_t    anchor_pos = 0;
+		uint32_t ipos = 0;
+		while (true) {
+			uint32_t ref_pos         = 0;
+			uint32_t moffset         = 0;
+			uint32_t step            = 1;
+			uint32_t search_match_nb = 64;
 
-	// Sequence-finding loop
-	while (true) {
-		uint32_t ref_pos  = 0;
-		uint32_t moffset  = 0;
-		uint32_t sequence = ((uint32_t)ibuf->buffer[ipos] << 8) | ((uint32_t)ibuf->buffer[ipos + 1] << 16) | ((uint32_t)ibuf->buffer[ipos + 2] << 24);
+			while (ipos <= last_match_pos) {
+				uint32_t seq;
+				memcpy(&seq, src + ipos, 4);
+				uint32_t hash    = (seq * 2654435761u) >> 16;
+				int32_t  ref     = hash_table[hash];
+				hash_table[hash] = (int32_t)ipos;
+				if (ref >= 0) {
+					moffset = ipos - (uint32_t)ref;
+					if (moffset > 0 && moffset < 65536) {
+						uint32_t ref_seq;
+						memcpy(&ref_seq, src + ref, 4);
+						if (seq == ref_seq) {
+							ref_pos = (uint32_t)ref;
+							break;
+						}
+					}
+				}
+				ipos += step;
+				step = search_match_nb++ >> 6;
+			}
 
-		// Match-finding loop
-		while (ipos <= last_match_pos) {
-			sequence                      = (sequence >> 8) | ((uint32_t)ibuf->buffer[ipos + 3] << 24);
-			uint32_t hash                 = ((sequence * 0x9e37) & 0xffff) + ((sequence * 0x79b1) >> 16) & 0xffff;
-			ref_pos                       = _lz4_hash_table->buffer[hash];
-			_lz4_hash_table->buffer[hash] = ipos;
-			moffset                       = ipos - ref_pos;
-			if (moffset < 65536 && ibuf->buffer[ref_pos + 0] == ((sequence) & 0xff) && ibuf->buffer[ref_pos + 1] == ((sequence >> 8) & 0xff) &&
-			    ibuf->buffer[ref_pos + 2] == ((sequence >> 16) & 0xff) && ibuf->buffer[ref_pos + 3] == ((sequence >> 24) & 0xff)) {
+			if (ipos > last_match_pos) {
 				break;
 			}
-			ipos += 1;
-		}
 
-		// No match found
-		if (ipos > last_match_pos) {
-			break;
-		}
-
-		// Match found
-		uint32_t llen = ipos - anchor_pos;
-		uint32_t mlen = ipos;
-		ipos += 4;
-		ref_pos += 4;
-		while (ipos < last_literal_pos && ibuf->buffer[ipos] == ibuf->buffer[ref_pos]) {
-			ipos += 1;
-			ref_pos += 1;
-		}
-		mlen           = ipos - mlen;
-		uint32_t token = mlen < 19 ? mlen - 4 : 15;
-
-		// Write token, length of literals if needed
-		if (llen >= 15) {
-			obuf->buffer[opos++] = 0xf0 | token;
-			uint32_t l           = llen - 15;
-			while (l >= 255) {
-				obuf->buffer[opos++] = 255;
-				l -= 255;
+			uint32_t llen   = ipos - anchor_pos;
+			uint32_t mstart = ipos;
+			ipos += 4;
+			ref_pos += 4;
+			while (ipos + 8 <= last_literal_pos) {
+				uint64_t a;
+				uint64_t c;
+				memcpy(&a, src + ipos, 8);
+				memcpy(&c, src + ref_pos, 8);
+				if (a != c) {
+					break;
+				}
+				ipos += 8;
+				ref_pos += 8;
 			}
-			obuf->buffer[opos++] = l;
-		}
-		else {
-			obuf->buffer[opos++] = (llen << 4) | token;
-		}
-
-		// Write literals
-		while (llen-- > 0) {
-			obuf->buffer[opos++] = ibuf->buffer[anchor_pos++];
-		}
-
-		if (mlen == 0) {
-			break;
-		}
-
-		// Write offset of match
-		obuf->buffer[opos + 0] = moffset;
-		obuf->buffer[opos + 1] = moffset >> 8;
-		opos += 2;
-
-		// Write length of match if needed
-		if (mlen >= 19) {
-			uint32_t l = mlen - 19;
-			while (l >= 255) {
-				obuf->buffer[opos++] = 255;
-				l -= 255;
+			while (ipos < last_literal_pos && src[ipos] == src[ref_pos]) {
+				ipos += 1;
+				ref_pos += 1;
 			}
-			obuf->buffer[opos++] = l;
+			uint32_t mlen  = ipos - mstart;
+			uint32_t token = mlen < 19 ? mlen - 4 : 15;
+
+			if (llen >= 15) {
+				dst[opos++] = 0xf0 | token;
+				uint32_t l  = llen - 15;
+				while (l >= 255) {
+					dst[opos++] = 255;
+					l -= 255;
+				}
+				dst[opos++] = l;
+			}
+			else {
+				dst[opos++] = (llen << 4) | token;
+			}
+
+			if (llen > 0) {
+				memcpy(dst + opos, src + anchor_pos, llen);
+				opos += llen;
+				anchor_pos += llen;
+			}
+
+			dst[opos + 0] = (uint8_t)moffset;
+			dst[opos + 1] = (uint8_t)(moffset >> 8);
+			opos += 2;
+
+			if (mlen >= 19) {
+				uint32_t l = mlen - 19;
+				while (l >= 255) {
+					dst[opos++] = 255;
+					l -= 255;
+				}
+				dst[opos++] = l;
+			}
+
+			anchor_pos = ipos;
 		}
 
-		anchor_pos = ipos;
+		free(hash_table);
 	}
 
 	// Last sequence is literals only
 	uint32_t llen = ilen - anchor_pos;
 	if (llen >= 15) {
-		obuf->buffer[opos++] = 0xf0;
-		uint32_t l           = llen - 15;
+		dst[opos++] = 0xf0;
+		uint32_t l  = llen - 15;
 		while (l >= 255) {
-			obuf->buffer[opos++] = 255;
+			dst[opos++] = 255;
 			l -= 255;
 		}
-		obuf->buffer[opos++] = l;
+		dst[opos++] = l;
 	}
 	else {
-		obuf->buffer[opos++] = llen << 4;
+		dst[opos++] = llen << 4;
 	}
-	while (llen-- > 0) {
-		obuf->buffer[opos++] = ibuf->buffer[anchor_pos++];
+	if (llen > 0) {
+		memcpy(dst + opos, src + anchor_pos, llen);
+		opos += llen;
 	}
 
-	buffer_t *result = buffer_slice(obuf, 0, opos);
-	array_free(obuf);
-	free(obuf);
+	uint8_t    *trimmed = (uint8_t *)realloc(dst, opos > 0 ? opos : 1);
+	u8_array_t *result  = (u8_array_t *)malloc(sizeof(u8_array_t));
+	result->buffer      = trimmed != NULL ? trimmed : dst;
+	result->length      = opos;
+	result->capacity    = opos > 0 ? opos : 1;
 	return result;
 }
 
-buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
-	u8_array_t *ibuf = (u8_array_t *)b;
-	uint32_t    ilen = ibuf->length;
-	u8_array_t *obuf = u8_array_create(olen);
-	uint32_t    ipos = 0;
-	uint32_t    opos = 0;
+bool lz4_decode_to(buffer_t *b, uint8_t *dst, uint32_t olen) {
+	(void)olen;
+	const uint8_t *src  = b->buffer;
+	uint32_t       ilen = b->length;
+	uint32_t       ipos = 0;
+	uint32_t       opos = 0;
 
 	while (ipos < ilen) {
-		uint32_t token = ibuf->buffer[ipos++];
+		uint32_t token = src[ipos++];
 
 		// Literals
 		uint32_t clen = token >> 4;
-
-		// Length of literals
 		if (clen != 0) {
 			if (clen == 15) {
-				uint32_t l = 0;
-				while (1) {
-					l = ibuf->buffer[ipos++];
-					if (l != 255) {
-						break;
-					}
-					clen += 255;
-				}
-				clen += l;
+				uint32_t l;
+				do {
+					l = src[ipos++];
+					clen += l;
+				} while (l == 255);
 			}
-
-			// Copy literals
-			uint32_t end = ipos + clen;
-			while (ipos < end) {
-				obuf->buffer[opos++] = ibuf->buffer[ipos++];
-			}
+			memcpy(dst + opos, src + ipos, clen);
+			opos += clen;
+			ipos += clen;
 			if (ipos == ilen) {
 				break;
 			}
 		}
 
 		// Match
-		uint32_t moffset = ibuf->buffer[ipos + 0] | (ibuf->buffer[ipos + 1] << 8);
+		uint32_t moffset = (uint32_t)src[ipos] | ((uint32_t)src[ipos + 1] << 8);
 		if (moffset == 0 || moffset > opos) {
-			return NULL;
+			return false;
 		}
 		ipos += 2;
 
-		// Length of match
 		clen = (token & 0x0f) + 4;
 		if (clen == 19) {
-			uint32_t l = 0;
-			while (1) {
-				l = ibuf->buffer[ipos++];
-				if (l != 255) {
-					break;
-				}
-				clen += 255;
-			}
-			clen += l;
+			uint32_t l;
+			do {
+				l = src[ipos++];
+				clen += l;
+			} while (l == 255);
 		}
 
-		// Copy match
 		uint32_t mpos = opos - moffset;
-		uint32_t end  = opos + clen;
-		while (opos < end) {
-			obuf->buffer[opos++] = obuf->buffer[mpos++];
+		if (moffset >= clen) {
+			memcpy(dst + opos, dst + mpos, clen);
 		}
+		else if (moffset == 1) {
+			memset(dst + opos, dst[mpos], clen);
+		}
+		else {
+			uint32_t copied = moffset;
+			memcpy(dst + opos, dst + mpos, copied);
+			while (copied < clen) {
+				uint32_t chunk = clen - copied;
+				if (chunk > copied) {
+					chunk = copied;
+				}
+				memcpy(dst + opos + copied, dst + opos, chunk);
+				copied += chunk;
+			}
+		}
+		opos += clen;
 	}
 
+	return true;
+}
+
+buffer_t *lz4_decode(buffer_t *b, uint32_t olen) {
+	u8_array_t *obuf = (u8_array_t *)malloc(sizeof(u8_array_t));
+	obuf->buffer     = (uint8_t *)malloc(olen > 0 ? olen : 1);
+	obuf->length     = olen;
+	obuf->capacity   = olen > 0 ? olen : 1;
+	if (!lz4_decode_to(b, obuf->buffer, olen)) {
+		array_free(obuf);
+		free(obuf);
+		return NULL;
+	}
 	return obuf;
 }
