@@ -252,7 +252,7 @@ static uint8_t flag_to_byte_size(uint8_t flag) {
 static void store_typed_array(uint8_t flag, uint32_t count) {
 	uint32_t size = flag_to_byte_size(flag) * count;
 	if (size > 4096) {
-		void *data = calloc(1, size);
+		void *data = malloc(size);
 		memcpy(data, encoded + ei, size);
 		*(uintptr_t *)(decoded + di - 4 - 4 - PTR_SIZE) = (uintptr_t)data; // Set buffer ptr
 		*(uint32_t *)(decoded + di - 4)                 = count;           // Set capacity
@@ -464,9 +464,9 @@ void armpack_encode_array_f32(f32_array_t *f32a) {
 	armpack_write_u32(f32a->length);
 	if (f32a->length > 0) {
 		armpack_write_u8(0xca);
-		for (uint32_t i = 0; i < f32a->length; ++i) {
-			armpack_write_f32(f32a->buffer[i]);
-		}
+		size_t bytes = (size_t)f32a->length * 4;
+		memcpy(encoded + ei, f32a->buffer, bytes);
+		ei += bytes;
 	}
 }
 
@@ -479,9 +479,9 @@ void armpack_encode_array_i32(i32_array_t *i32a) {
 	armpack_write_u32(i32a->length);
 	if (i32a->length > 0) {
 		armpack_write_u8(0xd2);
-		for (uint32_t i = 0; i < i32a->length; ++i) {
-			armpack_write_i32(i32a->buffer[i]);
-		}
+		size_t bytes = (size_t)i32a->length * 4;
+		memcpy(encoded + ei, i32a->buffer, bytes);
+		ei += bytes;
 	}
 }
 
@@ -494,9 +494,9 @@ void armpack_encode_array_i16(i16_array_t *i16a) {
 	armpack_write_u32(i16a->length);
 	if (i16a->length > 0) {
 		armpack_write_u8(0xd1);
-		for (uint32_t i = 0; i < i16a->length; ++i) {
-			armpack_write_i16(i16a->buffer[i]);
-		}
+		size_t bytes = (size_t)i16a->length * 2;
+		memcpy(encoded + ei, i16a->buffer, bytes);
+		ei += bytes;
 	}
 }
 
@@ -509,9 +509,8 @@ void armpack_encode_array_u8(u8_array_t *u8a) {
 	armpack_write_u32(u8a->length);
 	if (u8a->length > 0) {
 		armpack_write_u8(0xc4);
-		for (uint32_t i = 0; i < u8a->length; ++i) {
-			armpack_write_u8(u8a->buffer[i]);
-		}
+		memcpy(encoded + ei, u8a->buffer, u8a->length);
+		ei += u8a->length;
 	}
 }
 
@@ -535,9 +534,8 @@ void armpack_encode_string(char *str) {
 	armpack_write_u8(0xdb);
 	size_t len = strlen(str);
 	armpack_write_u32(len);
-	for (uint32_t i = 0; i < len; ++i) {
-		armpack_write_u8(str[i]);
-	}
+	memcpy(encoded + ei, str, len);
+	ei += len;
 }
 
 void armpack_encode_i32(int32_t i) {
