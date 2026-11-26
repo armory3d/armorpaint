@@ -2068,7 +2068,7 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 			uint16_t indices_size = o->op_load_access_list.access_list_size;
 
 			if (get_type(o->op_load_access_list.from.type.type)->tex_kind == TEXTURE_KIND_2D) {
-				kong_assert(indices_size == 1);
+				kong_assert(indices_size == 1 || indices_size == 2);
 				kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 				variable coordinate_var = o->op_load_access_list.access_list[0].access_element.index;
@@ -2084,6 +2084,14 @@ static void write_function(instructions_buffer *instructions, function *f, spirv
 					spirv_id image      = write_op_load(instructions, spirv_image_type, convert_kong_index_to_spirv_id(o->op_load_access_list.from.index));
 					spirv_id coordinate = get_var(instructions, coordinate_var);
 					value               = write_op_image_fetch(instructions, spirv_float4_type, image, coordinate);
+				}
+
+				// A swizzle of the texel, split into single components before
+				if (indices_size == 2) {
+					kong_access *a = &o->op_load_access_list.access_list[1];
+					kong_assert(a->kind == ACCESS_SWIZZLE && a->access_swizzle.swizzle.size == 1);
+					uint32_t component = a->access_swizzle.swizzle.indices[0];
+					value = write_op_composite_extract(instructions, convert_type_to_spirv_id(o->op_load_access_list.to.type.type), value, &component, 1);
 				}
 
 				hmput(index_map, o->op_load_access_list.to.index, value);

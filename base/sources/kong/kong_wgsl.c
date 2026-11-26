@@ -930,16 +930,29 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 				type_id from_type = o->op_load_access_list.from.type.type;
 
 				if (is_texture(from_type)) {
-					kong_assert(o->op_load_access_list.access_list_size == 1);
+					kong_assert(o->op_load_access_list.access_list_size == 1 || o->op_load_access_list.access_list_size == 2);
 					kong_assert(o->op_load_access_list.access_list[0].kind == ACCESS_ELEMENT);
 
 					*offset += sprintf(&code[*offset], "var %s: %s = ", get_var(o->op_load_access_list.to, f, main).str,
 					                   type_string(o->op_load_access_list.to.type.type));
 
-					*offset += sprintf(&code[*offset], "textureLoad(%s, vec2<u32>(u32(%s.x), u32(%s.y)), 0);\n",
+					*offset += sprintf(&code[*offset], "textureLoad(%s, vec2<u32>(u32(%s.x), u32(%s.y)), 0)",
 					                   is_compute_target_load(o) ? "_kong_prev" : get_var(o->op_load_access_list.from, f, main).str,
 					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str,
 					                   get_var(o->op_load_access_list.access_list[0].access_element.index, f, main).str);
+
+					// A swizzle of the texel
+					if (o->op_load_access_list.access_list_size == 2) {
+						kong_access *a = &o->op_load_access_list.access_list[1];
+						kong_assert(a->kind == ACCESS_SWIZZLE);
+						char swizzle[5];
+						for (uint32_t i = 0; i < a->access_swizzle.swizzle.size; ++i) {
+							swizzle[i] = "xyzw"[a->access_swizzle.swizzle.indices[i]];
+						}
+						swizzle[a->access_swizzle.swizzle.size] = 0;
+						*offset += sprintf(&code[*offset], ".%s", swizzle);
+					}
+					*offset += sprintf(&code[*offset], ";\n");
 				}
 				else if (o->op_load_access_list.from.kind == VARIABLE_GLOBAL && is_storage_buffer(from_type)) {
 					kong_assert(o->op_load_access_list.access_list_size == 1);
