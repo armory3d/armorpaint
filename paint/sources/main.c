@@ -88,6 +88,7 @@
 #include "nodes_material/separate_color_node.c"
 #include "nodes_material/separate_xyz_node.c"
 #include "nodes_material/shader_node.c"
+#include "nodes_material/sky_texture_node.c"
 #include "nodes_material/terrain_node.c"
 #include "nodes_material/text_texture_node.c"
 #include "nodes_material/texture_coordinate_node.c"
@@ -411,7 +412,7 @@ void _kickstart() {
 	ui_sidebar_w_mini             = ui_sidebar_default_w_mini;
 	console_last_traces           = any_array_create(0);
 	ui_box_hwnd                   = ui_window_create();
-	render_path_raytrace_f32a     = f32_array_create(28);
+	render_path_raytrace_f32a     = f32_array_create(32);
 	render_path_raytrace_help_mat = mat4_identity();
 	neural_node_results           = any_imap_create();
 

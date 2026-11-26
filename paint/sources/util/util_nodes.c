@@ -61,6 +61,27 @@ bool ui_nodes_can_place_group(char *group_name) {
 	return ui_nodes_find_group(group_name) != NULL;
 }
 
+static ui_node_t_array_t *ui_nodes_group_parents() {
+	ui_node_t_array_t *parents = any_array_create_from_raw((void *[]){}, 0);
+	ui_node_canvas_t  *outer   = ui_nodes_get_canvas(false);
+	for (i32 i = 0; i < ui_nodes_group_stack->length; ++i) {
+		char      *gname      = ui_nodes_group_stack->buffer[i]->canvas->name;
+		ui_node_t *group_node = NULL;
+		for (i32 j = 0; j < outer->nodes->length; ++j) {
+			ui_node_t *n = outer->nodes->buffer[j];
+			if (string_equals(n->type, "GROUP") && string_equals(n->name, gname)) {
+				group_node = n;
+				break;
+			}
+		}
+		if (group_node != NULL) {
+			any_array_push(parents, group_node);
+		}
+		outer = ui_nodes_group_stack->buffer[i]->canvas;
+	}
+	return parents;
+}
+
 gpu_texture_t *ui_nodes_get_node_preview_image(ui_node_t *n) {
 	if (n == NULL) {
 		return NULL;
@@ -96,6 +117,18 @@ gpu_texture_t *ui_nodes_get_node_preview_image(ui_node_t *n) {
 		render_target_t *rt      = any_map_get(render_path_render_targets, rt_name);
 		if (rt != NULL) {
 			img = rt->_image;
+		}
+	}
+	else if (string_equals(n->type, "TEX_SKY") && ui_nodes_canvas_type == CANVAS_TYPE_MATERIAL) {
+		i32 socket = i32_imap_get(g_context->node_preview_socket_map, n->id);
+		if (socket <= 0 && nodes_mesh_link(ui_nodes_get_canvas(true), n, 0) == NULL) {
+			ui_node_t_array_t *parents = ui_nodes_group_parents();
+			img                        = sky_texture_node_preview_image(n, parents);
+			array_free(parents);
+			free(parents);
+		}
+		else {
+			img = any_imap_get(g_context->node_preview_map, n->id);
 		}
 	}
 	else if (starts_with(n->type, "NEURAL_") && n->outputs->length > 0) {
@@ -420,37 +453,45 @@ void ui_nodes_make_node_preview(ui_node_t *node) {
 		return;
 	}
 
-	gpu_texture_t *img = any_imap_get(g_context->node_preview_map, node->id);
-	if (img == NULL) {
-		img = gpu_create_render_target(util_render_node_preview_size, util_render_node_preview_size, GPU_TEXTURE_FORMAT_RGBA32);
-		any_imap_set(g_context->node_preview_map, node->id, img);
-	}
+	ui_node_canvas_t  *group_canvas  = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->canvas : NULL;
+	ui_node_t_array_t *group_parents = ui_nodes_group_parents();
 
-	ui_node_canvas_t  *group_canvas  = NULL;
-	ui_node_t_array_t *group_parents = NULL;
-	if (ui_nodes_group_stack->length > 0) {
-		group_canvas            = ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1]->canvas;
-		group_parents           = any_array_create_from_raw((void *[]){}, 0);
-		ui_node_canvas_t *outer = ui_nodes_get_canvas(false);
-		for (i32 i = 0; i < ui_nodes_group_stack->length; ++i) {
-			char      *gname      = ui_nodes_group_stack->buffer[i]->canvas->name;
-			ui_node_t *group_node = NULL;
-			for (i32 j = 0; j < outer->nodes->length; ++j) {
-				ui_node_t *n = outer->nodes->buffer[j];
-				if (string_equals(n->type, "GROUP") && string_equals(n->name, gname)) {
-					group_node = n;
-					break;
-				}
-			}
-			if (group_node != NULL) {
-				any_array_push(group_parents, group_node);
-			}
-			outer = ui_nodes_group_stack->buffer[i]->canvas;
+	if (string_equals(node->type, "TEX_SKY")) {
+		gpu_texture_t *current = _draw_current;
+		bool           in_use  = gpu_in_use;
+		if (in_use) {
+			draw_end();
+		}
+		char *id = make_material_node_preview_id(node, group_parents);
+		sky_texture_node_bake(node, group_canvas, group_parents, id);
+		if (in_use) {
+			draw_begin(current, false, 0);
+		}
+		ui_nodes_hwnd->redraws  = 2;
+		ui_view2d_hwnd->redraws = 2;
+		i32 socket              = i32_imap_get(g_context->node_preview_socket_map, node->id);
+		if (socket <= 0 && nodes_mesh_link(current_canvas, node, 0) == NULL) {
+			array_free(group_parents);
+			free(group_parents);
+			return;
 		}
 	}
 
+	i32            pw  = string_equals(node->type, "TEX_SKY") ? config_get_texture_res_x() : util_render_node_preview_size;
+	i32            ph  = string_equals(node->type, "TEX_SKY") ? math_max(config_get_texture_res_y() / 2, 1) : util_render_node_preview_size;
+	gpu_texture_t *img = any_imap_get(g_context->node_preview_map, node->id);
+	if (img == NULL || img->width != pw || img->height != ph) {
+		if (img != NULL) {
+			gpu_delete_texture(img);
+		}
+		img = gpu_create_render_target(pw, ph, GPU_TEXTURE_FORMAT_RGBA32);
+		any_imap_set(g_context->node_preview_map, node->id, img);
+	}
+
 	ui_nodes_hwnd->redraws = 2;
-	util_render_make_node_preview(current_canvas, node, img, group_canvas, group_parents);
+	util_render_make_node_preview(current_canvas, node, img, group_canvas, group_canvas != NULL ? group_parents : NULL);
+	array_free(group_parents);
+	free(group_parents);
 }
 
 ui_node_t *ui_nodes_make_node(ui_node_t *n, ui_nodes_t *nodes, ui_node_canvas_t *canvas) {
