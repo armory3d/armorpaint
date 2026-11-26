@@ -154,8 +154,13 @@ char *make_material_node_preview_id(ui_node_t *node, ui_node_t_array_t *parents)
 }
 
 gpu_texture_t *make_material_node_preview_target(char *id, i32 res_x, i32 res_y, gpu_texture_format_t format) {
+	if (g_context->node_previews == NULL) {
+		g_context->node_previews = any_map_create();
+	}
 	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
-	any_array_push(g_context->node_previews_used, id);
+	if (g_context->node_previews_used != NULL) {
+		any_array_push(g_context->node_previews_used, id);
+	}
 	if (image == NULL || image->width != res_x || image->height != res_y || image->format != format) {
 		if (image != NULL) {
 			gpu_delete_texture(image);
@@ -209,6 +214,9 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 	}
 	else if (string_equals(node->type, "TERRAIN")) {
 		terrain_node_bake(node, group, parents, make_material_node_preview_id(node, parents));
+	}
+	else if (string_equals(node->type, "TEX_SKY")) {
+		sky_texture_node_bake(node, group, parents, make_material_node_preview_id(node, parents));
 	}
 }
 
