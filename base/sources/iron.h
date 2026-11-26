@@ -912,7 +912,10 @@ buffer_t *iron_load_blob(char *file) {
 		return NULL;
 	}
 	uint32_t  reader_size = (uint32_t)iron_file_reader_size(&reader);
-	buffer_t *buffer      = buffer_create(reader_size);
+	buffer_t *buffer      = malloc(sizeof(buffer_t));
+	buffer->buffer        = reader_size > 0 ? malloc(reader_size) : NULL;
+	buffer->length        = reader_size;
+	buffer->capacity      = reader_size;
 	iron_file_reader_read(&reader, buffer->buffer, reader_size);
 	iron_file_reader_close(&reader);
 	return buffer;
