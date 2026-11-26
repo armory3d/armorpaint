@@ -1219,7 +1219,7 @@ void raytrace() {
 				texcolor = srgb_to_linear(tex0.rgb);
 
 #ifdef _SUBSURFACE
-				bool medium_surface = int(tex1.a * 255.0) % 3 == 2;
+				bool medium_surface = int(tex1.a * 255.0 + 0.5) % 3 == 2;
 #else
 				bool medium_surface = false;
 #endif
@@ -1231,7 +1231,7 @@ void raytrace() {
 #endif
 
 #ifdef _EMISSION
-				if (int(tex1.a * 255.0) % 3 == 1) { // matid
+				if (int(tex1.a * 255.0 + 0.5) % 3 == 1) { // matid
 					accum += throughput * texcolor * 100.0;
 					break;
 				}
