@@ -401,6 +401,8 @@ gpu_texture_t  *render_path_raytrace_last_envmap   = NULL;
 bool            render_path_raytrace_is_bake       = false;
 bool            render_path_raytrace_override_pass = false;
 bool            render_path_raytrace_moving        = false;
+f32             render_path_raytrace_fog_density   = 0.0;
+u32             render_path_raytrace_fog_color     = 0xffffffff;
 
 bool sculpt_push_undo       = false;
 i32  ui_statusbar_default_h = 33;

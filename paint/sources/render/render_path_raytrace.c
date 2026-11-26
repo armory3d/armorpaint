@@ -686,6 +686,11 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	render_path_raytrace_f32a->buffer[24] = (f32)render_path_raytrace_volume_mask;
 	render_path_raytrace_f32a->buffer[25] = (f32)render_path_raytrace_volume_count;
 	render_path_raytrace_f32a->buffer[26] = (f32)render_path_raytrace_volume_list;
+	render_path_raytrace_f32a->buffer[27] = 0.0;
+	render_path_raytrace_f32a->buffer[28] = powf(color_get_rb(render_path_raytrace_fog_color) / 255.0f, 2.2f);
+	render_path_raytrace_f32a->buffer[29] = powf(color_get_gb(render_path_raytrace_fog_color) / 255.0f, 2.2f);
+	render_path_raytrace_f32a->buffer[30] = powf(color_get_bb(render_path_raytrace_fog_color) / 255.0f, 2.2f);
+	render_path_raytrace_f32a->buffer[31] = render_path_raytrace_fog_density;
 
 	if (render_path_base_buf_swapped) {
 		render_path_base_swap_buf("buf");
