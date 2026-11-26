@@ -376,7 +376,7 @@ static gpu_raytrace_pipeline_t      rt_pipeline;
 static gpu_acceleration_structure_t rt_accel;
 static bool                         rt_created              = false;
 static bool                         rt_accel_created        = false;
-static const int                    rt_constant_buffer_size = 28;
+static const int                    rt_constant_buffer_size = 32;
 
 void _gpu_raytrace_init(buffer_t *shader) {
 	if (rt_created) {

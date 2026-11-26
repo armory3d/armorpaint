@@ -7,6 +7,7 @@
 #define _GRAINS
 #define _GRAIN_BOUNCE_LIMIT // Faster sand
 #define _VOLUMES
+#define _FOG
 #endif
 #define _ENV_SAMPLING
 
@@ -21,6 +22,7 @@ cbuffer constant_buffer {
 	float4x4 inv_vp;
 	float4   params; // envstr, envangle, uvscale, env sampling enabled in bit 0 | grain geometries as a bit per geometry above
 	float4   params2; // volume geometries as a bit per geometry, volume count, their geometry indices 5 bits each
+	float4   fog; // linear rgb, density (0 = disabled)
 };
 
 bvh     scene;
@@ -883,20 +885,149 @@ volume_path volume_march(float3 o, float3 d, float seg, float tau_target, float 
 }
 #endif
 
+#ifdef _FOG
+const float FOG_DENSITY_SCALE  = 0.5;
+const float FOG_HEIGHT_FALLOFF = 0.25;
+const float FOG_BASE_Z         = 0.0;
+const float FOG_MAX_DIST       = 25.0;
+const float FOG_ANISOTROPY     = 0.5;
+
+float fog_tau_above(float oz, float dz, float a, float b, float sigma0) {
+	float len = b - a;
+	if (len <= 0.0) {
+		return 0.0;
+	}
+	float za = oz + a * dz;
+	float zb = oz + b * dz;
+	float sa = sigma0 * exp(-FOG_HEIGHT_FALLOFF * max(za - FOG_BASE_Z, 0.0));
+	float c  = FOG_HEIGHT_FALLOFF * dz;
+	if (abs(c) < 0.0001) {
+		return sa * len;
+	}
+	float sb = sigma0 * exp(-FOG_HEIGHT_FALLOFF * max(zb - FOG_BASE_Z, 0.0));
+	return max((sa - sb) / c, 0.0);
+}
+
+float fog_sample_above(float oz, float dz, float a, float b, float sigma0, float tau_target) {
+	float za = oz + a * dz;
+	float sa = sigma0 * exp(-FOG_HEIGHT_FALLOFF * max(za - FOG_BASE_Z, 0.0));
+	float c  = FOG_HEIGHT_FALLOFF * dz;
+	if (abs(c) < 0.0001) {
+		return min(a + tau_target / max(sa, 0.0000001), b);
+	}
+	float st = max(sa - c * tau_target, 0.0000001);
+	return clamp(a - log(st / max(sa, 0.0000001)) / c, a, b);
+}
+
+float fog_optical_depth(float3 o, float3 d, float seg) {
+	float sigma0 = constant_buffer.fog.w * FOG_DENSITY_SCALE;
+	float len    = min(seg, FOG_MAX_DIST);
+	if (sigma0 <= 0.0 || len <= 0.0) {
+		return 0.0;
+	}
+	float oz = o.z;
+	float dz = d.z;
+	float z1 = oz + len * dz;
+	if (oz <= FOG_BASE_Z && z1 <= FOG_BASE_Z) {
+		return sigma0 * len;
+	}
+	if (oz >= FOG_BASE_Z && z1 >= FOG_BASE_Z) {
+		return fog_tau_above(oz, dz, 0.0, len, sigma0);
+	}
+	float t_plane = clamp((FOG_BASE_Z - oz) / dz, 0.0, len);
+	if (oz < FOG_BASE_Z) {
+		return sigma0 * t_plane + fog_tau_above(oz, dz, t_plane, len, sigma0);
+	}
+	return fog_tau_above(oz, dz, 0.0, t_plane, sigma0) + sigma0 * (len - t_plane);
+}
+
+float fog_sample_distance(float3 o, float3 d, float seg, float tau_target) {
+	float sigma0 = constant_buffer.fog.w * FOG_DENSITY_SCALE;
+	float len    = min(seg, FOG_MAX_DIST);
+	if (sigma0 <= 0.0 || len <= 0.0) {
+		return -1.0;
+	}
+	float oz = o.z;
+	float dz = d.z;
+	float z1 = oz + len * dz;
+	if (oz <= FOG_BASE_Z && z1 <= FOG_BASE_Z) {
+		float t = tau_target / sigma0;
+		if (t < len) {
+			return t;
+		}
+		return -1.0;
+	}
+	if (oz >= FOG_BASE_Z && z1 >= FOG_BASE_Z) {
+		if (tau_target < fog_tau_above(oz, dz, 0.0, len, sigma0)) {
+			return fog_sample_above(oz, dz, 0.0, len, sigma0, tau_target);
+		}
+		return -1.0;
+	}
+	float t_plane = clamp((FOG_BASE_Z - oz) / dz, 0.0, len);
+	if (oz < FOG_BASE_Z) {
+		float tau0 = sigma0 * t_plane;
+		if (tau_target < tau0) {
+			return tau_target / sigma0;
+		}
+		float rem = tau_target - tau0;
+		if (rem < fog_tau_above(oz, dz, t_plane, len, sigma0)) {
+			return fog_sample_above(oz, dz, t_plane, len, sigma0, rem);
+		}
+		return -1.0;
+	}
+	float tau0 = fog_tau_above(oz, dz, 0.0, t_plane, sigma0);
+	if (tau_target < tau0) {
+		return fog_sample_above(oz, dz, 0.0, t_plane, sigma0, tau_target);
+	}
+	float rem = tau_target - tau0;
+	if (rem < sigma0 * (len - t_plane)) {
+		return t_plane + rem / sigma0;
+	}
+	return -1.0;
+}
+
+float hg_phase(float cos_theta, float g) {
+	float g2    = g * g;
+	float denom = max(1.0 + g2 - 2.0 * g * cos_theta, 0.0001);
+	return (1.0 - g2) / (4.0 * PI * denom * sqrt(denom));
+}
+
+float3 sample_hg(float3 dir, float g, float u1, float u2) {
+	float cos_theta;
+	if (abs(g) < 0.001) {
+		cos_theta = 1.0 - 2.0 * u1;
+	}
+	else {
+		float s   = (1.0 - g * g) / (1.0 - g + 2.0 * g * u1);
+		cos_theta = clamp((1.0 + g * g - s * s) / (2.0 * g), -1.0, 1.0);
+	}
+	float         sin_theta = sqrt(max(0.0, 1.0 - cos_theta * cos_theta));
+	float         phi       = PI2 * u2;
+	tangent_basis b         = create_basis(dir);
+	return normalize(b.tangent * (sin_theta * cos(phi)) + b.binormal * (sin_theta * sin(phi)) + dir * cos_theta);
+}
+#endif
+
 #ifdef _ENV_SAMPLING
 // Of the gas between a point and the environment, 0 when anything solid is in the way
 float3 shadow_transmittance(float3 origin, float3 dir, uint seed) {
 	if (occluded(origin, dir)) {
 		return float3(0.0, 0.0, 0.0);
 	}
+	float3 tr = float3(1.0, 1.0, 1.0);
 #ifdef _VOLUMES
 	if (constant_buffer.params2.y > 0.0) {
 		float       jitter = hash_unorm(hash_u32(seed ^ uint(1640531527)));
 		volume_path vp     = volume_march(origin, dir, 100.0, 1000000.0, jitter, 4.0, seed, true);
-		return vp.trans;
+		tr                 = vp.trans;
 	}
 #endif
-	return float3(1.0, 1.0, 1.0);
+#ifdef _FOG
+	if (constant_buffer.fog.w > 0.0) {
+		tr = tr * exp(-fog_optical_depth(origin, dir, FOG_MAX_DIST));
+	}
+#endif
+	return tr;
 }
 #endif
 
@@ -976,6 +1107,18 @@ void raytrace() {
 			r.min          = 0.0001;
 			bool scene_hit = ray_query_hit(q);
 
+#ifdef _FOG
+			float fog_t = -1.0;
+			if (constant_buffer.fog.w > 0.0 && !in_grains && medium_depth == 0) {
+				float fseg = r.max;
+				if (scene_hit) {
+					fseg = ray_query_distance(q);
+				}
+				float fog_tau = 0.0 - log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001));
+				fog_t         = fog_sample_distance(r.origin, r.direction, fseg, fog_tau);
+			}
+#endif
+
 #ifdef _VOLUMES
 			// Through the smoke and flame on the way to the hit
 			if (constant_buffer.params2.y > 0.0 && !in_grains) {
@@ -983,7 +1126,18 @@ void raytrace() {
 				if (scene_hit) {
 					seg = ray_query_distance(q);
 				}
-				float tau_target = 0.0 - log(max(1.0 - rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame), 0.0000001));
+#ifdef _FOG
+				if (fog_t >= 0.0) {
+					seg = min(seg, fog_t);
+				}
+#endif
+				float u_vol = rnd(id.xy, sample_index, dim_base + DIM_MEDIUM, cache, frame);
+#ifdef _FOG
+				if (constant_buffer.fog.w > 0.0) {
+					u_vol = hash_unorm(pixel_hash(id.xy, sample_index, dim_base + 2713));
+				}
+#endif
+				float tau_target = 0.0 - log(max(1.0 - u_vol, 0.0000001));
 				float jitter = hash_unorm(pixel_hash(id.xy, sample_index, dim_base + 977));
 				float step_cells = 4.0; // Coarser after a bounce
 				if (i == lead) {
@@ -1027,6 +1181,42 @@ void raytrace() {
 #endif
 					continue;
 				}
+			}
+#endif
+
+#ifdef _FOG
+			if (fog_t >= 0.0) {
+				throughput *= min(constant_buffer.fog.rgb, float3(0.95, 0.95, 0.95));
+#ifdef _ROULETTE
+				if (scatters >= rr_start) {
+					float rr_probability = clamp(max(max(throughput.r, throughput.g), throughput.b), rr_min, rr_max);
+					if (rnd(id.xy, sample_index, dim_base + DIM_RR, cache, frame) > rr_probability) {
+						break;
+					}
+					throughput = throughput / rr_probability;
+				}
+				scatters += 1;
+#endif
+				r.origin = r.origin + r.direction * fog_t;
+#ifdef _ENV_SAMPLING
+				if (env_sampling()) {
+					float4 light = sample_env(rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT, cache, frame),
+					                          rnd_fine(id.xy, sample_index, dim_base + DIM_LIGHT + 1, cache, frame));
+					if (light.w > 0.0) {
+						float  phase = hg_phase(dot(r.direction, light.xyz), FOG_ANISOTROPY);
+						uint   fseed = pixel_hash(id.xy, sample_index, dim_base + 4219);
+						float3 tr    = shadow_transmittance(r.origin, light.xyz, fseed);
+						accum += clamp(throughput * tr * env_radiance(light.xyz) * (phase * mis_weight(light.w, phase) / light.w), 0.0, 8.0);
+					}
+				}
+#endif
+				float3 prev_dir = r.direction;
+				r.direction     = sample_hg(prev_dir, FOG_ANISOTROPY, rnd(id.xy, sample_index, dim_base + DIM_DIR, cache, frame),
+				                            rnd(id.xy, sample_index, dim_base + DIM_DIR + 1, cache, frame));
+#ifdef _ENV_SAMPLING
+				bsdf_pdf = hg_phase(dot(prev_dir, r.direction), FOG_ANISOTROPY);
+#endif
+				continue;
 			}
 #endif
 
