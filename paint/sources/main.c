@@ -88,6 +88,7 @@
 #include "nodes_material/separate_color_node.c"
 #include "nodes_material/separate_xyz_node.c"
 #include "nodes_material/shader_node.c"
+#include "nodes_material/terrain_node.c"
 #include "nodes_material/text_texture_node.c"
 #include "nodes_material/texture_coordinate_node.c"
 #include "nodes_material/tilesheet_animation_node.c"

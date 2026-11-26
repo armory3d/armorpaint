@@ -17,7 +17,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
                                                                 4),
 	                                                                  .color_attachments = any_array_create_from_raw(
                                                                 (void *[]){
-                                                                    "RGBA32",
+                                                                    parser_material_terrain_passthrough ? "RGBA128" : "RGBA32", // Terrain height
                                                                 },
                                                                 1)});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);

@@ -39,6 +39,11 @@ project_t *main() {
 	add_shader(project, "shaders/compute/dilate.shader", "dilate_rgba64", "FORMAT_RGBA64");
 	add_shader(project, "shaders/compute/dilate_copy.shader", "dilate_copy_rgba32", "FORMAT_RGBA32");
 	add_shader(project, "shaders/compute/dilate_copy.shader", "dilate_copy_rgba64", "FORMAT_RGBA64");
+	add_shader(project, "shaders/compute/terrain.shader", "terrain_init", "_INIT");
+	add_shader(project, "shaders/compute/terrain.shader", "terrain_fill", "_FILL");
+	add_shader(project, "shaders/compute/terrain.shader", "terrain_flow", "_FLOW");
+	add_shader(project, "shaders/compute/terrain.shader", "terrain_thermal", "_THERMAL");
+	add_shader(project, "shaders/compute/terrain.shader", "terrain_pack", "_PACK");
 	add_assets(project, "assets/*", "data/{name}", 0);
 	add_assets(project, "assets/export_presets/*", "data/export_presets/{name}", 0);
 	add_assets(project, "assets/keymap_presets/*", "data/keymap_presets/{name}", 0);

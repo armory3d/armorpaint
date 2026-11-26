@@ -153,7 +153,7 @@ char *make_material_node_preview_id(ui_node_t *node, ui_node_t_array_t *parents)
 	return string_tmp("m%d_%s", g_context->material->id, parser_material_node_name(node, parents));
 }
 
-static gpu_texture_t *make_material_node_preview_target(char *id, i32 res_x, i32 res_y, gpu_texture_format_t format) {
+gpu_texture_t *make_material_node_preview_target(char *id, i32 res_x, i32 res_y, gpu_texture_format_t format) {
 	gpu_texture_t *image = any_map_get(g_context->node_previews, id);
 	any_array_push(g_context->node_previews_used, id);
 	if (image == NULL || image->width != res_x || image->height != res_y || image->format != format) {
@@ -206,6 +206,9 @@ void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, u
 	}
 	else if (string_equals(node->type, "BAKE_CURVATURE")) {
 		make_curvature_bake(node, group, parents, make_material_node_preview_id(node, parents));
+	}
+	else if (string_equals(node->type, "TERRAIN")) {
+		terrain_node_bake(node, group, parents, make_material_node_preview_id(node, parents));
 	}
 }
 
