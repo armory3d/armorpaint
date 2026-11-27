@@ -10,6 +10,7 @@ i32 layers_max_layers = 255;
 uv_type_t _layers_uv_type;
 mat4_t    _layers_decal_mat;
 i32       _layers_position;
+i32       _layers_object_mask;
 i32       _layers_base_color;
 f32       _layers_occlusion;
 f32       _layers_roughness;
@@ -849,7 +850,11 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	if (!mat4_isnan(_layers_decal_mat)) {
 		l->decal_mat = _layers_decal_mat;
 	}
-	l->object_mask = g_context->layer_filter;
+	if (_layers_object_mask >= 0 && _layers_object_mask != l->object_mask) {
+		l->object_mask = _layers_object_mask;
+		layers_set_object_mask();
+		make_material_parse_mesh_material();
+	}
 
 	if (g_config->tools == TOOLS_SCULPT) {
 		sculpt_init();
@@ -860,10 +865,12 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	slot_layer_to_fill_layer(l);
 }
 
-void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position) {
-	_layers_uv_type   = uv_type;
-	_layers_decal_mat = decal_mat;
-	_layers_position  = position;
+// object_mask -1 keeps the layer filter
+void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position, i32 object_mask) {
+	_layers_uv_type     = uv_type;
+	_layers_decal_mat   = decal_mat;
+	_layers_position    = position;
+	_layers_object_mask = object_mask;
 	sys_notify_on_next_frame(&layers_create_fill_layer_on_next_frame, NULL);
 }
 

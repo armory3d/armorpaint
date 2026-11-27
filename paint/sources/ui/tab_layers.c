@@ -978,10 +978,10 @@ void tab_layers_button_new_menu() {
 		}
 	}
 	if (ui_menu_button(tr("Fill Layer"), "", ICON_SPHERE)) {
-		layers_create_fill_layer(UV_TYPE_UVMAP, mat4_nan(), -1);
+		layers_create_fill_layer(UV_TYPE_UVMAP, mat4_nan(), -1, -1);
 	}
 	if (ui_menu_button(tr("Decal"), "", ICON_DECAL)) {
-		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1);
+		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1, -1);
 	}
 	if (ui_menu_button(tr("Text"), "", ICON_FONT)) {
 		layers_new_text_layer();

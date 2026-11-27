@@ -841,6 +841,14 @@ void util_render_pick_pos_nor_tex() {
 	g_context->pdirty = 0;
 }
 
+// Paint object under the mouse in the viewport, NULL over the background
+mesh_object_t *util_render_pick_object() {
+	if (args_player || g_context->paint2d) {
+		return NULL;
+	}
+	return render_path_base_pick_object();
+}
+
 // Background pixels reconstruct to the far plane
 bool util_render_picked_on_mesh() {
 	if (args_player) {

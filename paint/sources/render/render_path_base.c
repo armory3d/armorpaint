@@ -18,10 +18,7 @@ static void render_path_base_init_uv_quad() {
 	i16 *v                      = gpu_vertex_buffer_lock(render_path_base_uv_quad_vb);
 	// pos (4), nor (2), tex (2)
 	i16 data[32] = {
-	    0, 0, 0, 32767, 0, 0, 0,     0,
-	    0, 0, 0, 32767, 0, 0, 32767, 0,
-	    0, 0, 0, 32767, 0, 0, 32767, 32767,
-	    0, 0, 0, 32767, 0, 0, 0,     32767,
+	    0, 0, 0, 32767, 0, 0, 0, 0, 0, 0, 0, 32767, 0, 0, 32767, 0, 0, 0, 0, 32767, 0, 0, 32767, 32767, 0, 0, 0, 32767, 0, 0, 0, 32767,
 	};
 	memcpy(v, data, sizeof(data));
 	gpu_vertex_buffer_unlock(render_path_base_uv_quad_vb);
@@ -627,39 +624,133 @@ static void render_path_base_draw_layer_pass(i32 layer_pass) {
 	render_path_base_draw_meshes(render_path_base_mesh_scon(layer_pass), layer_pass == make_mesh_layer_pass_count - 1);
 }
 
-static gpu_pipeline_t *render_path_base_outline_mask_pipe(mesh_data_t *data) {
-	// Vertex layout differs for meshes with a second uv set or vertex colors
-	static gpu_pipeline_t  *pipes[8];
-	static i32              pipes_count = 0;
-	gpu_vertex_structure_t *structure   = &data->_->structure;
-	for (i32 i = 0; i < pipes_count; ++i) {
-		gpu_vertex_structure_t *vs    = pipes[i]->input_layout;
+typedef struct render_path_base_mesh_pipes {
+	gpu_pipeline_t *pipes[8];
+	i32             count;
+} render_path_base_mesh_pipes_t;
+
+// Vertex layout differs for meshes with a second uv set or vertex colors, one pipeline per layout
+static gpu_pipeline_t *render_path_base_mesh_pipe(render_path_base_mesh_pipes_t *cache, mesh_data_t *data, char *vert, char *frag, gpu_texture_format_t format,
+                                                  bool depth) {
+	gpu_vertex_structure_t *structure = &data->_->structure;
+	for (i32 i = 0; i < cache->count; ++i) {
+		gpu_vertex_structure_t *vs    = cache->pipes[i]->input_layout;
 		bool                    match = vs->size == structure->size;
 		for (i32 j = 0; match && j < vs->size; ++j) {
 			match = vs->elements[j].data == structure->elements[j].data;
 		}
 		if (match) {
-			return pipes[i];
+			return cache->pipes[i];
 		}
 	}
-	if (pipes_count == 8) {
+	if (cache->count == 8) {
 		return NULL;
 	}
 	gpu_pipeline_t *pipe         = gpu_create_pipeline();
-	pipe->vertex_shader          = sys_get_shader("outline_mask.vert");
-	pipe->fragment_shader        = sys_get_shader("outline_mask.frag");
+	pipe->vertex_shader          = sys_get_shader(vert);
+	pipe->fragment_shader        = sys_get_shader(frag);
 	gpu_vertex_structure_t *vs   = ALLOC_INIT(gpu_vertex_structure_t, {0});
 	*vs                          = *structure;
 	pipe->input_layout           = vs;
 	pipe->color_attachment_count = 1;
-	pipe->color_attachment[0]    = GPU_TEXTURE_FORMAT_R8;
+	pipe->color_attachment[0]    = format;
+	if (depth) {
+		pipe->depth_write           = true;
+		pipe->depth_mode            = GPU_COMPARE_MODE_LESS;
+		pipe->cull_mode             = GPU_CULL_MODE_NONE;
+		pipe->depth_attachment_bits = 32;
+	}
 	gpu_pipeline_compile(pipe);
-	pipes[pipes_count++] = pipe;
+	cache->pipes[cache->count++] = pipe;
 	return pipe;
 }
 
+static gpu_pipeline_t *render_path_base_outline_mask_pipe(mesh_data_t *data) {
+	static render_path_base_mesh_pipes_t cache = {0};
+	return render_path_base_mesh_pipe(&cache, data, "outline_mask.vert", "outline_mask.frag", GPU_TEXTURE_FORMAT_R8, false);
+}
+
+static gpu_pipeline_t *render_path_base_object_id_pipe(mesh_data_t *data) {
+	static render_path_base_mesh_pipes_t cache = {0};
+	return render_path_base_mesh_pipe(&cache, data, "object_id.vert", "object_id.frag", GPU_TEXTURE_FORMAT_RGBA32, true);
+}
+
+static render_target_t *render_path_base_pick_target(char *name, char *format) {
+	render_target_t *t = any_map_get(render_path_render_targets, name);
+	if (t == NULL) {
+		t         = render_target_create();
+		t->name   = name;
+		t->width  = 1;
+		t->height = 1;
+		t->format = format;
+		t->scale  = 1.0;
+		render_path_create_render_target(t);
+		t = any_map_get(render_path_render_targets, name);
+	}
+	return t;
+}
+
+// Paint object under the mouse, NULL over the background
+// Draws object ids into a single pixel, the projection is cropped to the pixel under the mouse
+mesh_object_t *render_path_base_pick_object() {
+	render_target_t *rt = render_path_base_pick_target("pick_object", "RGBA32");
+	render_path_base_pick_target("pick_object_depth", "D32");
+
+	camera_object_t *cam = scene_camera;
+	f32              w   = sys_w();
+	f32              h   = sys_h();
+	f32              nx  = ((mouse_view_x() + 0.5) / w) * 2.0 - 1.0;
+	f32              ny  = -(((mouse_view_y() + 0.5) / h) * 2.0 - 1.0);
+	mat4_t           p   = mat4_translate(cam->no_jitter_p, -nx, -ny, 0.0);
+	f32             *m   = p.m;
+	for (i32 c = 0; c < 4; ++c) {
+		m[c * 4 + 0] *= w;
+		m[c * 4 + 1] *= h;
+	}
+	mat4_t vp = mat4_mult_mat(cam->v, p);
+
+	render_path_set_target("pick_object", NULL, "pick_object_depth", GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH, 0x00000000, 1.0);
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (!o->base->visible || o->data->index_array->length == 0) {
+			continue;
+		}
+		gpu_pipeline_t *pipe = render_path_base_object_id_pipe(o->data);
+		if (pipe == NULL) {
+			continue;
+		}
+		// Low byte in r, high byte in g
+		i32 id = i + 1;
+		gpu_set_pipeline(pipe);
+		gpu_set_mat4(0, mat4_mult_mat(o->base->transform->world_unpack, vp));
+		gpu_set_float4(64, (id % 256) / 255.0, (id / 256) / 255.0, 0.0, 1.0);
+		gpu_set_vertex_buffer(o->data->_->vertex_buffer);
+		gpu_set_index_buffer(o->data->_->index_buffer);
+		gpu_draw();
+	}
+	render_path_end();
+
+	buffer_t *pixel = gpu_get_texture_pixels(rt->_image);
+	if (buffer_get_u8(pixel, 3) == 0) {
+		return NULL;
+	}
+	i32 index = buffer_get_u8(pixel, 0) + buffer_get_u8(pixel, 1) * 256 - 1;
+	return index >= 0 && index < g_project->_->paint_objects->length ? g_project->_->paint_objects->buffer[index] : NULL;
+}
+
 void render_path_base_draw_outline() {
-	if (g_context->tool != TOOL_TYPE_CURSOR || base_player || g_context->capturing_screenshot || g_context->paint2d || context_object_deselected()) {
+	if (base_player || g_context->capturing_screenshot || g_context->paint2d) {
+		return;
+	}
+
+	mesh_object_t *drop_object = NULL;
+	if (base_is_dragging && base_is_dragging_material()) {
+		drop_object = base_material_drop_object();
+		if (drop_object == NULL) {
+			return;
+		}
+	}
+	else if (g_context->tool != TOOL_TYPE_CURSOR || context_object_deselected()) {
 		return;
 	}
 
@@ -681,8 +772,9 @@ void render_path_base_draw_outline() {
 	bool             drawn = false;
 	render_path_set_target("outline_mask", NULL, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
-		if (!o->base->visible || (o != g_context->paint_object && !tab_meshes_is_selected(o))) {
+		mesh_object_t *o        = g_project->_->paint_objects->buffer[i];
+		bool           selected = drop_object != NULL ? o == drop_object : (o == g_context->paint_object || tab_meshes_is_selected(o));
+		if (!o->base->visible || !selected) {
 			continue;
 		}
 		gpu_pipeline_t *pipe = render_path_base_outline_mask_pipe(o->data);
