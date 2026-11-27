@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <iron_gpu.h>
+#include <iron_string.h>
 #include <iron_system.h>
 #include <linux/input-event-codes.h>
 #include <poll.h>
@@ -1248,9 +1249,8 @@ void iron_set_keep_screen_on(bool on) {}
 
 void iron_load_url(const char *url) {
 	if (strncmp(url, "http://", 7) == 0 || strncmp(url, "https://", 8) == 0) {
-		char cmd[256];
-		snprintf(cmd, sizeof(cmd), "xdg-open %s", url);
-		system(cmd);
+		char *quoted = string_replace_all_tmp((char *)url, "'", "'\\''");
+		system(string_tmp("xdg-open '%s'", quoted));
 	}
 }
 
