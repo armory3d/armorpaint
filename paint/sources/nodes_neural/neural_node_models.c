@@ -6,7 +6,7 @@ void neural_node_models_init() {
 	    (void *[]){
 	        ALLOC_INIT(neural_node_model_t, {.name   = "Qwen",
 	                                         .memory = "20GB",
-	                                         .size   = "15.3GB",
+	                                         .size   = "16.6GB",
 	                                         .nodes  = "Console",
 	                                         .urls   = any_array_create_from_raw(
                                                  (void *[]){
@@ -18,7 +18,7 @@ void neural_node_models_init() {
 
 	        ALLOC_INIT(neural_node_model_t, {.name   = "FLUX 2 klein",
 	                                         .memory = "4GB",
-	                                         .size   = "8.7GB",
+	                                         .size   = "8.8GB",
 	                                         .nodes  = "Text to Image, Edit Image",
 	                                         .urls   = any_array_create_from_raw(
                                                  (void *[]){
@@ -33,7 +33,7 @@ void neural_node_models_init() {
 
 	        ALLOC_INIT(neural_node_model_t, {.name   = "DA3MONO",
 	                                         .memory = "6GB",
-	                                         .size   = "1.4GB",
+	                                         .size   = "1.3GB",
 	                                         .nodes  = "Image to PBR",
 	                                         .urls   = any_array_create_from_raw(
                                                  (void *[]){
