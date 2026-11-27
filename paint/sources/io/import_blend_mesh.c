@@ -65,7 +65,13 @@ void import_blend_mesh_run(char *path, bool replace_existing) {
 #endif
 	char *bl = string_replace_all(blender, " ", "\\ ");
 #endif
+#ifdef IRON_WINDOWS
 	iron_sys_command(string("%s \"%s\" -b --python-expr \"%s\"", bl, path, py));
+#else
+	// Single quotes, so the shell does not expand $() or backticks in the file name
+	char *quoted = string_copy(string_replace_all(path, "'", "'\\''"));
+	iron_sys_command(string("%s '%s' -b --python-expr \"%s\"", bl, quoted, py));
+#endif
 	if (!iron_file_exists(data_resolve_path(save))) {
 		return;
 	}
