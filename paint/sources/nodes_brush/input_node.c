@@ -72,7 +72,7 @@ void input_node_update(float_node_t *self) {
 	bool  decal_mask  = context_is_decal_mask_paint();
 	char *ruler_paint = string_tmp("%s+%s", any_map_get(g_keymap, "brush_ruler"), any_map_get(g_keymap, "action_paint"));
 	bool  lazy_paint  = g_context->brush_lazy_radius > 0 && (keymap_shortcut(any_map_get(g_keymap, "action_paint"), SHORTCUT_TYPE_DOWN) ||
-                                                           keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
+	                                                         keymap_shortcut(ruler_paint, SHORTCUT_TYPE_DOWN) || decal_mask);
 
 	f32 paint_x = base_paint_x(mouse_x);
 	f32 paint_y = base_paint_y(mouse_y);
@@ -187,62 +187,62 @@ void *input_node_create(ui_node_t *raw, f32_array_t *args) {
 void input_node_init() {
 	ui_node_t *input_node_def =
 	    ALLOC_INIT(ui_node_t, {.id     = 0,
-	                           .name   = _tr("Input"),
-	                           .type   = "input_node",
-	                           .x      = 0,
-	                           .y      = 0,
-	                           .color  = 0xff4982a0,
-	                           .inputs = any_array_create_from_raw(
+		                       .name   = _tr("Input"),
+		                       .type   = "input_node",
+		                       .x      = 0,
+		                       .y      = 0,
+		                       .color  = 0xff4982a0,
+		                       .inputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                 .node_id       = 0,
-	                                                                 .name          = _tr("Lazy Radius"),
-	                                                                 .type          = "VALUE",
-	                                                                 .color         = 0xffa1a1a1,
-	                                                                 .default_value = f32_array_create_x(0.0),
-	                                                                 .min           = 0.0,
-	                                                                 .max           = 1.0,
-	                                                                 .precision     = 100,
-	                                                                 .display       = 0}),
+									                                 .node_id       = 0,
+									                                 .name          = _tr("Lazy Radius"),
+									                                 .type          = "VALUE",
+									                                 .color         = 0xffa1a1a1,
+									                                 .default_value = f32_array_create_x(0.0),
+									                                 .min           = 0.0,
+									                                 .max           = 1.0,
+									                                 .precision     = 100,
+									                                 .display       = 0}),
 	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                 .node_id       = 0,
-	                                                                 .name          = _tr("Lazy Step"),
-	                                                                 .type          = "VALUE",
-	                                                                 .color         = 0xffa1a1a1,
-	                                                                 .default_value = f32_array_create_x(0.0),
-	                                                                 .min           = 0.0,
-	                                                                 .max           = 1.0,
-	                                                                 .precision     = 100,
-	                                                                 .display       = 0}),
+									                                 .node_id       = 0,
+									                                 .name          = _tr("Lazy Step"),
+									                                 .type          = "VALUE",
+									                                 .color         = 0xffa1a1a1,
+									                                 .default_value = f32_array_create_x(0.0),
+									                                 .min           = 0.0,
+									                                 .max           = 1.0,
+									                                 .precision     = 100,
+									                                 .display       = 0}),
 	                               },
 	                               2),
-	                           .outputs = any_array_create_from_raw(
+		                       .outputs = any_array_create_from_raw(
 	                               (void *[]){
 	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                 .node_id       = 0,
-	                                                                 .name          = _tr("Position"),
-	                                                                 .type          = "VECTOR",
-	                                                                 .color         = 0xff63c763,
-	                                                                 .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
-	                                                                 .min           = 0.0,
-	                                                                 .max           = 1.0,
-	                                                                 .precision     = 100,
-	                                                                 .display       = 0}),
+									                                 .node_id       = 0,
+									                                 .name          = _tr("Position"),
+									                                 .type          = "VECTOR",
+									                                 .color         = 0xff63c763,
+									                                 .default_value = f32_array_create_xyz(0.0, 0.0, 0.0),
+									                                 .min           = 0.0,
+									                                 .max           = 1.0,
+									                                 .precision     = 100,
+									                                 .display       = 0}),
 	                                   ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                 .node_id       = 0,
-	                                                                 .name          = _tr("Pressure"),
-	                                                                 .type          = "VALUE",
-	                                                                 .color         = 0xffa1a1a1,
-	                                                                 .default_value = f32_array_create_x(1.0),
-	                                                                 .min           = 0.0,
-	                                                                 .max           = 1.0,
-	                                                                 .precision     = 100,
-	                                                                 .display       = 0}),
+									                                 .node_id       = 0,
+									                                 .name          = _tr("Pressure"),
+									                                 .type          = "VALUE",
+									                                 .color         = 0xffa1a1a1,
+									                                 .default_value = f32_array_create_x(1.0),
+									                                 .min           = 0.0,
+									                                 .max           = 1.0,
+									                                 .precision     = 100,
+									                                 .display       = 0}),
 	                               },
 	                               2),
-	                           .buttons = any_array_create_from_raw((void *[]){}, 0),
-	                           .width   = 0,
-	                           .flags   = 0});
+		                       .buttons = any_array_create_from_raw((void *[]){}, 0),
+		                       .width   = 0,
+		                       .flags   = 0});
 
 	any_array_push(nodes_brush_category0, input_node_def);
 	any_map_set(nodes_brush_creates, "input_node", input_node_create);

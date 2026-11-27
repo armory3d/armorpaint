@@ -324,8 +324,7 @@ void box_preferences_theme_tab() {
 			    },
 			    2);
 			ui_row(row);
-			ui_swatch(val);
-			if (g_ui->is_hovered && g_ui->input_released) {
+			if (ui_swatch(val) == UI_STATE_RELEASED) {
 				_box_preferences_i = i;
 				ui_menu_draw(&box_preferences_theme_tab_theme_field_menu, -1, -1);
 			}
@@ -574,6 +573,15 @@ void box_preferences_lut_picked(char *path) {
 //  ╚████╔╝ ██║███████╗╚███╔███╔╝██║     ╚██████╔╝██║  ██║   ██║
 //   ╚═══╝  ╚═╝╚══════╝ ╚══╝╚══╝ ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝
 
+static void box_preferences_fog_color_menu() {
+	g_ui->changed = false;
+	ui_color_wheel(&render_path_raytrace_fog_color, &_box_preferences_color_state, false, -1, 11 * g_theme->ELEMENT_H * UI_SCALE(), true, NULL, NULL);
+	if (g_ui->changed) {
+		ui_menu_keep_open = true;
+		g_context->ddirty = 2;
+	}
+}
+
 static void box_preferences_section(char *title) {
 	ui_separator(8, false);
 	ui_text(title, UI_ALIGN_LEFT, 0x00000000);
@@ -652,6 +660,16 @@ void box_preferences_viewport_tab() {
 	}
 	if (ui_item_changed()) {
 		g_context->ddirty = 2;
+	}
+
+	ui_row(f32_array_create_from_raw_tmp((f32[]){0.5, 0.35, 0.15}, 3));
+	ui_slider(&render_path_raytrace_fog_density, tr("Fog"), 0.0, 1.0, true, 100.0, true, UI_ALIGN_RIGHT, true);
+	if (ui_item_changed()) {
+		g_context->ddirty = 2;
+	}
+	ui_text(tr("Fog Color"), UI_ALIGN_RIGHT, 0x00000000);
+	if (ui_swatch(render_path_raytrace_fog_color) == UI_STATE_RELEASED && !ui_menu_show) {
+		ui_menu_draw(&box_preferences_fog_color_menu, -1, -1);
 	}
 
 	box_preferences_section(tr("Post Process"));
@@ -821,8 +839,9 @@ void box_preferences_neural_tab() {
 	        "Claude",
 	        "Grok",
 	        "Codex",
+	        "Gemini",
 	    },
-	    4);
+	    5);
 	ui_combo(&g_config->console_model, console_model_combo, tr("Console Model"), true, UI_ALIGN_LEFT, true);
 
 	i32             neural_res       = g_config->neural_res == 2048 ? 2 : (g_config->neural_res == 1024 ? 1 : 0);

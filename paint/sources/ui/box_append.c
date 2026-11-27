@@ -140,8 +140,16 @@ void box_append_draw() {
 	bool has_sel  = box_append_has_selection();
 	g_ui->enabled = has_sel;
 	if ((ui_icon_button(tr("Append"), ICON_CHECK, UI_ALIGN_CENTER) || g_ui->is_return_down) && has_sel) {
-		import_arm_append(box_append_project, box_append_path, box_append_mesh_selected, box_append_material_selected);
-		ui_box_hide();
+		project_t   *project           = box_append_project;
+		char        *path              = box_append_path;
+		i32_array_t *mesh_selected     = box_append_mesh_selected;
+		i32_array_t *material_selected = box_append_material_selected;
+		box_append_path                = NULL;
+		box_append_project             = NULL;
+		box_append_mesh_selected       = NULL;
+		box_append_material_selected   = NULL;
+		ui_box_hide_internal();
+		import_arm_append(project, path, mesh_selected, material_selected);
 	}
 	g_ui->enabled = true;
 }

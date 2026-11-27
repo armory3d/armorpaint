@@ -7,6 +7,11 @@
 #define SIM_SMOKE     1
 #define SIM_CLOTH     2
 #define SIM_FRACTURE  3
+#define SIM_FIRE      4
+
+#define SIM_SPARK_MAX    4096
+#define SIM_SPARK_FLOATS 8 // xyz, velocity, age, life
+#define SIM_SPARK_SHOWN  7 // xyz, velocity, heat
 
 typedef struct {
 	i32              uid;
@@ -18,6 +23,15 @@ typedef struct {
 	i32             *particle; // Per vertex
 	i32              vertex_count;
 	mesh_fracture_t *fracture;
+	i32             *cells; // Emitter cells of a fire
+	i32              cell_count;
+	f32              size;
+	f32             *spark; // SIM_SPARK_FLOATS per spark
+	i32              spark_count;
+	f32              spark_rate; // Per second
+	f32              spark_life; // Seconds
+	f32              spark_carry;
+	u32              seed;
 } sim_part_t;
 
 typedef struct {
@@ -25,6 +39,7 @@ typedef struct {
 	u8   *owner;
 	i32   count;
 	u8  **gas;
+	u8  **flame;
 	f32 **part;
 	f32  *bodies;
 } sim_frame_t;
@@ -47,10 +62,18 @@ static i32            sim_body_count  = 0;
 static u32            sim_key         = 0;
 static bool           sim_dirty       = true;
 static bool           sim_player_ran  = false;
+static bool           sim_hand_moved  = false; // Keyed meshes keep the move
+static u32            sim_keys        = 0;     // Mesh keyframes the world was stepped with
 static i32            sim_shown       = -1;
 
 void sim_world_invalidate() {
 	sim_dirty = true;
+}
+
+// A collider was moved by hand
+void sim_world_collider_moved() {
+	sim_dirty      = true;
+	sim_hand_moved = true;
 }
 
 static bool sim_node_type(char *type, i32 *out) {
@@ -58,6 +81,7 @@ static bool sim_node_type(char *type, i32 *out) {
 	       : string_equals(type, "MESH_SMOKE")    ? SIM_SMOKE
 	       : string_equals(type, "MESH_CLOTH")    ? SIM_CLOTH
 	       : string_equals(type, "MESH_FRACTURE") ? SIM_FRACTURE
+	       : string_equals(type, "MESH_FIRE")     ? SIM_FIRE
 	                                              : -1;
 	return *out >= 0;
 }
@@ -104,13 +128,35 @@ static u32 sim_world_key() {
 	return key;
 }
 
+// Keys of the static colliders and participants, the ones moving the world
+static u32 sim_keys_hash() {
+	u32 key = 2166136261u;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *mo     = g_project->_->paint_objects->buffer[i];
+		bool           drives = mo->base->_->body != NULL && !sim_dynamic(mo->base);
+		mesh_nodes_t  *slot   = drives ? NULL : nodes_mesh_get(mo, false);
+		for (i32 j = 0; slot != NULL && j < slot->canvas->nodes->length && !drives; ++j) {
+			i32 type;
+			drives = sim_node_type(((ui_node_t *)slot->canvas->nodes->buffer[j])->type, &type);
+		}
+		if (drives) {
+			u32 h = tab_timeline_mesh_keys_hash(i);
+			key   = nodes_mesh_hash_bytes(key, &i, sizeof(i32));
+			key   = nodes_mesh_hash_bytes(key, &h, sizeof(u32));
+		}
+	}
+	return key;
+}
+
 static void sim_frame_free(sim_frame_t *f) {
 	free(f->pos);
 	free(f->owner);
 	for (i32 i = 0; f->gas != NULL && sim_grid != NULL && i < sim_grid->gas_count; ++i) {
 		free(f->gas[i]);
+		free(f->flame[i]);
 	}
 	free(f->gas);
+	free(f->flame);
 	for (i32 i = 0; f->part != NULL && i < sim_part_count; ++i) {
 		free(f->part[i]);
 	}
@@ -127,6 +173,8 @@ static void sim_world_clear() {
 		physics_cloth_destroy(sim_parts[i].cloth);
 		free(sim_parts[i].particle);
 		mesh_fracture_destroy(sim_parts[i].fracture);
+		free(sim_parts[i].cells);
+		free(sim_parts[i].spark);
 	}
 	free(sim_parts);
 	physics_sim_destroy(sim_grid);
@@ -168,12 +216,19 @@ static void sim_cache_frame() {
 		f->owner = malloc(s->count + 1);
 		memcpy(f->pos, s->pos, sizeof(f32) * 3 * s->count);
 		memcpy(f->owner, s->owner, s->count);
-		i32 n  = s->nx * s->ny * s->nz;
-		f->gas = malloc(sizeof(u8 *) * (s->gas_count + 1));
+		i32 n    = s->nx * s->ny * s->nz;
+		f->gas   = malloc(sizeof(u8 *) * (s->gas_count + 1));
+		f->flame = calloc(s->gas_count + 1, sizeof(u8 *));
 		for (i32 g = 0; g < s->gas_count; ++g) {
 			f->gas[g] = malloc(n);
 			for (i32 c = 0; c < n; ++c) {
 				f->gas[g][c] = (u8)(fminf(fmaxf(s->density[g][c], 0.0f), 1.0f) * 255.0f + 0.5f);
+			}
+			if (s->flame[g] != NULL) {
+				f->flame[g] = malloc(n);
+				for (i32 c = 0; c < n; ++c) {
+					f->flame[g][c] = (u8)(fminf(fmaxf(s->flame[g][c], 0.0f), 1.0f) * 255.0f + 0.5f);
+				}
 			}
 		}
 	}
@@ -188,6 +243,18 @@ static void sim_cache_frame() {
 		if (fr != NULL) {
 			f->part[i] = malloc(sizeof(f32) * FRACTURE_PS * fr->np);
 			mesh_fracture_poses(fr, f->part[i]);
+		}
+		if (sim_parts[i].type == SIM_FIRE) {
+			// Count first, then position, velocity and heat per spark
+			sim_part_t *p = &sim_parts[i];
+			f->part[i]    = malloc(sizeof(f32) * (1 + SIM_SPARK_SHOWN * p->spark_count));
+			f->part[i][0] = (f32)p->spark_count;
+			for (i32 k = 0; k < p->spark_count; ++k) {
+				f32 *src = &p->spark[k * SIM_SPARK_FLOATS];
+				f32 *dst = &f->part[i][1 + k * SIM_SPARK_SHOWN];
+				memcpy(dst, src, sizeof(f32) * 6);
+				dst[6] = 1.0f - src[6] / src[7];
+			}
 		}
 	}
 	f->bodies = malloc(sizeof(f32) * 7 * sim_body_count + 1);
@@ -386,7 +453,7 @@ static void sim_world_reset() {
 
 	// Participants
 	f32 cell = 1e9f, dmn[3] = {1e9f, 1e9f, 1e9f}, dmx[3] = {-1e9f, -1e9f, -1e9f};
-	f32 viscosity = 0.0f, buoyancy = 1.0f, vorticity = 0.3f, dissipation = 0.2f;
+	f32 viscosity = 0.0f, buoyancy = 1.0f, vorticity = 0.3f, dissipation = 0.2f, burn = 0.8f, soot = 0.5f;
 	i32 seed = 1, grid_parts = 0;
 	for (i32 i = 0; nodes_mesh_slots != NULL && i < nodes_mesh_slots->length; ++i) {
 		mesh_nodes_t  *slot = nodes_mesh_slots->buffer[i];
@@ -423,11 +490,15 @@ static void sim_world_reset() {
 					}
 				}
 				else {
+					if (type == SIM_FIRE) {
+						burn = math_max(0.0, nodes_mesh_value(node, 7));
+						soot = math_max(0.0, nodes_mesh_value(node, 8));
+					}
 					cell        = fminf(cell, size * 3.0f / math_max(8, math_min(128, math_floor(nodes_mesh_value(node, 1)))));
 					buoyancy    = nodes_mesh_value(node, 2) * size;
 					vorticity   = math_max(0.0, nodes_mesh_value(node, 3));
 					dissipation = math_max(0.0, nodes_mesh_value(node, 4));
-					seed        = (i32)math_floor(nodes_mesh_value(node, 7)) * 7919 + 1;
+					seed        = (i32)math_floor(nodes_mesh_value(node, 6)) * 7919 + 1;
 					f32 lo[3]   = {c[0] - size * 1.5f, c[1] - size * 1.5f, mn[2] - size * 0.25f};
 					f32 hi[3]   = {c[0] + size * 1.5f, c[1] + size * 1.5f, mn[2] + size * 5.75f};
 					for (i32 a = 0; a < 3; ++a) {
@@ -459,6 +530,8 @@ static void sim_world_reset() {
 		sim_grid->buoyancy    = buoyancy;
 		sim_grid->vorticity   = vorticity;
 		sim_grid->dissipation = dissipation;
+		sim_grid->burn        = burn;
+		sim_grid->soot        = soot;
 		sim_grid->seed        = (u32)seed;
 	}
 
@@ -480,21 +553,38 @@ static void sim_world_reset() {
 				sim_grid->stiffness[i] = math_max(1.0, math_min(1000.0, nodes_mesh_value(node, 4)));
 				sim_fill(sim_grid, g, mn, mx, nodes_mesh_button(node, 0), i);
 			}
-			else if (p->type == SIM_SMOKE && sim_grid != NULL) {
-				physics_sim_t *s = sim_grid;
-				p->gas           = physics_sim_add_gas(s);
-				p->emit_frames   = (i32)math_max(0, math_floor(nodes_mesh_value(node, 5)));
-				i32 cells        = s->nx * s->ny * s->nz;
-				u8 *inside       = malloc(cells);
-				f32 origin[3]    = {s->min[0] + s->cell * 0.5f, s->min[1] + s->cell * 0.5f, s->min[2] + s->cell * 0.5f};
+			else if ((p->type == SIM_SMOKE || p->type == SIM_FIRE) && sim_grid != NULL) {
+				physics_sim_t *s    = sim_grid;
+				bool           fire = p->type == SIM_FIRE;
+				p->gas              = fire ? physics_sim_add_fire(s) : physics_sim_add_gas(s);
+				p->emit_frames      = (i32)math_max(0, math_floor(nodes_mesh_value(node, 5)));
+				i32 cells           = s->nx * s->ny * s->nz;
+				u8 *inside          = malloc(cells);
+				f32 origin[3]       = {s->min[0] + s->cell * 0.5f, s->min[1] + s->cell * 0.5f, s->min[2] + s->cell * 0.5f};
 				nodes_mesh_geo_voxelize(g->pos, g->ind, g->index_count, origin, s->cell, s->nx, s->ny, s->nz, inside);
+				if (fire) {
+					p->cells = malloc(sizeof(i32) * (cells + 1));
+				}
 				for (i32 c = 0; c < cells; ++c) {
 					if (inside[c]) {
-						s->emitter[c]         = (u8)(p->gas + 1);
-						s->density[p->gas][c] = 1.0f;
+						s->emitter[c] = (u8)(p->gas + 1);
+						if (fire) {
+							s->flame[p->gas][c]       = 1.0f;
+							p->cells[p->cell_count++] = c;
+						}
+						else {
+							s->density[p->gas][c] = 1.0f;
+						}
 					}
 				}
 				free(inside);
+				if (fire) {
+					p->size       = fmaxf(mx[0] - mn[0], fmaxf(mx[1] - mn[1], mx[2] - mn[2]));
+					p->spark_rate = math_max(0.0, nodes_mesh_value(node, 10));
+					p->spark_life = math_max(0.05, nodes_mesh_value(node, 11));
+					p->seed       = (u32)(math_floor(nodes_mesh_value(node, 6)) * 7919 + 17 + i);
+					p->spark      = malloc(sizeof(f32) * SIM_SPARK_FLOATS * SIM_SPARK_MAX);
+				}
 			}
 		}
 		util_geo_free(g);
@@ -503,8 +593,69 @@ static void sim_world_reset() {
 
 	sim_cache_frame();
 	sim_key   = sim_world_key();
+	sim_keys  = sim_keys_hash();
 	sim_dirty = false;
 	sim_shown = -1;
+}
+
+static f32 sim_spark_random(sim_part_t *p) {
+	p->seed = p->seed * 1664525u + 1013904223u;
+	return (f32)(p->seed >> 8) / 16777216.0f;
+}
+
+// Embers thrown out of the fire, carried by the hot air and slowly falling as they cool
+static void sim_sparks_step(sim_part_t *p, f32 dt, bool emit) {
+	physics_sim_t *s = sim_grid;
+	if (s == NULL || p->spark == NULL) {
+		return;
+	}
+	f32 size = p->size;
+	if (emit && p->cell_count > 0) {
+		p->spark_carry += p->spark_rate * dt;
+		while (p->spark_carry >= 1.0f && p->spark_count < SIM_SPARK_MAX) {
+			p->spark_carry -= 1.0f;
+			i32  c  = p->cells[(i32)(sim_spark_random(p) * p->cell_count) % p->cell_count];
+			i32  ci = c % s->nx, cj = (c / s->nx) % s->ny, ck = c / (s->nx * s->ny);
+			f32 *k = &p->spark[p->spark_count++ * SIM_SPARK_FLOATS];
+			k[0]   = s->min[0] + (ci + sim_spark_random(p)) * s->cell;
+			k[1]   = s->min[1] + (cj + sim_spark_random(p)) * s->cell;
+			k[2]   = s->min[2] + (ck + sim_spark_random(p)) * s->cell;
+			k[3]   = (sim_spark_random(p) - 0.5f) * size * 2.0f;
+			k[4]   = (sim_spark_random(p) - 0.5f) * size * 2.0f;
+			k[5]   = (0.5f + sim_spark_random(p)) * size * 2.0f;
+			k[6]   = 0.0f;
+			k[7]   = p->spark_life * (0.5f + sim_spark_random(p));
+		}
+		p->spark_carry = fminf(p->spark_carry, 1.0f);
+	}
+	vec4_t    gravity = physics_get_gravity();
+	f32       max[3]  = {s->min[0] + s->nx * s->cell, s->min[1] + s->ny * s->cell, s->min[2] + s->nz * s->cell};
+	const int steps   = 4;
+	f32       h       = dt / steps;
+	f32       drag    = fminf(4.0f * h, 1.0f);
+	for (i32 i = 0; i < p->spark_count;) {
+		f32 *k   = &p->spark[i * SIM_SPARK_FLOATS];
+		bool out = false;
+		for (i32 st = 0; st < steps && !out; ++st) {
+			vec4_t air = {0};
+			f32    liquid;
+			physics_sim_sample(s, (vec4_t){k[0], k[1], k[2], 1.0f}, &air, &liquid);
+			f32 a[3] = {air.x, air.y, air.z};
+			f32 g[3] = {gravity.x, gravity.y, gravity.z};
+			for (i32 d = 0; d < 3; ++d) {
+				// Light embers: the air drags them along, gravity barely shows until they leave the plume
+				k[3 + d] += (a[d] - k[3 + d]) * drag + g[d] * 0.15f * h + (sim_spark_random(p) - 0.5f) * size * 6.0f * h;
+				k[d] += k[3 + d] * h;
+				out |= k[d] < s->min[d] || k[d] >= max[d];
+			}
+			k[6] += h;
+		}
+		if (out || k[6] >= k[7]) {
+			memmove(k, &p->spark[--p->spark_count * SIM_SPARK_FLOATS], sizeof(f32) * SIM_SPARK_FLOATS);
+			continue;
+		}
+		i++;
+	}
 }
 
 static void sim_world_step() {
@@ -547,6 +698,11 @@ static void sim_world_step() {
 			}
 		}
 		physics_sim_step(sim_grid, dt, emit);
+		for (i32 i = 0; i < sim_part_count; ++i) {
+			if (sim_parts[i].type == SIM_FIRE) {
+				sim_sparks_step(&sim_parts[i], dt, frame - 1 < sim_parts[i].emit_frames);
+			}
+		}
 	}
 	for (i32 i = 0; i < sim_part_count; ++i) {
 		if (sim_parts[i].cloth != NULL) {
@@ -589,6 +745,48 @@ static void sim_world_show(i32 frame) {
 	}
 	nodes_mesh_request_refresh();
 	sim_shown = frame;
+}
+
+typedef struct {
+	vec4_t loc;
+	quat_t rot;
+	vec4_t scale;
+} sim_held_t;
+
+// Static meshes moved by hand stay put while the world is posed and stepped again, like they do without a collider
+static sim_held_t *sim_hold_meshes() {
+	tab_timeline_keep_mesh_edits();
+	i32         n    = g_project->_->paint_objects->length;
+	sim_held_t *held = malloc(sizeof(sim_held_t) * n + 1);
+	for (i32 i = 0; i < n; ++i) {
+		transform_t *t = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->base->transform;
+		held[i]        = (sim_held_t){t->loc, t->rot, t->scale};
+	}
+	return held;
+}
+
+static void sim_release_meshes(sim_held_t *held) {
+	bool moved = false;
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		object_t    *o = ((mesh_object_t *)g_project->_->paint_objects->buffer[i])->base;
+		transform_t *t = o->transform;
+		if (sim_dynamic(o) || memcmp(&held[i], &(sim_held_t){t->loc, t->rot, t->scale}, sizeof(sim_held_t)) == 0) {
+			continue;
+		}
+		t->loc   = held[i].loc;
+		t->rot   = held[i].rot;
+		t->scale = held[i].scale;
+		transform_build_matrix(t);
+		if (o->_->body != NULL) {
+			physics_body_sync_transform(o->_->body);
+		}
+		moved = true;
+	}
+	free(held);
+	if (moved) {
+		util_mesh_transform_changed();
+		g_context->ddirty = 2;
+	}
 }
 
 static bool sim_bodies_moved() {
@@ -634,25 +832,38 @@ void sim_world_update() {
 	if (!held && !sim_dirty && sim_world_key() != sim_key) {
 		sim_dirty = true;
 	}
+	if (!held && !sim_dirty && !tab_timeline_playing && sim_keys_hash() != sim_keys) {
+		sim_dirty = true; // Keys moved a collider, played on after a pause
+	}
+	sim_held_t *hand = NULL;
 	if (sim_dirty) {
 		if (held) {
 			return;
 		}
+		if (sim_hand_moved) {
+			sim_hand_moved = false;
+			hand           = sim_hold_meshes();
+		}
 		sim_world_reset();
 		if (sim_part_count == 0 && !any_body) {
 			tab_timeline_pose_meshes((f32)tab_timeline_selected_frame);
+			if (hand != NULL) {
+				sim_release_meshes(hand);
+			}
 			return;
 		}
 	}
-	if (sim_part_count == 0 && sim_body_count == 0) {
-		return;
+	if (sim_part_count > 0 || sim_body_count > 0) {
+		i32 frame = (i32)math_max(0, tab_timeline_selected_frame);
+		while (sim_frame_count <= frame) {
+			sim_world_step();
+		}
+		if (frame != sim_shown) {
+			sim_world_show(frame);
+		}
 	}
-	i32 frame = (i32)math_max(0, tab_timeline_selected_frame);
-	while (sim_frame_count <= frame) {
-		sim_world_step();
-	}
-	if (frame != sim_shown) {
-		sim_world_show(frame);
+	if (hand != NULL) {
+		sim_release_meshes(hand);
 	}
 }
 
@@ -697,6 +908,28 @@ u8 *sim_world_gas(i32 uid, i32 node_id, physics_sim_t **grid) {
 	}
 	*grid = sim_grid;
 	return f->gas[p->gas];
+}
+
+// 0 - 255 per cell, NULL when not simulated yet
+u8 *sim_world_flame(i32 uid, i32 node_id) {
+	sim_part_t  *p = sim_part(uid, node_id);
+	sim_frame_t *f = sim_shown_frame();
+	if (p == NULL || f == NULL || p->gas < 0 || f->flame == NULL) {
+		return NULL;
+	}
+	return f->flame[p->gas];
+}
+
+// Position, velocity and heat per spark, NULL when not simulated yet
+f32 *sim_world_sparks(i32 uid, i32 node_id, i32 *count) {
+	sim_part_t  *p = sim_part(uid, node_id);
+	sim_frame_t *f = sim_shown_frame();
+	if (p == NULL || f == NULL || p->type != SIM_FIRE || f->part == NULL || f->part[p - sim_parts] == NULL) {
+		return NULL;
+	}
+	f32 *k = f->part[p - sim_parts];
+	*count = (i32)k[0];
+	return k + 1;
 }
 
 // NULL when not simulated yet

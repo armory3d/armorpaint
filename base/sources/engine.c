@@ -69,12 +69,6 @@ static void shader_compile_parallel(shader_context_t **items, int count) {
 	iron_mutex_destroy(&p.mutex);
 }
 
-#ifdef WITH_D3DCOMPILER
-static void shader_compile_vertex_worker(void *shader) {
-	gpu_shader_compile(shader, true);
-}
-#endif
-
 static void shader_context_bind_constants(shader_context_t *raw);
 
 static bool               shader_batch_active   = false;
@@ -476,14 +470,12 @@ shader_data_t *shader_data_create(shader_data_t *raw) {
 }
 
 char *shader_data_ext() {
-#ifdef IRON_VULKAN
-	return ".spirv";
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 	return ".metal";
 #elif defined(IRON_WASM)
 	return ".wgsl";
 #else
-	return ".d3d11";
+	return ".spirv";
 #endif
 }
 
@@ -648,16 +640,6 @@ void shader_context_compile(shader_context_t *raw) {
 		return;
 	}
 
-#ifdef WITH_D3DCOMPILER
-	// No batch - compile the two stages side by side
-	if (raw->shader_from_source) {
-		iron_thread_t vs_thread;
-		iron_thread_init(&vs_thread, shader_compile_vertex_worker, raw->_->pipe->vertex_shader);
-		gpu_shader_compile(raw->_->pipe->fragment_shader, false);
-		iron_thread_wait_and_destroy(&vs_thread);
-	}
-#endif
-
 	shader_context_finish_compile(raw);
 }
 
@@ -672,36 +654,18 @@ i32 shader_context_type_size(char *t) {
 		return 16;
 	if (strcmp(t, "float4x4") == 0)
 		return 64;
-#ifdef IRON_DIRECT3D12
-	if (strcmp(t, "float3") == 0)
-		return 12;
-	if (strcmp(t, "float3x3") == 0)
-		return 44; // 16 + 16 + 12
-#else
 	if (strcmp(t, "float3") == 0)
 		return 16;
 	if (strcmp(t, "float3x3") == 0)
 		return 48; // std140 array elements are padded to 16
-#endif
 	return 0;
 }
 
 i32 shader_context_type_pad(i32 offset, i32 size) {
-#ifdef IRON_DIRECT3D12
-	i32 r = offset % 16;
-	if (r == 0) {
-		return 0;
-	}
-	if (size >= 16 || r + size > 16) {
-		return 16 - r;
-	}
-	return 0;
-#else
 	if (size > 16) {
 		size = 16;
 	}
 	return (size - (offset % size)) % size;
-#endif
 }
 
 void shader_context_finish_compile(shader_context_t *raw) {
@@ -805,6 +769,8 @@ gpu_texture_format_t shader_context_get_tex_format(char *s) {
 		return GPU_TEXTURE_FORMAT_R16;
 	if (strcmp(s, "R8") == 0)
 		return GPU_TEXTURE_FORMAT_R8;
+	if (strcmp(s, "FB") == 0)
+		return GPU_TEXTURE_FORMAT_FRAMEBUFFER;
 	return GPU_TEXTURE_FORMAT_RGBA32;
 }
 
@@ -2524,7 +2490,7 @@ void render_path_load_shader(char *handle) {
 }
 
 void render_path_resize(void) {
-	if (iron_window_width() == 0 || iron_window_height() == 0) {
+	if (iron_window_width() == 0 || iron_window_height() == 0 || render_path_render_targets == NULL) {
 		return;
 	}
 	any_array_t *render_targets_keys = map_keys(render_path_render_targets);

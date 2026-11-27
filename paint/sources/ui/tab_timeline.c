@@ -29,14 +29,16 @@ typedef struct {
 	bool           scripted; // Written by a script, kept until the key is loaded
 } tab_timeline_mesh_keyframe_t;
 
-i32  tab_timeline_selected_frame = 0;
-i32  tab_timeline_selected_row   = 0;
-bool tab_timeline_playing        = false;
-f64  tab_timeline_play_time      = 0.0;
-i32  tab_timeline_scroll         = 0;
-bool tab_timeline_scrolling      = false;
-f32  tab_timeline_scroll_drag_x  = 0.0f;
-i32  tab_timeline_scroll_drag_v  = 0;
+i32        tab_timeline_selected_frame  = 0;
+i32        tab_timeline_selected_row    = 0;
+bool       tab_timeline_playing         = false;
+f64        tab_timeline_play_time       = 0.0;
+static f64 tab_timeline_play_time_last  = 0.0;
+static f64 tab_timeline_play_frame_last = 0.0;
+i32        tab_timeline_scroll          = 0;
+bool       tab_timeline_scrolling       = false;
+f32        tab_timeline_scroll_drag_x   = 0.0f;
+i32        tab_timeline_scroll_drag_v   = 0;
 
 static i32          tab_timeline_max_frames = 200;
 static i32          tab_timeline_frame_rate = 24;
@@ -348,9 +350,7 @@ static void tab_timeline_copy_path_points_to_layer(slot_layer_t *l, f32_array_t 
 }
 
 static gpu_texture_format_t tab_timeline_tex_format() {
-	return base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-	       : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-	                                          : GPU_TEXTURE_FORMAT_RGBA128;
+	return base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 }
 
 static i32 tab_timeline_find_keyframe(i32 frame, i32 layer_index) {
@@ -590,14 +590,22 @@ static void tab_timeline_sync_mesh_body(i32 mi, f32 dt) {
 	physics_body_move(body, dt);
 }
 
+// Placed by the simulation, keys do not apply
+static bool tab_timeline_mesh_dynamic(i32 mi) {
+	if (mi == TAB_TIMELINE_CAMERA) {
+		return false;
+	}
+	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
+	return body != NULL && body->mass > 0.0 && (body->shape == PHYSICS_SHAPE_BOX || body->shape == PHYSICS_SHAPE_SPHERE);
+}
+
 static bool tab_timeline_skip_mesh(i32 mi) {
 	if (tab_timeline_edit_stage != NULL)
 		return !tab_timeline_mesh_in_edit(mi);
 	if (mi == TAB_TIMELINE_CAMERA) {
 		return !tab_timeline_camera_enabled() || !tab_timeline_mesh_keyed(mi);
 	}
-	physics_body_t *body = g_project->_->paint_objects->buffer[mi]->base->_->body;
-	return body != NULL && body->mass > 0.0 && (body->shape == PHYSICS_SHAPE_BOX || body->shape == PHYSICS_SHAPE_SPHERE); // Dynamic
+	return tab_timeline_mesh_dynamic(mi);
 }
 
 static bool tab_timeline_set_mesh_transform(i32 mi, mat4_t mat) {
@@ -635,7 +643,7 @@ static void tab_timeline_mesh_moved() {
 
 static void tab_timeline_save_mesh_to_keyframes(i32 frame) {
 	for (i32 mi = TAB_TIMELINE_CAMERA; mi < g_project->_->paint_objects->length; mi++) {
-		if (!tab_timeline_mesh_in_edit(mi) || (mi == TAB_TIMELINE_CAMERA && !tab_timeline_camera_enabled()))
+		if (!tab_timeline_mesh_in_edit(mi) || (mi == TAB_TIMELINE_CAMERA && !tab_timeline_camera_enabled()) || tab_timeline_mesh_dynamic(mi))
 			continue;
 		i32 kfi = tab_timeline_find_mesh_keyframe(frame, mi);
 		if (kfi < 0) {
@@ -712,6 +720,31 @@ void tab_timeline_pose_meshes(f32 frame) {
 	tab_timeline_posing = true;
 	tab_timeline_load_mesh_keyframes(frame, false, frame);
 	tab_timeline_posing = false;
+}
+
+// Meshes moved by hand on a keyed frame keep the move before the simulation world poses them again
+void tab_timeline_keep_mesh_edits() {
+	if (tab_timeline_mesh_keyframes == NULL || tab_timeline_playing || tab_timeline_pending_to >= 0) {
+		return;
+	}
+	tab_timeline_save_mesh_to_keyframes(tab_timeline_last_frame);
+}
+
+// Changes when the keys of a mesh do, in any order
+u32 tab_timeline_mesh_keys_hash(i32 mi) {
+	u32 sum = 0;
+	for (i32 i = 0; tab_timeline_mesh_keyframes != NULL && i < tab_timeline_mesh_keyframes->length; i++) {
+		tab_timeline_mesh_keyframe_t *kf = tab_timeline_mesh_keyframes->buffer[i];
+		if (kf->mesh_index != mi || kf->stage != tab_timeline_key_stage(mi)) {
+			continue;
+		}
+		u32 h = 2166136261u;
+		h     = nodes_mesh_hash_bytes(h, &kf->frame, sizeof(i32));
+		h     = nodes_mesh_hash_bytes(h, &kf->tween, sizeof(bool));
+		h     = nodes_mesh_hash_bytes(h, &kf->transform, sizeof(mat4_t));
+		sum += h;
+	}
+	return sum;
 }
 
 static void tab_timeline_load_mesh_from_keyframes(float frame_f) {
@@ -1179,7 +1212,7 @@ void tab_timeline_export(project_t *raw) {
 		bool                            pixels = kf->frame > 0;
 		timeline_layer_keyframe_data_t *d =
 		    ALLOC_INIT(timeline_layer_keyframe_data_t,
-		               {
+			           {
 		                   .frame              = kf->frame,
 		                   .layer_index        = kf->layer_index,
 		                   .texpaint           = pixels ? tab_timeline_encode_tex(kf->texpaint) : NULL,
@@ -1252,7 +1285,7 @@ static gpu_texture_t *tab_timeline_tex_from_buffer(buffer_t *buf, bool is_bgra) 
 	gpu_texture_format_t fmt               = tab_timeline_tex_format();
 	i32                  w                 = config_get_texture_res_x();
 	i32                  h                 = config_get_texture_res_y();
-	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : base_bits == TEXTURE_BITS_BITS16 ? 2 : 4;
+	i32                  bytes_per_channel = base_bits == TEXTURE_BITS_BITS8 ? 1 : 2;
 	buffer_t            *pixels            = lz4_decode(buf, w * h * 4 * bytes_per_channel);
 	gpu_texture_t       *tmp               = gpu_create_texture_from_bytes_raw(pixels, w, h, fmt);
 	array_free(pixels);
@@ -1677,6 +1710,13 @@ void tab_timeline_update() {
 
 	// Keep nested clips continuous when the main timeline wraps
 	f64 playback_frame = (sys_time() - tab_timeline_play_time) * tab_timeline_frame_rate;
+	if (tab_timeline_play_time == tab_timeline_play_time_last && playback_frame >= floor(tab_timeline_play_frame_last) + 2.0) {
+		// Fell behind - enter the next frame instead of skipping to the clock
+		playback_frame         = floor(tab_timeline_play_frame_last) + 1.0;
+		tab_timeline_play_time = sys_time() - playback_frame / tab_timeline_frame_rate;
+	}
+	tab_timeline_play_time_last  = tab_timeline_play_time;
+	tab_timeline_play_frame_last = playback_frame;
 	if (tab_timeline_capturing) {
 		// Step one frame per recorded video frame, however long it takes to render
 		if (viewport_video_time >= 0.0) {
@@ -1684,7 +1724,7 @@ void tab_timeline_update() {
 			return;
 		}
 		g_context->ddirty = 2;
-		playback_frame = tab_timeline_capture_frame;
+		playback_frame    = tab_timeline_capture_frame;
 		if (playback_frame >= tab_timeline_max_frames) {
 			// Played once, the last frame was already recorded
 			tab_timeline_capture_end();

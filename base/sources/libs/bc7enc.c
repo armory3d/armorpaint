@@ -251,18 +251,18 @@ static const uint8_t g_bc7_num_subsets[8]                       = {3, 2, 3, 2, 1
 static const uint8_t g_bc7_partition_bits[8]                    = {4, 6, 6, 6, 0, 0, 0, 6};
 static const uint8_t g_bc7_color_index_bitcount[8]              = {3, 3, 2, 2, 2, 2, 4, 2};
 static int           get_bc7_color_index_size(int mode, int index_selection_bit) {
-    return g_bc7_color_index_bitcount[mode] + index_selection_bit;
+	return g_bc7_color_index_bitcount[mode] + index_selection_bit;
 }
 static uint8_t g_bc7_alpha_index_bitcount[8] = {0, 0, 0, 0, 3, 2, 4, 2};
 static int     get_bc7_alpha_index_size(int mode, int index_selection_bit) {
-    return g_bc7_alpha_index_bitcount[mode] - index_selection_bit;
+	return g_bc7_alpha_index_bitcount[mode] - index_selection_bit;
 }
 static const uint8_t g_bc7_mode_has_p_bits[8]        = {1, 1, 0, 1, 0, 0, 1, 1};
 static const uint8_t g_bc7_mode_has_shared_p_bits[8] = {0, 1, 0, 0, 0, 0, 0, 0};
 static const uint8_t g_bc7_color_precision_table[8]  = {4, 6, 5, 7, 5, 7, 7, 5};
 static const int8_t  g_bc7_alpha_precision_table[8]  = {0, 0, 0, 0, 6, 8, 7, 5};
 static bc7enc_bool   get_bc7_mode_has_seperate_alpha_selectors(int mode) {
-    return (mode == 4) || (mode == 5);
+	return (mode == 4) || (mode == 5);
 }
 
 typedef struct {

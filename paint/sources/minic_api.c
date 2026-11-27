@@ -913,6 +913,8 @@ void minic_register_builtins() {
 	MINIC_I(node_previews);
 	MINIC_I(material_live);
 	MINIC_I(tools);
+	MINIC_I(pathtrace_mode);
+	MINIC_I(pathtrace_frames);
 	MINIC_END();
 
 	MINIC_STRUCT(context_t);

@@ -433,39 +433,39 @@ static int16_t  mesh__ScaleZ_nor[]     = {0,      0, 0,      0, 0,      0, 0,   
 static uint32_t mesh__ScaleZ_indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
                                           12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
-static int16_t  mesh__TranslateX_pos[]     = {-11796, -3276, -3276, 0,      -11796, -3276, 3276,  0,      -11796, 3276,  3276,  0,      -11796, 3276,  -3276, 0,
-                                              -11796, 3276,  -3276, 0,      -11796, 3276,  3276,  0,      11796,  3276,  3276,  0,      11796,  3276,  -3276, 0,
-                                              11796,  3276,  -3276, 0,      11796,  3276,  3276,  0,      11796,  -3276, 3276,  0,      11796,  -3276, -3276, 0,
-                                              11796,  -3276, -3276, 0,      11796,  -3276, 3276,  0,      -11796, -3276, 3276,  0,      -11796, -3276, -3276, 0,
-                                              -11796, 3276,  -3276, -32767, 11796,  3276,  -3276, -32767, 11796,  -3276, -3276, -32767, -11796, -3276, -3276, -32767,
-                                              11796,  3276,  3276,  32767,  -11796, 3276,  3276,  32767,  -11796, -3276, 3276,  32767,  11796,  -3276, 3276,  32767};
-static int16_t  mesh__TranslateX_nor[]     = {-32767, 0, -32767, 0, -32767, 0, -32767, 0, 0, 32767,  0, 32767,  0, 32767,  0, 32767,
-                                              32767,  0, 32767,  0, 32767,  0, 32767,  0, 0, -32767, 0, -32767, 0, -32767, 0, -32767,
-                                              0,      0, 0,      0, 0,      0, 0,      0, 0, 0,      0, 0,      0, 0,      0, 0};
+static int16_t mesh__TranslateX_pos[] = {-11796, -3276, -3276, 0,      -11796, -3276, 3276,  0,      -11796, 3276,  3276,  0,      -11796, 3276,  -3276, 0,
+                                         -11796, 3276,  -3276, 0,      -11796, 3276,  3276,  0,      11796,  3276,  3276,  0,      11796,  3276,  -3276, 0,
+                                         11796,  3276,  -3276, 0,      11796,  3276,  3276,  0,      11796,  -3276, 3276,  0,      11796,  -3276, -3276, 0,
+                                         11796,  -3276, -3276, 0,      11796,  -3276, 3276,  0,      -11796, -3276, 3276,  0,      -11796, -3276, -3276, 0,
+                                         -11796, 3276,  -3276, -32767, 11796,  3276,  -3276, -32767, 11796,  -3276, -3276, -32767, -11796, -3276, -3276, -32767,
+                                         11796,  3276,  3276,  32767,  -11796, 3276,  3276,  32767,  -11796, -3276, 3276,  32767,  11796,  -3276, 3276,  32767};
+static int16_t mesh__TranslateX_nor[] = {-32767, 0, -32767, 0, -32767, 0, -32767, 0, 0, 32767,  0, 32767,  0, 32767,  0, 32767,
+                                         32767,  0, 32767,  0, 32767,  0, 32767,  0, 0, -32767, 0, -32767, 0, -32767, 0, -32767,
+                                         0,      0, 0,      0, 0,      0, 0,      0, 0, 0,      0, 0,      0, 0,      0, 0};
 static uint32_t mesh__TranslateX_indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
                                               12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
-static int16_t  mesh__TranslateY_pos[]     = {3276,  -11796, -3276, 0,      3276,  -11796, 3276,  0,      -3276, -11796, 3276,  0,      -3276, -11796, -3276, 0,
-                                              -3276, -11796, -3276, 0,      -3276, -11796, 3276,  0,      -3276, 11796,  3276,  0,      -3276, 11796,  -3276, 0,
-                                              -3276, 11796,  -3276, 0,      -3276, 11796,  3276,  0,      3276,  11796,  3276,  0,      3276,  11796,  -3276, 0,
-                                              3276,  11796,  -3276, 0,      3276,  11796,  3276,  0,      3276,  -11796, 3276,  0,      3276,  -11796, -3276, 0,
-                                              -3276, -11796, -3276, -32767, -3276, 11796,  -3276, -32767, 3276,  11796,  -3276, -32767, 3276,  -11796, -3276, -32767,
-                                              -3276, 11796,  3276,  32767,  -3276, -11796, 3276,  32767,  3276,  -11796, 3276,  32767,  3276,  11796,  3276,  32767};
-static int16_t  mesh__TranslateY_nor[]     = {0, -32767, 0, -32767, 0, -32767, 0, -32767, -32767, 0, -32767, 0, -32767, 0, -32767, 0,
-                                              0, 32767,  0, 32767,  0, 32767,  0, 32767,  32767,  0, 32767,  0, 32767,  0, 32767,  0,
-                                              0, 0,      0, 0,      0, 0,      0, 0,      0,      0, 0,      0, 0,      0, 0,      0};
+static int16_t mesh__TranslateY_pos[] = {3276,  -11796, -3276, 0,      3276,  -11796, 3276,  0,      -3276, -11796, 3276,  0,      -3276, -11796, -3276, 0,
+                                         -3276, -11796, -3276, 0,      -3276, -11796, 3276,  0,      -3276, 11796,  3276,  0,      -3276, 11796,  -3276, 0,
+                                         -3276, 11796,  -3276, 0,      -3276, 11796,  3276,  0,      3276,  11796,  3276,  0,      3276,  11796,  -3276, 0,
+                                         3276,  11796,  -3276, 0,      3276,  11796,  3276,  0,      3276,  -11796, 3276,  0,      3276,  -11796, -3276, 0,
+                                         -3276, -11796, -3276, -32767, -3276, 11796,  -3276, -32767, 3276,  11796,  -3276, -32767, 3276,  -11796, -3276, -32767,
+                                         -3276, 11796,  3276,  32767,  -3276, -11796, 3276,  32767,  3276,  -11796, 3276,  32767,  3276,  11796,  3276,  32767};
+static int16_t mesh__TranslateY_nor[] = {0, -32767, 0, -32767, 0, -32767, 0, -32767, -32767, 0, -32767, 0, -32767, 0, -32767, 0,
+                                         0, 32767,  0, 32767,  0, 32767,  0, 32767,  32767,  0, 32767,  0, 32767,  0, 32767,  0,
+                                         0, 0,      0, 0,      0, 0,      0, 0,      0,      0, 0,      0, 0,      0, 0,      0};
 static uint32_t mesh__TranslateY_indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
                                               12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
-static int16_t  mesh__TranslateZ_pos[] = {-3276, -3276, 11796,  32767,  3276,  -3276, 11796,  32767,  3276,  3276,  11796,  32767,  -3276, 3276,  11796,  32767,
-                                          -3276, 3276,  11796,  0,      3276,  3276,  11796,  0,      3276,  3276,  -11796, 0,      -3276, 3276,  -11796, 0,
-                                          -3276, 3276,  -11796, -32767, 3276,  3276,  -11796, -32767, 3276,  -3276, -11796, -32767, -3276, -3276, -11796, -32767,
-                                          -3276, -3276, -11796, 0,      3276,  -3276, -11796, 0,      3276,  -3276, 11796,  0,      -3276, -3276, 11796,  0,
-                                          -3276, 3276,  11796,  0,      -3276, 3276,  -11796, 0,      -3276, -3276, -11796, 0,      -3276, -3276, 11796,  0,
-                                          3276,  3276,  -11796, 0,      3276,  3276,  11796,  0,      3276,  -3276, 11796,  0,      3276,  -3276, -11796, 0};
-static int16_t  mesh__TranslateZ_nor[] = {0,      0, 0,      0, 0,      0, 0,      0, 0,     32767,  0,     32767,  0,     32767,  0,     32767,
-                                          0,      0, 0,      0, 0,      0, 0,      0, 0,     -32767, 0,     -32767, 0,     -32767, 0,     -32767,
-                                          -32767, 0, -32767, 0, -32767, 0, -32767, 0, 32767, 0,      32767, 0,      32767, 0,      32767, 0};
+static int16_t mesh__TranslateZ_pos[] = {-3276, -3276, 11796,  32767,  3276,  -3276, 11796,  32767,  3276,  3276,  11796,  32767,  -3276, 3276,  11796,  32767,
+                                         -3276, 3276,  11796,  0,      3276,  3276,  11796,  0,      3276,  3276,  -11796, 0,      -3276, 3276,  -11796, 0,
+                                         -3276, 3276,  -11796, -32767, 3276,  3276,  -11796, -32767, 3276,  -3276, -11796, -32767, -3276, -3276, -11796, -32767,
+                                         -3276, -3276, -11796, 0,      3276,  -3276, -11796, 0,      3276,  -3276, 11796,  0,      -3276, -3276, 11796,  0,
+                                         -3276, 3276,  11796,  0,      -3276, 3276,  -11796, 0,      -3276, -3276, -11796, 0,      -3276, -3276, 11796,  0,
+                                         3276,  3276,  -11796, 0,      3276,  3276,  11796,  0,      3276,  -3276, 11796,  0,      3276,  -3276, -11796, 0};
+static int16_t mesh__TranslateZ_nor[] = {0,      0, 0,      0, 0,      0, 0,      0, 0,     32767,  0,     32767,  0,     32767,  0,     32767,
+                                         0,      0, 0,      0, 0,      0, 0,      0, 0,     -32767, 0,     -32767, 0,     -32767, 0,     -32767,
+                                         -32767, 0, -32767, 0, -32767, 0, -32767, 0, 32767, 0,      32767, 0,      32767, 0,      32767, 0};
 static uint32_t mesh__TranslateZ_indices[] = {0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
                                               12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
@@ -751,7 +751,7 @@ scene_t *startup_get_scene(void) {
 	}
 
 	// shader_datas
-	scene->shader_datas = any_array_create(17);
+	scene->shader_datas = any_array_create(16);
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "armdefault";
@@ -1049,7 +1049,7 @@ scene_t *startup_get_scene(void) {
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "copy_pass";
-		sd->contexts      = any_array_create(5);
+		sd->contexts      = any_array_create(6);
 		{
 			shader_context_t *sc   = (shader_context_t *)calloc(1, sizeof(shader_context_t));
 			sc->name               = "copy_pass";
@@ -1183,12 +1183,39 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[4] = sc;
 		}
+		{
+			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
+			sc->name                         = "copyFB_pass";
+			sc->depth_write                  = false;
+			sc->compare_mode                 = "always";
+			sc->cull_mode                    = "none";
+			sc->vertex_shader                = "copy_pass.vert";
+			sc->fragment_shader              = "copy_pass.frag";
+			sc->shader_from_source           = false;
+			sc->color_attachments            = string_array_create(1);
+			sc->color_attachments->buffer[0] = "FB";
+			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
+			{
+				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
+				ve->name                       = "pos";
+				ve->data                       = "float2";
+				sc->vertex_elements->buffer[0] = ve;
+			}
+			sc->constants     = (shader_const_t_array_t *)any_array_create(0);
+			sc->texture_units = (tex_unit_t_array_t *)any_array_create(1);
+			{
+				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
+				tu->name                     = "tex";
+				sc->texture_units->buffer[0] = tu;
+			}
+			sd->contexts->buffer[5] = sc;
+		}
 		scene->shader_datas->buffer[5] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "supersample_resolve";
-		sd->contexts      = any_array_create(2);
+		sd->contexts      = any_array_create(3);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
 			sc->name                         = "supersample_resolve";
@@ -1256,6 +1283,40 @@ scene_t *startup_get_scene(void) {
 				sc->texture_units->buffer[0] = tu;
 			}
 			sd->contexts->buffer[1] = sc;
+		}
+		{
+			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
+			sc->name                         = "supersample_resolveFB";
+			sc->depth_write                  = false;
+			sc->compare_mode                 = "always";
+			sc->cull_mode                    = "none";
+			sc->vertex_shader                = "supersample_resolve.vert";
+			sc->fragment_shader              = "supersample_resolve.frag";
+			sc->shader_from_source           = false;
+			sc->color_attachments            = string_array_create(1);
+			sc->color_attachments->buffer[0] = "FB";
+			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
+			{
+				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
+				ve->name                       = "pos";
+				ve->data                       = "float2";
+				sc->vertex_elements->buffer[0] = ve;
+			}
+			sc->constants = (shader_const_t_array_t *)any_array_create(1);
+			{
+				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
+				c->name                  = "screen_size_inv";
+				c->type                  = "float2";
+				c->link                  = "_screen_size_inv";
+				sc->constants->buffer[0] = c;
+			}
+			sc->texture_units = (tex_unit_t_array_t *)any_array_create(1);
+			{
+				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
+				tu->name                     = "tex";
+				sc->texture_units->buffer[0] = tu;
+			}
+			sd->contexts->buffer[2] = sc;
 		}
 		scene->shader_datas->buffer[6] = sd;
 	}
@@ -1570,7 +1631,7 @@ scene_t *startup_get_scene(void) {
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
 		sd->name          = "copy_mrt3_pass";
-		sd->contexts      = any_array_create(3);
+		sd->contexts      = any_array_create(2);
 		{
 			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
 			sc->name                         = "copy_mrt3_pass";
@@ -1649,191 +1710,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[1] = sc;
 		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "copy_mrt3RGBA128_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "copy_mrt3_pass.vert";
-			sc->fragment_shader              = "copy_mrt3_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(3);
-			sc->color_attachments->buffer[0] = "RGBA128";
-			sc->color_attachments->buffer[1] = "RGBA128";
-			sc->color_attachments->buffer[2] = "RGBA128";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants     = (shader_const_t_array_t *)any_array_create(0);
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(3);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex0";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex1";
-				sc->texture_units->buffer[1] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex2";
-				sc->texture_units->buffer[2] = tu;
-			}
-			sd->contexts->buffer[2] = sc;
-		}
 		scene->shader_datas->buffer[11] = sd;
-	}
-	{
-		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
-		sd->name          = "dilate_pass";
-		sd->contexts      = any_array_create(3);
-		{
-			shader_context_t *sc   = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name               = "dilate_pass";
-			sc->depth_write        = false;
-			sc->compare_mode       = "always";
-			sc->cull_mode          = "none";
-			sc->vertex_shader      = "dilate_pass.vert";
-			sc->fragment_shader    = "dilate_pass.frag";
-			sc->shader_from_source = false;
-			sc->vertex_elements    = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[0] = sc;
-		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "dilateRGBA64_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "dilate_pass.vert";
-			sc->fragment_shader              = "dilate_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(1);
-			sc->color_attachments->buffer[0] = "RGBA64";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[1] = sc;
-		}
-		{
-			shader_context_t *sc             = (shader_context_t *)calloc(1, sizeof(shader_context_t));
-			sc->name                         = "dilateRGBA128_pass";
-			sc->depth_write                  = false;
-			sc->compare_mode                 = "always";
-			sc->cull_mode                    = "none";
-			sc->vertex_shader                = "dilate_pass.vert";
-			sc->fragment_shader              = "dilate_pass.frag";
-			sc->shader_from_source           = false;
-			sc->color_attachments            = string_array_create(1);
-			sc->color_attachments->buffer[0] = "RGBA128";
-			sc->vertex_elements              = (vertex_element_t_array_t *)any_array_create(1);
-			{
-				vertex_element_t *ve           = (vertex_element_t *)calloc(1, sizeof(vertex_element_t));
-				ve->name                       = "pos";
-				ve->data                       = "float2";
-				sc->vertex_elements->buffer[0] = ve;
-			}
-			sc->constants = (shader_const_t_array_t *)any_array_create(2);
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "dilate_radius";
-				c->type                  = "float";
-				c->link                  = "_dilate_radius";
-				sc->constants->buffer[0] = c;
-			}
-			{
-				shader_const_t *c        = (shader_const_t *)calloc(1, sizeof(shader_const_t));
-				c->name                  = "tex_size";
-				c->type                  = "float2";
-				c->link                  = "_size(tex)";
-				sc->constants->buffer[1] = c;
-			}
-			sc->texture_units = (tex_unit_t_array_t *)any_array_create(2);
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "tex";
-				sc->texture_units->buffer[0] = tu;
-			}
-			{
-				tex_unit_t *tu               = (tex_unit_t *)calloc(1, sizeof(tex_unit_t));
-				tu->name                     = "texdilate";
-				tu->link                     = "_texdilatemap";
-				sc->texture_units->buffer[1] = tu;
-			}
-			sd->contexts->buffer[2] = sc;
-		}
-		scene->shader_datas->buffer[12] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -1866,7 +1743,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[13] = sd;
+		scene->shader_datas->buffer[12] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2023,7 +1900,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[14] = sd;
+		scene->shader_datas->buffer[13] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2078,7 +1955,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[15] = sd;
+		scene->shader_datas->buffer[14] = sd;
 	}
 	{
 		shader_data_t *sd = (shader_data_t *)calloc(1, sizeof(shader_data_t));
@@ -2118,7 +1995,7 @@ scene_t *startup_get_scene(void) {
 			}
 			sd->contexts->buffer[0] = sc;
 		}
-		scene->shader_datas->buffer[16] = sd;
+		scene->shader_datas->buffer[15] = sd;
 	}
 
 	// objects

@@ -135,9 +135,10 @@ int NFDi_IsFilterSegmentChar(char ch) {
 
 #ifdef IRON_LINUX
 
-#include <gtk/gtk.h>
+#include "nfd_gtk.h"
 
 const char INIT_FAIL_MSG[] = "gtk_init_check failed to initilaize GTK+";
+const char LOAD_FAIL_MSG[] = "Failed to load GTK+ 3";
 
 void iron_gtk_disable_setlocale();
 
@@ -282,6 +283,10 @@ nfdresult_t NFD_OpenDialog(const nfdchar_t *filterList, const nfdchar_t *default
 	GtkWidget  *dialog;
 	nfdresult_t result;
 
+	if (!iron_gtk_load()) {
+		NFDi_SetError(LOAD_FAIL_MSG);
+		return NFD_ERROR;
+	}
 	iron_gtk_disable_setlocale();
 	if (!gtk_init_check(NULL, NULL)) {
 		NFDi_SetError(INIT_FAIL_MSG);
@@ -328,6 +333,10 @@ nfdresult_t NFD_OpenDialogMultiple(const nfdchar_t *filterList, const nfdchar_t 
 	GtkWidget  *dialog;
 	nfdresult_t result;
 
+	if (!iron_gtk_load()) {
+		NFDi_SetError(LOAD_FAIL_MSG);
+		return NFD_ERROR;
+	}
 	iron_gtk_disable_setlocale();
 	if (!gtk_init_check(NULL, NULL)) {
 		NFDi_SetError(INIT_FAIL_MSG);
@@ -365,6 +374,10 @@ nfdresult_t NFD_SaveDialog(const nfdchar_t *filterList, const nfdchar_t *default
 	GtkWidget  *dialog;
 	nfdresult_t result;
 
+	if (!iron_gtk_load()) {
+		NFDi_SetError(LOAD_FAIL_MSG);
+		return NFD_ERROR;
+	}
 	iron_gtk_disable_setlocale();
 	if (!gtk_init_check(NULL, NULL)) {
 		NFDi_SetError(INIT_FAIL_MSG);
@@ -411,6 +424,10 @@ nfdresult_t NFD_PickFolder(const nfdchar_t *defaultPath, nfdchar_t **outPath) {
 	GtkWidget  *dialog;
 	nfdresult_t result;
 
+	if (!iron_gtk_load()) {
+		NFDi_SetError(LOAD_FAIL_MSG);
+		return NFD_ERROR;
+	}
 	iron_gtk_disable_setlocale();
 	if (!gtk_init_check(NULL, NULL)) {
 		NFDi_SetError(INIT_FAIL_MSG);

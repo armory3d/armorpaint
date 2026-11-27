@@ -109,33 +109,18 @@ typedef struct physics_sim {
 	float         *vel[3];
 	float         *mass[3]; // Liquid mass on the faces, a full cell is 1
 	float        **density;
+	float        **flame; // Per gas, NULL for smoke: burns into heat and soot
 	int            gas_count;
-	float         *temperature;
 	unsigned char *emitter;
-	unsigned char *solid;
-	float         *solid_vel;
-	void         **solid_body;
-	unsigned char *solid_base;
+	unsigned char *solid_base; // Colliders, with their velocity and body
 	float         *solid_base_vel;
 	void         **solid_base_body;
-	unsigned char *closed[3];
-	int           *closed_list;
-	int            closed_count;
-	int           *body_cells;
-	int            body_cell_count;
 	float         *obstacles;
 	int            obstacle_count;
 	int            collider_version;
-	float         *pressure;
-	int            mass_box[6];
-	int            pressure_box[6];
 
 	// Particles
-	float         *pos;    // xyz per particle
-	float         *pvel;   // xyz per particle
-	float         *affine; // 3x3 per particle, velocity gradient
-	float         *deform; // 3x3 per particle, deformation gradient of solid materials
-	float         *stress; // 3x3 per particle, stress over density of solid materials
+	float         *pos; // xyz per particle
 	unsigned char *material;
 	unsigned char *owner;
 	int            count;
@@ -144,19 +129,23 @@ typedef struct physics_sim {
 	float    buoyancy;       // Upward acceleration of hot gas
 	float    dissipation;    // Gas density fade per second
 	float    cooling;        // Temperature fade per second
+	float    burn;           // Flame burned per second
+	float    soot;           // Smoke left by the burned flame
+	float    heat;           // Temperature released by the burned flame
 	float    vorticity;      // Strength of the small swirls in the air
 	float    viscosity;      // Liquid, 0 - 1
 	float    stiffness[256]; // Solids
 	unsigned seed;
 
-	float *tmp[3];
-	float *cell_tmp[6];
+	void *gpu;    // Steps on the gpu, see the end of iron_physics_sim.c
+	int   failed; // The gpu has no room or no kernels for it, the sim does not step
 } physics_sim_t;
 
 physics_sim_t *physics_sim_create(int nx, int ny, int nz, float cell, float *min);
 void           physics_sim_destroy(physics_sim_t *s);
 void           physics_sim_add_particle(physics_sim_t *s, float x, float y, float z, int material, int owner);
 int            physics_sim_add_gas(physics_sim_t *s);
+int            physics_sim_add_fire(physics_sim_t *s);
 void           physics_sim_step(physics_sim_t *s, float dt, unsigned emit);
 int            physics_sim_sample(physics_sim_t *s, vec4_t p, vec4_t *vel, float *liquid);
 float *physics_sim_particle_field(float *pos, int count, float spacing, float voxel, int max_res, int *nx, int *ny, int *nz, float *min, float *out_voxel);

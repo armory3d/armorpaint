@@ -31,7 +31,7 @@ void tab_textures_draw_export_on_next_frame2(gpu_texture_t *target) {
 			f = string("%s.exr", f);
 		}
 		buffer_t *pixels = gpu_get_texture_pixels(target);
-		buffer_t *b      = export_exr_run(target->width, target->height, pixels, 16, 1, 0);
+		buffer_t *b      = export_exr_run(target->width, target->height, pixels, 1, 0);
 		iron_file_save_bytes(string("%s%s%s", path, PATH_SEP, f), b, b->length);
 		array_free(b);
 		free(b);

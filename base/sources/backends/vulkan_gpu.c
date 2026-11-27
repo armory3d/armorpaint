@@ -43,6 +43,7 @@ static VkPhysicalDevice gpu;
 static VkDevice         device;
 static VkCommandPool    cmd_pool;
 static VkQueue          queue;
+static uint32_t         queue_family;
 #ifndef NDEBUG
 static bool                     validation_found;
 static VkDebugUtilsMessengerEXT debug_messenger;
@@ -54,17 +55,35 @@ static int                window_depth_bits;
 static bool               window_vsync;
 static VkSurfaceKHR       surface;
 static VkSurfaceFormatKHR surface_format;
-static VkSwapchainKHR     swapchain;
-static VkImage            window_images[GPU_FRAMEBUFFER_COUNT];
-static bool               framebuffer_acquired = false;
-static bool               framebuffer_undefined[GPU_FRAMEBUFFER_COUNT];
-static bool               framebuffer_wait_pending = false;
-static VkBuffer           readback_buffer;
-static int                readback_buffer_size = 0;
-static VkDeviceMemory     readback_mem;
-static VkBuffer           upload_buffer;
-static uint32_t           upload_buffer_size = 0;
-static VkDeviceMemory     upload_mem;
+
+static VkSwapchainKHR swapchain;
+static VkImage        window_images[GPU_FRAMEBUFFER_COUNT];
+static bool           framebuffer_acquired = false;
+static bool           framebuffer_undefined[GPU_FRAMEBUFFER_COUNT];
+static bool           framebuffer_wait_pending = false;
+static VkBuffer       readback_buffer;
+static int            readback_buffer_size = 0;
+static VkDeviceMemory readback_mem;
+static VkBuffer       upload_buffer;
+static uint32_t       upload_buffer_size = 0;
+static VkDeviceMemory upload_mem;
+
+#define GPU_COMPUTE_MAX_TEXTURES   16
+#define GPU_COMPUTE_SETS_PER_FRAME 256
+#define GPU_COMPUTE_CONSTANTS_SIZE 256
+
+static gpu_compute_pipeline_t *compute_pipeline = NULL;
+static gpu_texture_t          *compute_textures[GPU_COMPUTE_MAX_TEXTURES];
+static uint8_t                 compute_constants[GPU_COMPUTE_CONSTANTS_SIZE];
+static int                     compute_constants_size = 0;
+static VkDescriptorPool        compute_pools[GPU_FRAMES_IN_FLIGHT];
+static VkBuffer                compute_ring[GPU_FRAMES_IN_FLIGHT];
+static VkDeviceMemory          compute_ring_mem[GPU_FRAMES_IN_FLIGHT];
+static uint8_t                *compute_ring_data[GPU_FRAMES_IN_FLIGHT];
+static uint32_t                compute_ring_offset = 0;
+static uint32_t                compute_ring_stride = 0;
+
+static void compute_frame_reset(void);
 
 void     iron_vulkan_get_instance_extensions(const char **extensions, int *index);
 VkBool32 iron_vulkan_get_physical_device_presentation_support(VkPhysicalDevice physical_device, uint32_t queue_family_index);
@@ -84,12 +103,10 @@ static VkFormat convert_image_format(gpu_texture_format_t format) {
 		return VK_FORMAT_R32_SFLOAT;
 	case GPU_TEXTURE_FORMAT_D32:
 		return VK_FORMAT_D32_SFLOAT;
+	case GPU_TEXTURE_FORMAT_FRAMEBUFFER:
+		return surface_format.format;
 	default:
-#ifdef IRON_ANDROID
 		return VK_FORMAT_R8G8B8A8_UNORM;
-#else
-		return VK_FORMAT_B8G8R8A8_UNORM;
-#endif
 	}
 }
 
@@ -941,6 +958,8 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 		    .dynamicRendering = VK_TRUE,
 		};
 
+		VkPhysicalDeviceFeatures supported_features;
+		vkGetPhysicalDeviceFeatures(gpu, &supported_features);
 		VkPhysicalDeviceFeatures enabled_features = {};
 		enabled_features.independentBlend         = VK_TRUE;
 
@@ -984,6 +1003,7 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	}
 
 	vkGetDeviceQueue(device, graphics_queue_node_index, 0, &queue);
+	queue_family = graphics_queue_node_index;
 	vkGetPhysicalDeviceMemoryProperties(gpu, &memory_properties);
 	VkCommandPoolCreateInfo cmd_pool_info = {
 	    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1020,11 +1040,20 @@ void gpu_init_internal(int depth_buffer_bits, bool vsync) {
 	vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &format_count, surf_formats);
 
 	if (format_count == 1 && surf_formats[0].format == VK_FORMAT_UNDEFINED) {
-		surface_format = surf_formats[0];
+		surface_format        = surf_formats[0];
+		surface_format.format = VK_FORMAT_R8G8B8A8_UNORM; // Any format allowed
 	}
 	else {
+		// Prefer rgba8 to match the textures
 		bool found = false;
 		for (uint32_t i = 0; i < format_count; ++i) {
+			if (surf_formats[i].format == VK_FORMAT_R8G8B8A8_UNORM) {
+				surface_format = surf_formats[i];
+				found          = true;
+				break;
+			}
+		}
+		for (uint32_t i = 0; i < format_count && !found; ++i) {
 			if (surf_formats[i].format == VK_FORMAT_B8G8R8A8_UNORM) {
 				surface_format = surf_formats[i];
 				found          = true;
@@ -1256,6 +1285,7 @@ void gpu_present_internal() {
 		vkWaitForFences(device, 1, &fences[gpu_frame_index], VK_TRUE, UINT64_MAX);
 		fences_pending[gpu_frame_index] = false;
 	}
+	compute_frame_reset();
 
 	vkResetCommandBuffer(command_buffer, 0);
 	VkCommandBufferBeginInfo begin_info = {
@@ -1396,6 +1426,15 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 	vkMapMemory(device, readback_mem, 0, VK_WHOLE_SIZE, 0, (void **)&p);
 	memcpy(data, p, buffer_size);
 	vkUnmapMemory(device, readback_mem);
+
+	// Return framebuffer formats as rgba
+	if (render_target->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER && surface_format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+		for (int i = 0; i < buffer_size; i += 4) {
+			uint8_t b   = data[i];
+			data[i]     = data[i + 2];
+			data[i + 2] = b;
+		}
+	}
 }
 
 static VkDescriptorSet get_descriptor_set(VkBuffer buffer) {
@@ -1674,8 +1713,9 @@ void gpu_shader_destroy(gpu_shader_t *shader) {
 #ifdef WITH_BC7
 
 // Gpu bc7 encoder: rgba8 pixels in the upload buffer -> compute shader -> bc7 blocks buffer -> image
-// Bindings follow kong's declaration order in gpu_bc7.shader: constant buffer 0, src 1, dst 2
-#include "vulkan_bc7.h"
+// Bindings follow kong's declaration order in gpu_bc7.shader: constant buffer 0, src 1, dst 2. base/project.c compiles it
+buffer_t *iron_load_blob(char *file);
+void      iron_delete_blob(buffer_t *buffer);
 
 static bool                  bc7_compute_checked = false;
 static bool                  bc7_compute_ready   = false;
@@ -1740,13 +1780,21 @@ static bool bc7_compute_init() {
 	}
 	vkBindBufferMemory(device, bc7_constants, bc7_constants_mem, 0);
 
+	char path[512];
+	snprintf(path, sizeof(path), "%sgpu_bc7.spirv", data_path());
+	buffer_t *shader = iron_load_blob(path);
+	if (shader == NULL) {
+		return false;
+	}
 	VkShaderModuleCreateInfo module_info = {
 	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-	    .codeSize = sizeof(vulkan_bc7_spirv),
-	    .pCode    = vulkan_bc7_spirv,
+	    .codeSize = shader->length,
+	    .pCode    = (const uint32_t *)shader->buffer,
 	};
 	VkShaderModule shader_module;
-	if (vkCreateShaderModule(device, &module_info, NULL, &shader_module) != VK_SUCCESS) {
+	VkResult       result = vkCreateShaderModule(device, &module_info, NULL, &shader_module);
+	iron_delete_blob(shader);
+	if (result != VK_SUCCESS) {
 		return false;
 	}
 	VkComputePipelineCreateInfo pipeline_info = {
@@ -1760,7 +1808,7 @@ static bool bc7_compute_init() {
 	        },
 	    .layout = bc7_pipeline_layout,
 	};
-	VkResult result = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &bc7_pipeline);
+	result = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &bc7_pipeline);
 	vkDestroyShaderModule(device, shader_module, NULL);
 	if (result != VK_SUCCESS) {
 		return false;
@@ -2069,9 +2117,6 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	texture->buffer = NULL;
 
 	VkFormat vk_format = convert_image_format(format);
-	if (vk_format == VK_FORMAT_B8G8R8A8_UNORM) {
-		vk_format = VK_FORMAT_R8G8B8A8_UNORM;
-	}
 
 	VkDeviceSize _upload_size  = width * height * (VkDeviceSize)gpu_texture_format_size(format);
 	void        *original_data = data;
@@ -2510,7 +2555,7 @@ static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
 static uint32_t                      ib_version_last[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           vb_count      = 0;
 static int                           vb_count_last = 0;
-static inst_t                        instances[1024];
+static inst_t                        instances[16384];
 static int                           instances_count   = 0;
 static VkBuffer                      instance_data_buf = VK_NULL_HANDLE;
 static VkDeviceMemory                instance_data_mem = VK_NULL_HANDLE;
@@ -2521,6 +2566,422 @@ static PFN_vkGetAccelerationStructureDeviceAddressKHR _vkGetAccelerationStructur
 static PFN_vkGetAccelerationStructureBuildSizesKHR    _vkGetAccelerationStructureBuildSizesKHR    = NULL;
 static PFN_vkCmdBuildAccelerationStructuresKHR        _vkCmdBuildAccelerationStructuresKHR        = NULL;
 static PFN_vkDestroyAccelerationStructureKHR          _vkDestroyAccelerationStructureKHR          = NULL;
+
+// Compute
+#define SPV_MAGIC                     0x07230203
+#define SPV_OP_EXECUTION_MODE         16
+#define SPV_OP_TYPE_IMAGE             25
+#define SPV_EXECUTION_MODE_LOCAL_SIZE 17
+
+static VkFormat compute_storage_format(uint32_t spirv_format) {
+	switch (spirv_format) {
+	case 1:
+		return VK_FORMAT_R32G32B32A32_SFLOAT;
+	case 2:
+		return VK_FORMAT_R16G16B16A16_SFLOAT;
+	case 3:
+		return VK_FORMAT_R32_SFLOAT;
+	case 4:
+		return VK_FORMAT_R8G8B8A8_UNORM;
+	default:
+		return VK_FORMAT_UNDEFINED;
+	}
+}
+
+// Kong binds the constants at 0, the written texture at 1 and the read textures from 2
+static VkDescriptorSetLayout compute_set_layout = VK_NULL_HANDLE;
+static VkPipelineLayout      compute_layout     = VK_NULL_HANDLE;
+
+static void compute_layout_init(void) {
+	if (compute_layout != VK_NULL_HANDLE) {
+		return;
+	}
+	VkDescriptorSetLayoutBinding bindings[2 + GPU_COMPUTE_MAX_TEXTURES];
+	bindings[0] = (VkDescriptorSetLayoutBinding){0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL};
+	bindings[1] = (VkDescriptorSetLayoutBinding){1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL};
+	for (int i = 0; i < GPU_COMPUTE_MAX_TEXTURES; ++i) {
+		bindings[2 + i] = (VkDescriptorSetLayoutBinding){2 + i, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, NULL};
+	}
+	VkDescriptorSetLayoutCreateInfo set_layout_info = {
+	    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+	    .bindingCount = 2 + GPU_COMPUTE_MAX_TEXTURES,
+	    .pBindings    = bindings,
+	};
+	vkCreateDescriptorSetLayout(device, &set_layout_info, NULL, &compute_set_layout);
+	VkPipelineLayoutCreateInfo layout_info = {
+	    .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	    .setLayoutCount = 1,
+	    .pSetLayouts    = &compute_set_layout,
+	};
+	vkCreatePipelineLayout(device, &layout_info, NULL, &compute_layout);
+}
+
+bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *shader, int shader_size) {
+	gpu_compute_pipeline_impl_t *impl = &pipeline->impl;
+	memset(impl, 0, sizeof(*impl));
+	const uint32_t *words = (const uint32_t *)shader;
+	size_t          count = (size_t)shader_size / 4;
+	if (shader_size % 4 != 0 || count < 5 || words[0] != SPV_MAGIC) {
+		iron_error("Compute shader is not spir-v");
+		return false;
+	}
+	compute_layout_init();
+
+	impl->local_size[0] = 1;
+	impl->local_size[1] = 1;
+	for (size_t i = 5; i < count;) {
+		uint32_t        op         = words[i] & 0xffff;
+		uint32_t        word_count = words[i] >> 16;
+		const uint32_t *w          = &words[i];
+		if (word_count == 0 || i + word_count > count) {
+			iron_error("Compute shader is not spir-v");
+			return false;
+		}
+		if (op == SPV_OP_EXECUTION_MODE && word_count >= 5 && w[2] == SPV_EXECUTION_MODE_LOCAL_SIZE) {
+			impl->local_size[0] = w[3];
+			impl->local_size[1] = w[4];
+		}
+		else if (op == SPV_OP_TYPE_IMAGE && word_count >= 9 && w[7] == 2) { // Storage image, the one written texture
+			impl->storage_format = compute_storage_format(w[8]);
+			if (impl->storage_format == VK_FORMAT_UNDEFINED) {
+				iron_error("Compute shader writes a texture format that is not supported");
+				return false;
+			}
+		}
+		i += word_count;
+	}
+
+	VkShaderModuleCreateInfo module_info = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .codeSize = (size_t)shader_size,
+	    .pCode    = words,
+	};
+	VkShaderModule module = VK_NULL_HANDLE;
+	vkCreateShaderModule(device, &module_info, NULL, &module);
+	VkComputePipelineCreateInfo pipeline_info = {
+	    .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+	    .stage =
+	        {
+	            .sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+	            .stage  = VK_SHADER_STAGE_COMPUTE_BIT,
+	            .module = module,
+	            .pName  = "main",
+	        },
+	    .layout = compute_layout,
+	};
+	VkResult result =
+	    module != VK_NULL_HANDLE ? vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, &impl->pipeline) : VK_ERROR_INITIALIZATION_FAILED;
+	vkDestroyShaderModule(device, module, NULL);
+	if (result != VK_SUCCESS) {
+		gpu_compute_pipeline_destroy(pipeline);
+		return false;
+	}
+	return true;
+}
+
+void gpu_compute_pipeline_destroy(gpu_compute_pipeline_t *pipeline) {
+	gpu_compute_pipeline_impl_t *impl = &pipeline->impl;
+	if (impl->pipeline == VK_NULL_HANDLE) {
+		return;
+	}
+	vkDeviceWaitIdle(device);
+	vkDestroyPipeline(device, impl->pipeline, NULL);
+	memset(impl, 0, sizeof(*impl));
+	if (compute_pipeline == pipeline) {
+		compute_pipeline = NULL;
+	}
+}
+
+void gpu_compute_set_pipeline(gpu_compute_pipeline_t *pipeline) {
+	compute_pipeline = pipeline;
+}
+
+void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture) {
+	if (unit < GPU_COMPUTE_MAX_TEXTURES) {
+		compute_textures[unit] = texture;
+	}
+}
+
+void gpu_compute_set_constants(const void *data, int size) {
+	compute_constants_size = size < GPU_COMPUTE_CONSTANTS_SIZE ? size : GPU_COMPUTE_CONSTANTS_SIZE;
+	memcpy(compute_constants, data, compute_constants_size);
+}
+
+static void compute_frame_reset(void) {
+	if (compute_pools[gpu_frame_index] != VK_NULL_HANDLE) {
+		vkResetDescriptorPool(device, compute_pools[gpu_frame_index], 0);
+	}
+	compute_ring_offset = 0;
+}
+
+static bool compute_frame_resources(void) {
+	if (compute_pools[0] != VK_NULL_HANDLE) {
+		return true;
+	}
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(gpu, &properties);
+	uint32_t align      = (uint32_t)properties.limits.minUniformBufferOffsetAlignment;
+	compute_ring_stride = (GPU_COMPUTE_CONSTANTS_SIZE + align - 1) / align * align;
+
+	for (int i = 0; i < GPU_FRAMES_IN_FLIGHT; ++i) {
+		VkDescriptorPoolSize pool_sizes[] = {
+		    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, GPU_COMPUTE_SETS_PER_FRAME * GPU_COMPUTE_MAX_TEXTURES},
+		    {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, GPU_COMPUTE_SETS_PER_FRAME * 4},
+		    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, GPU_COMPUTE_SETS_PER_FRAME},
+		};
+		VkDescriptorPoolCreateInfo pool_info = {
+		    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+		    .maxSets       = GPU_COMPUTE_SETS_PER_FRAME,
+		    .poolSizeCount = 3,
+		    .pPoolSizes    = pool_sizes,
+		};
+		if (vkCreateDescriptorPool(device, &pool_info, NULL, &compute_pools[i]) != VK_SUCCESS) {
+			return false;
+		}
+
+		VkBufferCreateInfo buffer_info = {
+		    .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		    .size        = (VkDeviceSize)compute_ring_stride * GPU_COMPUTE_SETS_PER_FRAME,
+		    .usage       = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		};
+		vkCreateBuffer(device, &buffer_info, NULL, &compute_ring[i]);
+		VkMemoryRequirements reqs;
+		vkGetBufferMemoryRequirements(device, compute_ring[i], &reqs);
+		VkMemoryAllocateInfo alloc_info = {
+		    .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		    .allocationSize  = reqs.size,
+		    .memoryTypeIndex = memory_type_from_properties(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+		};
+		if (vkAllocateMemory(device, &alloc_info, NULL, &compute_ring_mem[i]) != VK_SUCCESS) {
+			return false;
+		}
+		vkBindBufferMemory(device, compute_ring[i], compute_ring_mem[i], 0);
+		vkMapMemory(device, compute_ring_mem[i], 0, VK_WHOLE_SIZE, 0, (void **)&compute_ring_data[i]);
+	}
+	return true;
+}
+
+// Render targets get storage usage the first time a compute or raytrace shader writes them, the contents are copied over
+static bool compute_make_storage(gpu_texture_t *texture) {
+	if (texture->gpu_write) {
+		return true;
+	}
+	if (texture->state != GPU_TEXTURE_STATE_SHADER_RESOURCE) {
+		gpu_barrier(texture, GPU_TEXTURE_STATE_SHADER_RESOURCE);
+	}
+	gpu_texture_t old    = *texture;
+	VkFormat      format = convert_image_format(texture->format);
+
+	VkImageCreateInfo image_info = {
+	    .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+	    .imageType     = VK_IMAGE_TYPE_2D,
+	    .format        = format,
+	    .extent.width  = texture->width,
+	    .extent.height = texture->height,
+	    .extent.depth  = 1,
+	    .mipLevels     = 1,
+	    .arrayLayers   = 1,
+	    .samples       = VK_SAMPLE_COUNT_1_BIT,
+	    .tiling        = VK_IMAGE_TILING_OPTIMAL,
+	    .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+		                 VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+	};
+	VkImage image;
+	if (vkCreateImage(device, &image_info, NULL, &image) != VK_SUCCESS) {
+		return false;
+	}
+	VkMemoryRequirements reqs;
+	vkGetImageMemoryRequirements(device, image, &reqs);
+	VkMemoryAllocateInfo alloc_info = {
+	    .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+	    .allocationSize  = reqs.size,
+	    .memoryTypeIndex = memory_type_from_properties(reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT),
+	};
+	VkDeviceMemory mem;
+	if (vkAllocateMemory(device, &alloc_info, NULL, &mem) != VK_SUCCESS) {
+		vkDestroyImage(device, image, NULL);
+		return false;
+	}
+	vkBindImageMemory(device, image, mem, 0);
+	VkImageViewCreateInfo view_info = {
+	    .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+	    .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
+	    .format                          = format,
+	    .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+	    .subresourceRange.baseMipLevel   = 0,
+	    .subresourceRange.levelCount     = 1,
+	    .subresourceRange.baseArrayLayer = 0,
+	    .subresourceRange.layerCount     = 1,
+	    .image                           = image,
+	};
+	VkImageView view;
+	vkCreateImageView(device, &view_info, NULL, &view);
+
+	VkImageSubresourceRange range      = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+	VkImageMemoryBarrier    to_copy[2] = {
+	    {
+	        .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	        .srcAccessMask    = VK_ACCESS_MEMORY_WRITE_BIT,
+	        .dstAccessMask    = VK_ACCESS_TRANSFER_READ_BIT,
+	        .oldLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	        .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+	        .image            = old.impl.image,
+	        .subresourceRange = range,
+	    },
+	    {
+	        .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	        .srcAccessMask    = 0,
+	        .dstAccessMask    = VK_ACCESS_TRANSFER_WRITE_BIT,
+	        .oldLayout        = VK_IMAGE_LAYOUT_UNDEFINED,
+	        .newLayout        = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	        .image            = image,
+	        .subresourceRange = range,
+	    },
+	};
+	vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 2, to_copy);
+	VkImageCopy region = {
+	    .srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+	    .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+	    .extent         = {texture->width, texture->height, 1},
+	};
+	vkCmdCopyImage(command_buffer, old.impl.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	VkImageMemoryBarrier to_read = {
+	    .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	    .srcAccessMask    = VK_ACCESS_TRANSFER_WRITE_BIT,
+	    .dstAccessMask    = VK_ACCESS_MEMORY_READ_BIT,
+	    .oldLayout        = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+	    .newLayout        = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	    .image            = image,
+	    .subresourceRange = range,
+	};
+	vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &to_read);
+
+	gpu_texture_destroy(&old); // Destroyed once the frame is done
+	texture->impl.image = image;
+	texture->impl.mem   = mem;
+	texture->impl.view  = view;
+	texture->gpu_write  = true;
+	return true;
+}
+
+static void compute_storage_barrier(gpu_texture_t *texture, bool to_storage) {
+	VkImageMemoryBarrier barrier = {
+	    .sType            = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+	    .srcAccessMask    = to_storage ? VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT : VK_ACCESS_SHADER_WRITE_BIT,
+	    .dstAccessMask    = to_storage ? VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT : VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
+	    .oldLayout        = to_storage ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL,
+	    .newLayout        = to_storage ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+	    .image            = texture->impl.image,
+	    .subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1},
+	};
+	vkCmdPipelineBarrier(command_buffer, to_storage ? VK_PIPELINE_STAGE_ALL_COMMANDS_BIT : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	                     to_storage ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, NULL, 0, NULL, 1, &barrier);
+}
+
+void gpu_compute_dispatch(uint32_t width, uint32_t height) {
+	gpu_compute_pipeline_impl_t *impl    = compute_pipeline != NULL ? &compute_pipeline->impl : NULL;
+	gpu_texture_t               *storage = NULL;
+	if (gpu_in_use) {
+		iron_error("Compute dispatch inside of a render pass");
+		goto done;
+	}
+	if (impl == NULL || impl->pipeline == VK_NULL_HANDLE || !compute_frame_resources()) {
+		goto done;
+	}
+
+	// Unit 0 is the written texture when the shader writes one, read textures follow
+	int first_read = 0;
+	if (impl->storage_format != VK_FORMAT_UNDEFINED) {
+		storage = compute_textures[0];
+		if (storage == NULL || convert_image_format(storage->format) != impl->storage_format) {
+			iron_error("Compute shader writes a texture of another format");
+			goto done;
+		}
+		if (!compute_make_storage(storage)) {
+			iron_error("Compute shader can not write the texture");
+			goto done;
+		}
+		first_read = 1;
+	}
+	gpu_texture_t *textures[GPU_COMPUTE_MAX_TEXTURES];
+	for (int i = 0; i < GPU_COMPUTE_MAX_TEXTURES; ++i) {
+		int            unit    = first_read + i;
+		gpu_texture_t *texture = unit < GPU_COMPUTE_MAX_TEXTURES ? compute_textures[unit] : NULL;
+		if (texture == NULL) {
+			texture = &dummy_texture;
+		}
+		else if (texture->state != GPU_TEXTURE_STATE_SHADER_RESOURCE) {
+			gpu_barrier(texture, GPU_TEXTURE_STATE_SHADER_RESOURCE);
+		}
+		textures[i] = texture;
+	}
+
+	// Sets and constants of a frame are reused once its fence is signaled, a full frame waits for the gpu
+	VkDescriptorSet             set;
+	VkDescriptorSetAllocateInfo set_info = {
+	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+	    .descriptorPool     = compute_pools[gpu_frame_index],
+	    .descriptorSetCount = 1,
+	    .pSetLayouts        = &compute_set_layout,
+	};
+	if (compute_ring_offset + compute_ring_stride > compute_ring_stride * GPU_COMPUTE_SETS_PER_FRAME ||
+	    vkAllocateDescriptorSets(device, &set_info, &set) != VK_SUCCESS) {
+		gpu_execute_and_wait();
+		compute_frame_reset();
+		if (vkAllocateDescriptorSets(device, &set_info, &set) != VK_SUCCESS) {
+			goto done;
+		}
+	}
+	uint32_t constants_offset = compute_ring_offset;
+	compute_ring_offset += compute_ring_stride;
+	memset(compute_ring_data[gpu_frame_index] + constants_offset, 0, GPU_COMPUTE_CONSTANTS_SIZE);
+	memcpy(compute_ring_data[gpu_frame_index] + constants_offset, compute_constants, compute_constants_size);
+
+	VkWriteDescriptorSet   writes[2 + GPU_COMPUTE_MAX_TEXTURES];
+	VkDescriptorImageInfo  image_infos[1 + GPU_COMPUTE_MAX_TEXTURES];
+	VkDescriptorBufferInfo buffer_info = {compute_ring[gpu_frame_index], constants_offset, GPU_COMPUTE_CONSTANTS_SIZE};
+	int                    write_count = 0;
+	writes[write_count++]              = (VkWriteDescriptorSet){
+	    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+	    .dstSet          = set,
+	    .dstBinding      = 0,
+	    .descriptorCount = 1,
+	    .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+	    .pBufferInfo     = &buffer_info,
+	};
+	// Binding 1 is the written texture, 2 and up the read ones
+	for (int i = storage != NULL ? -1 : 0; i < GPU_COMPUTE_MAX_TEXTURES; ++i) {
+		bool written       = i < 0;
+		image_infos[1 + i] = (VkDescriptorImageInfo){
+		    .imageView   = written ? storage->impl.view : textures[i]->impl.view,
+		    .imageLayout = written ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		};
+		writes[write_count++] = (VkWriteDescriptorSet){
+		    .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		    .dstSet          = set,
+		    .dstBinding      = (uint32_t)(2 + i),
+		    .descriptorCount = 1,
+		    .descriptorType  = written ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+		    .pImageInfo      = &image_infos[1 + i],
+		};
+	}
+	vkUpdateDescriptorSets(device, write_count, writes, 0, NULL);
+
+	if (storage != NULL) {
+		compute_storage_barrier(storage, true);
+	}
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, impl->pipeline);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute_layout, 0, 1, &set, 0, NULL);
+	vkCmdDispatch(command_buffer, (width + impl->local_size[0] - 1) / impl->local_size[0], (height + impl->local_size[1] - 1) / impl->local_size[1], 1);
+	if (storage != NULL) {
+		compute_storage_barrier(storage, false);
+	}
+
+done:
+	memset(compute_textures, 0, sizeof(compute_textures));
+	compute_constants_size = 0;
+}
 
 bool gpu_raytrace_supported() {
 #ifndef WITH_RAYTRACE
@@ -2952,50 +3413,8 @@ void gpu_raytrace_set_pipeline(gpu_raytrace_pipeline_t *_pipeline) {
 }
 
 void gpu_raytrace_set_target(gpu_texture_t *_output) {
-	if (!_output->gpu_write) {
-		_output->gpu_write = true;
-		gpu_texture_destroy(_output);
-
-		VkImageCreateInfo image_info = {
-		    .sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		    .imageType     = VK_IMAGE_TYPE_2D,
-		    .format        = convert_image_format(_output->format),
-		    .extent.width  = _output->width,
-		    .extent.height = _output->height,
-		    .extent.depth  = 1,
-		    .mipLevels     = 1,
-		    .arrayLayers   = 1,
-		    .samples       = VK_SAMPLE_COUNT_1_BIT,
-		    .tiling        = VK_IMAGE_TILING_OPTIMAL,
-		    .usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-		};
-		vkCreateImage(device, &image_info, NULL, &_output->impl.image);
-
-		VkMemoryRequirements memory_reqs;
-		vkGetImageMemoryRequirements(device, _output->impl.image, &memory_reqs);
-
-		VkMemoryAllocateInfo allocation_nfo = {
-		    .sType          = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		    .allocationSize = memory_reqs.size,
-		};
-		allocation_nfo.memoryTypeIndex = memory_type_from_properties(memory_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		vkAllocateMemory(device, &allocation_nfo, NULL, &_output->impl.mem);
-		vkBindImageMemory(device, _output->impl.image, _output->impl.mem, 0);
-
-		VkImageViewCreateInfo image_view_info = {
-		    .sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		    .viewType                        = VK_IMAGE_VIEW_TYPE_2D,
-		    .format                          = convert_image_format(_output->format),
-		    .subresourceRange.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-		    .subresourceRange.baseMipLevel   = 0,
-		    .subresourceRange.levelCount     = 1,
-		    .subresourceRange.baseArrayLayer = 0,
-		    .subresourceRange.layerCount     = 1,
-		    .image                           = _output->impl.image,
-		};
-		vkCreateImageView(device, &image_view_info, NULL, &_output->impl.view);
-
-		set_image_layout(_output->impl.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	if (!compute_make_storage(_output)) {
+		iron_error("Raytrace can not write the texture");
 	}
 	output = _output;
 }
@@ -3220,4 +3639,320 @@ void gpu_raytrace_dispatch_rays() {
 	vkCmdDispatch(command_buffer, group_count_x, group_count_y, 1);
 
 	set_image_layout(output->impl.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+// Storage buffer kernels
+#define STORAGE_RING_SIZE     (4 * 1024 * 1024)
+#define STORAGE_CONSTANTS_MAX 256
+
+typedef struct {
+	VkBuffer        buffer;
+	VkDeviceMemory  memory;
+	VkDescriptorSet set;
+	uint64_t        size;
+} storage_t;
+
+static int                   storage_state = 0; // 0 not initialized, 1 ready, 2 failed
+static VkDescriptorSetLayout storage_set_layout;
+static VkPipelineLayout      storage_pipeline_layout;
+static VkDescriptorPool      storage_pool;
+static VkCommandPool         storage_cmd_pool;
+static VkCommandBuffer       storage_cmd;
+static VkFence               storage_fence;
+static bool                  storage_recording = false;
+static VkPipeline            storage_bound     = VK_NULL_HANDLE;
+static VkBuffer              storage_ring;
+static VkDeviceMemory        storage_ring_mem;
+static uint8_t              *storage_ring_data;
+static uint32_t              storage_ring_offset = 0;
+static uint32_t              storage_ring_align  = 256;
+static VkBuffer              storage_staging;
+static VkDeviceMemory        storage_staging_mem;
+static uint8_t              *storage_staging_data;
+static uint64_t              storage_staging_size = 0;
+static uint64_t              storage_max_range;
+
+static bool storage_create_buffer(uint64_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags flags, VkBuffer *buffer, VkDeviceMemory *memory) {
+	VkBufferCreateInfo info = {
+	    .sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+	    .size        = size,
+	    .usage       = usage,
+	    .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	};
+	if (vkCreateBuffer(device, &info, NULL, buffer) != VK_SUCCESS) {
+		return false;
+	}
+	VkMemoryRequirements reqs;
+	vkGetBufferMemoryRequirements(device, *buffer, &reqs);
+	VkMemoryAllocateInfo alloc = {
+	    .sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+	    .allocationSize  = reqs.size,
+	    .memoryTypeIndex = memory_type_from_properties(reqs.memoryTypeBits, flags),
+	};
+	if (vkAllocateMemory(device, &alloc, NULL, memory) != VK_SUCCESS) {
+		vkDestroyBuffer(device, *buffer, NULL);
+		return false;
+	}
+	vkBindBufferMemory(device, *buffer, *memory, 0);
+	return true;
+}
+
+static bool storage_init() {
+	if (storage_state != 0) {
+		return storage_state == 1;
+	}
+	storage_state = 2;
+	VkPhysicalDeviceProperties properties;
+	vkGetPhysicalDeviceProperties(gpu, &properties);
+	storage_max_range  = properties.limits.maxStorageBufferRange;
+	storage_ring_align = (uint32_t)properties.limits.minUniformBufferOffsetAlignment;
+	if (storage_ring_align < STORAGE_CONSTANTS_MAX) {
+		storage_ring_align = STORAGE_CONSTANTS_MAX;
+	}
+
+	VkDescriptorSetLayoutBinding    bindings[]  = {{0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1, VK_SHADER_STAGE_COMPUTE_BIT},
+	                                               {1, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT}};
+	VkDescriptorSetLayoutCreateInfo layout_info = {
+	    .sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+	    .bindingCount = 2,
+	    .pBindings    = bindings,
+	};
+	if (vkCreateDescriptorSetLayout(device, &layout_info, NULL, &storage_set_layout) != VK_SUCCESS) {
+		return false;
+	}
+	VkPipelineLayoutCreateInfo pipeline_layout_info = {
+	    .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+	    .setLayoutCount = 1,
+	    .pSetLayouts    = &storage_set_layout,
+	};
+	if (vkCreatePipelineLayout(device, &pipeline_layout_info, NULL, &storage_pipeline_layout) != VK_SUCCESS) {
+		return false;
+	}
+	VkDescriptorPoolSize       pool_sizes[] = {{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 16}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 16}};
+	VkDescriptorPoolCreateInfo pool_info    = {
+	    .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+	    .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+	    .maxSets       = 16,
+	    .poolSizeCount = 2,
+	    .pPoolSizes    = pool_sizes,
+	};
+	if (vkCreateDescriptorPool(device, &pool_info, NULL, &storage_pool) != VK_SUCCESS) {
+		return false;
+	}
+	VkCommandPoolCreateInfo cmd_pool_info = {
+	    .sType            = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+	    .queueFamilyIndex = queue_family,
+	    .flags            = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+	};
+	if (vkCreateCommandPool(device, &cmd_pool_info, NULL, &storage_cmd_pool) != VK_SUCCESS) {
+		return false;
+	}
+	VkCommandBufferAllocateInfo cmd_info = {
+	    .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+	    .commandPool        = storage_cmd_pool,
+	    .level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+	    .commandBufferCount = 1,
+	};
+	VkFenceCreateInfo fence_info = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
+	if (vkAllocateCommandBuffers(device, &cmd_info, &storage_cmd) != VK_SUCCESS || vkCreateFence(device, &fence_info, NULL, &storage_fence) != VK_SUCCESS) {
+		return false;
+	}
+	if (!storage_create_buffer(STORAGE_RING_SIZE, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storage_ring, &storage_ring_mem)) {
+		return false;
+	}
+	vkMapMemory(device, storage_ring_mem, 0, STORAGE_RING_SIZE, 0, (void **)&storage_ring_data);
+	storage_state = 1;
+	return true;
+}
+
+static void storage_begin() {
+	if (!storage_recording) {
+		VkCommandBufferBeginInfo begin_info = {
+		    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		    .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+		};
+		vkBeginCommandBuffer(storage_cmd, &begin_info);
+		storage_recording = true;
+		storage_bound     = VK_NULL_HANDLE;
+	}
+}
+
+static void storage_flush() {
+	if (!storage_recording) {
+		return;
+	}
+	vkEndCommandBuffer(storage_cmd);
+	VkSubmitInfo submit_info = {
+	    .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+	    .commandBufferCount = 1,
+	    .pCommandBuffers    = &storage_cmd,
+	};
+	vkQueueSubmit(queue, 1, &submit_info, storage_fence);
+	vkWaitForFences(device, 1, &storage_fence, VK_TRUE, UINT64_MAX);
+	vkResetFences(device, 1, &storage_fence);
+	storage_recording   = false;
+	storage_ring_offset = 0;
+}
+
+static void storage_barrier(VkPipelineStageFlags src_stage, VkAccessFlags src, VkPipelineStageFlags dst_stage, VkAccessFlags dst) {
+	VkMemoryBarrier barrier = {
+	    .sType         = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+	    .srcAccessMask = src,
+	    .dstAccessMask = dst,
+	};
+	vkCmdPipelineBarrier(storage_cmd, src_stage, dst_stage, 0, 1, &barrier, 0, NULL, 0, NULL);
+}
+
+static bool storage_ensure_staging(uint64_t size) {
+	if (storage_staging_size >= size) {
+		return true;
+	}
+	if (storage_staging_size > 0) {
+		vkDestroyBuffer(device, storage_staging, NULL);
+		vkFreeMemory(device, storage_staging_mem, NULL);
+		storage_staging_size = 0;
+	}
+	if (!storage_create_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+	                           &storage_staging, &storage_staging_mem) &&
+	    !storage_create_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &storage_staging, &storage_staging_mem)) {
+		return false;
+	}
+	vkMapMemory(device, storage_staging_mem, 0, size, 0, (void **)&storage_staging_data);
+	storage_staging_size = size;
+	return true;
+}
+
+void *gpu_kernel_create(const void *shader, int shader_size) {
+	if (!storage_init()) {
+		return NULL;
+	}
+	VkShaderModuleCreateInfo module_info = {
+	    .sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+	    .codeSize = shader_size,
+	    .pCode    = shader,
+	};
+	VkShaderModule module;
+	if (vkCreateShaderModule(device, &module_info, NULL, &module) != VK_SUCCESS) {
+		return NULL;
+	}
+	VkComputePipelineCreateInfo pipeline_info = {
+	    .sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+	    .stage  = {.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = module, .pName = "main"},
+	    .layout = storage_pipeline_layout,
+	};
+	VkPipeline *pipeline = malloc(sizeof(VkPipeline));
+	VkResult    result   = vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, NULL, pipeline);
+	vkDestroyShaderModule(device, module, NULL);
+	if (result != VK_SUCCESS) {
+		free(pipeline);
+		return NULL;
+	}
+	return pipeline;
+}
+
+void *gpu_storage_create(uint64_t size) {
+	if (!storage_init() || size > storage_max_range) {
+		return NULL;
+	}
+	storage_t *s = calloc(1, sizeof(storage_t));
+	s->size      = size;
+	if (!storage_create_buffer(size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &s->buffer, &s->memory)) {
+		free(s);
+		return NULL;
+	}
+	VkDescriptorSetAllocateInfo alloc_info = {
+	    .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+	    .descriptorPool     = storage_pool,
+	    .descriptorSetCount = 1,
+	    .pSetLayouts        = &storage_set_layout,
+	};
+	if (vkAllocateDescriptorSets(device, &alloc_info, &s->set) != VK_SUCCESS) {
+		vkDestroyBuffer(device, s->buffer, NULL);
+		vkFreeMemory(device, s->memory, NULL);
+		free(s);
+		return NULL;
+	}
+	VkDescriptorBufferInfo infos[2]  = {{storage_ring, 0, STORAGE_CONSTANTS_MAX}, {s->buffer, 0, size}};
+	VkWriteDescriptorSet   writes[2] = {
+	    {.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		 .dstSet          = s->set,
+		 .dstBinding      = 0,
+		 .descriptorCount = 1,
+		 .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+		 .pBufferInfo     = &infos[0]},
+	    {.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+		 .dstSet          = s->set,
+		 .dstBinding      = 1,
+		 .descriptorCount = 1,
+		 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+		 .pBufferInfo     = &infos[1]},
+	};
+	vkUpdateDescriptorSets(device, 2, writes, 0, NULL);
+	return s;
+}
+
+void gpu_storage_destroy(void *storage) {
+	if (storage == NULL) {
+		return;
+	}
+	storage_t *s = storage;
+	storage_flush();
+	vkFreeDescriptorSets(device, storage_pool, 1, &s->set);
+	vkDestroyBuffer(device, s->buffer, NULL);
+	vkFreeMemory(device, s->memory, NULL);
+	free(s);
+}
+
+// Reads and writes wait for their copy, the staging buffer is free outside of them
+void gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size) {
+	storage_t *s = storage;
+	if (size == 0 || !storage_ensure_staging(size)) {
+		return;
+	}
+	memcpy(storage_staging_data, data, size);
+	storage_begin();
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+	                VK_ACCESS_TRANSFER_WRITE_BIT);
+	VkBufferCopy region = {0, offset, size};
+	vkCmdCopyBuffer(storage_cmd, storage_staging, s->buffer, 1, &region);
+	storage_barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+	storage_flush();
+}
+
+void gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size) {
+	storage_t *s = storage;
+	if (size == 0 || !storage_ensure_staging(size)) {
+		return;
+	}
+	storage_begin();
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
+	VkBufferCopy region = {offset, 0, size};
+	vkCmdCopyBuffer(storage_cmd, s->buffer, storage_staging, 1, &region);
+	storage_flush();
+	memcpy(data, storage_staging_data, size);
+}
+
+void gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y) {
+	storage_t *s = storage;
+	if (storage_ring_offset + storage_ring_align > STORAGE_RING_SIZE) {
+		storage_flush();
+	}
+	uint32_t offset = storage_ring_offset;
+	memcpy(storage_ring_data + offset, constants, constants_size < STORAGE_CONSTANTS_MAX ? constants_size : STORAGE_CONSTANTS_MAX);
+	storage_ring_offset += storage_ring_align;
+	storage_begin();
+	VkPipeline pipeline = *(VkPipeline *)kernel;
+	if (pipeline != storage_bound) {
+		vkCmdBindPipeline(storage_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+		storage_bound = pipeline;
+	}
+	vkCmdBindDescriptorSets(storage_cmd, VK_PIPELINE_BIND_POINT_COMPUTE, storage_pipeline_layout, 0, 1, &s->set, 1, &offset);
+	vkCmdDispatch(storage_cmd, groups_x, groups_y, 1);
+	storage_barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+	                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 }

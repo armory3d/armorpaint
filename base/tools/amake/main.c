@@ -185,9 +185,6 @@ static void parse_options(int argc, char **argv) {
 		if (strcmp(goptions.target, "wasm") == 0) {
 			goptions.graphics = "webgpu";
 		}
-		else if (strcmp(os_platform(), "win32") == 0) {
-			goptions.graphics = "direct3d12";
-		}
 		else if (strcmp(os_platform(), "darwin") == 0) {
 			goptions.graphics = "metal";
 		}
@@ -211,10 +208,10 @@ int main(int argc, char **argv) {
 	makedir        = path_join(toolsdir, "..", "..");
 	irondir        = path_join(makedir, "..");
 
-	// amake --ashader <spirv|metal|hlsl|wgsl> <from> <to> [-DNAME...]
+	// amake --ashader <spirv|metal|wgsl> <from> <to> [-DNAME...]
 	if (argc > 1 && strcmp(argv[1], "--ashader") == 0) {
 		if (argc < 5) {
-			printf("Usage: amake --ashader <spirv|metal|hlsl|wgsl> <from> <to> [-DNAME...]\n");
+			printf("Usage: amake --ashader <spirv|metal|wgsl> <from> <to> [-DNAME...]\n");
 			return 1;
 		}
 		char *defines[64];

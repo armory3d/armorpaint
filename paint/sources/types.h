@@ -39,13 +39,55 @@ typedef struct mesh_geo {
 	i32  index_capacity;
 } mesh_geo_t;
 
+typedef struct mesh_volume {
+	i32                 uid; // Object
+	i32                 n[3];
+	f32                 min[3]; // Grid corner, world space
+	f32                 cell;
+	f32                 box_min[3]; // Around the cells holding gas, world space, empty when min > max
+	f32                 box_max[3];
+	f32                 emission; // Of the flame per unit of distance, 0 for smoke
+	i32                 width;
+	i32                 height;
+	u8                 *atlas; // Rgba per texel: flame, density, empty block
+	u32                 version;
+	struct gpu_texture *texture;
+	u32                 texture_version;
+	struct gpu_texture *record; // Grid, look and box for the path tracer, 5 x 1 rgba128
+	f32                 record_data[20];
+	struct gpu_buffer  *sparks; // Indices of the spark triangles for the path tracer, which leaves out the surface
+	void               *sparks_data;
+	u32                 sparks_version;
+} mesh_volume_t;
+
+typedef struct mesh_scatter {
+	i32               host_uid;
+	i32               target_uid;
+	i32               count;
+	f32               align;
+	f32               offset_z;
+	f32              *pos_local;
+	f32              *nor_local;
+	f32              *yaw;
+	f32              *scale_mult;
+	f32              *urandom;
+	mat4_t           *world;
+	mat4_t           *world_unpack;
+	bool              matrices_valid;
+	mat4_t            host_world;
+	mat4_t            target_world;
+	struct mesh_data *target_data;
+	f32               target_scale_pos;
+	u32               target_topology;
+	f32               target_min_z;
+} mesh_scatter_t;
+
 typedef struct mesh_geo_image {
-	i32  width;
-	i32  height;
-	u8  *pixels;  // As stored in the texture, rows from v 0, read with mesh_geo_image_sample
-	i32  format;  // gpu_texture_format_t of the pixels
-	bool bgra;    // 8 bit rgba pixels in bgra order
-	i32  channel; // 0 - 3 reads that channel in all four, -1 rgba
+	i32 width;
+	i32 height;
+	u8 *pixels;  // As stored in the texture, rows from v 0, read with mesh_geo_image_sample
+	i32 format;  // gpu_texture_format_t of the pixels
+	i32 channel; // 0 - 3 reads that channel in all four, -1 rgba
 } mesh_geo_image_t;
 
 typedef struct slot_layer {

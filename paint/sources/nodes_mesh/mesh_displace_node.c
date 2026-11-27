@@ -9,8 +9,22 @@ gpu_texture_t *mesh_displace_node_texture(ui_node_t *node) {
 
 // Moves vertices inward along their normals, a height of 1 keeps the surface
 static void mesh_displace_geo(mesh_geo_t *g, mesh_geo_image_t *height, f32 strength) {
+	f32 hu = 0.5 / height->width;
+	f32 hv = 0.5 / height->height;
 	for (i32 i = 0; i < g->vertex_count; ++i) {
-		f32 h = (1.0 - mesh_image_sample_bilinear(height, g->tex[i * 2], g->tex[i * 2 + 1]).w) * strength;
+		f32 u = g->tex[i * 2];
+		f32 v = g->tex[i * 2 + 1];
+		// The border of a 0 - 1 uv range does not blend with the opposite side of the texture
+		if (u >= 0.0 && u <= 1.0) {
+			u = math_min(math_max(u, hu), 1.0 - hu);
+		}
+		if (v >= 0.0 && v <= 1.0) {
+			v = math_min(math_max(v, hv), 1.0 - hv);
+		}
+		f32 h = (1.0 - mesh_image_sample_bilinear(height, u, v).w) * strength;
+		if (!isfinite(h)) {
+			continue; // Nan in a 16 bit layer
+		}
 		g->pos[i * 3] -= g->nor[i * 3] * h;
 		g->pos[i * 3 + 1] -= g->nor[i * 3 + 1] * h;
 		g->pos[i * 3 + 2] -= g->nor[i * 3 + 2] * h;
@@ -29,7 +43,7 @@ mesh_geo_t *mesh_displace_node_eval(ui_node_t *node) {
 		return g;
 	}
 	mesh_displace_geo(g, height, strength);
-	return nodes_mesh_geo_modify(g, node->type, 0.0); // Flat normals
+	return nodes_mesh_geo_modify(g, node->type, 1.0); // Smooth normals
 }
 
 void mesh_displace_node_init() {

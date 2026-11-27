@@ -186,13 +186,6 @@ char *iron_get_arg(i32 index) {
 #include <stdio.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#ifdef IRON_DIRECT3D12
-#include <d3d12.h>
-#endif
-#ifdef WITH_D3DCOMPILER
-#include <D3Dcompiler.h>
-#include <d3d11.h>
-#endif
 #ifdef WITH_COMPRESS
 #include "iron_compress.h"
 void untar_here(const char *path);
@@ -701,12 +694,7 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 gpu_shader_t *gpu_create_shader_from_source(char *source, int source_size, gpu_shader_type_t shader_type) {
 	gpu_shader_t *shader = (gpu_shader_t *)malloc(sizeof(gpu_shader_t));
 
-#ifdef WITH_D3DCOMPILER
-
-	gpu_shader_init(shader, source, strlen(source) + 1, shader_type);
-	shader->impl.is_source = true;
-
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 
 	gpu_shader_init(shader, source, strlen(source), shader_type);
 
@@ -802,6 +790,12 @@ bool iron_decode_image(buffer_t *data, char *format, iron_image_pixels_t *out) {
 				texture_data[i * 4 + 3] = a;
 			}
 			texture_format = GPU_TEXTURE_FORMAT_RGBA32;
+		}
+		else if (strcmp(fourcc, "LZ4R") == 0) {
+			int output_size = width * height;
+			texture_data    = (unsigned char *)malloc(output_size);
+			LZ4_decompress_safe((char *)data->buffer + 12, (char *)texture_data, compressed_size, output_size);
+			texture_format = GPU_TEXTURE_FORMAT_R8;
 		}
 		else { // "LZ4F"
 			int output_size = width * height * 8;
@@ -918,7 +912,10 @@ buffer_t *iron_load_blob(char *file) {
 		return NULL;
 	}
 	uint32_t  reader_size = (uint32_t)iron_file_reader_size(&reader);
-	buffer_t *buffer      = buffer_create(reader_size);
+	buffer_t *buffer      = malloc(sizeof(buffer_t));
+	buffer->buffer        = reader_size > 0 ? malloc(reader_size) : NULL;
+	buffer->length        = reader_size;
+	buffer->capacity      = reader_size;
 	iron_file_reader_read(&reader, buffer->buffer, reader_size);
 	iron_file_reader_close(&reader);
 	return buffer;

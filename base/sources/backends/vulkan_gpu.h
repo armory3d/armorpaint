@@ -34,6 +34,12 @@ typedef struct {
 } gpu_buffer_impl_t;
 
 typedef struct {
+	VkPipeline pipeline;
+	uint32_t   local_size[2];
+	VkFormat   storage_format;
+} gpu_compute_pipeline_impl_t;
+
+typedef struct {
 	VkAccelerationStructureKHR top_level_acceleration_structure;
 	VkAccelerationStructureKHR bottom_level_acceleration_structure[GPU_RAYTRACE_MAX_OBJECTS];
 	uint64_t                   top_level_acceleration_structure_handle;

@@ -400,7 +400,7 @@ void args_parse() {
 				printf("  --background                      Run without displaying the window\n");
 				printf("  --export-textures <type> <preset> <path>\n");
 				printf("                                    Export textures to path\n");
-				printf("                                    type: png, jpg, exr16, exr32\n");
+				printf("                                    type: png, jpg, exr16\n");
 				printf("  --export-mesh <path>              Export mesh to path\n");
 				printf("  --export-material <path>          Export material to path\n");
 				printf("  --reload-mesh                     Reimport mesh on startup\n");
@@ -491,9 +491,6 @@ void args_run_on_next_frame(void *_) {
 		}
 		else if (string_equals(args_export_textures_type, "exr16")) {
 			base_bits = TEXTURE_BITS_BITS16;
-		}
-		else if (string_equals(args_export_textures_type, "exr32")) {
-			base_bits = TEXTURE_BITS_BITS32;
 		}
 		else {
 			iron_log(tr("Invalid texture type"));

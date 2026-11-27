@@ -173,7 +173,7 @@ void tab_browser_draw(i32 *htab) {
 		i32  bookmarks_w = math_floor(100 * UI_SCALE());
 		bool show_full   = g_ui->_w > (500 * UI_SCALE());
 		bool in_focus    = g_ui->input_x > g_ui->_window_x && g_ui->input_x < g_ui->_window_x + g_ui->_window_w && g_ui->input_y > g_ui->_window_y &&
-		                g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
+		                   g_ui->input_y < g_ui->_window_y + g_ui->_window_h;
 
 		if (string_equals(tab_browser_path, "") && g_config->bookmarks->length > 0) { // Init to first bookmark
 			tab_browser_path = string_copy(g_config->bookmarks->buffer[0]);

@@ -7,9 +7,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#if defined(IRON_WINDOWS)
-#include "backends/direct3d12_gpu.h"
-#elif defined(IRON_MACOS) || defined(IRON_IOS)
+#if defined(IRON_MACOS) || defined(IRON_IOS)
 #include "backends/metal_gpu.h"
 #elif defined(IRON_WASM)
 #include "backends/webgpu_gpu.h"
@@ -29,7 +27,7 @@
 #define GPU_FRAMEBUFFER_COUNT 3
 #endif
 
-#if defined(IRON_VULKAN) || defined(IRON_METAL) || defined(IRON_DIRECT3D12)
+#if defined(IRON_VULKAN) || defined(IRON_METAL)
 #define GPU_FRAMES_IN_FLIGHT 2
 #else
 #define GPU_FRAMES_IN_FLIGHT 1
@@ -58,7 +56,8 @@ typedef enum {
 	GPU_TEXTURE_FORMAT_R16,
 	GPU_TEXTURE_FORMAT_R32,
 	GPU_TEXTURE_FORMAT_D32,
-	GPU_TEXTURE_FORMAT_RGBA32_BC7
+	GPU_TEXTURE_FORMAT_RGBA32_BC7,
+	GPU_TEXTURE_FORMAT_FRAMEBUFFER // 8-bit rgba in the swapchains channel order
 } gpu_texture_format_t;
 
 typedef enum {
@@ -167,6 +166,10 @@ typedef struct gpu_acceleration_structure {
 	gpu_acceleration_structure_impl_t impl;
 } gpu_acceleration_structure_t;
 
+typedef struct gpu_compute_pipeline {
+	gpu_compute_pipeline_impl_t impl;
+} gpu_compute_pipeline_t;
+
 int  gpu_max_bound_textures(void);
 void gpu_begin(gpu_texture_t **targets, int count, gpu_texture_t *depth_buffer, gpu_clear_t flags, unsigned color, float depth);
 void gpu_begin_internal(gpu_clear_t flags, unsigned color, float depth);
@@ -245,6 +248,20 @@ bool  gpu_bc7_supported(int width, int height, gpu_texture_format_t format);
 #ifdef WITH_BC7
 void *gpu_bc7_compress(void *data, int width, int height);
 #endif
+
+bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *shader, int shader_size);
+void gpu_compute_pipeline_destroy(gpu_compute_pipeline_t *pipeline);
+void gpu_compute_set_pipeline(gpu_compute_pipeline_t *pipeline);
+void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture);
+void gpu_compute_set_constants(const void *data, int size);
+void gpu_compute_dispatch(uint32_t width, uint32_t height);
+
+void *gpu_kernel_create(const void *shader, int shader_size);
+void  gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y);
+void *gpu_storage_create(uint64_t size);
+void  gpu_storage_destroy(void *storage);
+void  gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size);
+void  gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size);
 
 bool gpu_raytrace_supported(void);
 void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader, int shader_size, gpu_buffer_t *constant_buffer);

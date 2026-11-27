@@ -628,9 +628,11 @@ bool ui_get_initial_hover(float elem_h) {
 
 bool ui_get_hover(float elem_h) {
 	if (current->scissor && current->input_y < current->_window_y + current->window_header_h) {
+		current->is_hovered = false;
 		return false;
 	}
 	if (current->current_window != NULL && !ui_input_in_rect(current->_window_x, current->_window_y, current->_window_w, current->_window_h)) {
+		current->is_hovered = false;
 		return false;
 	}
 	current->is_hovered = current->enabled && current->input_enabled && current->input_x >= current->_window_x + current->_x &&
@@ -1546,7 +1548,7 @@ static void ui_update_text_edit(int align, bool editable) {
 		}
 		bool selecting =
 		    current->is_shift_down && (current->key_code == KEY_CODE_LEFT || current->key_code == KEY_CODE_RIGHT || current->key_code == KEY_CODE_SHIFT ||
-		                               current->key_code == KEY_CODE_HOME || current->key_code == KEY_CODE_END);
+			                           current->key_code == KEY_CODE_HOME || current->key_code == KEY_CODE_END);
 		// is_ctrl_down && is_alt_down is the condition for AltGr was pressed
 		// AltGr is part of the German keyboard layout and part of key combinations like AltGr + e -> €
 		bool ctrl_nav = current->is_ctrl_down && !current->is_shift_down &&
@@ -1719,7 +1721,7 @@ void ui_draw_tabs() {
 		current->_y      = base_y + tab_y;
 		current->_w =
 		    current->tab_vertical ? UI_ELEMENT_W()
-		    : theme->FULL_TABS
+			: theme->FULL_TABS
 		        ? (current->_window_w / current->tab_count)
 		        : (draw_string_width(current->ops->font, current->font_size, current->tab_names[i]) + current->button_offset_y * 2.0 + 18.0 * UI_SCALE());
 		if (current->tab_align_right) {

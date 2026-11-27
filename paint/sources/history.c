@@ -316,7 +316,7 @@ void history_swap_object_transform(history_step_t *step) {
 	physics_body_t *pb = o->_->body;
 	if (pb != NULL) {
 		physics_body_sync_transform(pb);
-		sim_world_invalidate();
+		sim_world_collider_moved();
 	}
 	util_mesh_transform_changed();
 	context_select_paint_object(g_project->_->paint_objects->buffer[step->object]);
@@ -637,13 +637,9 @@ void history_copy_to_undo(i32 from_id, i32 to_id, bool is_mask) {
 		render_path_bind_target(string("texpaint_nor%s", from_id_s), "tex1");
 		render_path_bind_target(string("texpaint_pack%s", from_id_s), "tex2");
 
-		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-		                              : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-		                                                                 : GPU_TEXTURE_FORMAT_RGBA128;
+		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 
-		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32   ? "copy_mrt3_pass"
-		             : format == GPU_TEXTURE_FORMAT_RGBA64 ? "copy_mrt3RGBA64_pass"
-		                                                   : "copy_mrt3RGBA128_pass";
+		char *pipe = format == GPU_TEXTURE_FORMAT_RGBA32 ? "copy_mrt3_pass" : "copy_mrt3RGBA64_pass";
 		render_path_draw_shader(string_tmp("Scene/copy_mrt3_pass/%s", pipe));
 	}
 	history_undo_i = (history_undo_i + 1) % g_config->undo_steps;
@@ -881,7 +877,7 @@ void history_reset() {
 	history_steps = any_array_create_from_raw(
 	    (void *[]){
 	        ALLOC_INIT(history_step_t,
-	                   {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
+			           {.name = tr("New"), .layer = 0, .layer_type = LAYER_SLOT_TYPE_LAYER, .layer_parent = -1, .object = 0, .material = 0, .brush = 0}),
 	    },
 	    1);
 	history_undos  = 0;
@@ -920,18 +916,18 @@ history_step_t *history_push(history_action_t action) {
 
 	history_step_t *step =
 	    ALLOC_INIT(history_step_t, {.name           = name,
-	                                .action         = action,
-	                                .layer          = lpos,
-	                                .layer_type     = slot_layer_is_mask(g_context->layer)    ? LAYER_SLOT_TYPE_MASK
-	                                                  : slot_layer_is_group(g_context->layer) ? LAYER_SLOT_TYPE_GROUP
-	                                                                                          : LAYER_SLOT_TYPE_LAYER,
-	                                .layer_parent   = g_context->layer->parent == NULL ? -1 : array_index_of(g_project->_->layers, g_context->layer->parent),
-	                                .object         = opos,
-	                                .material       = mpos,
-	                                .brush          = bpos,
-	                                .layer_opacity  = g_context->layer->mask_opacity,
-	                                .layer_object   = g_context->layer->object_mask,
-	                                .layer_blending = g_context->layer->blending});
+		                            .action         = action,
+		                            .layer          = lpos,
+		                            .layer_type     = slot_layer_is_mask(g_context->layer)    ? LAYER_SLOT_TYPE_MASK
+		                                              : slot_layer_is_group(g_context->layer) ? LAYER_SLOT_TYPE_GROUP
+		                                                                                      : LAYER_SLOT_TYPE_LAYER,
+		                            .layer_parent   = g_context->layer->parent == NULL ? -1 : array_index_of(g_project->_->layers, g_context->layer->parent),
+		                            .object         = opos,
+		                            .material       = mpos,
+		                            .brush          = bpos,
+		                            .layer_opacity  = g_context->layer->mask_opacity,
+		                            .layer_object   = g_context->layer->object_mask,
+		                            .layer_blending = g_context->layer->blending});
 
 	any_array_push(history_steps, step);
 

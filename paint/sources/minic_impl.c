@@ -2700,7 +2700,7 @@ static void script_screenshot_capture(void *_) {
 		sys_notify_on_next_frame(script_screenshot_capture, NULL);
 		return;
 	}
-	_script_screenshot_target = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32);
+	_script_screenshot_target = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER);
 	gpu_framebuffer_redirect  = _script_screenshot_target;
 	sys_notify_on_end_frame(script_screenshot_end_frame, NULL);
 }

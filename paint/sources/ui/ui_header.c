@@ -387,8 +387,8 @@ void ui_header_draw_tool_properties() {
 					any_map_set(vars, "brush_radius_increase", any_map_get(g_keymap, "brush_radius_increase"));
 					ui_tooltip(
 					    vtr("Hold {brush_radius} and move mouse to the left or press {brush_radius_decrease} to decrease the radius\nHold {brush_radius} "
-					        "and move mouse to the right or press {brush_radius_increase} to increase the radius",
-					        vars));
+						    "and move mouse to the right or press {brush_radius_increase} to increase the radius",
+						    vars));
 					map_free(vars);
 				}
 			}
@@ -404,8 +404,8 @@ void ui_header_draw_tool_properties() {
 					any_map_set(vars, "brush_radius_increase", any_map_get(g_keymap, "brush_radius_increase"));
 					ui_tooltip(
 					    vtr("Hold {brush_radius} and move mouse to the left or press {brush_radius_decrease} to decrease the radius\nHold {brush_radius} "
-					        "and move mouse to the right or press {brush_radius_increase} to increase the radius",
-					        vars));
+						    "and move mouse to the right or press {brush_radius_increase} to increase the radius",
+						    vars));
 					map_free(vars);
 				}
 				if (!context_is_decal()) {

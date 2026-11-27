@@ -5,7 +5,6 @@ static f32             export_texture_gamma       = 1.0 / 2.2;
 static string_array_t *export_texture_baked_files = NULL;
 static any_array_t    *export_texture_embedded    = NULL; // Encoded png buffers instead of files
 
-static i32  _export_texture_channel(i32 c, i32 bits);
 static f32  _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bits);
 static void export_texture_bake_material_add_texture(char *file);
 
@@ -14,7 +13,7 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 	buffer_t *rgba = buffer_create(count * 4);
 	i32       ch[4];
 	for (i32 c = 0; c < 4; ++c) {
-		ch[c] = format >= 3 ? _export_texture_channel(format - 3, bits) : _export_texture_channel(c, bits);
+		ch[c] = format >= 3 ? format - 3 : c;
 	}
 	for (i32 i = 0; i < count; ++i) {
 		for (i32 c = 0; c < 4; ++c) {
@@ -27,11 +26,10 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 }
 
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
-	i32 res_x       = config_get_texture_res_x();
-	i32 res_y       = config_get_texture_res_y();
-	i32 bits_handle = base_bits;
-	i32 bits        = bits_handle == TEXTURE_BITS_BITS8 ? 8 : bits_handle == TEXTURE_BITS_BITS16 ? 16 : 32;
-	i32 format      = 0; // RGBA
+	i32 res_x  = config_get_texture_res_x();
+	i32 res_y  = config_get_texture_res_y();
+	i32 bits   = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
+	i32 format = 0; // RGBA
 	if (type == 1) {
 		format = 2; // RGB1
 	}
@@ -113,21 +111,12 @@ static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type,
 		iron_write_jpg(file, pixels, res_x, res_y, format, math_floor(g_context->format_quality));
 	}
 	else { // Exr
-		buffer_t *b = export_exr_run(res_x, res_y, pixels, bits, type, off);
+		buffer_t *b = export_exr_run(res_x, res_y, pixels, type, off);
 		iron_file_save_bytes(file, b, b->length);
 		array_free(b);
 		free(b);
 	}
 	export_texture_bake_material_add_texture(file);
-}
-
-static i32 _export_texture_channel(i32 c, i32 bits) {
-#ifdef IRON_BGRA
-	if (bits == 8) {
-		return c == 0 ? 2 : c == 2 ? 0 : c;
-	}
-#endif
-	return c;
 }
 
 static i32 _export_texture_pixel_count(buffer_t *b, i32 bits) {
@@ -139,10 +128,7 @@ static f32 _export_texture_get_value(buffer_t *b, i32 pixel, i32 channel, i32 bi
 	if (bits == 8) {
 		return buffer_get_u8(b, pos) / 255.0;
 	}
-	if (bits == 16) {
-		return buffer_get_f16(b, pos * 2);
-	}
-	return buffer_get_f32(b, pos * 4);
+	return buffer_get_f16(b, pos * 2);
 }
 
 static void _export_texture_set_value(buffer_t *b, i32 pixel, i32 channel, i32 bits, f32 value) {
@@ -151,11 +137,8 @@ static void _export_texture_set_value(buffer_t *b, i32 pixel, i32 channel, i32 b
 		value = value < 0.0 ? 0.0 : value > 1.0 ? 1.0 : value;
 		buffer_set_u8(b, pos, (u8)math_floor(value * 255.0 + 0.5));
 	}
-	else if (bits == 16) {
-		buffer_set_u16(b, pos * 2, float_to_half_fast(value));
-	}
 	else {
-		buffer_set_f32(b, pos * 4, value);
+		buffer_set_u16(b, pos * 2, float_to_half_fast(value));
 	}
 }
 
@@ -174,9 +157,7 @@ static void export_texture_to_srgb(buffer_t *to, i32 to_channel, i32 bits) {
 }
 
 static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, _export_texture_get_value(from, i, from_channel, bits));
 	}
@@ -186,9 +167,7 @@ static void export_texture_copy_channel(buffer_t *from, i32 from_channel, buffer
 }
 
 static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, 1.0 - _export_texture_get_value(from, i, from_channel, bits));
 	}
@@ -198,9 +177,7 @@ static void export_texture_copy_channel_inv(buffer_t *from, i32 from_channel, bu
 }
 
 static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buffer_t *to, i32 to_channel, i32 step, i32 mask, i32 bits, bool linear) {
-	from_channel = _export_texture_channel(from_channel, bits);
-	to_channel   = _export_texture_channel(to_channel, bits);
-	i32 count    = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		i32 id = math_floor(_export_texture_get_value(from, i, from_channel, bits) * 255.0 + 0.5);
 		_export_texture_set_value(to, i, to_channel, bits, id % step == mask ? 1.0 : 0.0);
@@ -212,9 +189,7 @@ static void export_texture_extract_channel(buffer_t *from, i32 from_channel, buf
 
 static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buffer_t *from_pack, i32 albedo_channel, buffer_t *to, i32 to_channel, i32 bits,
                                                      bool linear, bool is_specular) {
-	albedo_channel    = _export_texture_channel(albedo_channel, bits);
-	to_channel        = _export_texture_channel(to_channel, bits);
-	i32 metal_channel = _export_texture_channel(2, bits);
+	i32 metal_channel = 2;
 	i32 count         = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		f32 albedo = _export_texture_get_value(from_albedo, i, albedo_channel, bits);
@@ -234,8 +209,7 @@ static void export_texture_compute_diff_spec_channel(buffer_t *from_albedo, buff
 }
 
 static void export_texture_set_channel(f32 value, buffer_t *to, i32 to_channel, i32 bits, bool linear) {
-	to_channel = _export_texture_channel(to_channel, bits);
-	i32 count  = _export_texture_pixel_count(to, bits);
+	i32 count = _export_texture_pixel_count(to, bits);
 	for (i32 i = 0; i < count; ++i) {
 		_export_texture_set_value(to, i, to_channel, bits, value);
 	}
@@ -256,7 +230,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 		f = string_copy(tr("untitled"));
 	}
 	texture_ldr_format_t format_type = g_context->format_type;
-	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : base_bits == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32                  bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
 	char                *ext         = bits > 8 ? ".exr" : format_type == TEXTURE_LDR_FORMAT_PNG ? ".png" : ".jpg";
 	if (ends_with(f, ext)) {
 		f = string_copy(substring(f, 0, string_length(f) - 4));
@@ -357,7 +331,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			draw_end();
 
 			_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_get_merge_a());
+			gpu_set_pipeline(l1->paint_base ? pipes_get_merge() : pipes_get_merge_a());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
@@ -379,7 +353,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			draw_end();
 
 			_gpu_begin(layers_expb, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(pipes_merge);
+			gpu_set_pipeline(pipes_get_merge());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, l1->texpaint_nor);
 			gpu_set_texture(pipes_texmask, mask);
@@ -401,7 +375,7 @@ static void export_texture_run_layers(char *path, slot_layer_t_array_t *layers, 
 			draw_end();
 
 			if (l1->paint_occ && l1->paint_rough && l1->paint_met && l1->paint_height) {
-				layers_commands_merge_pack(pipes_merge, layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask,
+				layers_commands_merge_pack(pipes_get_merge(), layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask,
 				                           l1->paint_height_blend ? 103 : 101);
 			}
 			else {

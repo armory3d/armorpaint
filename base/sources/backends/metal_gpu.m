@@ -97,8 +97,10 @@ static MTLPixelFormat convert_texture_format(gpu_texture_format_t format) {
 		return MTLPixelFormatR8Unorm;
 	case GPU_TEXTURE_FORMAT_D32:
 		return MTLPixelFormatDepth32Float;
-	default:
+	case GPU_TEXTURE_FORMAT_FRAMEBUFFER:
 		return MTLPixelFormatBGRA8Unorm;
+	default:
+		return MTLPixelFormatRGBA8Unorm;
 	}
 }
 
@@ -142,7 +144,7 @@ void gpu_acquire_framebuffer() {
 	if (resized) {
 		layer.drawableSize = CGSizeMake(iron_window_width(), iron_window_height());
 		for (int i = 0; i < GPU_FRAMEBUFFER_COUNT; ++i) {
-			gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32, i);
+			gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER, i);
 		}
 		resized = false;
 	}
@@ -423,7 +425,16 @@ void gpu_get_render_target_pixels(gpu_texture_t *render_target, uint8_t *data) {
 
 	// Read buffer
 	id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)readback_buffer;
-	memcpy(data, [buffer contents], render_target->width * render_target->height * gpu_texture_format_size(render_target->format));
+	memcpy(data, [buffer contents], buffer_size);
+
+	// Return framebuffer formats as rgba
+	if (render_target->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER) {
+		for (int i = 0; i < buffer_size; i += 4) {
+			uint8_t b   = data[i];
+			data[i]     = data[i + 2];
+			data[i + 2] = b;
+		}
+	}
 }
 
 void gpu_set_constant_buffer(gpu_buffer_t *buffer, uint32_t offset, size_t size) {
@@ -462,6 +473,15 @@ void gpu_pipeline_destroy_internal(gpu_pipeline_t *pipeline) {
 	pipeline->impl.depth                 = NULL;
 }
 
+static MTLCompileOptions *compile_options(void) {
+	static MTLCompileOptions *options = nil;
+	if (options == nil) {
+		options                 = [[MTLCompileOptions alloc] init];
+		options.languageVersion = MTLLanguageVersion2_2;
+	}
+	return options;
+}
+
 void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	if (pipeline->vertex_shader->impl.length == 0 || pipeline->fragment_shader->impl.length == 0) {
 		// Shader compilation error
@@ -473,7 +493,7 @@ void gpu_pipeline_compile(gpu_pipeline_t *pipeline) {
 	id<MTLLibrary> library = [device newLibraryWithSource:[[NSString alloc] initWithBytes:pipeline->vertex_shader->impl.source
 	                                                                               length:pipeline->vertex_shader->impl.length
 	                                                                             encoding:NSUTF8StringEncoding]
-	                                              options:nil
+	                                              options:compile_options()
 	                                                error:&error];
 	if (library == nil) {
 		iron_error("%s", error.localizedDescription.UTF8String);
@@ -583,8 +603,9 @@ void gpu_shader_init(gpu_shader_t *shader, const void *data, size_t length, gpu_
 #ifdef WITH_BC7
 
 // Gpu bc7 encoder: rgba8 pixels -> compute shader -> bc7 blocks buffer -> blit into the texture
-// Buffer indices follow kong's declaration order in gpu_bc7.shader: constants 0, src 1, dst 2
-#include "metal_bc7.h"
+// Buffer indices follow kong's declaration order in gpu_bc7.shader: constants 0, src 1, dst 2. base/project.c compiles it
+buffer_t *iron_load_blob(char *file);
+void      iron_delete_blob(buffer_t *buffer);
 
 static bool                        bc7_compute_checked = false;
 static id<MTLComputePipelineState> bc7_pipeline        = nil;
@@ -593,10 +614,19 @@ static id<MTLBuffer>               bc7_dst             = nil;
 
 static bool bc7_compute_available() {
 	if (!bc7_compute_checked) {
-		bc7_compute_checked    = true;
-		id<MTLDevice>  device  = get_metal_device();
-		NSError       *error   = nil;
-		id<MTLLibrary> library = [device newLibraryWithSource:[NSString stringWithUTF8String:metal_bc7_source] options:nil error:&error];
+		bc7_compute_checked  = true;
+		id<MTLDevice> device = get_metal_device();
+		NSError      *error  = nil;
+		char          path[512];
+		snprintf(path, sizeof(path), "%sgpu_bc7.metal", data_path());
+		buffer_t      *source  = iron_load_blob(path);
+		id<MTLLibrary> library = nil;
+		if (source != NULL) {
+			library = [device newLibraryWithSource:[[NSString alloc] initWithBytes:source->buffer length:source->length encoding:NSUTF8StringEncoding]
+			                               options:nil
+			                                 error:&error];
+			iron_delete_blob(source);
+		}
 		if (library != nil) {
 			bc7_pipeline = [device newComputePipelineStateWithFunction:[library newFunctionWithName:@"bc7_encode"] error:&error];
 		}
@@ -658,9 +688,6 @@ void gpu_texture_init_from_bytes(gpu_texture_t *texture, void *data, uint32_t wi
 	texture->buffer = NULL;
 
 	MTLPixelFormat mtlformat = convert_texture_format(format);
-	if (mtlformat == MTLPixelFormatBGRA8Unorm) {
-		mtlformat = MTLPixelFormatRGBA8Unorm;
-	}
 
 	void *original_data   = data;
 	int   bytes_per_row   = width * gpu_texture_format_size(format);
@@ -862,7 +889,7 @@ static uint32_t                      ib_version_last[GPU_RAYTRACE_MAX_OBJECTS];
 static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           vb_count      = 0;
 static int                           vb_count_last = 0;
-static inst_t                        instances[1024];
+static inst_t                        instances[16384];
 static int                           instances_count = 0;
 static id<MTLBuffer>                 _instance_data  = nil;
 
@@ -888,6 +915,101 @@ void gpu_raytrace_pipeline_init(gpu_raytrace_pipeline_t *pipeline, void *shader,
 }
 
 void gpu_raytrace_pipeline_destroy(gpu_raytrace_pipeline_t *pipeline) {}
+
+#define GPU_COMPUTE_MAX_TEXTURES 16
+
+static gpu_compute_pipeline_t *compute_pipeline = NULL;
+static gpu_texture_t          *compute_textures[GPU_COMPUTE_MAX_TEXTURES];
+static uint8_t                 compute_constants[256];
+static int                     compute_constants_size = 0;
+
+bool gpu_compute_pipeline_init(gpu_compute_pipeline_t *pipeline, const void *shader, int shader_size) {
+	pipeline->impl.pipeline = NULL;
+	id<MTLDevice>  device   = get_metal_device();
+	NSError       *error    = nil;
+	id<MTLLibrary> library  = [device newLibraryWithSource:[[NSString alloc] initWithBytes:shader length:shader_size encoding:NSUTF8StringEncoding]
+	                                               options:compile_options()
+	                                                 error:&error];
+	if (library == nil) {
+		iron_error("%s", error.localizedDescription.UTF8String);
+		return false;
+	}
+
+	// The kernel is named after the kong compute function
+	id<MTLFunction> kernel = nil;
+	for (NSString *name in library.functionNames) {
+		id<MTLFunction> function = [library newFunctionWithName:name];
+		if (function.functionType == MTLFunctionTypeKernel) {
+			kernel = function;
+			break;
+		}
+	}
+	if (kernel == nil) {
+		iron_error("Compute shader has no kernel");
+		return false;
+	}
+
+	id<MTLComputePipelineState> state = [device newComputePipelineStateWithFunction:kernel error:&error];
+	if (state == nil) {
+		iron_error("%s", error.localizedDescription.UTF8String);
+		return false;
+	}
+	pipeline->impl.pipeline = (__bridge_retained void *)state;
+	return true;
+}
+
+void gpu_compute_pipeline_destroy(gpu_compute_pipeline_t *pipeline) {
+	if (pipeline->impl.pipeline != NULL) {
+		id<MTLComputePipelineState> state = (__bridge_transfer id<MTLComputePipelineState>)pipeline->impl.pipeline;
+		state                             = nil;
+		pipeline->impl.pipeline           = NULL;
+	}
+}
+
+void gpu_compute_set_pipeline(gpu_compute_pipeline_t *pipeline) {
+	compute_pipeline = pipeline;
+}
+
+void gpu_compute_set_texture(uint32_t unit, gpu_texture_t *texture) {
+	if (unit < GPU_COMPUTE_MAX_TEXTURES) {
+		compute_textures[unit] = texture;
+	}
+}
+
+void gpu_compute_set_constants(const void *data, int size) {
+	compute_constants_size = size < (int)sizeof(compute_constants) ? size : (int)sizeof(compute_constants);
+	memcpy(compute_constants, data, compute_constants_size);
+}
+
+void gpu_compute_dispatch(uint32_t width, uint32_t height) {
+	if (gpu_in_use) {
+		iron_error("Compute dispatch inside of a render pass");
+		return;
+	}
+	if (compute_pipeline == NULL || compute_pipeline->impl.pipeline == NULL) {
+		return;
+	}
+	if (command_buffer == nil) {
+		command_buffer = [get_metal_queue() commandBuffer];
+	}
+
+	id<MTLComputePipelineState>  state   = (__bridge id<MTLComputePipelineState>)compute_pipeline->impl.pipeline;
+	id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
+	[encoder setComputePipelineState:state];
+	for (int i = 0; i < GPU_COMPUTE_MAX_TEXTURES; ++i) {
+		if (compute_textures[i] != NULL) {
+			[encoder setTexture:(__bridge id<MTLTexture>)compute_textures[i]->impl._tex atIndex:i];
+		}
+	}
+	if (compute_constants_size > 0) {
+		[encoder setBytes:compute_constants length:compute_constants_size atIndex:0];
+	}
+	[encoder dispatchThreads:MTLSizeMake(width, height, 1) threadsPerThreadgroup:MTLSizeMake(8, 8, 1)];
+	[encoder endEncoding];
+
+	memset(compute_textures, 0, sizeof(compute_textures));
+	compute_constants_size = 0;
+}
 
 bool gpu_raytrace_supported() {
 	id<MTLDevice> device = get_metal_device();
@@ -1159,4 +1281,89 @@ void gpu_raytrace_dispatch_rays() {
 	[compute_encoder dispatchThreadgroups:threadgroups threadsPerThreadgroup:threads_per_threadgroup];
 	[compute_encoder endEncoding];
 	[command_buffer commit];
+}
+
+// Storage buffer kernels
+static id<MTLCommandBuffer>         storage_command = nil;
+static id<MTLComputeCommandEncoder> storage_encoder = nil;
+static id<MTLComputePipelineState>  storage_bound   = nil;
+
+static void storage_flush(void) {
+	if (storage_command == nil) {
+		return;
+	}
+	[storage_encoder endEncoding];
+	[storage_command commit];
+	[storage_command waitUntilCompleted];
+	storage_encoder = nil;
+	storage_command = nil;
+	storage_bound   = nil;
+}
+
+void *gpu_kernel_create(const void *shader, int shader_size) {
+	id<MTLDevice>   device  = get_metal_device();
+	NSError        *error   = nil;
+	id<MTLLibrary>  library = [device newLibraryWithSource:[[NSString alloc] initWithBytes:shader length:shader_size encoding:NSUTF8StringEncoding]
+	                                               options:compile_options()
+	                                                 error:&error];
+	id<MTLFunction> kernel  = nil;
+	for (NSString *name in library.functionNames) {
+		id<MTLFunction> function = [library newFunctionWithName:name];
+		if (function.functionType == MTLFunctionTypeKernel) {
+			kernel = function;
+			break;
+		}
+	}
+	id<MTLComputePipelineState> state = kernel != nil ? [device newComputePipelineStateWithFunction:kernel error:&error] : nil;
+	if (state == nil || state.maxTotalThreadsPerThreadgroup < 64) {
+		iron_log("Gpu kernel unavailable%s%s", error != nil ? ": " : "", error != nil ? error.localizedDescription.UTF8String : "");
+		return NULL;
+	}
+	return (__bridge_retained void *)state;
+}
+
+void *gpu_storage_create(uint64_t size) {
+	id<MTLDevice> device = get_metal_device();
+	if (size > device.maxBufferLength) {
+		return NULL;
+	}
+	id<MTLBuffer> buffer = [device newBufferWithLength:size options:MTLResourceStorageModeShared];
+	return buffer != nil ? (__bridge_retained void *)buffer : NULL;
+}
+
+void gpu_storage_destroy(void *storage) {
+	if (storage == NULL) {
+		return;
+	}
+	storage_flush();
+	id<MTLBuffer> buffer = (__bridge_transfer id<MTLBuffer>)storage;
+	buffer               = nil;
+}
+
+void gpu_storage_write(void *storage, uint64_t offset, const void *data, uint64_t size) {
+	storage_flush();
+	id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)storage;
+	memcpy((uint8_t *)buffer.contents + offset, data, size);
+}
+
+void gpu_storage_read(void *storage, uint64_t offset, void *data, uint64_t size) {
+	storage_flush();
+	id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)storage;
+	memcpy(data, (uint8_t *)buffer.contents + offset, size);
+}
+
+// Groups of 64 threads, the thread size of the kernels
+void gpu_kernel_dispatch(void *kernel, void *storage, const void *constants, int constants_size, uint32_t groups_x, uint32_t groups_y) {
+	if (storage_command == nil) {
+		storage_command = [get_metal_queue() commandBuffer];
+		storage_encoder = [storage_command computeCommandEncoder];
+	}
+	id<MTLComputePipelineState> state = (__bridge id<MTLComputePipelineState>)kernel;
+	if (state != storage_bound) {
+		[storage_encoder setComputePipelineState:state];
+		storage_bound = state;
+	}
+	[storage_encoder setBytes:constants length:constants_size atIndex:0];
+	[storage_encoder setBuffer:(__bridge id<MTLBuffer>)storage offset:0 atIndex:1];
+	[storage_encoder dispatchThreadgroups:MTLSizeMake(groups_x, groups_y, 1) threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
 }

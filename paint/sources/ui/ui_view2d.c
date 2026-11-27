@@ -15,7 +15,6 @@ i32                  _ui_view2d_tex_w          = 0;
 bool                 ui_view2d_layer_touched   = false;
 gpu_texture_t       *ui_view2d_tex             = NULL;
 i32                  ui_view2d_tex_channel     = 0;
-bool                 ui_view2d_tex_bgra        = false;
 char                *ui_view2d_layer_name_prev = NULL;
 
 void ui_view2d_init() {
@@ -32,6 +31,16 @@ void ui_view2d_init() {
 	ui_view2d_pipe->blend_destination         = GPU_BLEND_ZERO;
 	ui_view2d_pipe->color_write_mask_alpha[0] = false;
 	gpu_pipeline_compile(ui_view2d_pipe);
+
+	ui_view2d_pipe_fb                            = gpu_create_pipeline();
+	ui_view2d_pipe_fb->vertex_shader             = ui_view2d_pipe->vertex_shader;
+	ui_view2d_pipe_fb->fragment_shader           = ui_view2d_pipe->fragment_shader;
+	ui_view2d_pipe_fb->input_layout              = vs;
+	ui_view2d_pipe_fb->blend_source              = GPU_BLEND_ONE;
+	ui_view2d_pipe_fb->blend_destination         = GPU_BLEND_ZERO;
+	ui_view2d_pipe_fb->color_write_mask_alpha[0] = false;
+	ui_view2d_pipe_fb->color_attachment[0]       = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	gpu_pipeline_compile(ui_view2d_pipe_fb);
 	pipes_offset = 0;
 	pipes_get_constant_location("float4"); // empty
 	ui_view2d_channel_loc = pipes_get_constant_location("int");
@@ -39,7 +48,7 @@ void ui_view2d_init() {
 
 void ui_view2d_capture_output(void *_) {
 	if (ui_view2d_tex == NULL || ui_view2d_tex_channel == 0) {
-		util_texture_capture_output(ui_view2d_tex, "tex_capture", ui_view2d_tex_bgra);
+		util_texture_capture_output(ui_view2d_tex, "tex_capture");
 		return;
 	}
 	// Single channel views carry no usable alpha, bake the displayed channel into an opaque image
@@ -50,7 +59,7 @@ void ui_view2d_capture_output(void *_) {
 	draw_scaled_image(ui_view2d_tex, 0, 0, rt->width, rt->height);
 	draw_end();
 	draw_set_pipeline(NULL);
-	util_texture_capture_output(rt, "tex_capture", false);
+	util_texture_capture_output(rt, "tex_capture");
 	gpu_delete_texture(rt);
 }
 
@@ -246,20 +255,10 @@ void ui_view2d_render_color_pick(void *_) {
 	draw_begin(texpaint_picker, false, 0);
 	draw_scaled_image(_ui_view2d_render_tex, -_ui_view2d_render_x, -_ui_view2d_render_y, _ui_view2d_render_tw, _ui_view2d_render_th);
 	draw_end();
-	buffer_t *a = gpu_get_texture_pixels(texpaint_picker);
-#ifdef IRON_BGRA
-	i32 i0 = 2;
-	i32 i1 = 1;
-	i32 i2 = 0;
-#else
-	i32 i0 = 0;
-	i32 i1 = 1;
-	i32 i2 = 2;
-#endif
-
-	g_context->picked_color->base = color_set_rb(g_context->picked_color->base, buffer_get_u8(a, i0));
-	g_context->picked_color->base = color_set_gb(g_context->picked_color->base, buffer_get_u8(a, i1));
-	g_context->picked_color->base = color_set_bb(g_context->picked_color->base, buffer_get_u8(a, i2));
+	buffer_t *a                   = gpu_get_texture_pixels(texpaint_picker);
+	g_context->picked_color->base = color_set_rb(g_context->picked_color->base, buffer_get_u8(a, 0));
+	g_context->picked_color->base = color_set_gb(g_context->picked_color->base, buffer_get_u8(a, 1));
+	g_context->picked_color->base = color_set_bb(g_context->picked_color->base, buffer_get_u8(a, 2));
 	ui_header_handle->redraws     = 2;
 
 	if (g_context->color_picker_callback != NULL) {
@@ -302,7 +301,7 @@ static bool ui_view2d_layer_movable(slot_layer_t *l) {
 
 // Shift the texture contents, pixels moved out of the texture are discarded
 static void ui_view2d_shift_texture(gpu_texture_t *t, gpu_pipeline_t *pipe, i32 dx, i32 dy) {
-	gpu_pipeline_t *temp_pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+	gpu_pipeline_t *temp_pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64;
 	draw_begin(layers_temp_image, false, 0);
 	draw_set_pipeline(temp_pipe);
 	draw_image(t, 0, 0);
@@ -341,7 +340,7 @@ static void ui_view2d_layer_move_apply_on_next_frame(void *_) {
 		ui_view2d_shift_texture(l->texpaint, pipes_copy8, dx, dy);
 	}
 	else {
-		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64;
 		ui_view2d_shift_texture(l->texpaint, pipe, dx, dy);
 		ui_view2d_shift_texture(l->texpaint_nor, pipe, dx, dy);
 		ui_view2d_shift_texture(l->texpaint_pack, pipe, dx, dy);
@@ -653,7 +652,7 @@ void ui_view2d_update(void *_) {
 		bool pixel_view = tex != NULL && math_round(tw / (float)tex->width * 100) >= 1600;
 		if (tex != NULL) {
 			if (ui_view2d_type == VIEW_2D_TYPE_LAYER) {
-				draw_set_pipeline(ui_view2d_pipe);
+				draw_set_pipeline(ui_view2d_pipe_fb);
 			}
 
 			if (pixel_view) {
@@ -956,12 +955,6 @@ void ui_view2d_update(void *_) {
 			if (ui_icon_button("Edit", ICON_EDIT, UI_ALIGN_CENTER)) {
 				ui_view2d_tex         = tex;
 				ui_view2d_tex_channel = ui_view2d_type == VIEW_2D_TYPE_LAYER ? channel : 0;
-#ifdef IRON_BGRA
-				// Layers are render targets and read back as bgra, assets and node images are textures from pixels
-				ui_view2d_tex_bgra = ui_view2d_type == VIEW_2D_TYPE_ASSET  ? true
-				                     : ui_view2d_type == VIEW_2D_TYPE_NODE ? ui_nodes_node_preview_is_bgra(ui_view2d_get_selected_node())
-				                                                           : false;
-#endif
 				ui_menu_draw(&ui_view2d_draw_edit, -1, -1);
 			}
 			g_ui->_x += ew * 0.7 + 3;

@@ -278,7 +278,7 @@ static void lightmap_raster(mesh_object_t *o, i32 res, f32 *pos, f32 *nor, u8 *m
 				pos[o4 + 2] = p[0].z * b0 + p[1].z * b1 + p[2].z * b2;
 				pos[o4 + 3] = 1.0f;
 				vec4_t nn   = vec4_norm(
-                    (vec4_t){n[0].x * b0 + n[1].x * b1 + n[2].x * b2, n[0].y * b0 + n[1].y * b1 + n[2].y * b2, n[0].z * b0 + n[1].z * b1 + n[2].z * b2, 0.0});
+				    (vec4_t){n[0].x * b0 + n[1].x * b1 + n[2].x * b2, n[0].y * b0 + n[1].y * b1 + n[2].y * b2, n[0].z * b0 + n[1].z * b1 + n[2].z * b2, 0.0});
 				nor[o4 + 0]         = nn.x;
 				nor[o4 + 1]         = nn.y;
 				nor[o4 + 2]         = nn.z;
@@ -348,7 +348,7 @@ static void lightmap_begin(lightmap_job_t *job, mesh_object_t *object) {
 		lightmap_base         = malloc(sizeof(gpu_texture_t));
 		lightmap_base->buffer = NULL;
 		gpu_texture_init_from_bytes(lightmap_base, grey, 1, 1, GPU_TEXTURE_FORMAT_RGBA32, false);
-		lightmap_f32a = f32_array_create(24);
+		lightmap_f32a = f32_array_create(32);
 	}
 
 	lightmap_scene_init();
@@ -460,14 +460,9 @@ static void lightmap_write(lightmap_job_t *job) {
 	buffer_t *out = buffer_create(res * res * 4);
 	for (i32 i = 0; i < res * res; ++i) {
 		for (i32 c = 0; c < 3; ++c) {
-			f32 v = m[i] ? px[i * 4 + c] / job->range : 0.0f;
-			v     = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
-#ifdef IRON_BGRA
-			i32 oc = 2 - c; // Png writer expects the render target byte order
-#else
-			i32 oc = c;
-#endif
-			out->buffer[i * 4 + oc] = (u8)(powf(v, 1.0f / 2.2f) * 255.0f + 0.5f);
+			f32 v                  = m[i] ? px[i * 4 + c] / job->range : 0.0f;
+			v                      = v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+			out->buffer[i * 4 + c] = (u8)(powf(v, 1.0f / 2.2f) * 255.0f + 0.5f);
 		}
 		out->buffer[i * 4 + 3] = 255;
 	}

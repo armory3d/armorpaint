@@ -29,7 +29,6 @@ typedef enum {
 } platform_t;
 
 typedef enum {
-	GRAPHICS_DIRECT3D12,
 	GRAPHICS_VULKAN,
 	GRAPHICS_METAL,
 	GRAPHICS_WEBGPU,
@@ -68,7 +67,6 @@ typedef struct {
 	bool  release;
 	bool  embed;
 	bool  with_physics;
-	bool  with_d3dcompiler;
 	bool  with_nfd;
 	bool  with_compress;
 	bool  with_image_write;
@@ -96,8 +94,10 @@ void       add_define(project_t *project, char *define);
 void       add_include_dir(project_t *project, char *dir);
 void       add_lib(project_t *project, char *lib);
 void       add_shaders(project_t *project, char *pattern);
+void       add_shader(project_t *project, char *file, char *name, char *defines);
 void       add_assets(project_t *project, char *pattern, char *destination, int options); // destination like "data/{name}"
 void       project_flatten(project_t *project);                                           // Merge the added projects into this one
+// Include dirs and libs can start with "$(ENV_VAR)", kept as is in Visual Studio projects and expanded elsewhere
 
 bool  has_arg(char *arg); // Command line contains arg
 bool  fs_exists(char *path);

@@ -73,8 +73,11 @@ static void write_ico_entry(FILE *file, int width, int height, int size, int off
 }
 
 void export_ico(const char *from, const char *to) {
-	gpu_texture_t img  = read_png_jpg(from);
-	FILE         *file = fopen(to, "wb");
+	gpu_texture_t img = read_png_jpg(from);
+	if (img.data == NULL) {
+		return;
+	}
+	FILE *file = fopen(to, "wb");
 
 	unsigned char *data256 = scale_image(img, 256, 256);
 	unsigned char *data48  = scale_image(img, 48, 48);
@@ -114,6 +117,7 @@ void export_ico(const char *from, const char *to) {
 	fwrite(png256, 1, png256_len, file);
 	fclose(file);
 
+	free(img.data);
 	free(data256);
 	free(data48);
 	free(data32);
@@ -128,6 +132,9 @@ void export_ico(const char *from, const char *to) {
 
 void export_png(const char *from, const char *to, int width, int height) {
 	gpu_texture_t img = read_png_jpg(from);
+	if (img.data == NULL) {
+		return;
+	}
 
 	if (width > 0 && height > 0) {
 		unsigned char *scaled = scale_image(img, width, height);
@@ -191,22 +198,30 @@ void export_k(const char *from, const char *to) {
 		img = read_png_jpg(from);
 	}
 
-	// Gray or gray+alpha source, store luminance and alpha only
-	int  x, y, n;
-	bool is_gray = !img.is_hdr && stbi_info(from, &x, &y, &n) && n <= 2;
-	if (is_gray) {
-		unsigned char *rgba = (unsigned char *)img.data;
+	// Single channel source, store one channel only (loaded as r8)
+	// Gray+alpha source, store luminance and alpha only
+	int            x, y, n;
+	bool           has_info = !img.is_hdr && stbi_info(from, &x, &y, &n);
+	bool           is_r8    = has_info && n == 1;
+	bool           is_gray  = has_info && n == 2;
+	unsigned char *rgba     = (unsigned char *)img.data;
+	if (is_r8) {
+		for (int i = 0; i < img.width * img.height; ++i) {
+			rgba[i] = rgba[i * 4];
+		}
+	}
+	else if (is_gray) {
 		for (int i = 0; i < img.width * img.height; ++i) {
 			rgba[i * 2]     = rgba[i * 4];
 			rgba[i * 2 + 1] = rgba[i * 4 + 3];
 		}
 	}
 
-	int   pixel_size      = img.is_hdr ? 8 : is_gray ? 2 : 4;
+	int   pixel_size      = img.is_hdr ? 8 : is_r8 ? 1 : is_gray ? 2 : 4;
 	int   max             = LZ4_compress_bound(img.width * img.height * pixel_size);
 	char *compressed      = malloc(max);
 	int   compressed_size = LZ4_compress_default((char *)img.data, compressed, img.width * img.height * pixel_size, max);
-	write_k(img.width, img.height, img.is_hdr ? "LZ4F" : is_gray ? "LZ4G" : "LZ4 ", compressed, compressed_size, to);
+	write_k(img.width, img.height, img.is_hdr ? "LZ4F" : is_r8 ? "LZ4R" : is_gray ? "LZ4G" : "LZ4 ", compressed, compressed_size, to);
 	free(compressed);
 	free(img.data);
 }

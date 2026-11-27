@@ -300,9 +300,17 @@ static function *kernel_functions[256];
 static size_t    kernel_functions_size = 0;
 static uint32_t  resource_bindings[512];
 static bool      resource_writable[512];
+static bool      resource_readable[512];
 
 static bool uses_geometry(function *f) {
-	return calls_function(f, "ray_query_geometry") || calls_function(f, "ray_query_vertex");
+	static const char *names[] = {"ray_query_geometry", "ray_query_vertex",       "geometry_texture0",      "geometry_texture1",
+	                              "geometry_texture2",  "geometry_texture0_size", "geometry_texture1_size", "geometry_texture2_size"};
+	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+		if (calls_function(f, names[i])) {
+			return true;
+		}
+	}
+	return false;
 }
 
 static size_t function_resources(function *f, global_id *resources) {
@@ -337,6 +345,7 @@ static void assign_resource_bindings(function *kernel) {
 			else if (is_texture(t)) {
 				resource_bindings[id] = texture_index++;
 				resource_writable[id] = set->globals.writable[i];
+				resource_readable[id] = set->globals.readable[i];
 			}
 			else {
 				resource_bindings[id] = buffer_index++;
@@ -357,8 +366,8 @@ static void write_resource_parameter(char *code, size_t *offset, global_id id, b
 	}
 	else if (is_texture(g->type)) {
 		sprintf(binding, " [[texture(%u)]]", index);
-		*offset += sprintf(&code[*offset], "texture2d<float%s> _%" PRIu64 "%s", resource_writable[id] ? ", access::read_write" : "", g->var_index,
-		                   kernel ? binding : "");
+		char *access = !resource_writable[id] ? "" : resource_readable[id] ? ", access::read_write" : ", access::write";
+		*offset += sprintf(&code[*offset], "texture2d<float%s> _%" PRIu64 "%s", access, g->var_index, kernel ? binding : "");
 	}
 	else if (g->type == bvh_type_id) {
 		sprintf(binding, " [[buffer(%u)]]", index);
@@ -448,7 +457,17 @@ static bool write_compute_builtin(char *code, size_t *offset, opcode *o) {
 	uint64_t p1   = o->op_call.parameters[1].index;
 	char    *name = get_name(func);
 
-	if (func == add_name("texture_size")) {
+	if (func == add_name("asfloat") || func == add_name("asuint")) {
+		char *t = func == add_name("asfloat") ? "float" : "uint";
+		*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = as_type<%s>(_%" PRIu64 ");\n", t, var, t, p0);
+	}
+	else if (func == add_name("atomic_add") || func == add_name("atomic_max")) {
+		// On an element of a device uint *, viewed as an atomic
+		*offset +=
+		    sprintf(&code[*offset], "uint _%" PRIu64 " = %s((device atomic_uint *)&_%" PRIu64 "[_%" PRIu64 "], _%" PRIu64 ", memory_order_relaxed);\n", var,
+			        func == add_name("atomic_add") ? "atomic_fetch_add_explicit" : "atomic_fetch_max_explicit", p0, p1, o->op_call.parameters[2].index);
+	}
+	else if (func == add_name("texture_size")) {
 		*offset += sprintf(&code[*offset], "uint2 _%" PRIu64 " = uint2(_%" PRIu64 ".get_width(), _%" PRIu64 ".get_height());\n", var, p0, p0);
 	}
 	else if (func == add_name("ray_query_trace") || func == add_name("ray_query_trace_any")) {
@@ -848,7 +867,7 @@ static void write_functions(char *code, size_t *offset) {
 				else if (o->op_call.func == add_name("lerp")) {
 					*offset +=
 					    sprintf(&code[*offset], "%s _%" PRIu64 " = mix(_%" PRIu64 ", _%" PRIu64 ", _%" PRIu64 ");\n", type_string(o->op_call.var.type.type),
-					            o->op_call.var.index, o->op_call.parameters[0].index, o->op_call.parameters[1].index, o->op_call.parameters[2].index);
+						        o->op_call.var.index, o->op_call.parameters[0].index, o->op_call.parameters[1].index, o->op_call.parameters[2].index);
 				}
 				else if (o->op_call.func == add_name("frac")) {
 					*offset += sprintf(&code[*offset], "%s _%" PRIu64 " = fract(_%" PRIu64 ");\n", type_string(o->op_call.var.type.type), o->op_call.var.index,
@@ -933,8 +952,7 @@ static char *metal_export_everything(char *directory) {
 	check(metal != NULL, context, "Could not allocate Metal string");
 	size_t offset = 0;
 
-	offset += sprintf(&metal[offset], "#include <metal_stdlib>\n");
-	offset += sprintf(&metal[offset], "#include <simd/simd.h>\n\n");
+	offset += sprintf(&metal[offset], "#include <metal_stdlib>\n\n");
 	offset += sprintf(&metal[offset], "using namespace metal;\n\n");
 
 	offset += sprintf(&metal[offset], "struct _kong_color_out {\n");
@@ -1035,14 +1053,30 @@ char *metal_export_compute(void) {
 	kernel_functions_size = 0;
 	find_referenced_functions(kernel, kernel_functions, &kernel_functions_size);
 	memset(resource_writable, 0, sizeof(resource_writable));
+	memset(resource_readable, 0, sizeof(resource_readable));
 	assign_resource_bindings(kernel);
 
 	char *metal = (char *)calloc(1024 * 1024 * 2, 1);
 	check(metal != NULL, context, "Could not allocate Metal string");
 	size_t offset = 0;
 
-	offset += sprintf(&metal[offset], "#include <metal_stdlib>\n\nusing namespace metal;\nusing namespace raytracing;\n\n");
-	offset += sprintf(&metal[offset], "typedef intersector<triangle_data, instancing, world_space_data> _kong_intersector;\n\n");
+	bool      raytracing = false;
+	global_id resources[256];
+	size_t    resources_count = function_resources(kernel, resources);
+	for (size_t i = 0; i < resources_count; ++i) {
+		if (get_global(resources[i])->type == bvh_type_id) {
+			raytracing = true;
+		}
+	}
+
+	offset += sprintf(&metal[offset], "#include <metal_stdlib>\n\nusing namespace metal;\n");
+	if (raytracing) {
+		offset += sprintf(&metal[offset], "using namespace raytracing;\n\n");
+		offset += sprintf(&metal[offset], "typedef intersector<triangle_data, instancing, world_space_data> _kong_intersector;\n\n");
+	}
+	else {
+		offset += sprintf(&metal[offset], "\n");
+	}
 
 	write_types(metal, &offset);
 

@@ -53,9 +53,7 @@ i32 strings_split_number_ext(char *name, char **base) {
 }
 
 char *strings_graphics_api() {
-#ifdef IRON_DIRECT3D12
-	return "Direct3D12";
-#elif defined(IRON_METAL)
+#if defined(IRON_METAL)
 	return "Metal";
 #elif defined(IRON_VULKAN)
 	return "Vulkan";

@@ -9,45 +9,11 @@
 #include <string.h>
 
 #ifdef _WIN32
-#include <D3Dcompiler.h>
-#include <d3d11.h>
-
-char *hlsl_to_bin(char *source, char *shader_type, char *to) {
-	char *type;
-	if (string_equals(shader_type, "vert")) {
-		type = "vs_5_0";
-	}
-	else {
-		type = "ps_5_0";
-	}
-
-	ID3DBlob *error_message;
-	ID3DBlob *shader_buffer;
-	UINT      flags = D3DCOMPILE_OPTIMIZATION_LEVEL3;
-	HRESULT   hr    = D3DCompile(source, strlen(source) + 1, NULL, NULL, NULL, "main", type, flags, 0, &shader_buffer, &error_message);
-	if (hr != S_OK) {
-		printf("%s\n", (char *)error_message->lpVtbl->GetBufferPointer(error_message));
-		return NULL;
-	}
-
-	FILE *fp  = fopen(to, "wb");
-	int   len = shader_buffer->lpVtbl->GetBufferSize(shader_buffer);
-	fwrite((char *)shader_buffer->lpVtbl->GetBufferPointer(shader_buffer), 1, len, fp);
-	fclose(fp);
-	shader_buffer->lpVtbl->Release(shader_buffer);
-}
+#include <Windows.h>
 #endif
 
-extern uint64_t    next_variable_id;
-extern size_t      allocated_globals_size;
-extern function_id next_function_index;
-extern global_id   globals_size;
-extern name_id     names_index;
-extern size_t      sets_count;
-extern type_id     next_type_index;
-void               hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
-void               spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
-void               wgsl_export2(char **vs, char **fs);
+void spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
+void wgsl_export2(char **vs, char **fs);
 
 static bool has_compute_function(void) {
 	for (function_id i = 0; get_function(i) != NULL; ++i) {
@@ -64,10 +30,6 @@ static void kong_compile_compute(char *shader_lang, const char *to) {
 	if (strcmp(shader_lang, "spirv") == 0) {
 		transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE | TRANSFORM_FLAG_BINARY_UNIFY_LENGTH);
 		code = spirv_export_compute(&size);
-	}
-	else if (strcmp(shader_lang, "hlsl") == 0) {
-		code = hlsl_export_compute();
-		size = (int)strlen(code);
 	}
 	else if (strcmp(shader_lang, "metal") == 0) {
 		code = metal_export_compute();
@@ -98,16 +60,7 @@ void kong_compile(char *shader_lang, const char *from, const char *to, char **de
 	fclose(fp);
 	data = kong_preprocess(data, defines, defines_count);
 
-	next_variable_id       = 1;
-	allocated_globals_size = 0;
-	next_function_index    = 0;
-	globals_size           = 0;
-	names_index            = 1;
-	sets_count             = 0;
-	next_type_index        = 0;
-	names_init();
-	types_init();
-	functions_init();
+	kong_reset();
 	tokens tokens = tokenize(from, data);
 	parse(from, &tokens);
 	resolve_types();
@@ -148,72 +101,29 @@ void kong_compile(char *shader_lang, const char *from, const char *to, char **de
 		return;
 	}
 
-#ifdef _WIN32
+	if (strcmp(shader_lang, "metal") == 0) {
+		char *metal = metal_export("");
 
-	char *vs;
-	char *fs;
-	hlsl_export2(&vs, &fs, API_DIRECT3D11, false);
+		char to_[512];
+		strcpy(to_, to);
+		to_[strlen(to_) - 5] = '\0';
+		strcat(to_, "vert.metal");
 
-	////
-	// int i = string_last_index_of(to, "\\");
-	// char filename[512];
-	// strcpy(filename, to);
-	// char *filebase = &filename[i + 1];
-	// int j = string_index_of(filebase, ".");
-	// filebase[j] = '\0';
+		fp = fopen(to_, "wb");
+		fwrite("//>vert\n", 1, 8, fp);
+		fwrite(metal, 1, strlen(metal), fp);
+		fclose(fp);
 
-	// char tmp[512];
-	// strcpy(tmp, to);
-	// tmp[i] = '\0';
-	// strcat(tmp, "\\..\\..\\temp\\");
-	// strcat(tmp, filebase);
-	// strcat(tmp, ".vert.hlsl");
-	// fp = fopen(tmp, "wb");
-	// fwrite(vs, 1, strlen(vs), fp);
-	// fclose(fp);
-	// tmp[i] = '\0';
-	// strcat(tmp, "\\..\\..\\temp\\");
-	// strcat(tmp, filebase);
-	// strcat(tmp, ".frag.hlsl");
-	// fp = fopen(tmp, "wb");
-	// fwrite(fs, 1, strlen(fs), fp);
-	// fclose(fp);
-	////
+		strcpy(to_, to);
+		to_[strlen(to_) - 5] = '\0';
+		strcat(to_, "frag.metal");
 
-	char to_[512];
-	strcpy(to_, to);
-	to_[strlen(to_) - 4] = '\0';
-	strcat(to_, "vert.d3d11");
-	hlsl_to_bin(vs, "vert", to_);
+		fp = fopen(to_, "wb");
+		fwrite("//>frag\n", 1, 8, fp);
+		fclose(fp);
 
-	strcpy(to_, to);
-	to_[strlen(to_) - 4] = '\0';
-	strcat(to_, "frag.d3d11");
-	hlsl_to_bin(fs, "frag", to_);
-
-#elif defined(__APPLE__)
-
-	char *metal = metal_export("");
-
-	char to_[512];
-	strcpy(to_, to);
-	to_[strlen(to_) - 5] = '\0';
-	strcat(to_, "vert.metal");
-
-	fp = fopen(to_, "wb");
-	fwrite("//>vert\n", 1, 8, fp);
-	fwrite(metal, 1, strlen(metal), fp);
-	fclose(fp);
-
-	strcpy(to_, to);
-	to_[strlen(to_) - 5] = '\0';
-	strcat(to_, "frag.metal");
-
-	fp = fopen(to_, "wb");
-	fwrite("//>frag\n", 1, 8, fp);
-	fclose(fp);
-
-#else
+		return;
+	}
 
 	transform(TRANSFORM_FLAG_ONE_COMPONENT_SWIZZLE | TRANSFORM_FLAG_BINARY_UNIFY_LENGTH);
 	char *vs;
@@ -238,12 +148,10 @@ void kong_compile(char *shader_lang, const char *from, const char *to, char **de
 	fp = fopen(to_, "wb");
 	fwrite(fs, 1, fs_size, fp);
 	fclose(fp);
-
-#endif
 }
 
 int ashader(char *shader_lang, char *from, char *to, char **defines, int defines_count) {
-	// shader_lang == hlsl || metal || spirv || wgsl
+	// shader_lang == metal || spirv || wgsl
 	kong_compile(shader_lang, from, to, defines, defines_count);
 	return 0;
 }

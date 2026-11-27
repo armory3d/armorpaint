@@ -126,7 +126,7 @@ static void gizmo_others_transform(vec4_t pivot, vec4_t offset, f32 delta) {
 		transform_build_matrix(o->transform);
 		if (o->_->body != NULL) {
 			physics_body_sync_transform(o->_->body);
-			sim_world_invalidate(); // A collider moved
+			sim_world_collider_moved();
 		}
 	}
 }
@@ -428,7 +428,7 @@ void render_gizmo_update() {
 			physics_body_t *pb = paint_object->_->body;
 			if (pb != NULL) {
 				physics_body_sync_transform(pb);
-				sim_world_invalidate(); // A collider moved
+				sim_world_collider_moved();
 			}
 		}
 	}

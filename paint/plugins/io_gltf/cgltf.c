@@ -452,7 +452,8 @@ buffer_t *io_gltf_skin_blob(char *buf, size_t size, const char *path) {
 		}
 	}
 
-	buffer_t *blob = util_skin_blob_create(mesh_node->name != NULL ? mesh_node->name : "", vc, pos, nor, tex, ic, ind, joints, weights, jc, fc, mats, NULL, NULL, NULL);
+	buffer_t *blob =
+	    util_skin_blob_create(mesh_node->name != NULL ? mesh_node->name : "", vc, pos, nor, tex, ic, ind, joints, weights, jc, fc, mats, NULL, NULL, NULL);
 	free(pos);
 	free(nor);
 	free(tex);

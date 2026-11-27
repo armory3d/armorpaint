@@ -127,7 +127,7 @@ void render_compass_update() {
 					// Flip between left / right
 					_compass_compare_quat(quat_from_euler(math_pi() / 2.0, 0, math_pi() / 2.0), cq)
 					    ? viewport_set_view(-1, 0, 0, math_pi() / 2.0, 0, -math_pi() / 2.0) // Left
-					    : viewport_set_view(1, 0, 0, math_pi() / 2.0, 0, math_pi() / 2.0);  // Right
+						: viewport_set_view(1, 0, 0, math_pi() / 2.0, 0, math_pi() / 2.0);  // Right
 				}
 				_compass_hovered = _compass_hitbox_x;
 			}
@@ -136,7 +136,7 @@ void render_compass_update() {
 				if (mouse_started("left")) {
 					_compass_compare_quat(quat_from_euler(math_pi() / 2.0, 0, math_pi()), cq)
 					    ? viewport_set_view(0, -1, 0, math_pi() / 2.0, 0, 0)         // Front
-					    : viewport_set_view(0, 1, 0, math_pi() / 2.0, 0, math_pi()); // Back
+						: viewport_set_view(0, 1, 0, math_pi() / 2.0, 0, math_pi()); // Back
 				}
 				_compass_hovered = _compass_hitbox_y;
 			}

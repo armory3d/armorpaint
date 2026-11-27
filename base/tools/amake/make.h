@@ -10,7 +10,7 @@
 
 typedef struct {
 	char *target;   // windows, linux, macos, ios, android, wasm
-	char *graphics; // direct3d12, vulkan, metal, webgpu
+	char *graphics; // vulkan, metal, webgpu
 	char *ccompiler;
 	char *arch;
 	char *build_path; // Debug or Release
@@ -49,8 +49,9 @@ typedef struct {
 
 typedef struct {
 	char *match;
-	char *destination;
-	int   options; // ASSET_NOEMBED | ASSET_NOPROCESSING
+	char *destination; // Shaders: output name of a shader added with add_shader
+	int   options;     // ASSET_NOEMBED | ASSET_NOPROCESSING
+	char *defines;     // Shaders: space separated, add_shader
 } matcher_t;
 
 #define ASSET_NOEMBED      1
@@ -91,7 +92,6 @@ typedef struct {
 	bool  release;
 	bool  embed;
 	bool  with_physics;
-	bool  with_d3dcompiler;
 	bool  with_nfd;
 	bool  with_compress;
 	bool  with_image_write;

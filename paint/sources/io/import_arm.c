@@ -107,17 +107,21 @@ static bool import_arm_has_selected(i32_array_t *selected) {
 	return false;
 }
 
-bool import_arm_object_name_exists(char *name) {
+static i32 import_arm_object_name_index(char *name) {
 	if (name == NULL || g_project->_->paint_objects == NULL) {
-		return false;
+		return -1;
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
 		if (o->base->name != NULL && string_equals(o->base->name, name)) {
-			return true;
+			return i;
 		}
 	}
-	return false;
+	return -1;
+}
+
+bool import_arm_object_name_exists(char *name) {
+	return import_arm_object_name_index(name) >= 0;
 }
 
 i32 import_arm_material_name_index(char *name) {
@@ -158,91 +162,6 @@ static i32 import_arm_mesh_material_index(project_t *project, i32 mesh_i) {
 	return project->mesh_materials->buffer[mesh_i];
 }
 
-static void import_arm_run_mesh_append_from_project(project_t *project, i32_array_t *selected, i32_array_t *src_to_dest_mat) {
-	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
-		return;
-	}
-
-	string_array_t      *mesh_names = string_array_create(0);
-	mesh_data_t_array_t *mesh_datas = import_arm_get_mesh_datas(project, mesh_names);
-
-	i32            appended = 0;
-	bool           assigned = false;
-	mesh_object_t *first    = NULL;
-	for (i32 i = 0; i < mesh_datas->length; ++i) {
-		if (!import_arm_is_selected(selected, i)) {
-			continue;
-		}
-		if (import_arm_object_name_exists(mesh_names->buffer[i])) {
-			continue;
-		}
-		mesh_data_t   *md     = mesh_datas->buffer[i];
-		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
-		object->base->name    = mesh_names->buffer[i];
-
-		if (project->mesh_transforms != NULL && i < project->mesh_transforms->length) {
-			transform_set_matrix(object->base->transform, import_arm_mesh_world_matrix(project, i));
-		}
-		else {
-			object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
-			transform_build_matrix(object->base->transform);
-		}
-
-		any_array_push(g_project->_->paint_objects, object);
-		tab_stages_add_object(object->base->name);
-		appended++;
-		if (first == NULL) {
-			first = object;
-		}
-
-		if (src_to_dest_mat != NULL) {
-			i32 src_mat = import_arm_mesh_material_index(project, i);
-			if (src_mat >= 0 && src_mat < src_to_dest_mat->length) {
-				i32 dest_mat = src_to_dest_mat->buffer[src_mat];
-				if (dest_mat >= 0) {
-					tab_meshes_set_override(object, dest_mat);
-					assigned = true;
-				}
-			}
-		}
-	}
-
-	if (appended == 0) {
-		return;
-	}
-
-	if (assigned) {
-		g_project->mesh_materials = i32_array_create(0);
-	}
-
-	if (g_project->_->paint_objects->length > 1) {
-		util_mesh_merge(NULL);
-		if (g_context->merged_object != NULL) {
-			g_context->merged_object->base->visible = true;
-		}
-	}
-	context_select_paint_object(first);
-
-	make_material_parse_paint_material(true);
-	make_material_parse_mesh_material();
-	tab_meshes_reset_preview_map();
-	base_update_tools();
-
-	util_uv_uvmap_cached       = false;
-	util_uv_trianglemap_cached = false;
-	util_uv_seammap_cached     = false;
-	util_uv_dilatemap_cached   = false;
-	g_context->ddirty          = 4;
-	ui_dock_redraw(TAB_AREA_SIDEBAR0);
-}
-
-void import_arm_run_mesh_append(char *path) {
-	buffer_t  *b       = data_get_blob(path);
-	project_t *project = import_arm_decode_project(b);
-	import_arm_run_mesh_append_from_project(project, NULL, NULL);
-	data_delete_blob(path);
-}
-
 void import_arm_run_material_from_project_on_next_frame(slot_material_t_array_t *imported) {
 	for (i32 i = 0; i < imported->length; ++i) {
 		slot_material_t *m = imported->buffer[i];
@@ -252,9 +171,9 @@ void import_arm_run_material_from_project_on_next_frame(slot_material_t_array_t 
 	}
 }
 
-bool import_arm_group_exists(char *name) {
-	for (i32 i = 0; i < g_project->_->material_groups->length; ++i) {
-		node_group_t *g = g_project->_->material_groups->buffer[i];
+static bool import_arm_group_exists_in(node_group_t_array_t *dest_groups, char *name) {
+	for (i32 i = 0; dest_groups != NULL && i < dest_groups->length; ++i) {
+		node_group_t *g = dest_groups->buffer[i];
 		if (string_equals(g->canvas->name, name)) {
 			return true;
 		}
@@ -262,8 +181,8 @@ bool import_arm_group_exists(char *name) {
 	return false;
 }
 
-static bool import_arm_is_unique_group_name(char *name, ui_node_canvas_t_array_t *groups) {
-	if (import_arm_group_exists(name)) {
+static bool import_arm_is_unique_group_name_in(node_group_t_array_t *dest_groups, char *name, ui_node_canvas_t_array_t *groups) {
+	if (import_arm_group_exists_in(dest_groups, name)) {
 		return false;
 	}
 	for (i32 i = 0; i < groups->length; ++i) {
@@ -274,35 +193,67 @@ static bool import_arm_is_unique_group_name(char *name, ui_node_canvas_t_array_t
 	return true;
 }
 
-static char *import_arm_unique_group_name(char *name, ui_node_canvas_t_array_t *groups) {
+static char *import_arm_unique_group_name_in(node_group_t_array_t *dest_groups, char *name, ui_node_canvas_t_array_t *groups) {
 	char *base;
 	i32   i   = strings_split_number_ext(name, &base);
 	char *res = string_tmp("%s%s", base, strings_number_ext(++i));
-	while (!import_arm_is_unique_group_name(res, groups)) {
+	while (!import_arm_is_unique_group_name_in(dest_groups, res, groups)) {
 		res = string_tmp("%s%s", base, strings_number_ext(++i));
 	}
 	return res;
 }
 
-void import_arm_rename_group(char *name, char *new_name, slot_material_t_array_t *materials, ui_node_canvas_t_array_t *groups) {
-	for (i32 i = 0; i < materials->length; ++i) {
-		slot_material_t *m = materials->buffer[i];
-		for (i32 i = 0; i < m->canvas->nodes->length; ++i) {
-			ui_node_t *n = m->canvas->nodes->buffer[i];
+static void import_arm_rename_group_canvases(char *name, char *new_name, ui_node_canvas_t_array_t *canvases, ui_node_canvas_t_array_t *groups) {
+	for (i32 i = 0; canvases != NULL && i < canvases->length; ++i) {
+		ui_node_canvas_t *c = canvases->buffer[i];
+		for (i32 j = 0; j < c->nodes->length; ++j) {
+			ui_node_t *n = c->nodes->buffer[j];
 			if (string_equals(n->type, "GROUP") && string_equals(n->name, name)) {
 				n->name = string_copy(new_name);
 			}
 		}
 	}
-	for (i32 i = 0; i < groups->length; ++i) {
+	for (i32 i = 0; groups != NULL && i < groups->length; ++i) {
 		ui_node_canvas_t *c = groups->buffer[i];
+		for (i32 j = 0; j < c->nodes->length; ++j) {
+			ui_node_t *n = c->nodes->buffer[j];
+			if (string_equals(n->type, "GROUP") && string_equals(n->name, name)) {
+				n->name = string_copy(new_name);
+			}
+		}
+	}
+}
+
+static ui_node_canvas_t_array_t *import_arm_collect_groups(ui_node_canvas_t_array_t *src_groups, ui_node_canvas_t_array_t *roots) {
+	ui_node_canvas_t_array_t *used = any_array_create(0);
+	if (src_groups == NULL || roots == NULL) {
+		return used;
+	}
+	for (i32 r = 0; r < roots->length; ++r) {
+		ui_node_canvas_t *c = roots->buffer[r];
+		for (i32 i = 0; c != NULL && i < c->nodes->length; ++i) {
+			ui_node_t *n = c->nodes->buffer[i];
+			if (string_equals(n->type, "GROUP")) {
+				ui_node_canvas_t *g = ui_nodes_get_group(src_groups, n->name);
+				if (g != NULL && array_index_of(used, g) == -1) {
+					any_array_push(used, g);
+				}
+			}
+		}
+	}
+	for (i32 k = 0; k < used->length; ++k) {
+		ui_node_canvas_t *c = used->buffer[k];
 		for (i32 i = 0; i < c->nodes->length; ++i) {
 			ui_node_t *n = c->nodes->buffer[i];
-			if (string_equals(n->type, "GROUP") && string_equals(n->name, name)) {
-				n->name = string_copy(new_name);
+			if (string_equals(n->type, "GROUP")) {
+				ui_node_canvas_t *g = ui_nodes_get_group(src_groups, n->name);
+				if (g != NULL && array_index_of(used, g) == -1) {
+					any_array_push(used, g);
+				}
 			}
 		}
 	}
+	return used;
 }
 
 void import_arm_make_pink(char *abs) {
@@ -327,14 +278,6 @@ static bool import_arm_has_alpha(buffer_t *pixels, i32 format) {
 			}
 		}
 	}
-	else if (format == GPU_TEXTURE_FORMAT_RGBA128) {
-		f32 *p = (f32 *)pixels->buffer;
-		for (u32 i = 3; i < pixels->length / 4; i += 4) {
-			if (p[i] < 1.0) {
-				return true;
-			}
-		}
-	}
 	else {
 		for (u32 i = 3; i < pixels->length; i += 4) {
 			if (pixels->buffer[i] < 255) {
@@ -343,17 +286,6 @@ static bool import_arm_has_alpha(buffer_t *pixels, i32 format) {
 		}
 	}
 	return false;
-}
-
-static gpu_texture_t *import_arm_texture_from_lz4(buffer_t *b, i32 res, u32 size, i32 format, bool *has_alpha) {
-	buffer_t *pixels = lz4_decode(b, size);
-	if (has_alpha != NULL) {
-		*has_alpha = import_arm_has_alpha(pixels, format);
-	}
-	gpu_texture_t *texture = gpu_create_texture_from_bytes_raw(pixels, res, res, format);
-	array_free(pixels);
-	free(pixels);
-	return texture;
 }
 
 // Image nodes are saved by asset name, the saved index only picks between assets sharing a name
@@ -456,8 +388,135 @@ typedef struct import_arm_decode {
 	volatile int32_t    next;
 } import_arm_decode_t;
 
-#define IMPORT_ARM_DECODE_BUDGET  ((i64)256 * 1024 * 1024)
+#if defined(IRON_ANDROID) || defined(IRON_IOS) || defined(IRON_WASM)
+#define IMPORT_ARM_DECODE_BUDGET ((i64)256 * 1024 * 1024)
+#else
+#define IMPORT_ARM_DECODE_BUDGET ((i64)1024 * 1024 * 1024)
+#endif
+#define IMPORT_ARM_LAYER_SLOTS    4
 #define IMPORT_ARM_DECODE_THREADS 16
+
+typedef struct import_arm_layer_job {
+	buffer_t            *compressed;
+	gpu_texture_t       *target;
+	i32                  res;
+	u32                  size;
+	gpu_texture_format_t format;
+	bool                 check_alpha;
+	bool                 is_sculpt;
+	bool                 has_alpha;
+} import_arm_layer_job_t;
+
+typedef struct import_arm_layer_slot {
+	uint8_t         *pixels;
+	volatile int32_t state; // 0 = free, 1 = ready for upload, 2 = done
+	i32              job_index;
+} import_arm_layer_slot_t;
+
+typedef struct import_arm_layer_decode {
+	import_arm_layer_job_t  *jobs;
+	i32                      count;
+	volatile int32_t         next;
+	import_arm_layer_slot_t *slots;
+} import_arm_layer_decode_t;
+
+typedef struct import_arm_layer_worker_arg {
+	import_arm_layer_decode_t *d;
+	i32                        slot;
+} import_arm_layer_worker_arg_t;
+
+static void import_arm_layer_worker(void *arg) {
+	import_arm_layer_worker_arg_t *a = arg;
+	import_arm_layer_decode_t     *d = a->d;
+	import_arm_layer_slot_t       *s = &d->slots[a->slot];
+	for (;;) {
+		while (!iron_atomic_compare_exchange(&s->state, 0, 0)) {
+		}
+		i32 j = iron_atomic_increment(&d->next);
+		if (j >= d->count) {
+			iron_atomic_exchange(&s->state, 2);
+			break;
+		}
+		import_arm_layer_job_t *job = &d->jobs[j];
+		lz4_decode_to(job->compressed, s->pixels, job->size);
+		if (job->check_alpha) {
+			buffer_t b     = {.buffer = s->pixels, .length = job->size, .capacity = job->size};
+			job->has_alpha = import_arm_has_alpha(&b, job->format);
+		}
+		s->job_index = j;
+		iron_atomic_exchange(&s->state, 1);
+	}
+}
+
+static void import_arm_upload_layer_job(import_arm_layer_job_t *job, uint8_t *pixels) {
+	buffer_t       b    = {.buffer = pixels, .length = job->size, .capacity = job->size};
+	gpu_texture_t *temp = gpu_create_texture_from_bytes_raw(&b, job->res, job->res, job->format);
+	draw_begin(job->target, false, 0);
+	draw_set_pipeline(job->is_sculpt ? pipes_copy128 : g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
+	draw_image(temp, 0, 0);
+	draw_set_pipeline(NULL);
+	draw_end();
+	gpu_delete_texture(temp);
+	if (job->check_alpha && job->has_alpha) {
+		g_project->_->translucency = true;
+	}
+}
+
+static void import_arm_load_layer_textures(import_arm_layer_job_t *jobs, i32 count, u32 max_size) {
+	if (count == 0) {
+		return;
+	}
+	u32 alloc_size = max_size > 0 ? max_size : 1;
+	i32 slot_count = iron_hardware_threads();
+	if (slot_count > IMPORT_ARM_LAYER_SLOTS) {
+		slot_count = IMPORT_ARM_LAYER_SLOTS;
+	}
+	if (slot_count > count) {
+		slot_count = count;
+	}
+	if (slot_count <= 1) {
+		uint8_t *pixels = malloc(alloc_size);
+		for (i32 j = 0; j < count; ++j) {
+			lz4_decode_to(jobs[j].compressed, pixels, jobs[j].size);
+			if (jobs[j].check_alpha) {
+				buffer_t b        = {.buffer = pixels, .length = jobs[j].size, .capacity = jobs[j].size};
+				jobs[j].has_alpha = import_arm_has_alpha(&b, jobs[j].format);
+			}
+			import_arm_upload_layer_job(&jobs[j], pixels);
+		}
+		free(pixels);
+		return;
+	}
+
+	import_arm_layer_slot_t       slots[IMPORT_ARM_LAYER_SLOTS];
+	import_arm_layer_worker_arg_t args[IMPORT_ARM_LAYER_SLOTS];
+	iron_thread_t                 threads[IMPORT_ARM_LAYER_SLOTS];
+	import_arm_layer_decode_t     d = {.jobs = jobs, .count = count, .next = 0, .slots = slots};
+	for (i32 w = 0; w < slot_count; ++w) {
+		slots[w].pixels    = malloc(alloc_size);
+		slots[w].state     = 0;
+		slots[w].job_index = -1;
+		args[w].d          = &d;
+		args[w].slot       = w;
+		iron_thread_init(&threads[w], import_arm_layer_worker, &args[w]);
+	}
+
+	i32 uploaded = 0;
+	while (uploaded < count) {
+		for (i32 w = 0; w < slot_count; ++w) {
+			if (iron_atomic_compare_exchange(&slots[w].state, 1, 1)) {
+				import_arm_upload_layer_job(&jobs[slots[w].job_index], slots[w].pixels);
+				iron_atomic_exchange(&slots[w].state, 0);
+				uploaded++;
+			}
+		}
+	}
+
+	for (i32 w = 0; w < slot_count; ++w) {
+		iron_thread_wait_and_destroy(&threads[w]);
+		free(slots[w].pixels);
+	}
+}
 
 static bool import_arm_is_decodable(char *abs) {
 	char *ext = path_ext(abs);
@@ -573,7 +632,8 @@ static bool import_arm_is_cloud(char *path) {
 	return starts_with(path, root);
 }
 
-static void import_arm_check_scripts(project_t *project, char *path, bool meshes) {
+static void import_arm_check_canvases_scripts(ui_node_canvas_t_array_t *mat_a, ui_node_canvas_t_array_t *mat_b, ui_node_canvas_t_array_t *mesh_a,
+                                              ui_node_canvas_t_array_t *mesh_b, char *path) {
 	if (args_player) {
 		return;
 	}
@@ -581,16 +641,167 @@ static void import_arm_check_scripts(project_t *project, char *path, bool meshes
 		project_scripts_trusted = true;
 		return;
 	}
-	if (!import_arm_canvases_have_script(project->material_nodes) && !import_arm_canvases_have_script(project->material_groups) &&
-	    !(meshes && (nodes_mesh_canvases_have_script(project->mesh_nodes) || nodes_mesh_canvases_have_script(project->mesh_groups)))) {
+	if (!import_arm_canvases_have_script(mat_a) && !import_arm_canvases_have_script(mat_b) && !nodes_mesh_canvases_have_script(mesh_a) &&
+	    !nodes_mesh_canvases_have_script(mesh_b)) {
 		return;
 	}
 	project_scripts_trusted = false;
 	ui_box_show_custom(&import_arm_trust_scripts_box_draw, 400, 200, NULL, true, tr("Script Nodes"));
 }
 
+static void import_arm_check_scripts(project_t *project, char *path, bool meshes) {
+	import_arm_check_canvases_scripts(project->material_nodes, project->material_groups, meshes ? project->mesh_nodes : NULL,
+	                                  meshes ? project->mesh_groups : NULL, path);
+}
+
+static char *import_arm_asset_name(char *file) {
+	i32 i = string_last_index_of(file, "/");
+	i32 j = string_last_index_of(file, "\\");
+	if (j > i) {
+		i = j;
+	}
+	return i >= 0 ? substring(file, i + 1, string_length(file)) : file;
+}
+
+static i32 import_arm_find_project_asset(project_t *project, ui_node_button_t *but) {
+	if (project->assets == NULL || but == NULL || but->data == NULL || but->data->length == 0) {
+		return -1;
+	}
+	char *name = u8_array_to_string(but->data);
+	if (string_equals(name, "")) {
+		return -1;
+	}
+	i32 saved = but->default_value != NULL && but->default_value->length > 0 ? (i32)but->default_value->buffer[0] : -1;
+	if (saved >= 0 && saved < project->assets->length && string_equals(import_arm_asset_name(project->assets->buffer[saved]), name)) {
+		return saved;
+	}
+	for (i32 i = 0; i < project->assets->length; ++i) {
+		if (string_equals(import_arm_asset_name(project->assets->buffer[i]), name)) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+static void import_arm_mark_canvas_assets(project_t *project, ui_node_canvas_t_array_t *canvases, i32_array_t *needed) {
+	if (canvases == NULL) {
+		return;
+	}
+	for (i32 i = 0; i < canvases->length; ++i) {
+		ui_node_canvas_t *c = canvases->buffer[i];
+		for (i32 j = 0; c != NULL && j < c->nodes->length; ++j) {
+			ui_node_t *n = c->nodes->buffer[j];
+			if (string_equals(n->type, "TEX_IMAGE") && n->buttons->length > 0) {
+				i32 idx = import_arm_find_project_asset(project, n->buttons->buffer[0]);
+				if (idx >= 0 && idx < needed->length) {
+					needed->buffer[idx] = 1;
+				}
+			}
+		}
+	}
+}
+
+static i32_array_t *import_arm_import_referenced_assets(project_t *project, char *path, ui_node_canvas_t_array_t *canvases_a,
+                                                        ui_node_canvas_t_array_t *canvases_b) {
+	if (project->assets == NULL || project->assets->length == 0) {
+		return NULL;
+	}
+	i32_array_t *needed = i32_array_create(project->assets->length);
+	import_arm_mark_canvas_assets(project, canvases_a, needed);
+	import_arm_mark_canvas_assets(project, canvases_b, needed);
+
+	i32_array_t *src_to_dest = i32_array_create(project->assets->length);
+	char        *base        = path_base_dir(path);
+	for (i32 i = 0; i < project->assets->length; ++i) {
+		src_to_dest->buffer[i] = -1;
+		if (needed->buffer[i] == 0) {
+			continue;
+		}
+		char *file = project->assets->buffer[i];
+#ifdef IRON_WINDOWS
+		file = string_copy(string_replace_all(file, "/", "\\"));
+#else
+		file = string_copy(string_replace_all(file, "\\", "/"));
+#endif
+		// Convert image path from relative to absolute
+		char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
+		if (project->packed_assets != NULL) {
+			abs = string_copy(path_normalize(abs));
+			if (any_map_get(data_cached_textures, abs) == NULL) {
+				import_arm_unpack_asset(project, abs, file, true);
+			}
+			else {
+				import_arm_take_packed_asset(project, abs, file, true);
+			}
+		}
+		if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
+			import_arm_make_pink(abs);
+		}
+		import_texture_run(abs, false);
+		for (i32 j = 0; j < g_project->_->assets->length; ++j) {
+			if (string_equals(g_project->_->assets->buffer[j]->file, abs)) {
+				src_to_dest->buffer[i] = j;
+				break;
+			}
+		}
+	}
+	array_delete(needed);
+	return src_to_dest;
+}
+
+static void import_arm_init_nodes_mapped(project_t *project, ui_node_t_array_t *nodes, i32_array_t *src_to_dest_asset) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *node = nodes->buffer[i];
+		if (string_equals(node->type, "TEX_IMAGE") && node->buttons->length > 0) {
+			i32 src_idx  = import_arm_find_project_asset(project, node->buttons->buffer[0]);
+			i32 dest_idx = (src_to_dest_asset != NULL && src_idx >= 0 && src_idx < src_to_dest_asset->length && src_to_dest_asset->buffer[src_idx] >= 0)
+			                   ? src_to_dest_asset->buffer[src_idx]
+			                   : import_arm_image_asset_index(node->buttons->buffer[0]);
+			node->buttons->buffer[0]->default_value = f32_array_create_x(dest_idx);
+			node->buttons->buffer[0]->data          = u8_array_create_from_string("");
+		}
+	}
+}
+
+static void import_arm_remap_mesh_object_nodes(ui_node_t_array_t *nodes, i32_array_t *src_to_dest_obj) {
+	for (i32 i = 0; i < nodes->length; ++i) {
+		ui_node_t *n = nodes->buffer[i];
+		if ((string_equals(n->type, "MESH_OBJECT") || string_equals(n->type, "MESH_SCATTER")) && n->buttons->length > 0) {
+			ui_node_button_t *b        = n->buttons->buffer[0];
+			i32               src_idx  = b->default_value != NULL && b->default_value->length > 0 ? (i32)b->default_value->buffer[0] : -1;
+			i32               dest_idx = (src_to_dest_obj != NULL && src_idx >= 0 && src_idx < src_to_dest_obj->length) ? src_to_dest_obj->buffer[src_idx] : -1;
+			b->default_value           = f32_array_create_xyz(dest_idx, -1, dest_idx);
+		}
+	}
+}
+
+static void import_arm_import_groups(project_t *project, ui_node_canvas_t_array_t *used_groups, ui_node_canvas_t_array_t *root_canvases,
+                                     node_group_t_array_t *dest_groups, i32_array_t *src_to_dest_asset, i32_array_t *src_to_dest_obj) {
+	if (used_groups == NULL || used_groups->length == 0) {
+		return;
+	}
+	ui_node_canvas_t_array_t *cloned = any_array_create(0);
+	for (i32 i = 0; i < used_groups->length; ++i) {
+		any_array_push(cloned, util_clone_canvas(used_groups->buffer[i]));
+	}
+	for (i32 i = 0; i < cloned->length; ++i) {
+		ui_node_canvas_t *c = cloned->buffer[i];
+		if (import_arm_group_exists_in(dest_groups, c->name)) { // Ensure unique group name
+			char *old_name = c->name;
+			c->name        = string_copy(import_arm_unique_group_name_in(dest_groups, old_name, cloned));
+			import_arm_rename_group_canvases(old_name, c->name, root_canvases, cloned);
+		}
+		import_arm_init_nodes_mapped(project, c->nodes, src_to_dest_asset);
+		if (src_to_dest_obj != NULL) {
+			import_arm_remap_mesh_object_nodes(c->nodes, src_to_dest_obj);
+		}
+		node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});
+		any_array_push(dest_groups, ng);
+	}
+	array_delete(cloned);
+}
+
 static void import_arm_import_materials(project_t *project, char *path, i32_array_t *selected, bool delete_blob) {
-	import_arm_check_scripts(project, path, false);
 	if (project->material_nodes == NULL || project->material_nodes->length == 0) {
 		if (delete_blob) {
 			data_delete_blob(path);
@@ -598,60 +809,61 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 		return;
 	}
 
-	char *base = path_base_dir(path);
-	if (project->assets != NULL) {
-		for (i32 i = 0; i < project->assets->length; ++i) {
-			char *file = project->assets->buffer[i];
-#ifdef IRON_WINDOWS
-			file = string_copy(string_replace_all(file, "/", "\\"));
-#else
-			file = string_copy(string_replace_all(file, "\\", "/"));
-#endif
-			// Convert image path from relative to absolute
-			char *abs = data_is_abs(file) ? file : string("%s%s", base, file);
-			if (project->packed_assets != NULL) {
-				abs = string_copy(path_normalize(abs));
-				import_arm_unpack_asset(project, abs, file, true);
-			}
-			if (any_map_get(data_cached_textures, abs) == NULL && !iron_file_exists(abs)) {
-				import_arm_make_pink(abs);
-			}
-			import_texture_run(abs, true);
+	ui_node_canvas_t_array_t *mat_roots = any_array_create(0);
+	for (i32 i = 0; i < project->material_nodes->length; ++i) {
+		if (import_arm_is_selected(selected, i)) {
+			any_array_push(mat_roots, project->material_nodes->buffer[i]);
 		}
 	}
+	if (mat_roots->length == 0) {
+		array_delete(mat_roots);
+		if (delete_blob) {
+			data_delete_blob(path);
+		}
+		return;
+	}
 
-	shader_data_t *m0 = data_get_shader("Scene", "Material");
+	ui_node_canvas_t_array_t *mat_groups = import_arm_collect_groups(project->material_groups, mat_roots);
+	import_arm_check_canvases_scripts(mat_roots, mat_groups, NULL, NULL, path);
+	i32_array_t *src_to_dest_asset = import_arm_import_referenced_assets(project, path, mat_roots, mat_groups);
 
-	slot_material_t_array_t *imported = any_array_create_from_raw((void *[]){}, 0);
+	shader_data_t            *m0           = data_get_shader("Scene", "Material");
+	slot_material_t_array_t  *imported     = any_array_create_from_raw((void *[]){}, 0);
+	ui_node_canvas_t_array_t *mat_canvases = any_array_create(0);
 
 	for (i32 i = 0; i < project->material_nodes->length; ++i) {
 		if (!import_arm_is_selected(selected, i)) {
 			continue;
 		}
 		ui_node_canvas_t *c = util_clone_canvas(project->material_nodes->buffer[i]); // Project data is temporary
-		import_arm_init_nodes(c->nodes);
+		import_arm_init_nodes_mapped(project, c->nodes, src_to_dest_asset);
 		g_context->material = slot_material_create(m0, c);
+		if (project->material_datas != NULL && i < project->material_datas->length) {
+			material_data2_t *md              = project->material_datas->buffer[i];
+			g_context->material->paint_base   = md->paint_base;
+			g_context->material->paint_opac   = md->paint_opac;
+			g_context->material->paint_occ    = md->paint_occ;
+			g_context->material->paint_rough  = md->paint_rough;
+			g_context->material->paint_met    = md->paint_met;
+			g_context->material->paint_nor    = md->paint_nor;
+			g_context->material->paint_height = md->paint_height;
+			g_context->material->paint_emis   = md->paint_emis;
+			g_context->material->paint_subs   = md->paint_subs;
+		}
 		any_array_push(g_project->_->materials, g_context->material);
 		any_array_push(imported, g_context->material);
+		any_array_push(mat_canvases, c);
 		history_new_material();
 	}
 
-	if (project->material_groups != NULL) {
-		for (i32 i = 0; i < project->material_groups->length; ++i) {
-			project->material_groups->buffer[i] = util_clone_canvas(project->material_groups->buffer[i]);
-		}
-		for (i32 i = 0; i < project->material_groups->length; ++i) {
-			ui_node_canvas_t *c = project->material_groups->buffer[i];
-			if (import_arm_group_exists(c->name)) { // Ensure unique group name
-				char *old_name = c->name;
-				c->name        = string_copy(import_arm_unique_group_name(old_name, project->material_groups));
-				import_arm_rename_group(old_name, c->name, imported, project->material_groups);
-			}
-			import_arm_init_nodes(c->nodes);
-			node_group_t *ng = ALLOC_INIT(node_group_t, {.canvas = c, .nodes = ui_nodes_create()});
-			any_array_push(g_project->_->material_groups, ng);
-		}
+	import_arm_import_groups(project, mat_groups, mat_canvases, g_project->_->material_groups, src_to_dest_asset, NULL);
+
+	if (src_to_dest_asset != NULL) {
+		array_delete(src_to_dest_asset);
 	}
+	array_delete(mat_canvases);
+	array_delete(mat_groups);
+	array_delete(mat_roots);
 
 	sys_notify_on_next_frame(&import_arm_run_material_from_project_on_next_frame, imported);
 	ui_nodes_group_stack = any_array_create_from_raw((void *[]){}, 0);
@@ -659,6 +871,152 @@ static void import_arm_import_materials(project_t *project, char *path, i32_arra
 	if (delete_blob) {
 		data_delete_blob(path);
 	}
+}
+
+static void import_arm_run_mesh_append_from_project(project_t *project, char *path, i32_array_t *selected, i32_array_t *src_to_dest_mat) {
+	if (project->mesh_datas == NULL || project->mesh_datas->length == 0) {
+		return;
+	}
+
+	string_array_t        *mesh_names       = string_array_create(0);
+	mesh_data_t_array_t   *mesh_datas       = import_arm_get_mesh_datas(project, mesh_names);
+	i32_array_t           *src_to_dest_obj  = i32_array_create(mesh_datas->length);
+	mesh_object_t_array_t *appended_objects = any_array_create(mesh_datas->length);
+
+	i32            appended = 0;
+	bool           assigned = false;
+	mesh_object_t *first    = NULL;
+	for (i32 i = 0; i < mesh_datas->length; ++i) {
+		i32 existing                = import_arm_object_name_index(mesh_names->buffer[i]);
+		appended_objects->buffer[i] = NULL;
+		if (!import_arm_is_selected(selected, i) || existing >= 0) {
+			src_to_dest_obj->buffer[i] = existing;
+			continue;
+		}
+		mesh_data_t   *md     = mesh_datas->buffer[i];
+		mesh_object_t *object = scene_add_mesh_object(md, g_context->paint_object->material, NULL);
+		object->base->name    = mesh_names->buffer[i];
+
+		if (project->mesh_transforms != NULL && i < project->mesh_transforms->length) {
+			transform_set_matrix(object->base->transform, import_arm_mesh_world_matrix(project, i));
+		}
+		else {
+			object->base->transform->scale = (vec4_t){1, 1, 1, 1.0};
+			transform_build_matrix(object->base->transform);
+		}
+
+		any_array_push(g_project->_->paint_objects, object);
+		src_to_dest_obj->buffer[i]  = g_project->_->paint_objects->length - 1;
+		appended_objects->buffer[i] = object;
+		tab_stages_add_object(object->base->name);
+		appended++;
+		if (first == NULL) {
+			first = object;
+		}
+
+		if (src_to_dest_mat != NULL) {
+			i32 src_mat = import_arm_mesh_material_index(project, i);
+			if (src_mat >= 0 && src_mat < src_to_dest_mat->length) {
+				i32 dest_mat = src_to_dest_mat->buffer[src_mat];
+				if (dest_mat >= 0) {
+					tab_meshes_set_override(object, dest_mat);
+					assigned = true;
+				}
+			}
+		}
+	}
+
+	if (appended == 0) {
+		array_delete(src_to_dest_obj);
+		array_delete(appended_objects);
+		return;
+	}
+
+	if (project->mesh_nodes != NULL && project->mesh_nodes_objects != NULL) {
+		ui_node_canvas_t_array_t *mesh_roots        = any_array_create(0);
+		mesh_object_t_array_t    *mesh_node_targets = any_array_create(0);
+		for (i32 i = 0; i < project->mesh_nodes->length && i < project->mesh_nodes_objects->length; ++i) {
+			i32 src_idx = project->mesh_nodes_objects->buffer[i];
+			if (src_idx >= 0 && src_idx < appended_objects->length && appended_objects->buffer[src_idx] != NULL) {
+				any_array_push(mesh_roots, project->mesh_nodes->buffer[i]);
+				any_array_push(mesh_node_targets, appended_objects->buffer[src_idx]);
+			}
+		}
+		if (mesh_roots->length > 0) {
+			ui_node_canvas_t_array_t *mesh_groups = import_arm_collect_groups(project->mesh_groups, mesh_roots);
+			import_arm_check_canvases_scripts(NULL, NULL, mesh_roots, mesh_groups, path);
+			i32_array_t *src_to_dest_asset = import_arm_import_referenced_assets(project, path, mesh_roots, mesh_groups);
+
+			ui_node_canvas_t_array_t *cloned_roots = any_array_create(0);
+			for (i32 i = 0; i < mesh_roots->length; ++i) {
+				ui_node_canvas_t *c = util_clone_canvas(mesh_roots->buffer[i]);
+				import_arm_init_nodes_mapped(project, c->nodes, src_to_dest_asset);
+				import_arm_remap_mesh_object_nodes(c->nodes, src_to_dest_obj);
+				any_array_push(cloned_roots, c);
+			}
+
+			if (g_project->_->mesh_groups == NULL) {
+				g_project->_->mesh_groups = any_array_create(0);
+			}
+			import_arm_import_groups(project, mesh_groups, cloned_roots, g_project->_->mesh_groups, src_to_dest_asset, src_to_dest_obj);
+
+			for (i32 i = 0; i < mesh_node_targets->length; ++i) {
+				mesh_object_t *o    = mesh_node_targets->buffer[i];
+				mesh_nodes_t  *slot = nodes_mesh_get(o, true);
+				slot->canvas        = cloned_roots->buffer[i];
+			}
+			// Scene mesh nodes need all the canvases and object uids in place
+			for (i32 i = 0; i < mesh_node_targets->length; ++i) {
+				nodes_mesh_get(mesh_node_targets->buffer[i], false);
+			}
+			for (i32 i = 0; i < mesh_node_targets->length; ++i) {
+				nodes_mesh_update(mesh_node_targets->buffer[i], true);
+			}
+
+			if (src_to_dest_asset != NULL) {
+				array_delete(src_to_dest_asset);
+			}
+			array_delete(cloned_roots);
+			array_delete(mesh_groups);
+			ui_nodes_hwnd->redraws = 2;
+		}
+		array_delete(mesh_roots);
+		array_delete(mesh_node_targets);
+	}
+
+	array_delete(src_to_dest_obj);
+	array_delete(appended_objects);
+
+	if (assigned) {
+		g_project->mesh_materials = i32_array_create(0);
+	}
+
+	if (g_project->_->paint_objects->length > 1) {
+		util_mesh_merge(NULL);
+		if (g_context->merged_object != NULL) {
+			g_context->merged_object->base->visible = true;
+		}
+	}
+	context_select_paint_object(first);
+
+	make_material_parse_paint_material(true);
+	make_material_parse_mesh_material();
+	tab_meshes_reset_preview_map();
+	base_update_tools();
+
+	util_uv_uvmap_cached       = false;
+	util_uv_trianglemap_cached = false;
+	util_uv_seammap_cached     = false;
+	util_uv_dilatemap_cached   = false;
+	g_context->ddirty          = 4;
+	ui_dock_redraw(TAB_AREA_SIDEBAR0);
+}
+
+void import_arm_run_mesh_append(char *path) {
+	buffer_t  *b       = data_get_blob(path);
+	project_t *project = import_arm_decode_project(b);
+	import_arm_run_mesh_append_from_project(project, path, NULL, NULL);
+	data_delete_blob(path);
 }
 
 void import_arm_run_material_from_project(project_t *project, char *path) {
@@ -692,10 +1050,14 @@ void import_arm_append(project_t *project, char *path, i32_array_t *mesh_selecte
 		if (import_arm_has_selected(to_import)) {
 			import_arm_import_materials(project, path, to_import, false);
 		}
+		array_delete(to_import);
 	}
 
 	if (project->mesh_datas != NULL && import_arm_has_selected(mesh_selected)) {
-		import_arm_run_mesh_append_from_project(project, mesh_selected, src_to_dest_mat);
+		import_arm_run_mesh_append_from_project(project, path, mesh_selected, src_to_dest_mat);
+	}
+	if (src_to_dest_mat != NULL) {
+		array_delete(src_to_dest_mat);
 	}
 	data_delete_blob(path);
 }
@@ -825,10 +1187,10 @@ void import_arm_run_project(char *path) {
 	base_res                             = config_get_texture_res_pos(l0->res);
 	base_res_x                           = (f32)l0->res;
 	base_res_y                           = (f32)l0->res;
-	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : l0->bpp == 16 ? TEXTURE_BITS_BITS16 : TEXTURE_BITS_BITS32;
+	texture_bits_t bits_pos              = l0->bpp == 8 ? TEXTURE_BITS_BITS8 : TEXTURE_BITS_BITS16;
 	base_bits                            = bits_pos;
 	i32                  bytes_per_pixel = math_floor(l0->bpp / 8.0);
-	gpu_texture_format_t format          = l0->bpp == 8 ? GPU_TEXTURE_FORMAT_RGBA32 : l0->bpp == 16 ? GPU_TEXTURE_FORMAT_RGBA64 : GPU_TEXTURE_FORMAT_RGBA128;
+	gpu_texture_format_t format          = l0->bpp == 8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 
 	char *base = path_base_dir(path);
 	if (g_project->envmap != NULL) {
@@ -961,10 +1323,10 @@ void import_arm_run_project(char *path) {
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = mesh_names->buffer[0];
 	g_project->_->paint_objects         = any_array_create_from_raw(
-        (void *[]){
-            g_context->paint_object,
-        },
-        1);
+	    (void *[]){
+	        g_context->paint_object,
+	    },
+	    1);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
@@ -999,8 +1361,12 @@ void import_arm_run_project(char *path) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		slot_layer_unload(l);
 	}
-	g_project->_->layers = any_array_create_from_raw((void *[]){}, 0);
-	for (i32 i = 0; i < g_project->layer_datas->length; ++i) {
+	g_project->_->layers                = any_array_create_from_raw((void *[]){}, 0);
+	i32                     layer_count = g_project->layer_datas->length;
+	import_arm_layer_job_t *layer_jobs  = calloc(layer_count > 0 ? layer_count * 4 : 1, sizeof(import_arm_layer_job_t));
+	i32                     job_count   = 0;
+	u32                     max_size    = 0;
+	for (i32 i = 0; i < layer_count; ++i) {
 		layer_data_t *ld       = g_project->layer_datas->buffer[i];
 		bool          is_group = ld->texpaint == NULL;
 		bool          is_mask  = ld->texpaint != NULL && ld->texpaint_nor == NULL;
@@ -1011,43 +1377,23 @@ void import_arm_run_project(char *path) {
 		l->visible = ld->visible;
 		any_array_push(g_project->_->layers, l);
 		if (!is_group) {
-			gpu_texture_t *_texpaint      = NULL;
-			gpu_texture_t *_texpaint_nor  = NULL;
-			gpu_texture_t *_texpaint_pack = NULL;
-
 			if (is_mask) {
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4, GPU_TEXTURE_FORMAT_RGBA32, NULL);
-				draw_begin(l->texpaint, false, 0);
-				// draw_set_pipeline(pipes_copy8);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy); // Full bits for undo support, R8 is used
-				draw_image(_texpaint, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				u32 sz                  = (u32)ld->res * ld->res * 4;
+				layer_jobs[job_count++] = (import_arm_layer_job_t){
+				    .compressed = ld->texpaint, .target = l->texpaint, .res = ld->res, .size = sz, .format = GPU_TEXTURE_FORMAT_RGBA32};
+				if (sz > max_size)
+					max_size = sz;
 			}
 			else { // Layer
-				// TODO: create render target from bytes
-				// See-through meshes when the bottom layer is not fully opaque
-				_texpaint = import_arm_texture_from_lz4(ld->texpaint, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format,
-				                                        i == 0 ? &g_project->_->translucency : NULL);
-				draw_begin(l->texpaint, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
-
-				_texpaint_nor = import_arm_texture_from_lz4(ld->texpaint_nor, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
-				draw_begin(l->texpaint_nor, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_nor, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
-
-				_texpaint_pack = import_arm_texture_from_lz4(ld->texpaint_pack, ld->res, ld->res * ld->res * 4 * bytes_per_pixel, format, NULL);
-				draw_begin(l->texpaint_pack, false, 0);
-				draw_set_pipeline(g_project->is_bgra ? pipes_copy_bgra : pipes_copy);
-				draw_image(_texpaint_pack, 0, 0);
-				draw_set_pipeline(NULL);
-				draw_end();
+				u32 sz                  = (u32)ld->res * ld->res * 4 * bytes_per_pixel;
+				layer_jobs[job_count++] = (import_arm_layer_job_t){
+				    .compressed = ld->texpaint, .target = l->texpaint, .res = ld->res, .size = sz, .format = format, .check_alpha = i == 0};
+				layer_jobs[job_count++] =
+				    (import_arm_layer_job_t){.compressed = ld->texpaint_nor, .target = l->texpaint_nor, .res = ld->res, .size = sz, .format = format};
+				layer_jobs[job_count++] =
+				    (import_arm_layer_job_t){.compressed = ld->texpaint_pack, .target = l->texpaint_pack, .res = ld->res, .size = sz, .format = format};
+				if (sz > max_size)
+					max_size = sz;
 
 				if (ld->texpaint_sculpt != NULL) {
 					render_target_t *t = render_target_create();
@@ -1057,14 +1403,15 @@ void import_arm_run_project(char *path) {
 					t->format          = "RGBA128";
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
-					gpu_texture_t *_texpaint_sculpt =
-					    import_arm_texture_from_lz4(ld->texpaint_sculpt, ld->res, ld->res * ld->res * 4 * 4, GPU_TEXTURE_FORMAT_RGBA128, NULL);
-					draw_begin(l->texpaint_sculpt, false, 0);
-					draw_set_pipeline(pipes_copy128);
-					draw_image(_texpaint_sculpt, 0, 0);
-					draw_set_pipeline(NULL);
-					draw_end();
-					gpu_delete_texture(_texpaint_sculpt);
+					u32 ssz                 = (u32)ld->res * ld->res * 4 * 4;
+					layer_jobs[job_count++] = (import_arm_layer_job_t){.compressed = ld->texpaint_sculpt,
+					                                                   .target     = l->texpaint_sculpt,
+					                                                   .res        = ld->res,
+					                                                   .size       = ssz,
+					                                                   .format     = GPU_TEXTURE_FORMAT_RGBA128,
+					                                                   .is_sculpt  = true};
+					if (ssz > max_size)
+						max_size = ssz;
 				}
 			}
 
@@ -1100,16 +1447,10 @@ void import_arm_run_project(char *path) {
 			l->path_tool          = ld->path_tool;
 			l->path_curved        = ld->path_curved;
 			l->path_text          = ld->path_text;
-
-			gpu_delete_texture(_texpaint);
-			if (_texpaint_nor != NULL) {
-				gpu_delete_texture(_texpaint_nor);
-			}
-			if (_texpaint_pack != NULL) {
-				gpu_delete_texture(_texpaint_pack);
-			}
 		}
 	}
+	import_arm_load_layer_textures(layer_jobs, job_count, max_size);
+	free(layer_jobs);
 
 	ui_header_draw_progress(0.85);
 

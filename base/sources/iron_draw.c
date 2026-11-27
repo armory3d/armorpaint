@@ -29,13 +29,17 @@ static gpu_buffer_t           draw_vbs[GPU_FRAMES_IN_FLIGHT];
 static gpu_buffer_t           draw_ib;
 static gpu_vertex_structure_t draw_structure;
 
+// *_fb_pipeline variants draw into the framebuffer
 static gpu_pipeline_t image_pipeline;
+static gpu_pipeline_t image_fb_pipeline;
 static gpu_pipeline_t image_r8_pipeline;
 static int            image_tex_unit;
 static gpu_pipeline_t rect_pipeline;
+static gpu_pipeline_t rect_fb_pipeline;
 static gpu_pipeline_t tris_pipeline;
+static gpu_pipeline_t tris_fb_pipeline;
 static gpu_pipeline_t text_pipeline;
-static gpu_pipeline_t text_rt_pipeline;
+static gpu_pipeline_t text_fb_pipeline;
 static int            text_tex_unit;
 
 static i32_array_t *draw_font_glyph_blocks = NULL;
@@ -124,6 +128,10 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		gpu_pipeline_compile(&image_pipeline);
 		image_tex_unit = 0;
 
+		draw_pipeline_init(&image_fb_pipeline, &vert_shader, &frag_shader);
+		image_fb_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+		gpu_pipeline_compile(&image_fb_pipeline);
+
 		draw_pipeline_init(&image_r8_pipeline, &vert_shader, &frag_shader);
 		image_r8_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_R8;
 		gpu_pipeline_compile(&image_r8_pipeline);
@@ -140,6 +148,11 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		rect_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
 		gpu_pipeline_compile(&rect_pipeline);
 
+		draw_pipeline_init(&rect_fb_pipeline, &vert_shader, &frag_shader);
+		rect_fb_pipeline.blend_source        = GPU_BLEND_SOURCE_ALPHA;
+		rect_fb_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+		gpu_pipeline_compile(&rect_fb_pipeline);
+
 		gpu_shader_destroy(&vert_shader);
 		gpu_shader_destroy(&frag_shader);
 	}
@@ -151,6 +164,11 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		draw_pipeline_init(&tris_pipeline, &vert_shader, &frag_shader);
 		tris_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
 		gpu_pipeline_compile(&tris_pipeline);
+
+		draw_pipeline_init(&tris_fb_pipeline, &vert_shader, &frag_shader);
+		tris_fb_pipeline.blend_source        = GPU_BLEND_SOURCE_ALPHA;
+		tris_fb_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+		gpu_pipeline_compile(&tris_fb_pipeline);
 
 		gpu_shader_destroy(&vert_shader);
 		gpu_shader_destroy(&frag_shader);
@@ -165,9 +183,10 @@ void draw_init(buffer_t *image_vert, buffer_t *image_frag, buffer_t *rect_vert, 
 		gpu_pipeline_compile(&text_pipeline);
 		text_tex_unit = 0;
 
-		draw_pipeline_init(&text_rt_pipeline, &vert_shader, &frag_shader);
-		text_rt_pipeline.blend_source = GPU_BLEND_SOURCE_ALPHA;
-		gpu_pipeline_compile(&text_rt_pipeline);
+		draw_pipeline_init(&text_fb_pipeline, &vert_shader, &frag_shader);
+		text_fb_pipeline.blend_source        = GPU_BLEND_SOURCE_ALPHA;
+		text_fb_pipeline.color_attachment[0] = GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+		gpu_pipeline_compile(&text_fb_pipeline);
 
 		gpu_shader_destroy(&vert_shader);
 		gpu_shader_destroy(&frag_shader);
@@ -307,10 +326,13 @@ void draw_viewport(int x, int y, int width, int height) {
 	gpu_viewport(x, y, width, height);
 }
 
+static gpu_pipeline_t *draw_pipeline(gpu_pipeline_t *rt_pipeline, gpu_pipeline_t *fb_pipeline) {
+	return draw_custom_pipeline != NULL ? draw_custom_pipeline : _draw_current == NULL ? fb_pipeline : rt_pipeline;
+}
+
 void draw_scaled_sub_image(gpu_texture_t *img, float sx, float sy, float sw, float sh, float dx, float dy, float dw, float dh) {
-	gpu_pipeline_t *pipe = draw_custom_pipeline != NULL                                                ? draw_custom_pipeline
-	                       : (_draw_current != NULL && _draw_current->format == GPU_TEXTURE_FORMAT_R8) ? &image_r8_pipeline
-	                                                                                                   : &image_pipeline;
+	bool            r8   = _draw_current != NULL && _draw_current->format == GPU_TEXTURE_FORMAT_R8;
+	gpu_pipeline_t *pipe = draw_pipeline(r8 ? &image_r8_pipeline : &image_pipeline, &image_fb_pipeline);
 
 	float r  = _draw_color_r(draw_color) / 255.0f;
 	float g  = _draw_color_g(draw_color) / 255.0f;
@@ -352,7 +374,7 @@ void draw_image(gpu_texture_t *tex, float x, float y) {
 }
 
 void draw_filled_triangle(float x0, float y0, float x1, float y1, float x2, float y2) {
-	gpu_pipeline_t *pipe = draw_custom_pipeline != NULL ? draw_custom_pipeline : &tris_pipeline;
+	gpu_pipeline_t *pipe = draw_pipeline(&tris_pipeline, &tris_fb_pipeline);
 	float           r    = _draw_color_r(draw_color) / 255.0f;
 	float           g    = _draw_color_g(draw_color) / 255.0f;
 	float           b    = _draw_color_b(draw_color) / 255.0f;
@@ -364,7 +386,7 @@ void draw_filled_triangle(float x0, float y0, float x1, float y1, float x2, floa
 }
 
 void draw_filled_rect(float x, float y, float width, float height) {
-	gpu_pipeline_t *pipe = draw_custom_pipeline != NULL ? draw_custom_pipeline : &rect_pipeline;
+	gpu_pipeline_t *pipe = draw_pipeline(&rect_pipeline, &rect_fb_pipeline);
 	float           r    = _draw_color_r(draw_color) / 255.0f;
 	float           g    = _draw_color_g(draw_color) / 255.0f;
 	float           b    = _draw_color_b(draw_color) / 255.0f;
@@ -782,7 +804,7 @@ void draw_string(const char *text, float x, float y) {
 	float                    ypos = y + img->baseline;
 	draw_font_aligned_quad_t q;
 
-	gpu_pipeline_t *pipe = draw_custom_pipeline != NULL ? draw_custom_pipeline : (_draw_current != NULL ? &text_rt_pipeline : &text_pipeline);
+	gpu_pipeline_t *pipe = draw_pipeline(&text_pipeline, &text_fb_pipeline);
 	float           r    = _draw_color_r(draw_color) / 255.0f;
 	float           g    = _draw_color_g(draw_color) / 255.0f;
 	float           b    = _draw_color_b(draw_color) / 255.0f;

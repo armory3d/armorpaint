@@ -145,8 +145,9 @@ static void nodes_mesh_shape_side_uvs(mesh_geo_t *g) {
 }
 
 mesh_geo_t *nodes_mesh_shape(i32 shape, f32 *size, i32 segments) {
-	segments      = segments < 3 ? 3 : (segments > 512 ? 512 : segments);
-	mesh_geo_t *g = NULL;
+	i32 min_segments = shape == 5 ? 1 : 3; // A plane can be a single quad
+	segments         = segments < min_segments ? min_segments : (segments > 512 ? 512 : segments);
+	mesh_geo_t *g    = NULL;
 	if (shape == 1) {
 		g = nodes_mesh_shape_grid(segments, math_max(segments / 2, 2), nodes_mesh_shape_sphere);
 	}
@@ -165,7 +166,7 @@ mesh_geo_t *nodes_mesh_shape(i32 shape, f32 *size, i32 segments) {
 		g = nodes_mesh_shape_grid(segments, math_max(segments / 2, 3), nodes_mesh_shape_torus);
 	}
 	else if (shape == 5) {
-		g = nodes_mesh_shape_grid(1, 1, nodes_mesh_shape_plane);
+		g = nodes_mesh_shape_grid(segments, segments, nodes_mesh_shape_plane);
 	}
 	else {
 		g = nodes_mesh_shape_box();

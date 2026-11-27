@@ -150,6 +150,115 @@ static void export_arm_free_buffer(buffer_t *b) {
 	}
 }
 
+#define EXPORT_ARM_LAYER_SLOTS 4
+
+typedef struct export_arm_layer_job {
+	gpu_texture_t *tex;
+	u32            size;
+	buffer_t     **dst;
+} export_arm_layer_job_t;
+
+typedef struct export_arm_layer_slot {
+	uint8_t         *pixels;
+	volatile int32_t state; // 0 = free for readback, 1 = ready for encode, 2 = quit
+	i32              job_index;
+} export_arm_layer_slot_t;
+
+typedef struct export_arm_layer_worker_arg {
+	export_arm_layer_job_t  *jobs;
+	export_arm_layer_slot_t *slot;
+} export_arm_layer_worker_arg_t;
+
+static void export_arm_layer_worker(void *arg) {
+	export_arm_layer_worker_arg_t *a = arg;
+	export_arm_layer_slot_t       *s = a->slot;
+	for (;;) {
+		while (iron_atomic_compare_exchange(&s->state, 0, 0)) {
+		}
+		if (iron_atomic_compare_exchange(&s->state, 2, 2)) {
+			break;
+		}
+		export_arm_layer_job_t *job = &a->jobs[s->job_index];
+		buffer_t                raw = {.buffer = s->pixels, .length = job->size, .capacity = job->size};
+		*job->dst                   = lz4_encode(&raw);
+		iron_atomic_exchange(&s->state, 0);
+	}
+}
+
+static void export_arm_encode_layer_textures(export_arm_layer_job_t *jobs, i32 count, u32 max_size) {
+	if (count == 0) {
+		return;
+	}
+	u32 alloc_size = max_size > 0 ? max_size : 1;
+	i32 slot_count = iron_hardware_threads();
+	if (slot_count > EXPORT_ARM_LAYER_SLOTS) {
+		slot_count = EXPORT_ARM_LAYER_SLOTS;
+	}
+	if (slot_count > count) {
+		slot_count = count;
+	}
+	if (slot_count <= 1) {
+		uint8_t *pixels = malloc(alloc_size);
+		for (i32 j = 0; j < count; ++j) {
+			gpu_get_render_target_pixels(jobs[j].tex, pixels);
+			buffer_t raw = {.buffer = pixels, .length = jobs[j].size, .capacity = jobs[j].size};
+			*jobs[j].dst = lz4_encode(&raw);
+			export_arm_progress(0.1 + 0.6 * (j + 1) / (f32)count);
+		}
+		free(pixels);
+		return;
+	}
+
+	export_arm_layer_slot_t       slots[EXPORT_ARM_LAYER_SLOTS];
+	export_arm_layer_worker_arg_t args[EXPORT_ARM_LAYER_SLOTS];
+	iron_thread_t                 threads[EXPORT_ARM_LAYER_SLOTS];
+	for (i32 w = 0; w < slot_count; ++w) {
+		slots[w].pixels    = malloc(alloc_size);
+		slots[w].state     = 0;
+		slots[w].job_index = -1;
+		args[w].jobs       = jobs;
+		args[w].slot       = &slots[w];
+		iron_thread_init(&threads[w], export_arm_layer_worker, &args[w]);
+	}
+
+	for (i32 j = 0; j < count; ++j) {
+		i32 w = -1;
+		while (w < 0) {
+			for (i32 k = 0; k < slot_count; ++k) {
+				if (iron_atomic_compare_exchange(&slots[k].state, 0, 0)) {
+					w = k;
+					break;
+				}
+			}
+		}
+		gpu_get_render_target_pixels(jobs[j].tex, slots[w].pixels);
+		slots[w].job_index = j;
+		iron_atomic_exchange(&slots[w].state, 1);
+		export_arm_progress(0.1 + 0.6 * (j + 1) / (f32)count);
+	}
+
+	for (i32 w = 0; w < slot_count; ++w) {
+		while (!iron_atomic_compare_exchange(&slots[w].state, 0, 0)) {
+		}
+		iron_atomic_exchange(&slots[w].state, 2);
+	}
+	for (i32 w = 0; w < slot_count; ++w) {
+		iron_thread_wait_and_destroy(&threads[w]);
+		free(slots[w].pixels);
+	}
+}
+
+static void export_arm_push_layer_job(export_arm_layer_job_t *jobs, i32 *count, u32 *max_size, gpu_texture_t *tex, buffer_t **dst) {
+	if (tex == NULL) {
+		return;
+	}
+	u32 sz           = (u32)tex->width * tex->height * gpu_texture_format_size(tex->format);
+	jobs[(*count)++] = (export_arm_layer_job_t){.tex = tex, .size = sz, .dst = dst};
+	if (sz > *max_size) {
+		*max_size = sz;
+	}
+}
+
 buffer_t *export_arm_encode_project(char *path) {
 	// Path is where the project is imported from, asset paths are relative to it
 
@@ -237,18 +346,20 @@ buffer_t *export_arm_encode_project(char *path) {
 	string_array_t *mesh_files    = export_arm_meshes_to_files(relative_to);
 
 	i32 bits_pos = base_bits;
-	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : bits_pos == TEXTURE_BITS_BITS16 ? 16 : 32;
+	i32 bpp      = bits_pos == TEXTURE_BITS_BITS8 ? 8 : 16;
 
 	layer_data_t_array_t *ld = any_array_create_from_raw((void *[]){}, 0);
 	export_arm_progress(0.1);
-	for (i32 i = 0; i < g_project->_->layers->length; ++i) {
-		export_arm_progress(0.1 + 0.6 * i / (f32)g_project->_->layers->length);
+	i32                     layer_cnt  = g_project->_->layers->length;
+	export_arm_layer_job_t *layer_jobs = calloc(layer_cnt > 0 ? layer_cnt * 4 : 1, sizeof(export_arm_layer_job_t));
+	i32                     job_count  = 0;
+	u32                     max_size   = 0;
+	for (i32 i = 0; i < layer_cnt; ++i) {
 		slot_layer_t *l = g_project->_->layers->buffer[i];
 		layer_data_t *d =
 		    ALLOC_INIT(layer_data_t, {.name               = l->name,
 			                          .res                = l->texpaint != NULL ? l->texpaint->width : g_project->_->layers->buffer[0]->texpaint->width,
 			                          .bpp                = bpp,
-			                          .texpaint           = l->texpaint != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint)) : NULL,
 			                          .uv_scale           = l->scale,
 			                          .uv_rot             = l->angle,
 			                          .uv_type            = l->uv_type,
@@ -260,9 +371,6 @@ buffer_t *export_arm_encode_project(char *path) {
 			                          .blending           = l->blending,
 			                          .parent             = l->parent != NULL ? array_index_of(g_project->_->layers, l->parent) : -1,
 			                          .visible            = l->visible,
-			                          .texpaint_nor       = l->texpaint_nor != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_nor)) : NULL,
-			                          .texpaint_pack      = l->texpaint_pack != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_pack)) : NULL,
-			                          .texpaint_sculpt    = l->texpaint_sculpt != NULL ? lz4_encode(gpu_get_texture_pixels(l->texpaint_sculpt)) : NULL,
 			                          .paint_base         = l->paint_base,
 			                          .paint_opac         = l->paint_opac,
 			                          .paint_occ          = l->paint_occ,
@@ -282,8 +390,14 @@ buffer_t *export_arm_encode_project(char *path) {
 			                          .path_curved        = l->path_curved,
 			                          .path_text          = l->path_text,
 			                          .path_material      = l->path_material != NULL ? array_index_of(g_project->_->materials, l->path_material) : -1});
+		export_arm_push_layer_job(layer_jobs, &job_count, &max_size, l->texpaint, &d->texpaint);
+		export_arm_push_layer_job(layer_jobs, &job_count, &max_size, l->texpaint_nor, &d->texpaint_nor);
+		export_arm_push_layer_job(layer_jobs, &job_count, &max_size, l->texpaint_pack, &d->texpaint_pack);
+		export_arm_push_layer_job(layer_jobs, &job_count, &max_size, l->texpaint_sculpt, &d->texpaint_sculpt);
 		any_array_push(ld, d);
 	}
+	export_arm_encode_layer_textures(layer_jobs, job_count, max_size);
+	free(layer_jobs);
 
 	packed_asset_t_array_t *packed_assets = (g_project->packed_assets == NULL || g_project->packed_assets->length == 0) ? NULL : g_project->packed_assets;
 #ifdef IRON_IOS
@@ -382,11 +496,7 @@ buffer_t *export_arm_encode_project(char *path) {
 
 	tab_timeline_export(g_project);
 
-#ifdef IRON_BGRA
-	g_project->is_bgra = true;
-#else
 	g_project->is_bgra = false;
-#endif
 
 	bool pack_assets = g_context->pack_assets_on_save;
 #ifdef IRON_WASM
@@ -539,11 +649,7 @@ void export_arm_run_material(char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-#ifdef IRON_BGRA
-	buffer_t *buf = lz4_encode(buffer_bgra64_swap(gpu_get_texture_pixels(m->image)));
-#else
-	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(m->image));
-#endif
+	buffer_t         *buf    = lz4_encode(gpu_get_texture_pixels(m->image));
 	buffer_t_array_t *micons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,
@@ -574,9 +680,6 @@ void export_arm_run_material(char *path) {
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = buffer_half_to_u8(gpu_get_texture_pixels(m->image));
-#ifdef IRON_BGRA
-		buf = buffer_bgra_swap(buf);
-#endif
 		iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), buf, m->image->width, m->image->height, 0);
 		iron_write_jpg(string("%s_icon.jpg", substring(path, 0, string_length(path) - 4)), buf, m->image->width, m->image->height, 0, 50);
 	}
@@ -611,11 +714,7 @@ void export_arm_run_brush(char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-#ifdef IRON_BGRA
-	buffer_t *buf = lz4_encode(buffer_bgra_swap(gpu_get_texture_pixels(b->image)));
-#else
-	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(b->image));
-#endif
+	buffer_t         *buf    = lz4_encode(gpu_get_texture_pixels(b->image));
 	buffer_t_array_t *bicons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,
@@ -628,9 +727,6 @@ void export_arm_run_brush(char *path) {
 
 	if (g_context->write_icon_on_export) { // Separate icon files
 		buffer_t *buf = gpu_get_texture_pixels(b->image);
-#ifdef IRON_BGRA
-		buf = buffer_bgra_swap(buf);
-#endif
 		iron_write_png(string("%s_icon.png", substring(path, 0, string_length(path) - 4)), buf, b->image->width, b->image->height, 0);
 		iron_write_jpg(string("%s_icon.jpg", substring(path, 0, string_length(path) - 4)), buf, b->image->width, b->image->height, 0, 50);
 	}

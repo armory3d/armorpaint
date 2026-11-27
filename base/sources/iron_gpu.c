@@ -275,7 +275,7 @@ void gpu_pipeline_init(gpu_pipeline_t *pipe) {
 
 void gpu_create_framebuffers(int depth_buffer_bits) {
 	for (int i = 0; i < GPU_FRAMEBUFFER_COUNT; ++i) {
-		gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32, i);
+		gpu_render_target_init2(&framebuffers[i], iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER, i);
 	}
 	if (depth_buffer_bits > 0) {
 		gpu_render_target_init(&framebuffer_depth, iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_D32);
@@ -301,6 +301,13 @@ void gpu_set_pipeline(gpu_pipeline_t *pipeline) {
 	}
 	if (pipeline->impl.pipeline == NULL) {
 		return;
+	}
+	bool        pipeline_fb = pipeline->color_attachment[0] == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	bool        target_fb   = current_render_targets_count > 0 && current_render_targets[0]->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	static bool reported    = false;
+	if (gpu_in_use && pipeline_fb != target_fb && !reported) {
+		reported = true;
+		iron_error(target_fb ? "Pipeline without a framebuffer attachment bound to the framebuffer" : "Framebuffer pipeline bound to a render target");
 	}
 	gpu_set_pipeline_internal(pipeline);
 }
@@ -368,7 +375,7 @@ static gpu_raytrace_pipeline_t      rt_pipeline;
 static gpu_acceleration_structure_t rt_accel;
 static bool                         rt_created              = false;
 static bool                         rt_accel_created        = false;
-static const int                    rt_constant_buffer_size = 24;
+static const int                    rt_constant_buffer_size = 32;
 
 void _gpu_raytrace_init(buffer_t *shader) {
 	if (rt_created) {
@@ -473,14 +480,14 @@ void *gpu_bc7_compress(void *data, int width, int height) {
 	}
 	volatile int32_t    next_block = 0;
 	bc7_thread_params_t tp         = {
-	            .src          = (uint8_t *)data,
-	            .dst          = (uint8_t *)bc7_data,
-	            .width        = width,
-	            .height       = height,
-	            .blocks_x     = blocks_x,
-	            .total_blocks = blocks_x * blocks_y,
-	            .next_block   = &next_block,
-    };
+	    .src          = (uint8_t *)data,
+	    .dst          = (uint8_t *)bc7_data,
+	    .width        = width,
+	    .height       = height,
+	    .blocks_x     = blocks_x,
+	    .total_blocks = blocks_x * blocks_y,
+	    .next_block   = &next_block,
+	};
 	bc7enc_compress_block_params_init(&tp.params);
 	tp.params.m_max_partitions_mode = 0;
 	tp.params.m_try_least_squares   = false;

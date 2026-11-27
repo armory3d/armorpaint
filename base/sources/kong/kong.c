@@ -775,6 +775,9 @@ variable allocate_variable(type_ref type, variable_kind kind) {
 	return v;
 }
 
+// Invalidating cached name ids
+static uint32_t names_generation = 1;
+
 opcode *emit_op(opcodes *code, opcode *o) {
 	kong_assert(code->size + o->size < OPCODES_SIZE);
 
@@ -795,8 +798,21 @@ static bool is_component_wise(name_id func) {
 	static const char *names[] = {"abs",      "frac", "floor", "ceil", "round", "trunc", "sin",  "cos",  "tan",  "asin",       "acos",     "atan",
 	                              "atan2",    "sinh", "cosh",  "tanh", "exp",   "exp2",  "log",  "sign", "sqrt", "rsqrt",      "radians",  "degrees",
 	                              "saturate", "ddx",  "ddy",   "min",  "max",   "clamp", "step", "pow",  "lerp", "smoothstep", "normalize"};
-	for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
-		if (func == add_name((char *)names[i])) {
+	enum {
+		NAMES_COUNT = sizeof(names) / sizeof(names[0])
+	};
+
+	static name_id  ids[NAMES_COUNT];
+	static uint32_t ids_generation = 0;
+	if (ids_generation != names_generation) {
+		for (size_t i = 0; i < NAMES_COUNT; ++i) {
+			ids[i] = add_name((char *)names[i]);
+		}
+		ids_generation = names_generation;
+	}
+
+	for (size_t i = 0; i < NAMES_COUNT; ++i) {
+		if (func == ids[i]) {
 			return true;
 		}
 	}
@@ -1203,7 +1219,7 @@ variable emit_expression(opcodes *code, block *parent, expression *e) {
 		bool splat = is_component_wise(e->call.func_name) && is_vector(t.type);
 		for (size_t i = 0; i < e->call.parameters.size; ++i) {
 			o.op_call.parameters[i] = emit_expression(code, parent, e->call.parameters.e[i]);
-			if (splat && o.op_call.parameters[i].type.type == float_id) {
+			if (splat && !is_vector(o.op_call.parameters[i].type.type)) {
 				o.op_call.parameters[i] = emit_splat(code, o.op_call.parameters[i], t.type);
 			}
 		}
@@ -1915,6 +1931,17 @@ static void add_raytrace_funcs(void) {
 	add_func_types("geometry_texture2_size", "uint2", geometry, 1);
 }
 
+// Bit casts, and atomics on an element of a uint[] storage buffer: atomic_add(buffer, index, value) returns the old value
+static void add_compute_funcs(void) {
+	char *u[]      = {"uint"};
+	char *f[]      = {"float"};
+	char *atomic[] = {"uint", "uint", "uint"};
+	add_func_types("asfloat", "float", u, 1);
+	add_func_types("asuint", "uint", f, 1);
+	add_func_types("atomic_add", "uint", atomic, 3);
+	add_func_types("atomic_max", "uint", atomic, 3);
+}
+
 void functions_init(void) {
 	function     *new_functions = realloc(functions, functions_size * sizeof(function));
 	debug_context context       = {0};
@@ -2393,6 +2420,7 @@ void functions_init(void) {
 	add_func_float_float("ddy");
 	add_func_float3x3_float3x3("transpose");
 	add_raytrace_funcs();
+	add_compute_funcs();
 }
 
 static void grow_functions_if_needed(uint64_t size) {
@@ -2440,6 +2468,7 @@ global_id add_global(type_id type, attribute_list attributes, name_id name) {
 	globals[index].var_index  = 0;
 	globals[index].value.kind = GLOBAL_VALUE_NONE;
 	globals[index].attributes = attributes;
+	globals[index].format     = TEXTURE_FORMAT_NONE;
 	globals[index].sets_count = 0;
 	globals[index].usage      = 0;
 	globals_size += 1;
@@ -2453,6 +2482,7 @@ global_id add_global_with_value(type_id type, attribute_list attributes, name_id
 	globals[index].var_index  = 0;
 	globals[index].value      = value;
 	globals[index].attributes = attributes;
+	globals[index].format     = TEXTURE_FORMAT_NONE;
 	globals[index].sets_count = 0;
 	globals[index].usage      = 0;
 	globals_size += 1;
@@ -2491,6 +2521,7 @@ void names_init(void) {
 	names[0] = 0; // make NO_NAME a proper string
 
 	sh_new_arena(hash); // TODO: Get rid of this by using indices internally in the hash-map so it can survive grow_if_needed
+	names_generation += 1;
 }
 
 static void grow_names_if_needed(size_t size) {
@@ -2695,6 +2726,18 @@ static void add_resource_to_set(definition d) {
 	}
 }
 
+static texture_format parse_texture_format(state_t *state, name_id name) {
+	const char    *names[]   = {"rgba32", "rgba64", "rgba128", "r32"};
+	texture_format formats[] = {TEXTURE_FORMAT_RGBA32, TEXTURE_FORMAT_RGBA64, TEXTURE_FORMAT_RGBA128, TEXTURE_FORMAT_R32};
+	for (int i = 0; i < 4; ++i) {
+		if (strcmp(get_name(name), names[i]) == 0) {
+			return formats[i];
+		}
+	}
+	error(state->context, "Unknown texture format %s, expected rgba32, rgba64, rgba128 or r32", get_name(name));
+	return TEXTURE_FORMAT_NONE;
+}
+
 static double attribute_parameter_to_number(name_id parameter_name) {
 	type_id type = find_type_by_name(parameter_name);
 	if (type != NO_TYPE) {
@@ -2780,9 +2823,11 @@ static definition parse_definition(state_t *state) {
 		type_ref type = parse_type_ref(state);
 
 		// Texture formats, as in tex2d<rgba32>
+		texture_format format = TEXTURE_FORMAT_NONE;
 		if (current(state).kind == TOKEN_OPERATOR && current(state).op == OPERATOR_LESS) {
 			advance_state(state);
 			match_token(state, TOKEN_IDENTIFIER, "Expected an identifier");
+			format = parse_texture_format(state, current(state).identifier);
 			advance_state(state);
 
 			if (current(state).kind == TOKEN_LEFT_PAREN) {
@@ -2816,6 +2861,12 @@ static definition parse_definition(state_t *state) {
 		}
 
 		definition d = parse_global(state, attributes, type.unresolved.name, name);
+		if (format != TEXTURE_FORMAT_NONE) {
+			if (d.kind != DEFINITION_TEX2D) {
+				error(state->context, "Only a tex2d has a format");
+			}
+			get_global(d.global)->format = format;
+		}
 		add_resource_to_set(d);
 		return d;
 	}
@@ -3857,7 +3908,9 @@ void add_definition_to_set(descriptor_set *set, definition def) {
 
 	get_global(def.global)->sets[get_global(def.global)->sets_count] = set;
 	get_global(def.global)->sets_count += 1;
-	set->globals.globals[set->globals.size] = def.global;
+	set->globals.globals[set->globals.size]  = def.global;
+	set->globals.readable[set->globals.size] = false; // The set storage is reused when compiling several shaders in one process
+	set->globals.writable[set->globals.size] = false;
 	set->globals.size += 1;
 }
 
@@ -3919,8 +3972,12 @@ static void tokenizer_state_advance(debug_context *context, tokenizer_state *sta
 }
 
 static void tokenizer_buffer_init(tokenizer_buffer *buffer) {
+	static char *buf = NULL; // Reused by every tokenize call
+	if (buf == NULL) {
+		buf = (char *)malloc(1024 * 1024);
+	}
 	buffer->max_size     = 1024 * 1024;
-	buffer->buf          = (char *)malloc(buffer->max_size);
+	buffer->buf          = buf;
 	buffer->current_size = 0;
 	buffer->column = buffer->line = 0;
 }
@@ -3993,55 +4050,46 @@ static void tokens_add(tokens *tokens, token token) {
 	tokens->current_size += 1;
 }
 
+// Keywords are only compared against identifiers of their length
+static int keyword_kind(tokenizer_buffer *buffer) {
+#define KEYWORD(text, kind)          \
+	{                                \
+		text, sizeof(text) - 1, kind \
+	}
+	static const struct {
+		const char *text;
+		size_t      length;
+		int         kind;
+	} keywords[] = {
+	    KEYWORD("true", TOKEN_BOOLEAN),    KEYWORD("false", TOKEN_BOOLEAN), KEYWORD("if", TOKEN_IF),
+	    KEYWORD("else", TOKEN_ELSE),       KEYWORD("while", TOKEN_WHILE),   KEYWORD("do", TOKEN_DO),
+	    KEYWORD("for", TOKEN_FOR),         KEYWORD("in", TOKEN_IN),         KEYWORD("struct", TOKEN_STRUCT),
+	    KEYWORD("cbuffer", TOKEN_CBUFFER), KEYWORD("const", TOKEN_CONST),   KEYWORD("return", TOKEN_RETURN),
+	    KEYWORD("discard", TOKEN_DISCARD), KEYWORD("break", TOKEN_BREAK),   KEYWORD("continue", TOKEN_CONTINUE),
+	};
+#undef KEYWORD
+	size_t length = buffer->current_size;
+	if (length < 2 || length > 8) {
+		return TOKEN_IDENTIFIER;
+	}
+	for (size_t i = 0; i < sizeof(keywords) / sizeof(keywords[0]); ++i) {
+		if (keywords[i].length == length && memcmp(buffer->buf, keywords[i].text, length) == 0) {
+			return keywords[i].kind;
+		}
+	}
+	return TOKEN_IDENTIFIER;
+}
+
 static void tokens_add_identifier(tokenizer_state *state, tokens *tokens, tokenizer_buffer *buffer) {
 	token token;
 
-	if (tokenizer_buffer_equals(buffer, "true")) {
+	int kind = keyword_kind(buffer);
+	if (kind == TOKEN_BOOLEAN) {
 		token         = token_create(TOKEN_BOOLEAN, state);
-		token.boolean = true;
+		token.boolean = buffer->buf[0] == 't';
 	}
-	else if (tokenizer_buffer_equals(buffer, "false")) {
-		token         = token_create(TOKEN_BOOLEAN, state);
-		token.boolean = false;
-	}
-	else if (tokenizer_buffer_equals(buffer, "if")) {
-		token = token_create(TOKEN_IF, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "else")) {
-		token = token_create(TOKEN_ELSE, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "while")) {
-		token = token_create(TOKEN_WHILE, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "do")) {
-		token = token_create(TOKEN_DO, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "for")) {
-		token = token_create(TOKEN_FOR, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "in")) {
-		token = token_create(TOKEN_IN, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "struct")) {
-		token = token_create(TOKEN_STRUCT, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "cbuffer")) {
-		token = token_create(TOKEN_CBUFFER, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "const")) {
-		token = token_create(TOKEN_CONST, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "return")) {
-		token = token_create(TOKEN_RETURN, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "discard")) {
-		token = token_create(TOKEN_DISCARD, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "break")) {
-		token = token_create(TOKEN_BREAK, state);
-	}
-	else if (tokenizer_buffer_equals(buffer, "continue")) {
-		token = token_create(TOKEN_CONTINUE, state);
+	else if (kind != TOKEN_IDENTIFIER) {
+		token = token_create(kind, state);
 	}
 	else {
 		token            = token_create(TOKEN_IDENTIFIER, state);
@@ -4091,7 +4139,6 @@ tokens tokenize(const char *filename, const char *source) {
 			}
 
 			tokens_add(&tokens, token_create(TOKEN_NONE, &state));
-			free(buffer.buf);
 			return tokens;
 		}
 		else {
@@ -4424,17 +4471,17 @@ void transform(uint32_t flags) {
 						            .to               = from,
 						            .access_list_size = 1,
 						            .access_list      = {{
-						                     .type = from_base_type,
-						                     .kind = ACCESS_SWIZZLE,
-						                     .access_swizzle =
-                                            {
-						                             .swizzle =
-                                                    {
-						                                     .size    = 1,
-						                                     .indices = {swizzle_index},
-                                                    },
-                                            },
-                                    }},
+						                .type = from_base_type,
+						                .kind = ACCESS_SWIZZLE,
+						                .access_swizzle =
+						                    {
+						                        .swizzle =
+						                            {
+						                                .size    = 1,
+						                                .indices = {swizzle_index},
+						                            },
+						                    },
+						            }},
 						        },
 						};
 						from_opcode.size = OP_SIZE(from_opcode, op_load_access_list);
@@ -5358,6 +5405,22 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 					size = vector_size(t);
 				}
 			}
+
+			// min, max, clamp and abs of integers stay integers
+			type_id integer = NO_TYPE;
+			if (e->call.func_name == add_name("min") || e->call.func_name == add_name("max") || e->call.func_name == add_name("clamp") ||
+			    e->call.func_name == add_name("abs")) {
+				for (size_t i = 0; i < e->call.parameters.size; ++i) {
+					type_id t    = e->call.parameters.e[i]->type.type;
+					type_id base = is_vector_or_scalar(t) ? vector_base_type(t) : NO_TYPE;
+					if ((base != int_id && base != uint_id) || (i > 0 && base != integer)) {
+						integer = NO_TYPE;
+						break;
+					}
+					integer = base;
+				}
+			}
+
 			for (size_t i = 0; i < e->call.parameters.size; ++i) {
 				expression *p = e->call.parameters.e[i];
 				type_id     t = p->type.type;
@@ -5366,12 +5429,15 @@ void resolve_types_in_expression(statement *parent, expression *e) {
 					error(context, "Parameter %zu of %s has type %s, expected a scalar or a vector of size %u", i, get_name(e->call.func_name),
 					      t == NO_TYPE ? "unknown" : get_name(get_type(t)->name), size);
 				}
+				if (integer != NO_TYPE) {
+					continue;
+				}
 				type_ref to;
 				init_type_ref(&to, NO_NAME);
 				to.type = vector_to_size(float_id, vector_size(t));
 				convert_to_float(p, to);
 			}
-			e->type.type = vector_to_size(float_id, size);
+			e->type.type = vector_to_size(integer != NO_TYPE ? integer : float_id, size);
 			break;
 		}
 
@@ -5429,7 +5495,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 			type_id return_type = resolve_types_function->return_type.type;
 			type_id value_type  = s->expression->type.type;
 			bool    mismatch    = !types_compatible(value_type, return_type) ||
-			                (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
+			                      (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
 			if (value_type != NO_TYPE && return_type != NO_TYPE && mismatch) {
 				debug_context context = {0};
 				error(context, "Return type mismatch %s vs %s in %s", get_name(get_type(value_type)->name), get_name(get_type(return_type)->name),
@@ -6050,7 +6116,6 @@ struct {
 }   *_hash;
 int  _expression_index;
 int  _statement_index;
-void hlsl_export2(char **vs, char **fs, api_kind d3d, bool debug);
 void spirv_export2(char **vs, char **fs, int *vs_size, int *fs_size, bool debug);
 void wgsl_export2(char **vs, char **fs);
 void console_info(char *s);
@@ -6077,7 +6142,7 @@ static struct {
 	return clone;
 }
 
-void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size, int *fs_size) {
+void kong_reset(void) {
 	static bool first = true;
 	if (first) {
 		first = false;
@@ -6124,7 +6189,12 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 		hash             = _clone_hash(_hash);
 		expression_index = _expression_index;
 		statement_index  = _statement_index;
+		names_generation += 1;
 	}
+}
+
+void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size, int *fs_size) {
+	kong_reset();
 
 	kong_error = false;
 #ifdef IRON_WASM
@@ -6163,11 +6233,7 @@ void gpu_create_shaders_from_kong(char *kong, char **vs, char **fs, int *vs_size
 	analyze();
 	KONG_CHECK_ERROR();
 
-#ifdef _WIN32
-
-	hlsl_export2(vs, fs, API_DIRECT3D11, false);
-
-#elif defined(__APPLE__)
+#if defined(__APPLE__)
 
 	static char vs_temp[1024 * 128];
 	strcpy(vs_temp, "//>vert\n");

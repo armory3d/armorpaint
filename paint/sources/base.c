@@ -67,17 +67,33 @@ void base_material_dropped_export(char *path) {
 	tab_browser_refresh = true;
 }
 
+bool base_is_dragging_material() {
+	// Exported materials carry an RGBA64 icon in the browser
+	return base_drag_material != NULL || (base_drag_file != NULL && path_has_ext(base_drag_file, "arm") && base_drag_file_icon != NULL &&
+	                                      base_drag_file_icon->format == GPU_TEXTURE_FORMAT_RGBA64);
+}
+
+mesh_object_t *base_material_drop_object() {
+	if (g_project->_->paint_objects->length <= 1 || g_context->layer_filter != 0 || !context_in_3d_view()) {
+		return NULL;
+	}
+	return util_render_pick_object();
+}
+
 void base_material_dropped() {
 	// Material drag and dropped onto viewport or layers tab
 	if (context_in_3d_view()) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, -1);
+		// Dropped onto a mesh of a multi mesh project, fill only that mesh
+		mesh_object_t *o           = base_material_drop_object();
+		i32            object_mask = o != NULL ? array_index_of(g_project->_->paint_objects, o) + 1 : -1;
+		layers_create_fill_layer(uv_type, decal_mat, -1, object_mask);
 	}
 	if (context_in_layers() && tab_layers_can_drop_new_layer(g_context->drag_dest)) {
 		uv_type_t uv_type   = keyboard_down("control") ? UV_TYPE_PROJECT : UV_TYPE_UVMAP;
 		mat4_t    decal_mat = uv_type == UV_TYPE_PROJECT ? util_render_get_decal_mat() : mat4_nan();
-		layers_create_fill_layer(uv_type, decal_mat, g_context->drag_dest);
+		layers_create_fill_layer(uv_type, decal_mat, g_context->drag_dest, -1);
 	}
 	else if (context_in_nodes()) {
 		ui_nodes_accept_material_drop(array_index_of(g_project->_->materials, base_drag_material));
@@ -204,7 +220,6 @@ void base_init_undo_layers() {
 			slot_layer_t *l   = slot_layer_create_undo(ext);
 			any_array_push(history_undo_layers, l);
 		}
-		slot_layer_alloc_textures(history_undo_layers->buffer[history_undo_i]);
 	}
 }
 
@@ -464,6 +479,7 @@ void base_update(void *_) {
 	}
 	else if (g_context->frame == 3) {
 		g_context->ddirty = 3;
+		render_path_paint_dilate_init();
 	}
 
 	g_context->frame++;
@@ -878,7 +894,7 @@ string_array_t *base_combo_enum_texts(char *node_type) {
 		return &texts;
 	}
 
-	if (string_equals(node_type, "MESH_OBJECT")) {
+	if (string_equals(node_type, "MESH_OBJECT") || string_equals(node_type, "MESH_SCATTER")) {
 		for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 			string_array_push(&texts, g_project->_->paint_objects->buffer[i]->base->name);
 		}

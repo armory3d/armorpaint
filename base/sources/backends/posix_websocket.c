@@ -165,7 +165,7 @@ static bool handshake(websocket_t *ws) {
 	char request[1024];
 	int  len = snprintf(request, sizeof(request),
 	                    "GET /%s HTTP/1.1\r\nHost: %s%s%.0d\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-	                     "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
+	                    "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n",
 	                    ws->path, ws->host, default_port ? "" : ":", default_port ? 0 : ws->port);
 	if (len >= (int)sizeof(request) || !write_all(ws, request, len)) {
 		return false;

@@ -167,7 +167,7 @@ void viewport_capture_video_frame() {
 	i32            x         = math_min(sys_x(), frame->width - w);
 	i32            y         = math_min(sys_y(), frame->height - h);
 	draw_begin(NULL, false, 0);
-	draw_set_pipeline(pipes_copy);
+	draw_set_pipeline(pipes_copy_fb);
 	draw_scaled_sub_image(frame, x, y, w, h, x, y, w, h);
 	draw_set_pipeline(NULL);
 	draw_end();
@@ -240,7 +240,7 @@ void viewport_capture_video_begin() {
 	viewport_video_w     = sys_w();
 	viewport_video_h     = sys_h();
 	viewport_video_start = iron_time();
-	viewport_video_frame = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_RGBA32);
+	viewport_video_frame = gpu_create_render_target(iron_window_width(), iron_window_height(), GPU_TEXTURE_FORMAT_FRAMEBUFFER);
 
 	// Keep post effects that change every frame out of the video
 	viewport_video_vignette = g_config->rp_vignette;

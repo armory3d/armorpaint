@@ -11,6 +11,8 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <stdio.h>
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_win32.h>
 
 void iron_microsoft_format(const char *format, va_list args, wchar_t *buffer) {
 	char cbuffer[4096];
@@ -745,6 +747,13 @@ bool iron_internal_handle_messages() {
 		TranslateMessage(&message);
 		DispatchMessageW(&message);
 	}
+	while (iron_windows_window_handle() != NULL && IsIconic(iron_windows_window_handle())) {
+		WaitMessage();
+		while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&message);
+			DispatchMessageW(&message);
+		}
+	}
 #ifdef WITH_GAMEPAD
 	iron_gamepad_handle_messages();
 #endif
@@ -1242,6 +1251,23 @@ int iron_window_display() {
 
 struct HWND__ *iron_windows_window_handle() {
 	return windows[0].handle;
+}
+
+void iron_vulkan_get_instance_extensions(const char **names, int *index) {
+	names[(*index)++] = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+}
+
+VkBool32 iron_vulkan_get_physical_device_presentation_support(VkPhysicalDevice physical_device, uint32_t queue_family_index) {
+	return vkGetPhysicalDeviceWin32PresentationSupportKHR(physical_device, queue_family_index);
+}
+
+VkResult iron_vulkan_create_surface(VkInstance instance, VkSurfaceKHR *surface) {
+	VkWin32SurfaceCreateInfoKHR info = {
+	    .sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+	    .hinstance = GetModuleHandleW(NULL),
+	    .hwnd      = windows[0].handle,
+	};
+	return vkCreateWin32SurfaceKHR(instance, &info, NULL, surface);
 }
 
 void iron_internal_call_resize_callback(int width, int height) {

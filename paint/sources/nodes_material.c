@@ -35,6 +35,8 @@ void nodes_material_init() {
 	image_texture_node_init();
 	magic_texture_node_init();
 	noise_texture_node_init();
+	sky_texture_node_init();
+	terrain_node_init();
 	text_texture_node_init();
 	voronoi_texture_node_init();
 	wave_texture_node_init();

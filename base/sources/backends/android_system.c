@@ -951,9 +951,9 @@ const char *iron_language() {
 	JNIEnv *env;
 	(*activity->vm)->AttachCurrentThread(activity->vm, &env, NULL);
 	jclass      ironActivityClass = iron_android_find_class(env, "org.armory3d.IronActivity");
-	jstring     s                 = (jstring)(*env)->CallStaticObjectMethod(env, ironActivityClass,
-	                                                                        (*env)->GetStaticMethodID(env, ironActivityClass, "getLanguage", "()Ljava/lang/String;"));
-	const char *str               = (*env)->GetStringUTFChars(env, s, 0);
+	jstring     s   = (jstring)(*env)->CallStaticObjectMethod(env, ironActivityClass,
+	                                                          (*env)->GetStaticMethodID(env, ironActivityClass, "getLanguage", "()Ljava/lang/String;"));
+	const char *str = (*env)->GetStringUTFChars(env, s, 0);
 	(*activity->vm)->DetachCurrentThread(activity->vm);
 	return str;
 }

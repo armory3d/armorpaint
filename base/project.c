@@ -16,14 +16,14 @@ project_t *main() {
 		add_cfiles(project, "sources/backends/windows_system.*");
 		add_cfiles(project, "sources/backends/windows_net.*");
 		add_cfiles(project, "sources/backends/windows_thread.*");
-		add_cfiles(project, "sources/backends/direct3d12_gpu.*");
+		add_cfiles(project, "sources/backends/vulkan_gpu.*");
 		add_define(project, "_CRT_SECURE_NO_WARNINGS");
 		add_define(project, "_WINSOCK_DEPRECATED_NO_WARNINGS");
-		add_define(project, "IRON_DIRECT3D12");
-		add_lib(project, "dxguid");
+		add_define(project, "IRON_VULKAN");
+		add_define(project, "VK_USE_PLATFORM_WIN32_KHR");
+		add_include_dir(project, "$(VULKAN_SDK)/Include"); // https://vulkan.lunarg.com/sdk/home
+		add_lib(project, "$(VULKAN_SDK)/Lib/vulkan-1");
 		add_lib(project, "Winhttp");
-		add_lib(project, "dxgi");
-		add_lib(project, "d3d12");
 		add_lib(project, "Dwmapi"); // DWMWA_USE_IMMERSIVE_DARK_MODE
 		if (flags->with_audio) {
 			add_lib(project, "dsound");
@@ -31,11 +31,6 @@ project_t *main() {
 		}
 		if (flags->with_gamepad) {
 			add_lib(project, "dinput8");
-		}
-		if (flags->with_d3dcompiler) {
-			add_define(project, "WITH_D3DCOMPILER");
-			add_lib(project, "d3d11");
-			add_lib(project, "d3dcompiler");
 		}
 	}
 	else if (platform == PLATFORM_LINUX) {
@@ -155,10 +150,6 @@ project_t *main() {
 		add_assets(project, "sources/backends/data/wasm/*", NULL, 0);
 	}
 
-	if (graphics == GRAPHICS_METAL || (graphics == GRAPHICS_VULKAN && platform != PLATFORM_ANDROID)) {
-		add_define(project, "IRON_BGRA");
-	}
-
 	if (flags->with_kong) {
 		add_define(project, "WITH_KONG");
 		add_cfiles(project, "sources/kong/dir.c");
@@ -166,10 +157,8 @@ project_t *main() {
 		add_cfiles(project, "sources/kong/kong_cstyle.c");
 		add_cfiles(project, "sources/kong/stb_ds.c");
 		add_cfiles(project, "sources/kong/kong_spirv.c");
+		add_cfiles(project, "sources/kong/kong_spirv_opt.c");
 		add_cfiles(project, "sources/kong/kong_wgsl.c");
-		if (platform == PLATFORM_WINDOWS) {
-			add_cfiles(project, "sources/kong/kong_hlsl.c");
-		}
 		if (platform == PLATFORM_MACOS || platform == PLATFORM_IOS) {
 			add_cfiles(project, "sources/kong/kong_metal.c");
 		}
@@ -188,23 +177,19 @@ project_t *main() {
 
 	if (flags->with_physics) {
 		add_define(project, "WITH_PHYSICS");
+		add_shader(project, "shaders/compute/gpu_sim.shader", "gpu_sim", graphics == GRAPHICS_WEBGPU ? "_QUEUE_AHEAD" : "");
 	}
 
 	if (flags->with_raytrace) {
 		add_define(project, "WITH_RAYTRACE");
 		add_assets(project, "assets/raytrace/*", "data/{name}", 0);
-		if (graphics == GRAPHICS_DIRECT3D12) {
-			add_assets(project, "shaders/raytrace/*.cso", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_VULKAN) {
-			add_assets(project, "shaders/raytrace/*.spirv", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_METAL) {
-			add_assets(project, "shaders/raytrace/*.metal", "data/{name}", 0);
-		}
-		else if (graphics == GRAPHICS_WEBGPU) {
-			add_assets(project, "shaders/raytrace/*.wgsl", "data/{name}", 0);
-		}
+		char *low = graphics == GRAPHICS_VULKAN ? "" : "_LOW_SAMPLES";
+		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_core", low);
+		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_full", string("%s _FULL", low));
+		add_shader(project, "shaders/raytrace/raytrace_bake_ao.shader", "raytrace_bake_ao", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_light.shader", "raytrace_bake_light", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_bent.shader", "raytrace_bake_bent", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_thick.shader", "raytrace_bake_thick", low);
 	}
 
 	if (flags->export_version_info) {
@@ -244,6 +229,9 @@ project_t *main() {
 	if (flags->with_bc7) {
 		add_define(project, "WITH_BC7");
 		add_cfiles(project, "sources/libs/bc7enc.c");
+		if (graphics != GRAPHICS_WEBGPU) {
+			add_shader(project, "shaders/compute/gpu_bc7.shader", "gpu_bc7", "");
+		}
 	}
 
 	if (flags->with_gamepad) {
@@ -296,9 +284,7 @@ project_t *main() {
 			add_include_dir(project, "/usr/lib64/glib-2.0/include");
 			add_include_dir(project, "/usr/lib/glib-2.0/include");
 			add_include_dir(project, "/usr/include/harfbuzz");
-			add_lib(project, "gtk-3");
-			add_lib(project, "gobject-2.0");
-			add_lib(project, "glib-2.0");
+			add_lib(project, "dl"); // gtk-3 is loaded at runtime, see nfd_gtk.h
 		}
 		else if (platform == PLATFORM_MACOS) {
 			add_cfiles(project, "sources/libs/nfd.m");

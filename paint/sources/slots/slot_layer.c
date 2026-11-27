@@ -9,7 +9,7 @@ void slot_layer_alloc_textures(slot_layer_t *raw) {
 	}
 
 	char *ext    = raw->ext;
-	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+	char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 
 	{
 		render_target_t *t = render_target_create();
@@ -345,7 +345,7 @@ static slot_layer_t *slot_layer_copy(slot_layer_t *raw) {
 	                                    raw->parent);
 
 	if (slot_layer_is_layer(raw)) {
-		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64;
 		draw_begin(l->texpaint, false, 0);
 		draw_set_pipeline(pipe);
 		draw_image(raw->texpaint, 0, 0);
@@ -462,11 +462,9 @@ void slot_layer_resize_and_set_bits(slot_layer_t *raw) {
 	any_map_t *rts   = render_path_render_targets;
 
 	if (slot_layer_is_layer(raw)) {
-		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8    ? GPU_TEXTURE_FORMAT_RGBA32
-		                              : base_bits == TEXTURE_BITS_BITS16 ? GPU_TEXTURE_FORMAT_RGBA64
-		                                                                 : GPU_TEXTURE_FORMAT_RGBA128;
+		gpu_texture_format_t format = base_bits == TEXTURE_BITS_BITS8 ? GPU_TEXTURE_FORMAT_RGBA32 : GPU_TEXTURE_FORMAT_RGBA64;
 
-		gpu_pipeline_t *pipe = format == GPU_TEXTURE_FORMAT_RGBA32 ? pipes_copy : format == GPU_TEXTURE_FORMAT_RGBA64 ? pipes_copy64 : pipes_copy128;
+		gpu_pipeline_t *pipe = format == GPU_TEXTURE_FORMAT_RGBA32 ? pipes_copy : pipes_copy64;
 
 		gpu_texture_t *_texpaint = raw->texpaint;
 		raw->texpaint            = gpu_create_render_target(res_x, res_y, format);

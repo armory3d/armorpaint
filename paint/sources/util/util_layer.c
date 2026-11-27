@@ -10,6 +10,7 @@ i32 layers_max_layers = 255;
 uv_type_t _layers_uv_type;
 mat4_t    _layers_decal_mat;
 i32       _layers_position;
+i32       _layers_object_mask;
 i32       _layers_base_color;
 f32       _layers_occlusion;
 f32       _layers_roughness;
@@ -195,7 +196,7 @@ void layers_make_temp_img() {
 	}
 
 	if (layers_temp_image == NULL) {
-		char            *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char            *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 		render_target_t *t      = render_target_create();
 		t->name                 = "temptex0";
 		t->width                = l->texpaint->width;
@@ -238,7 +239,7 @@ void layers_make_export_img() {
 		map_delete(render_path_render_targets, "expc");
 	}
 	if (layers_expa == NULL) {
-		char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : base_bits == TEXTURE_BITS_BITS16 ? "RGBA64" : "RGBA128";
+		char *format = base_bits == TEXTURE_BITS_BITS8 ? "RGBA32" : "RGBA64";
 		{
 			render_target_t *t  = render_target_create();
 			t->name             = "expa";
@@ -316,7 +317,7 @@ bool layers_is_fill_material() {
 	return false;
 }
 
-void layers_update_fill_layers() {
+static void layers_update_fill_layers_internal(bool reparse_paint, bool dilate) {
 	if (bake_texture_node_baking)
 		return;
 
@@ -335,6 +336,9 @@ void layers_update_fill_layers() {
 		if (in_use)
 			draw_end();
 
+		if (!reparse_paint) {
+			make_material_save_paint_material();
+		}
 		g_context->tool      = TOOL_TYPE_FILL;
 		g_context->fill_type = FILL_TYPE_OBJECT;
 		render_path_paint_set_plane_mesh();
@@ -342,13 +346,19 @@ void layers_update_fill_layers() {
 		g_context->pdirty = 1;
 		render_path_paint_use_live_layer(true);
 		render_path_paint_commands_paint(false);
-		render_path_paint_dilate(true, true);
+		if (dilate)
+			render_path_paint_dilate(true, true);
 		render_path_paint_use_live_layer(false);
 		g_context->tool      = _tool;
 		g_context->fill_type = _fill_type;
 		g_context->pdirty    = 0;
 		render_path_paint_restore_plane_mesh();
-		make_material_parse_paint_material(true);
+		if (reparse_paint) {
+			make_material_parse_paint_material(true);
+		}
+		else {
+			make_material_restore_paint_material();
+		}
 		ui_view2d_hwnd->redraws = 2;
 
 		if (in_use)
@@ -376,6 +386,9 @@ void layers_update_fill_layers() {
 		bool in_use = gpu_in_use;
 		if (in_use)
 			draw_end();
+		if (!reparse_paint) {
+			make_material_save_paint_material();
+		}
 		g_context->pdirty    = 1;
 		g_context->tool      = TOOL_TYPE_FILL;
 		g_context->fill_type = FILL_TYPE_OBJECT;
@@ -403,8 +416,10 @@ void layers_update_fill_layers() {
 					else {
 						slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 						render_path_paint_commands_paint(false);
-						render_path_paint_dilate(true, true);
+						if (dilate)
+							render_path_paint_dilate(true, true);
 					}
+					nodes_mesh_layer_changed(l); // Displace mesh nodes reading the layer
 				}
 			}
 		}
@@ -421,7 +436,8 @@ void layers_update_fill_layers() {
 					layers_set_object_mask();
 					slot_layer_clear(l, 0x00000000, NULL, 1.0, layers_default_rough, 0.0);
 					render_path_paint_commands_paint(false);
-					render_path_paint_dilate(true, true);
+					if (dilate)
+						render_path_paint_dilate(true, true);
 				}
 			}
 		}
@@ -435,8 +451,25 @@ void layers_update_fill_layers() {
 		layers_set_object_mask();
 		g_context->tool      = _tool;
 		g_context->fill_type = _fill_type;
-		make_material_parse_paint_material(false);
+		if (reparse_paint) {
+			make_material_parse_paint_material(false);
+		}
+		else {
+			make_material_restore_paint_material();
+		}
 	}
+}
+
+void layers_update_fill_layers() {
+	layers_update_fill_layers_internal(true, true);
+}
+
+void layers_update_fill_layers_keep_paint() {
+	layers_update_fill_layers_internal(false, true);
+}
+
+void layers_update_fill_layers_live() {
+	layers_update_fill_layers_internal(false, false);
 }
 
 bool layers_is_path_material() {
@@ -495,6 +528,7 @@ void layers_update_fill_layer(bool parse_paint) {
 		render_path_paint_commands_paint(false);
 		render_path_paint_dilate(true, true);
 	}
+	nodes_mesh_layer_changed(g_context->layer);
 
 	g_context->tool      = _tool;
 	g_context->fill_type = _fill_type;
@@ -816,7 +850,11 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	if (!mat4_isnan(_layers_decal_mat)) {
 		l->decal_mat = _layers_decal_mat;
 	}
-	l->object_mask = g_context->layer_filter;
+	if (_layers_object_mask >= 0 && _layers_object_mask != l->object_mask) {
+		l->object_mask = _layers_object_mask;
+		layers_set_object_mask();
+		make_material_parse_mesh_material();
+	}
 
 	if (g_config->tools == TOOLS_SCULPT) {
 		sculpt_init();
@@ -827,10 +865,12 @@ void layers_create_fill_layer_on_next_frame(void *_) {
 	slot_layer_to_fill_layer(l);
 }
 
-void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position) {
-	_layers_uv_type   = uv_type;
-	_layers_decal_mat = decal_mat;
-	_layers_position  = position;
+// object_mask -1 keeps the layer filter
+void layers_create_fill_layer(uv_type_t uv_type, mat4_t decal_mat, i32 position, i32 object_mask) {
+	_layers_uv_type     = uv_type;
+	_layers_decal_mat   = decal_mat;
+	_layers_position    = position;
+	_layers_object_mask = object_mask;
 	sys_notify_on_next_frame(&layers_create_fill_layer_on_next_frame, NULL);
 }
 
@@ -961,7 +1001,7 @@ static void layers_bake_opacity(slot_layer_t *l) {
 	if (l->mask_opacity < 1.0 && slot_layer_is_mask(l)) {
 		layers_make_temp_img();
 		draw_begin(layers_temp_image, false, 0);
-		draw_set_pipeline(pipes_copy);
+		draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 		draw_image(l->texpaint, 0, 0);
 		draw_set_pipeline(NULL);
 		draw_end();
@@ -1091,7 +1131,7 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 	layers_make_temp_img();
 
 	draw_begin(layers_temp_image, false, 0); // Copy to temp
-	draw_set_pipeline(pipes_copy);
+	draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 	draw_image(l0->texpaint, 0, 0);
 	draw_set_pipeline(NULL);
 	draw_end();
@@ -1134,7 +1174,7 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 	if (slot_layer_is_layer(l1)) {
 		gpu_texture_t *weight = gpu_create_render_target(l0->texpaint->width, l0->texpaint->height, l0->texpaint->format);
 		_gpu_begin(weight, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		gpu_set_pipeline(pipes_merge);
+		gpu_set_pipeline(pipes_get_merge());
 		gpu_set_texture(pipes_tex0, l1->texpaint);
 		gpu_set_texture(pipes_tex1, empty);
 		gpu_set_texture(pipes_texmask, mask);
@@ -1149,7 +1189,7 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 
 		if (l1->paint_base) {
 			_gpu_begin(l0->texpaint, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(pipes_merge);
+			gpu_set_pipeline(pipes_get_merge());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
@@ -1165,14 +1205,14 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 
 		if (l0->texpaint_nor != NULL) {
 			draw_begin(layers_temp_image, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			draw_image(l0->texpaint_nor, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
 
 			if (l1->paint_nor) {
 				_gpu_begin(l0->texpaint_nor, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-				gpu_set_pipeline(pipes_merge);
+				gpu_set_pipeline(pipes_get_merge());
 				gpu_set_texture(pipes_tex0, weight);
 				gpu_set_texture(pipes_tex1, l1->texpaint_nor);
 				gpu_set_texture(pipes_texmask, empty);
@@ -1189,14 +1229,14 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 
 		if (l0->texpaint_pack != NULL) {
 			draw_begin(layers_temp_image, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			draw_image(l0->texpaint_pack, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
 
 			if (l1->paint_occ || l1->paint_rough || l1->paint_met || l1->paint_height) {
 				if (l1->paint_occ && l1->paint_rough && l1->paint_met && l1->paint_height) {
-					layers_commands_merge_pack(pipes_merge, l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, l1->paint_height_blend ? 107 : 101);
+					layers_commands_merge_pack(pipes_get_merge(), l0->texpaint_pack, weight, l1->texpaint_pack, 1.0, empty, l1->paint_height_blend ? 107 : 101);
 				}
 				else {
 					if (l1->paint_occ) {
@@ -1217,14 +1257,22 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 }
 
 void layers_draw_mesh_materials() {
-	bool any = false;
+	bool any_uv = false;
+	bool any_3d = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		if (tab_meshes_get_override(g_project->_->paint_objects->buffer[i]) >= 0) {
-			any = true;
-			break;
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (!o->base->visible || make_material_is_default(o->material) || o->material->contexts->length <= 1 || o->material->contexts->buffer[1] == NULL) {
+			continue;
+		}
+		shader_context_t *scon = o->material->contexts->buffer[1];
+		if (scon->depth_attachment != NULL) {
+			any_3d = true;
+		}
+		else {
+			any_uv = true;
 		}
 	}
-	if (!any) {
+	if (!any_uv && !any_3d) {
 		return;
 	}
 
@@ -1235,10 +1283,20 @@ void layers_draw_mesh_materials() {
 	        "texpaint_blend0",
 	    },
 	    3);
-	render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	render_path_bind_target("main", "gbufferD");
-	render_path_bind_target("texpaint_blend1", "paintmask");
-	render_path_base_draw_overrides(NULL);
+	if (any_uv) {
+		render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_bind_target("main", "gbufferD");
+		render_path_bind_target("texpaint_blend1", "paintmask");
+		render_path_base_draw_overrides(NULL, false);
+	}
+	if (any_3d) {
+		char *depth = render_path_raytrace_override_depth(config_get_texture_res_x(), config_get_texture_res_y());
+		render_path_set_target("expa", additional, depth, GPU_CLEAR_DEPTH, 0, 1.0);
+		render_path_bind_target("main", "gbufferD");
+		render_path_bind_target("texpaint_blend1", "paintmask");
+		render_path_base_draw_overrides(NULL, true);
+	}
+	array_delete(additional);
 }
 
 static gpu_texture_t *layers_udim_a    = NULL;
@@ -1263,7 +1321,7 @@ static gpu_texture_t *_layers_udim_copy(gpu_texture_t **target, gpu_texture_t *s
 	f32            cx     = (slot % stride) / (f32)stride;
 	f32            cy     = (slot / stride) / (f32)stride;
 	draw_begin(dst, true, 0x00000000);
-	draw_set_pipeline(pipes_copy);
+	draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 	if (to_tile) {
 		draw_scaled_sub_image(src, cx * src->width, cy * src->height, src->width / (f32)stride, src->height / (f32)stride, 0, 0, dst->width, dst->height);
 	}
@@ -1325,7 +1383,7 @@ static slot_layer_t *layers_move_preview(slot_layer_t *l) {
 		moved.texpaint = _layers_move_copy(&layers_move_mask, l->texpaint, pipes_copy8, dx, dy);
 	}
 	else {
-		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : base_bits == TEXTURE_BITS_BITS16 ? pipes_copy64 : pipes_copy128;
+		gpu_pipeline_t *pipe = base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64;
 		moved.texpaint       = _layers_move_copy(&layers_move_a, l->texpaint, pipe, dx, dy);
 		moved.texpaint_nor   = _layers_move_copy(&layers_move_b, l->texpaint_nor, pipe, dx, dy);
 		moved.texpaint_pack  = _layers_move_copy(&layers_move_c, l->texpaint_pack, pipe, dx, dy);
@@ -1387,7 +1445,7 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 		// Opacity still counts without the base color channel, the path tracer and export read the alpha as opacity
 		if (l1->paint_base || l1->paint_opac) {
 			draw_begin(layers_temp_image, false, 0); // Copy to temp
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			draw_image(layers_expa, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
@@ -1395,14 +1453,14 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 			// if (g_context->tool == TOOL_TYPE_CURSOR) {
 			// 	// Do not multiply basecol by alpha
 			// 	draw_begin(layers_expa, false, 0); // Copy to temp
-			// 	draw_set_pipeline(pipes_copy);
+			// 	draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			// 	draw_image(l1->texpaint, 0, 0);
 			// 	draw_set_pipeline(NULL);
 			// 	draw_end();
 			// }
 			// else {
 			_gpu_begin(layers_expa, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(l1->paint_base ? pipes_merge : pipes_get_merge_a());
+			gpu_set_pipeline(l1->paint_base ? pipes_get_merge() : pipes_get_merge_a());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, empty);
 			gpu_set_texture(pipes_texmask, mask);
@@ -1419,13 +1477,13 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 
 		if (l1->paint_nor) {
 			draw_begin(layers_temp_image, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			draw_image(layers_expb, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
 
 			_gpu_begin(layers_expb, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-			gpu_set_pipeline(pipes_merge);
+			gpu_set_pipeline(pipes_get_merge());
 			gpu_set_texture(pipes_tex0, l1->texpaint);
 			gpu_set_texture(pipes_tex1, l1->texpaint_nor);
 			gpu_set_texture(pipes_texmask, mask);
@@ -1441,13 +1499,13 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 
 		if (l1->paint_occ || l1->paint_rough || l1->paint_met || l1->paint_height) {
 			draw_begin(layers_temp_image, false, 0);
-			draw_set_pipeline(pipes_copy);
+			draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 			draw_image(layers_expc, 0, 0);
 			draw_set_pipeline(NULL);
 			draw_end();
 
 			if (l1->paint_occ && l1->paint_rough && l1->paint_met && l1->paint_height) {
-				layers_commands_merge_pack(pipes_merge, layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask,
+				layers_commands_merge_pack(pipes_get_merge(), layers_expc, l1->texpaint, l1->texpaint_pack, slot_layer_get_opacity(l1), mask,
 				                           l1->paint_height_blend ? 103 : 101);
 			}
 			else {
@@ -1473,13 +1531,13 @@ slot_layer_t *layers_flatten(bool height_to_normal, slot_layer_t_array_t *layers
 	// Merge height map into normal map
 	if (height_to_normal && make_material_height_used) {
 		draw_begin(layers_temp_image, false, 0);
-		draw_set_pipeline(pipes_copy);
+		draw_set_pipeline(base_bits == TEXTURE_BITS_BITS8 ? pipes_copy : pipes_copy64);
 		draw_image(l0->texpaint_nor, 0, 0);
 		draw_set_pipeline(NULL);
 		draw_end();
 
 		_gpu_begin(l0->texpaint_nor, NULL, NULL, GPU_CLEAR_NONE, 0, 0.0);
-		gpu_set_pipeline(pipes_merge);
+		gpu_set_pipeline(pipes_get_merge());
 		gpu_set_texture(pipes_tex0, layers_temp_image);
 		gpu_set_texture(pipes_tex1, l0->texpaint_pack);
 		gpu_set_texture(pipes_texmask, empty);

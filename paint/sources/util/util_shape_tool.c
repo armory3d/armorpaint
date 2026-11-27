@@ -306,10 +306,10 @@ static void _shape_tool_commit() {
 		mesh_data_calculate_aabb_min_max(mo->data, &aabb_min, &aabb_max);
 		vec4_t dim = vec4_sub(aabb_max, aabb_min);
 		t->scale   = (vec4_t){dim.x > SHAPE_TOOL_MIN_SIZE ? size_x / dim.x : 1.0, dim.y > SHAPE_TOOL_MIN_SIZE ? size_y / dim.y : 1.0,
-                            dim.z > SHAPE_TOOL_MIN_SIZE ? size_z / dim.z : 1.0, 1.0};
-		t->loc = (vec4_t){(_shape_tool_p0.x + _shape_tool_p1.x) / 2.0 - (aabb_min.x + aabb_max.x) / 2.0 * t->scale.x,
-		                  (_shape_tool_p0.y + _shape_tool_p1.y) / 2.0 - (aabb_min.y + aabb_max.y) / 2.0 * t->scale.y,
-		                  _shape_tool_height / 2.0 - (aabb_min.z + aabb_max.z) / 2.0 * t->scale.z, 1.0};
+		                      dim.z > SHAPE_TOOL_MIN_SIZE ? size_z / dim.z : 1.0, 1.0};
+		t->loc     = (vec4_t){(_shape_tool_p0.x + _shape_tool_p1.x) / 2.0 - (aabb_min.x + aabb_max.x) / 2.0 * t->scale.x,
+		                      (_shape_tool_p0.y + _shape_tool_p1.y) / 2.0 - (aabb_min.y + aabb_max.y) / 2.0 * t->scale.y,
+		                      _shape_tool_height / 2.0 - (aabb_min.z + aabb_max.z) / 2.0 * t->scale.z, 1.0};
 	}
 	transform_build_matrix(t);
 	util_mesh_transform_changed();

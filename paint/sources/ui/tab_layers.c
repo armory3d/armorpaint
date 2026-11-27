@@ -119,7 +119,7 @@ ui_state_t tab_layers_draw_layer_icon(slot_layer_t *l, i32 i, f32 uix, f32 uiy, 
 			g_ui->_w = _w;
 		}
 		if (l->fill_material == NULL && slot_layer_is_mask(l)) {
-			draw_set_pipeline(ui_view2d_pipe);
+			draw_set_pipeline(ui_view2d_pipe_fb);
 			gpu_set_int(ui_view2d_channel_loc, 1);
 		}
 
@@ -978,10 +978,10 @@ void tab_layers_button_new_menu() {
 		}
 	}
 	if (ui_menu_button(tr("Fill Layer"), "", ICON_SPHERE)) {
-		layers_create_fill_layer(UV_TYPE_UVMAP, mat4_nan(), -1);
+		layers_create_fill_layer(UV_TYPE_UVMAP, mat4_nan(), -1, -1);
 	}
 	if (ui_menu_button(tr("Decal"), "", ICON_DECAL)) {
-		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1);
+		layers_create_fill_layer(UV_TYPE_PROJECT, mat4_nan(), -1, -1);
 	}
 	if (ui_menu_button(tr("Text"), "", ICON_FONT)) {
 		layers_new_text_layer();
@@ -1177,9 +1177,8 @@ void tab_layers_draw_edit() {
 	    (void *[]){
 	        "8",
 	        "16",
-	        "32",
 	    },
-	    3);
+	    2);
 	ui_inline_radio(&base_bits, bits_items, UI_ALIGN_LEFT);
 	if (ui_item_changed()) {
 		sys_notify_on_next_frame(&tab_layers_draw_layer_context_menu_set_bits, NULL);

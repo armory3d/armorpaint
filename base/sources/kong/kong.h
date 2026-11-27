@@ -47,15 +47,6 @@
 	}                                     \
 	array->values[array->size++] = value;
 
-typedef enum api_kind {
-	API_DEFAULT,
-	API_DIRECT3D11,
-	API_DIRECT3D12,
-	API_METAL,
-	API_WEBGPU,
-	API_VULKAN
-} api_kind;
-
 typedef enum variable_kind {
 	VARIABLE_GLOBAL,
 	VARIABLE_LOCAL,
@@ -105,6 +96,14 @@ typedef enum texture_kind {
 	TEXTURE_KIND_NONE,
 	TEXTURE_KIND_2D,
 } texture_kind;
+
+typedef enum texture_format {
+	TEXTURE_FORMAT_NONE,
+	TEXTURE_FORMAT_RGBA32,
+	TEXTURE_FORMAT_RGBA64,
+	TEXTURE_FORMAT_RGBA128,
+	TEXTURE_FORMAT_R32,
+} texture_format;
 
 typedef size_t   name_id;
 typedef uint32_t type_id;
@@ -448,6 +447,7 @@ typedef struct global {
 	uint64_t               var_index;
 	global_value           value;
 	attribute_list         attributes;
+	texture_format         format;
 	struct descriptor_set *sets[64];
 	size_t                 sets_count;
 	uint32_t               usage;
@@ -930,11 +930,12 @@ type_id  vector_to_size(type_id vector_type, uint32_t size);
 void     indent(char *code, size_t *offset, int indentation);
 
 typedef char *(*type_string_func)(type_id type);
-void  cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func type_string, int *indentation);
-char *cstyle_float(char *buffer, float value);
-char *metal_export(char *directory);
-char *metal_export_compute(void);
-char *hlsl_export_compute(void);
-char *spirv_export_compute(int *size);
-char *wgsl_export_compute(void);
-char *kong_preprocess(const char *source, char **defines, int defines_count);
+void   cstyle_write_opcode(char *code, size_t *offset, opcode *o, type_string_func type_string, int *indentation);
+char  *cstyle_float(char *buffer, float value);
+char  *metal_export(char *directory);
+char  *metal_export_compute(void);
+char  *spirv_export_compute(int *size);
+size_t spirv_optimize(uint32_t *words, size_t word_count, size_t capacity);
+char  *wgsl_export_compute(void);
+char  *kong_preprocess(const char *source, char **defines, int defines_count);
+void   kong_reset(void);

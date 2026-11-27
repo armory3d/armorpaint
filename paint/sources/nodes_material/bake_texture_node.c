@@ -9,8 +9,8 @@ static int              _bake_to_target_bits;
 static void (*_bake_to_target_done)(void *);
 static void *_bake_to_target_data;
 
-// Normal, Height and Derivative bake the high poly data first, RGBA128 prevents artifacts
-static bool bake_to_target_rgba128(bake_type_t type) {
+// Normal, Height and Derivative bake the high poly data first, RGBA64 prevents artifacts
+static bool bake_to_target_rgba64(bake_type_t type) {
 	return type == BAKE_TYPE_NORMAL || type == BAKE_TYPE_HEIGHT || type == BAKE_TYPE_DERIVATIVE;
 }
 
@@ -27,9 +27,9 @@ static void bake_to_target_check_result(void *_) {
 	}
 	sys_remove_update(bake_to_target_check_result);
 
-	render_target_t *rt      = _bake_to_target_rt;
-	bool             rgba128 = bake_to_target_rgba128(_bake_to_target_type);
-	if (rgba128) {
+	render_target_t *rt     = _bake_to_target_rt;
+	bool             rgba64 = bake_to_target_rgba64(_bake_to_target_type);
+	if (rgba64) {
 		gpu_texture_t *_image = rt->_image;
 		rt->format            = "RGBA32";
 		rt->_image            = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA32);
@@ -46,7 +46,7 @@ static void bake_to_target_check_result(void *_) {
 	bake_texture_node_baking   = false;
 	make_material_parse_paint_material(true);
 
-	if (rgba128) {
+	if (rgba64) {
 		base_bits = _bake_to_target_bits;
 		layers_set_bits();
 	}
@@ -79,13 +79,13 @@ bool bake_to_target(render_target_t *rt, bake_type_t bake_type, void (*done)(voi
 	g_context->tool      = TOOL_TYPE_BAKE;
 	g_context->bake_type = bake_type;
 
-	if (bake_to_target_rgba128(bake_type)) {
+	if (bake_to_target_rgba64(bake_type)) {
 		gpu_delete_texture(rt->_image);
-		rt->format = "RGBA128";
-		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA128);
+		rt->format = "RGBA64";
+		rt->_image = gpu_create_render_target(rt->width, rt->height, GPU_TEXTURE_FORMAT_RGBA64);
 
 		_bake_to_target_bits   = base_bits;
-		base_bits              = TEXTURE_BITS_BITS32;
+		base_bits              = TEXTURE_BITS_BITS16;
 		gpu_texture_t *current = _draw_current; // Called from the node ui or from an update
 		if (current != NULL) {
 			draw_end();
@@ -297,28 +297,28 @@ void bake_texture_node_init() {
 	                                                          .outputs = any_array_create_from_raw(
 	                                                              (void *[]){
 	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                                                .node_id       = 0,
-	                                                                                                .name          = _tr("Color"),
-	                                                                                                .type          = "RGBA",
-	                                                                                                .color         = 0xffc7c729,
-	                                                                                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .display       = 0}),
+																	                                .node_id       = 0,
+																	                                .name          = _tr("Color"),
+																	                                .type          = "RGBA",
+																	                                .color         = 0xffc7c729,
+																	                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+																	                                .min           = 0.0,
+																	                                .max           = 1.0,
+																	                                .precision     = 100,
+																	                                .display       = 0}),
 	                                                              },
 	                                                              1),
 	                                                          .buttons = any_array_create_from_raw(
 	                                                              (void *[]){
 	                                                                  ALLOC_INIT(ui_node_button_t, {.name          = "bake_texture_node_button",
-	                                                                                                .type          = "CUSTOM",
-	                                                                                                .output        = -1,
-	                                                                                                .default_value = f32_array_create_x(0),
-	                                                                                                .data          = NULL,
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .height        = 1}),
+																	                                .type          = "CUSTOM",
+																	                                .output        = -1,
+																	                                .default_value = f32_array_create_x(0),
+																	                                .data          = NULL,
+																	                                .min           = 0.0,
+																	                                .max           = 1.0,
+																	                                .precision     = 100,
+																	                                .height        = 1}),
 	                                                              },
 	                                                              1),
 	                                                          .width = 0,
