@@ -839,8 +839,9 @@ void box_preferences_neural_tab() {
 	        "Claude",
 	        "Grok",
 	        "Codex",
+	        "Gemini",
 	    },
-	    4);
+	    5);
 	ui_combo(&g_config->console_model, console_model_combo, tr("Console Model"), true, UI_ALIGN_LEFT, true);
 
 	i32             neural_res       = g_config->neural_res == 2048 ? 2 : (g_config->neural_res == 1024 ? 1 : 0);

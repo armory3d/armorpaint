@@ -362,6 +362,7 @@ typedef enum {
 	CONSOLE_MODEL_CLAUDE = 1,
 	CONSOLE_MODEL_GROK   = 2,
 	CONSOLE_MODEL_CODEX  = 3,
+	CONSOLE_MODEL_GEMINI = 4,
 } console_model_t;
 
 typedef enum {

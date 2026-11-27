@@ -266,28 +266,28 @@ static char *agent_nodes_reference(void) {
 static string_array_t *agent_qwen_args(char *dir) {
 	char           *prompt_file = string("%s%sprompt.txt", dir, PATH_SEP);
 	string_array_t *argv        = any_array_create_from_raw(
-        (void *[]){
-            string("%s/%s", dir, neural_node_llama_bin()),
-            "-m",
-            string("%s/Qwen3.8-27B-UD-Q4_K_M.gguf", dir),
-            "-ngl",
-            "99",
-            "-c",
-            "65536",
-            "--temp",
-            "1.0",
-            "--top-p",
-            "0.95",
-            "--top-k",
-            "20",
-            "--min-p",
-            "0.0",
-            "--single-turn",
-            "--file",
-            prompt_file,
-            NULL,
-        },
-        19);
+	    (void *[]){
+	        string("%s/%s", dir, neural_node_llama_bin()),
+	        "-m",
+	        string("%s/Qwen3.8-27B-UD-Q4_K_M.gguf", dir),
+	        "-ngl",
+	        "99",
+	        "-c",
+	        "65536",
+	        "--temp",
+	        "1.0",
+	        "--top-p",
+	        "0.95",
+	        "--top-k",
+	        "20",
+	        "--min-p",
+	        "0.0",
+	        "--single-turn",
+	        "--file",
+	        prompt_file,
+	        NULL,
+	    },
+	    19);
 	return argv;
 }
 
@@ -425,6 +425,28 @@ static string_array_t *agent_codex_args(char *dir, char *prompt) {
 	return argv;
 }
 
+static string_array_t *agent_gemini_args(char *dir, char *prompt) {
+	string_array_t *argv = any_array_create_from_raw(
+	    (void *[]){
+	        "agy",
+	        "--print",
+	        prompt,
+	        "--output-format",
+	        "text",
+	        "--mode",
+	        "accept-edits",
+	        "--add-dir",
+	        dir, // Pick up AGENTS.md and the armorpaint plugin
+	        "--add-dir",
+	        agent_project_dir(),
+	        "--settings",
+	        "{\"permissions\":{\"allow\":[\"mcp(armorpaint_armorpaint/*)\"]}}",
+	        NULL,
+	    },
+	    14);
+	return argv;
+}
+
 static char *agent_read_result(void) {
 	char *file = agent_result_path();
 	if (!iron_file_exists(file)) {
@@ -445,6 +467,16 @@ static char *agent_read_result(void) {
 
 static char *agent_file(char *name) {
 	return string("%s%s%s", agent_dir, PATH_SEP, name);
+}
+
+static void agent_gemini_plugin_write(void) {
+	char *plugin = agent_file(string(".agents%splugins%sarmorpaint", PATH_SEP, PATH_SEP));
+	agent_ensure_dir(agent_file(".agents"));
+	agent_ensure_dir(agent_file(string(".agents%splugins", PATH_SEP)));
+	agent_ensure_dir(plugin);
+	iron_file_save_bytes(string("%s%splugin.json", plugin, PATH_SEP), sys_string_to_buffer("{\"name\":\"armorpaint\"}\n"), 0);
+	char *mcp = string("{\"mcpServers\":{\"armorpaint\":{\"command\":\"%s\",\"args\":[\"--mcp\"]}}}\n", agent_exe());
+	iron_file_save_bytes(string("%s%smcp_config.json", plugin, PATH_SEP), sys_string_to_buffer(mcp), 0);
 }
 
 static char *agent_reference_write(void) {
@@ -950,13 +982,17 @@ static void agent_start(void *_) {
 	string_array_t *argv;
 	char           *guide = string("%sThe session is already begun, do not call the reference tool. When finished, reply 'Done.'.\n", agent_mcp_guide(dir));
 	iron_file_save_bytes(agent_file("AGENTS.md"), sys_string_to_buffer(string("%s%s", guide, agent_reference_write())), 0);
-	argv = agent_backend == CONSOLE_MODEL_CLAUDE ? agent_claude_args(dir, agent_prompt)
-	       : agent_backend == CONSOLE_MODEL_GROK ? agent_grok_args(dir, agent_prompt)
-	                                             : agent_codex_args(dir, agent_prompt);
+	argv = agent_backend == CONSOLE_MODEL_CLAUDE   ? agent_claude_args(dir, agent_prompt)
+	       : agent_backend == CONSOLE_MODEL_GROK   ? agent_grok_args(dir, agent_prompt)
+	       : agent_backend == CONSOLE_MODEL_GEMINI ? agent_gemini_args(dir, agent_prompt)
+	                                               : agent_codex_args(dir, agent_prompt);
 	if (agent_backend == CONSOLE_MODEL_GROK) {
 		agent_ensure_dir(agent_file(".grok"));
 		char *toml = string("[mcp_servers.armorpaint]\ncommand = \"%s\"\nargs = [\"--mcp\"]\n", agent_exe());
 		iron_file_save_bytes(agent_file(string(".grok%sconfig.toml", PATH_SEP)), sys_string_to_buffer(toml), 0);
+	}
+	if (agent_backend == CONSOLE_MODEL_GEMINI) {
+		agent_gemini_plugin_write();
 	}
 	agent_console = true;
 
