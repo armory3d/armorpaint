@@ -208,13 +208,13 @@ vec4_t uniforms_ext_vec3_link(object_t *object, shader_data_t *mat, char *link) 
 	vec4_t v = vec4_nan();
 	if (string_equals(link, "_brush_direction")) {
 		// Discard first paint for directional brush (no prev position yet)
-		bool allow_paint = g_context->prev_paint_vec_x > 0 && g_context->prev_paint_vec_y > 0 &&
-		                   (g_context->prev_paint_vec_x != g_context->paint_vec.x || g_context->prev_paint_vec_y != g_context->paint_vec.y);
-		f32 x                       = g_context->paint_vec.x;
-		f32 y                       = g_context->paint_vec.y;
-		f32 lastx                   = g_context->prev_paint_vec_x;
-		f32 lasty                   = g_context->prev_paint_vec_y;
-		f32 angle                   = math_atan2(-y + lasty, x - lastx) - math_pi() / 2.0;
+		bool allow_paint            = g_context->prev_paint_vec_x > 0 && g_context->prev_paint_vec_y > 0 &&
+		                              (g_context->prev_paint_vec_x != g_context->paint_vec.x || g_context->prev_paint_vec_y != g_context->paint_vec.y);
+		f32  x                      = g_context->paint_vec.x;
+		f32  y                      = g_context->paint_vec.y;
+		f32  lastx                  = g_context->prev_paint_vec_x;
+		f32  lasty                  = g_context->prev_paint_vec_y;
+		f32  angle                  = math_atan2(-y + lasty, x - lastx) - math_pi() / 2.0;
 		v                           = (vec4_t){math_cos(angle), math_sin(angle), allow_paint ? 1 : 0, 1.0};
 		g_context->prev_paint_vec_x = g_context->last_paint_vec_x;
 		g_context->prev_paint_vec_y = g_context->last_paint_vec_y;
@@ -327,10 +327,10 @@ mat4_t uniforms_ext_mat4_link(object_t *object, shader_data_t *mat, char *link) 
 		transform_t *t       = object->transform;
 		mat4_t       W       = t->world;
 		vec4_t       axes[3] = {
-            vec4_norm((vec4_t){W.m00, W.m10, W.m20, 0.0}),
-            vec4_norm((vec4_t){W.m01, W.m11, W.m21, 0.0}),
-            vec4_norm((vec4_t){W.m02, W.m12, W.m22, 0.0}),
-        };
+		    vec4_norm((vec4_t){W.m00, W.m10, W.m20, 0.0}),
+		    vec4_norm((vec4_t){W.m01, W.m11, W.m21, 0.0}),
+		    vec4_norm((vec4_t){W.m02, W.m12, W.m22, 0.0}),
+		};
 		f32    scale[3] = {t->scale.x, t->scale.y, t->scale.z};
 		mat4_t F        = mat4_identity();
 		for (i32 i = 0; i < 3; ++i) {

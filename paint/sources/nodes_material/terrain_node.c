@@ -155,7 +155,8 @@ void terrain_node_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array
 			}
 			u32_array_t   *other_baked = any_map_get(terrain_node_baked, other_id);
 			gpu_texture_t *other_tex   = other_baked != NULL && other_baked->buffer[0] == hash ? any_map_get(g_context->node_previews, other_id) : NULL;
-			if (other_tex != NULL && other_tex != out && other_tex->width == res && other_tex->height == res && other_tex->format == GPU_TEXTURE_FORMAT_RGBA64) {
+			if (other_tex != NULL && other_tex != out && other_tex->width == res && other_tex->height == res &&
+			    other_tex->format == GPU_TEXTURE_FORMAT_RGBA64) {
 				draw_begin(out, false, 0);
 				draw_set_pipeline(pipes_copy64);
 				draw_image(other_tex, 0, 0);

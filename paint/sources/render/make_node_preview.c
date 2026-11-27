@@ -8,18 +8,18 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	                                                                  .compare_mode    = "always",
 	                                                                  .cull_mode       = "clockwise",
 	                                                                  .vertex_elements = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
-                                                                },
-                                                                4),
+	                                                                      (void *[]){
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "col", .data = "short4norm"}),
+	                                                                      },
+	                                                                      4),
 	                                                                  .color_attachments = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    parser_material_terrain_passthrough ? "RGBA128" : "RGBA32", // Terrain height
-                                                                },
-                                                                1)});
+	                                                                      (void *[]){
+	                                                                          parser_material_terrain_passthrough ? "RGBA128" : "RGBA32", // Terrain height
+	                                                                      },
+	                                                                      1)});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);
 
 	con_mesh->allow_vcols = true;
@@ -52,7 +52,7 @@ node_shader_context_t *make_node_preview_run(material_t *data, ui_node_t *node, 
 	}
 	ui_node_link_t *link =
 	    ALLOC_INIT(ui_node_link_t,
-	               {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
+		           {.id = ui_next_link_id(links), .from_id = node->id, .from_socket = socket_preview == -1 ? 0 : socket_preview, .to_id = -1, .to_socket = -1});
 	any_array_push(links, link);
 
 	parser_material_con  = con_mesh;

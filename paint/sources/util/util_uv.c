@@ -354,8 +354,8 @@ void util_uv_cache_seam_map(i32 res_x, i32 res_y) {
 			}
 			bool same_uv = texa->buffer[a0 * 2] == texa->buffer[a1 * 2] && texa->buffer[a0 * 2 + 1] == texa->buffer[a1 * 2 + 1] &&
 			               texa->buffer[b0 * 2] == texa->buffer[b1 * 2] && texa->buffer[b0 * 2 + 1] == texa->buffer[b1 * 2 + 1];
-			seam[e0] = !same_uv;
-			seam[e1] = !same_uv;
+			seam[e0]     = !same_uv;
+			seam[e1]     = !same_uv;
 			if (same_uv) {
 				parent[util_uv_seam_find(parent, e0 / 3)] = util_uv_seam_find(parent, e1 / 3);
 			}

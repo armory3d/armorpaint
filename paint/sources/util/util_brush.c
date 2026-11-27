@@ -9,7 +9,7 @@ void util_brush_update() {
 	bool set_clone_source =
 	    g_context->tool == TOOL_TYPE_CLONE &&
 	    (keymap_shortcut(string_tmp("%s+%s", any_map_get(g_keymap, "set_clone_source"), any_map_get(g_keymap, "action_paint")), SHORTCUT_TYPE_DOWN) ||
-	     (g_context->clone_set_source && (paint_down || pen_down("tip"))));
+		 (g_context->clone_set_source && (paint_down || pen_down("tip"))));
 
 	bool decal_mask = context_is_decal_mask_paint();
 

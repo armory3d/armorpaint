@@ -217,10 +217,10 @@ void util_render_make_material_preview() {
 	sphere->base->visible         = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
 	scene_meshes                  = any_array_create_from_raw(
-        (void *[]){
-            sphere,
-        },
-        1);
+	    (void *[]){
+	        sphere,
+	    },
+	    1);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = sphere;
 
@@ -230,7 +230,7 @@ void util_render_make_material_preview() {
 	g_context->saved_camera = scene_camera->base->transform->local;
 	mat4_t m =
 	    (mat4_t){0.9146286343879498, 0.404295023959927,   0.000007410128652369705, 0, -0.0032648027153306235, 0.007367569133732468, 0.9999675337275382,   0,
-	             0.404281837254303,  -0.9145989516155143, 0.008058532943908717,    0, 0.4659988049397712,     -1.0687517188018691,  0.015935682577325486, 1};
+		         0.404281837254303,  -0.9145989516155143, 0.008058532943908717,    0, 0.4659988049397712,     -1.0687517188018691,  0.015935682577325486, 1};
 
 	transform_set_matrix(scene_camera->base->transform, m);
 	f32 saved_fov           = scene_camera->data->fov;
@@ -298,10 +298,10 @@ void util_render_make_decal_preview() {
 	plane->base->visible          = true;
 	mesh_object_t_array_t *meshes = scene_meshes;
 	scene_meshes                  = any_array_create_from_raw(
-        (void *[]){
-            plane,
-        },
-        1);
+	    (void *[]){
+	        plane,
+	    },
+	    1);
 	mesh_object_t *painto   = g_context->paint_object;
 	g_context->paint_object = plane;
 

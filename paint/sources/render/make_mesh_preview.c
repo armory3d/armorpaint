@@ -8,18 +8,18 @@ node_shader_context_t *make_mesh_preview_run(material_t *data, bool viewport) {
 	                                                             .compare_mode    = "less",
 	                                                             .cull_mode       = "clockwise",
 	                                                             .vertex_elements = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                },
-                                                                3),
+	                                                                 (void *[]){
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                     ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                 },
+	                                                                 3),
 	                                                             .color_attachments = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    "RGBA64",
-                                                                    "RGBA64",
-                                                                },
-                                                                2),
+	                                                                 (void *[]){
+	                                                                     "RGBA64",
+	                                                                     "RGBA64",
+	                                                                 },
+	                                                                 2),
 	                                                             .depth_attachment = "D32"});
 
 	if (viewport && render_path_base_gbuffer_uv()) {

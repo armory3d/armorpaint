@@ -873,10 +873,10 @@ void geom_unwrap(geom_t *g, f32 margin) {
 		mesh->nora->buffer[v * 2]     = (i16)(n[v * 3] * 32767.0f);
 		mesh->nora->buffer[v * 2 + 1] = (i16)(n[v * 3 + 1] * 32767.0f);
 	}
-	mesh->vertex_count    = g->vcount;
-	mesh->index_count     = g->icount;
-	mesh->scale_pos       = scale;
-	mesh->scale_tex       = 1.0f;
+	mesh->vertex_count      = g->vcount;
+	mesh->index_count       = g->icount;
+	mesh->scale_pos         = scale;
+	mesh->scale_tex         = 1.0f;
 	f32 last_margin         = util_uv_unwrap_margin;
 	i32 last_rotation       = util_uv_unwrap_rotation;
 	f32 last_angle          = util_uv_unwrap_angle;

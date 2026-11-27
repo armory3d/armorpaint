@@ -1242,7 +1242,7 @@ static void ui_dock_update_resize() {
 		}
 		f32 last = n->size;
 		n->size  = n->fixed == 1 ? size : n->fixed == 2 ? total - size : size / (f32)total;
-        n->vertical ? iron_mouse_set_cursor(IRON_CURSOR_SIZENS) : iron_mouse_set_cursor(IRON_CURSOR_SIZEWE);
+		n->vertical ? iron_mouse_set_cursor(IRON_CURSOR_SIZENS) : iron_mouse_set_cursor(IRON_CURSOR_SIZEWE);
 		if (last != n->size) {
 			base_resize();
 		}

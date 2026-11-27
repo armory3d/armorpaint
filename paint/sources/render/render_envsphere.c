@@ -17,15 +17,15 @@ static node_shader_context_t *make_envsphere_shader(char *name, f32 roughness, f
 	                                                                .compare_mode    = "always",
 	                                                                .cull_mode       = "clockwise",
 	                                                                .vertex_elements = any_array_create_from_raw(
-                                                                   (void *[]){
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                       ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                   },
-                                                                   3),
+	                                                                    (void *[]){
+	                                                                        ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                        ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                        ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                    },
+	                                                                    3),
 	                                                                .color_attachments = any_array_create_from_raw((void *[]){"RGBA64"}, 1),
 	                                                                .depth_attachment  = "NONE",
-                                                           });
+	                                                            });
 	node_shader_context_t *con   = node_shader_context_create(mat, props);
 	node_shader_t         *kong  = node_shader_context_make_kong(con);
 

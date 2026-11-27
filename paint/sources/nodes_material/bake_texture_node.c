@@ -27,8 +27,8 @@ static void bake_to_target_check_result(void *_) {
 	}
 	sys_remove_update(bake_to_target_check_result);
 
-	render_target_t *rt      = _bake_to_target_rt;
-	bool             rgba64  = bake_to_target_rgba64(_bake_to_target_type);
+	render_target_t *rt     = _bake_to_target_rt;
+	bool             rgba64 = bake_to_target_rgba64(_bake_to_target_type);
 	if (rgba64) {
 		gpu_texture_t *_image = rt->_image;
 		rt->format            = "RGBA32";
@@ -297,28 +297,28 @@ void bake_texture_node_init() {
 	                                                          .outputs = any_array_create_from_raw(
 	                                                              (void *[]){
 	                                                                  ALLOC_INIT(ui_node_socket_t, {.id            = 0,
-	                                                                                                .node_id       = 0,
-	                                                                                                .name          = _tr("Color"),
-	                                                                                                .type          = "RGBA",
-	                                                                                                .color         = 0xffc7c729,
-	                                                                                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .display       = 0}),
+																	                                .node_id       = 0,
+																	                                .name          = _tr("Color"),
+																	                                .type          = "RGBA",
+																	                                .color         = 0xffc7c729,
+																	                                .default_value = f32_array_create_xyzw(0.0, 0.0, 0.0, 1.0),
+																	                                .min           = 0.0,
+																	                                .max           = 1.0,
+																	                                .precision     = 100,
+																	                                .display       = 0}),
 	                                                              },
 	                                                              1),
 	                                                          .buttons = any_array_create_from_raw(
 	                                                              (void *[]){
 	                                                                  ALLOC_INIT(ui_node_button_t, {.name          = "bake_texture_node_button",
-	                                                                                                .type          = "CUSTOM",
-	                                                                                                .output        = -1,
-	                                                                                                .default_value = f32_array_create_x(0),
-	                                                                                                .data          = NULL,
-	                                                                                                .min           = 0.0,
-	                                                                                                .max           = 1.0,
-	                                                                                                .precision     = 100,
-	                                                                                                .height        = 1}),
+																	                                .type          = "CUSTOM",
+																	                                .output        = -1,
+																	                                .default_value = f32_array_create_x(0),
+																	                                .data          = NULL,
+																	                                .min           = 0.0,
+																	                                .max           = 1.0,
+																	                                .precision     = 100,
+																	                                .height        = 1}),
 	                                                              },
 	                                                              1),
 	                                                          .width = 0,

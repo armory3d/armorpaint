@@ -399,7 +399,7 @@ void ui_viewnodes_on_canvas_context_menu() {
 	bool is_protected = selected == NULL || string_equals(selected->type, "OUTPUT_MATERIAL_PBR") || string_equals(selected->type, "GROUP_INPUT") ||
 	                    string_equals(selected->type, "GROUP_OUTPUT") || string_equals(selected->type, "brush_output_node") ||
 	                    string_equals(selected->type, "MESH_OUTPUT");
-	g_ui->enabled = !is_protected;
+	g_ui->enabled     = !is_protected;
 	if (ui_menu_button(tr("Cut"), "ctrl+x", ICON_CUT)) {
 		sys_notify_on_next_frame(&ui_viewnodes_on_canvas_cut, NULL);
 	}
@@ -1201,8 +1201,8 @@ void ui_nodes_update(void *_) {
 				g_ui->enabled = true;
 			}
 		}
-		ui_nodes_hide_menu = g_ui->combo_selected_id == 0 && !ui_nodes_show_menu_first &&
-		                     (g_ui->changed || g_ui->input_released || g_ui->input_released_r || g_ui->is_escape_down);
+		ui_nodes_hide_menu       = g_ui->combo_selected_id == 0 && !ui_nodes_show_menu_first &&
+		                           (g_ui->changed || g_ui->input_released || g_ui->input_released_r || g_ui->is_escape_down);
 		ui_nodes_show_menu_first = false;
 		g_theme->FILL_BUTTON_BG  = _FILL_BUTTON_BG;
 		g_theme->ELEMENT_OFFSET  = _ELEMENT_OFFSET;
@@ -1249,10 +1249,10 @@ void ui_nodes_accept_asset_drop(i32 index) {
 	                                                                 : nodes_brush_create_node("TEX_IMAGE");
 	n->buttons->buffer[0]->default_value->buffer[0] = index;
 	ui_nodes_get_nodes()->nodes_selected_id         = i32_array_create_from_raw(
-        (i32[]){
-            n->id,
-        },
-        1);
+	    (i32[]){
+	        n->id,
+	    },
+	    1);
 }
 
 void ui_nodes_accept_layer_drop(i32 index) {
@@ -1263,16 +1263,16 @@ void ui_nodes_accept_layer_drop(i32 index) {
 	if (slot_layer_is_group(g_project->_->layers->buffer[index])) {
 		return;
 	}
-	node_group_t *g                                 = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
-	ui_node_t    *n                                 = ui_nodes_canvas_type == CANVAS_TYPE_MESH
-	                                                      ? nodes_mesh_create_node_in(ui_nodes_get_canvas(true), ui_nodes_get_nodes(), "LAYER_MASK") // Mesh nodes read masks only
-	                                                      : nodes_material_create_node(slot_layer_is_mask(g_context->layer) ? "LAYER_MASK" : "LAYER", g);
+	node_group_t *g = ui_nodes_group_stack->length > 0 ? ui_nodes_group_stack->buffer[ui_nodes_group_stack->length - 1] : NULL;
+	ui_node_t    *n = ui_nodes_canvas_type == CANVAS_TYPE_MESH
+	                      ? nodes_mesh_create_node_in(ui_nodes_get_canvas(true), ui_nodes_get_nodes(), "LAYER_MASK") // Mesh nodes read masks only
+	                      : nodes_material_create_node(slot_layer_is_mask(g_context->layer) ? "LAYER_MASK" : "LAYER", g);
 	n->buttons->buffer[0]->default_value->buffer[0] = index;
 	ui_nodes_get_nodes()->nodes_selected_id         = i32_array_create_from_raw(
-        (i32[]){
-            n->id,
-        },
-        1);
+	    (i32[]){
+	        n->id,
+	    },
+	    1);
 }
 
 void ui_nodes_accept_material_drop(i32 index) {
@@ -1284,10 +1284,10 @@ void ui_nodes_accept_material_drop(i32 index) {
 	ui_node_t    *n                                 = nodes_material_create_node("MATERIAL", g);
 	n->buttons->buffer[0]->default_value->buffer[0] = index;
 	ui_nodes_get_nodes()->nodes_selected_id         = i32_array_create_from_raw(
-        (i32[]){
-            n->id,
-        },
-        1);
+	    (i32[]){
+	        n->id,
+	    },
+	    1);
 }
 
 void ui_nodes_accept_swatch_drop(swatch_color_t *swatch) {

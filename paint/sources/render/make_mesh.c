@@ -96,19 +96,19 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 	                                                                  .compare_mode    = layer_pass == 0 ? "less" : "equal",
 	                                                                  .cull_mode       = (g_context->cull_backfaces || layer_pass > 0) ? "clockwise" : "none",
 	                                                                  .vertex_elements = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                },
-                                                                3),
+	                                                                      (void *[]){
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                      },
+	                                                                      3),
 	                                                                  .color_attachments = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    "RGBA64",
-                                                                    "RGBA64",
-                                                                    "RGBA64",
-                                                                },
-                                                                render_path_base_gbuffer_uv() ? 3 : 2),
+	                                                                      (void *[]){
+	                                                                          "RGBA64",
+	                                                                          "RGBA64",
+	                                                                          "RGBA64",
+	                                                                      },
+	                                                                      render_path_base_gbuffer_uv() ? 3 : 2),
 	                                                                  .depth_attachment = "D32"});
 	node_shader_context_t *con_mesh   = node_shader_context_create(data, props);
 
@@ -433,16 +433,16 @@ node_shader_context_t *make_mesh_run(material_t *data, i32 layer_pass) {
 					node_shader_write_frag(kong, "float tex_step = 1.0 / constants.texpaint_size.x;");
 					node_shader_write_frag(
 					    kong, string_tmp("height0 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x - tex_step, %s.y), 0.0).a * texpaint_opac;",
-					                     i32_to_string(l->id), tex_coord, tex_coord));
+						                 i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
 					    kong, string_tmp("height1 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x + tex_step, %s.y), 0.0).a * texpaint_opac;",
-					                     i32_to_string(l->id), tex_coord, tex_coord));
+						                 i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
 					    kong, string_tmp("height2 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y - tex_step), 0.0).a * texpaint_opac;",
-					                     i32_to_string(l->id), tex_coord, tex_coord));
+						                 i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(
 					    kong, string_tmp("height3 += sample_lod(texpaint_pack%s, sampler_linear, float2(%s.x, %s.y + tex_step), 0.0).a * texpaint_opac;",
-					                     i32_to_string(l->id), tex_coord, tex_coord));
+						                 i32_to_string(l->id), tex_coord, tex_coord));
 					node_shader_write_frag(kong, "}");
 				}
 			}

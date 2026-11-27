@@ -4,11 +4,11 @@ void *plugin;
 bool  expanded = true;
 bool  dirty    = false;
 
-int   preset           = 0;
-float light_azimuth    = 45.0;
-float light_elevation  = 40.0;
-bool  follow_camera    = false;
-float light_intensity  = 1.05;
+int   preset          = 0;
+float light_azimuth   = 45.0;
+float light_elevation = 40.0;
+bool  follow_camera   = false;
+float light_intensity = 1.05;
 
 float cel_bands        = 3.0;
 float shadow_threshold = 0.45;
@@ -16,11 +16,11 @@ float band_softness    = 0.05;
 float shadow_depth     = 0.72;
 float ao_influence     = 0.60;
 
-float spec_strength    = 0.50;
-float spec_size        = 0.35;
-float rim_strength     = 0.50;
-float rim_size         = 0.40;
-float outline_width    = 0.0;
+float spec_strength = 0.50;
+float spec_size     = 0.35;
+float rim_strength  = 0.50;
+float rim_size      = 0.40;
+float outline_width = 0.0;
 
 int light_color;
 int shadow_color;
@@ -162,8 +162,7 @@ void viewport_shader(void *shader) {
 		node_shader_write_frag(shader, "if (abs(vvec.z) > 0.99) { cel_up_ref = float3(0.0, 1.0, 0.0); }");
 		node_shader_write_frag(shader, "float3 cel_cam_r = normalize(cross(cel_up_ref, vvec));");
 		node_shader_write_frag(shader, "float3 cel_cam_u = normalize(cross(vvec, cel_cam_r));");
-		node_shader_write_frag(
-		    shader, string("float3 cel_ldir = normalize(cel_cam_r * (%.4f) + vvec * (%.4f) + cel_cam_u * (%.4f));", lx, -ly, lz));
+		node_shader_write_frag(shader, string("float3 cel_ldir = normalize(cel_cam_r * (%.4f) + vvec * (%.4f) + cel_cam_u * (%.4f));", lx, -ly, lz));
 	}
 	else {
 		node_shader_write_frag(shader, string("float3 cel_ldir = normalize(float3(%.4f, %.4f, %.4f));", lx, ly, lz));
@@ -210,8 +209,8 @@ void viewport_shader(void *shader) {
 	node_shader_write_frag(shader, "float cel_spec_mask = smoothstep(cel_spec_th - cel_spec_w, cel_spec_th + cel_spec_w, cel_spec_val);");
 	node_shader_write_frag(shader, "cel_spec_mask = cel_spec_mask * smoothstep(-0.05, 0.15, cel_ndl) * cel_ao;");
 	node_shader_write_frag(shader, "float3 cel_spec_col = lerp(cel_light_col, cel_albedo * cel_light_col * 1.4, metallic);");
-	node_shader_write_frag(
-	    shader, string("float3 cel_spec = cel_spec_col * cel_spec_mask * (%.4f) * (cel_gloss * cel_gloss) * lerp(1.0, 1.6, metallic);", spec_strength));
+	node_shader_write_frag(shader, string("float3 cel_spec = cel_spec_col * cel_spec_mask * (%.4f) * (cel_gloss * cel_gloss) * lerp(1.0, 1.6, metallic);",
+	                                      spec_strength));
 
 	// Directional Fresnel rim light
 	node_shader_write_frag(shader, "float cel_fresnel = 1.0 - cel_ndv;");
@@ -221,8 +220,8 @@ void viewport_shader(void *shader) {
 	node_shader_write_frag(shader, "float cel_rim_aa = (abs(ddx(cel_rim_val)) + abs(ddy(cel_rim_val))) * 0.75;");
 	node_shader_write_frag(shader, string("float cel_rim_w = clamp(max(%.4f, cel_rim_aa), 0.002, 0.45);", band_softness * 0.25));
 	node_shader_write_frag(shader, "float cel_rim_mask = smoothstep(cel_rim_th - cel_rim_w, cel_rim_th + cel_rim_w, cel_rim_val) * cel_ao;");
-	node_shader_write_frag(
-	    shader, string("float3 cel_rim_col = float3(%.4f, %.4f, %.4f) * lerp(float3(1.0, 1.0, 1.0), cel_albedo, metallic * 0.5);", rr, rg, rb));
+	node_shader_write_frag(shader,
+	                       string("float3 cel_rim_col = float3(%.4f, %.4f, %.4f) * lerp(float3(1.0, 1.0, 1.0), cel_albedo, metallic * 0.5);", rr, rg, rb));
 	node_shader_write_frag(shader, string("float3 cel_rim = cel_rim_col * (cel_rim_mask * (%.4f));", rim_strength));
 
 	// Combine lighting and preserve emissive materials

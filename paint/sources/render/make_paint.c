@@ -142,7 +142,7 @@ node_shader_context_t *make_paint_run(material_t *data) {
 node_shader_context_t *make_paint_run_context(material_t *data, char *context_id) {
 	bool picking_tool = g_context->tool == TOOL_TYPE_COLORID || g_context->tool == TOOL_TYPE_PICKER || g_context->tool == TOOL_TYPE_MATERIAL ||
 	                    g_context->tool == TOOL_TYPE_CURSOR;
-	bool is_atlas = string_equals(context_id, "atlas");
+	bool is_atlas     = string_equals(context_id, "atlas");
 	if (g_context->layer->texpaint_sculpt != NULL && !picking_tool && !g_context->material_preview) {
 		return sculpt_make_sculpt_run(data);
 	}
@@ -152,12 +152,12 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	                                                                 .compare_mode    = "always",
 	                                                                 .cull_mode       = "none",
 	                                                                 .vertex_elements = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
-                                                                },
-                                                                3),
+	                                                                     (void *[]){
+	                                                                         ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "short4norm"}),
+	                                                                         ALLOC_INIT(vertex_element_t, {.name = "nor", .data = "short2norm"}),
+	                                                                         ALLOC_INIT(vertex_element_t, {.name = "tex", .data = "short2norm"}),
+	                                                                     },
+	                                                                     3),
 	                                                                 .color_attachments = make_paint_color_attachments()});
 	node_shader_context_t *con_paint = node_shader_context_create(data, props);
 

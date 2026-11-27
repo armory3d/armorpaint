@@ -22,9 +22,9 @@ static i32          render_path_raytrace_override_height    = 0;
 gpu_texture_t *render_path_raytrace_env_cdf      = NULL;
 static char   *render_path_raytrace_env_cdf_file = NULL;
 
-static u32 render_path_raytrace_grain_mask = 0; // Geometries rendered as grains, bit per geometry index
-static u32 render_path_raytrace_volume_mask = 0; // Geometries of smoke and fire, holding the grid and sparks
-static u32 render_path_raytrace_volume_list = 0; // Their geometry indices, 5 bits each
+static u32 render_path_raytrace_grain_mask   = 0; // Geometries rendered as grains, bit per geometry index
+static u32 render_path_raytrace_volume_mask  = 0; // Geometries of smoke and fire, holding the grid and sparks
+static u32 render_path_raytrace_volume_list  = 0; // Their geometry indices, 5 bits each
 static i32 render_path_raytrace_volume_count = 0;
 #define VOLUME_MAX 4
 
@@ -406,9 +406,9 @@ static void render_path_raytrace_draw_override(i32 slot) {
 		render_path_raytrace_override_dirty[slot] = false;
 		return;
 	}
-	bool            use_depth  = scon->depth_attachment != NULL;
-	char           *depth      = use_depth ? render_path_raytrace_override_depth(render_path_raytrace_override_width, render_path_raytrace_override_height) : NULL;
-	gpu_clear_t     clear      = use_depth ? (GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH) : GPU_CLEAR_COLOR;
+	bool            use_depth = scon->depth_attachment != NULL;
+	char           *depth = use_depth ? render_path_raytrace_override_depth(render_path_raytrace_override_width, render_path_raytrace_override_height) : NULL;
+	gpu_clear_t     clear = use_depth ? (GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH) : GPU_CLEAR_COLOR;
 	string_array_t *additional = any_array_create_from_raw(
 	    (void *[]){
 	        render_path_raytrace_override_target(slot, 'b'),
@@ -535,9 +535,9 @@ static gpu_buffer_t *render_path_raytrace_volume_sparks(mesh_volume_t *v, mesh_d
 	for (i32 t = 0; tex != NULL && t + 2 < (i32)ind->length; t += 3) {
 		count += tex->values->buffer[ind->buffer[t] * 2 + 1] < 0 ? 3 : 0;
 	}
-	v->sparks   = gpu_create_index_buffer(count > 0 ? count : 3);
-	u32 *out    = gpu_index_buffer_lock(v->sparks);
-	i32  n      = 0;
+	v->sparks = gpu_create_index_buffer(count > 0 ? count : 3);
+	u32 *out  = gpu_index_buffer_lock(v->sparks);
+	i32  n    = 0;
 	for (i32 t = 0; tex != NULL && t + 2 < (i32)ind->length; t += 3) {
 		if (tex->values->buffer[ind->buffer[t] * 2 + 1] < 0) {
 			out[n++] = ind->buffer[t];

@@ -435,16 +435,16 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 	                                                                  .compare_mode    = "always",
 	                                                                  .cull_mode       = "none",
 	                                                                  .vertex_elements = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
-                                                                },
-                                                                1),
+	                                                                      (void *[]){
+	                                                                          ALLOC_INIT(vertex_element_t, {.name = "pos", .data = "float2"}),
+	                                                                      },
+	                                                                      1),
 	                                                                  .color_attachments = any_array_create_from_raw(
-                                                                (void *[]){
-                                                                    "RGBA128",
-                                                                    "R8",
-                                                                },
-                                                                2)});
+	                                                                      (void *[]){
+	                                                                          "RGBA128",
+	                                                                          "R8",
+	                                                                      },
+	                                                                      2)});
 	node_shader_context_t *con_paint  = node_shader_context_create(data, props);
 	con_paint->data->color_writes_red = u8_array_create_from_raw(
 	    (u8[]){
@@ -495,8 +495,8 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 	// Decal fill layer: displacement must be confined to the decal box projection
 	bool decal_layer = g_context->layer->fill_material != NULL && g_context->layer->uv_type == UV_TYPE_PROJECT && g_context->tool == TOOL_TYPE_FILL;
 
-	bool has_wposition = g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_CLONE ||
-	                     g_context->tool == TOOL_TYPE_BLUR || g_context->tool == TOOL_TYPE_PARTICLE || g_context->tool == TOOL_TYPE_FILL || decal;
+	bool has_wposition    = g_context->tool == TOOL_TYPE_BRUSH || g_context->tool == TOOL_TYPE_ERASER || g_context->tool == TOOL_TYPE_CLONE ||
+	                        g_context->tool == TOOL_TYPE_BLUR || g_context->tool == TOOL_TYPE_PARTICLE || g_context->tool == TOOL_TYPE_FILL || decal;
 	bool sculpt_triplanar = has_wposition && !decal && !decal_layer && g_context->tool != TOOL_TYPE_BLUR;
 	node_shader_add_out(kong, "float2 tex_coord");
 	node_shader_write_vert(kong, "float2 madd = float2(0.5, 0.5);");
@@ -1043,7 +1043,7 @@ node_shader_context_t *sculpt_make_sculpt_run(material_t *data) {
 				                       string_tmp("adj_nor += cross(adj_p%d - raw_undo.xyz, adj_p%d - raw_undo.xyz) * adj_v%d * adj_v%d;", i, i + 1, i, i + 1));
 				node_shader_write_frag(
 				    kong, string_tmp("adj_nor += cross(adj_p%d - raw_undo.xyz, adj_p0 - raw_undo.xyz) * adj_v%d * (1.0 - adj_v%d) * step(-1.5, %s);", i, i,
-				                     i + 1, slots[i + 1]));
+					                 i + 1, slots[i + 1]));
 			}
 			else {
 				node_shader_write_frag(kong, string_tmp("adj_nor += cross(adj_p%d - raw_undo.xyz, adj_p0 - raw_undo.xyz) * adj_v%d;", i, i));

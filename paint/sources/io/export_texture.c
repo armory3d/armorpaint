@@ -26,10 +26,10 @@ static buffer_t *export_texture_pack_pixels(buffer_t *pixels, i32 count, i32 bit
 }
 
 static void export_texture_write_texture(char *file, buffer_t *pixels, i32 type, i32 off) {
-	i32 res_x       = config_get_texture_res_x();
-	i32 res_y       = config_get_texture_res_y();
-	i32 bits        = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
-	i32 format      = 0; // RGBA
+	i32 res_x  = config_get_texture_res_x();
+	i32 res_y  = config_get_texture_res_y();
+	i32 bits   = base_bits == TEXTURE_BITS_BITS8 ? 8 : 16;
+	i32 format = 0; // RGBA
 	if (type == 1) {
 		format = 2; // RGB1
 	}

@@ -157,7 +157,7 @@ static void camera_rotate_action(bool modif, bool default_keymap, bool ruler) {
 
 f32 camera_get_zoom_speed() {
 	i32              sign   = g_config->zoom_direction == ZOOM_DIRECTION_VERTICAL_INVERTED || g_config->zoom_direction == ZOOM_DIRECTION_HORIZONTAL_INVERTED ||
-                       g_config->zoom_direction == ZOOM_DIRECTION_VERTICAL_HORIZONTAL_INVERTED
+	                                  g_config->zoom_direction == ZOOM_DIRECTION_VERTICAL_HORIZONTAL_INVERTED
 	                              ? -1
 	                              : 1;
 	camera_object_t *camera = scene_camera;

@@ -649,7 +649,7 @@ void export_arm_run_material(char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(m->image));
+	buffer_t         *buf    = lz4_encode(gpu_get_texture_pixels(m->image));
 	buffer_t_array_t *micons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,
@@ -714,7 +714,7 @@ void export_arm_run_brush(char *path) {
 		packed_assets = export_arm_get_packed_assets(path, texture_files);
 	}
 
-	buffer_t *buf = lz4_encode(gpu_get_texture_pixels(b->image));
+	buffer_t         *buf    = lz4_encode(gpu_get_texture_pixels(b->image));
 	buffer_t_array_t *bicons = any_array_create_from_raw(
 	    (void *[]){
 	        buf,

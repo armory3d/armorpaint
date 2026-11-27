@@ -216,7 +216,7 @@ static void sim_cache_frame() {
 		f->owner = malloc(s->count + 1);
 		memcpy(f->pos, s->pos, sizeof(f32) * 3 * s->count);
 		memcpy(f->owner, s->owner, s->count);
-		i32 n  = s->nx * s->ny * s->nz;
+		i32 n    = s->nx * s->ny * s->nz;
 		f->gas   = malloc(sizeof(u8 *) * (s->gas_count + 1));
 		f->flame = calloc(s->gas_count + 1, sizeof(u8 *));
 		for (i32 g = 0; g < s->gas_count; ++g) {
@@ -614,8 +614,8 @@ static void sim_sparks_step(sim_part_t *p, f32 dt, bool emit) {
 		p->spark_carry += p->spark_rate * dt;
 		while (p->spark_carry >= 1.0f && p->spark_count < SIM_SPARK_MAX) {
 			p->spark_carry -= 1.0f;
-			i32 c  = p->cells[(i32)(sim_spark_random(p) * p->cell_count) % p->cell_count];
-			i32 ci = c % s->nx, cj = (c / s->nx) % s->ny, ck = c / (s->nx * s->ny);
+			i32  c  = p->cells[(i32)(sim_spark_random(p) * p->cell_count) % p->cell_count];
+			i32  ci = c % s->nx, cj = (c / s->nx) % s->ny, ck = c / (s->nx * s->ny);
 			f32 *k = &p->spark[p->spark_count++ * SIM_SPARK_FLOATS];
 			k[0]   = s->min[0] + (ci + sim_spark_random(p)) * s->cell;
 			k[1]   = s->min[1] + (cj + sim_spark_random(p)) * s->cell;
@@ -628,11 +628,11 @@ static void sim_sparks_step(sim_part_t *p, f32 dt, bool emit) {
 		}
 		p->spark_carry = fminf(p->spark_carry, 1.0f);
 	}
-	vec4_t   gravity = physics_get_gravity();
-	f32      max[3]  = {s->min[0] + s->nx * s->cell, s->min[1] + s->ny * s->cell, s->min[2] + s->nz * s->cell};
-	const int steps  = 4;
-	f32       h      = dt / steps;
-	f32       drag   = fminf(4.0f * h, 1.0f);
+	vec4_t    gravity = physics_get_gravity();
+	f32       max[3]  = {s->min[0] + s->nx * s->cell, s->min[1] + s->ny * s->cell, s->min[2] + s->nz * s->cell};
+	const int steps   = 4;
+	f32       h       = dt / steps;
+	f32       drag    = fminf(4.0f * h, 1.0f);
 	for (i32 i = 0; i < p->spark_count;) {
 		f32 *k   = &p->spark[i * SIM_SPARK_FLOATS];
 		bool out = false;

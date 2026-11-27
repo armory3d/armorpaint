@@ -402,8 +402,8 @@ char *ui_files_file_browser(char **path, bool drag_files, char *search, bool ref
 
 					if (raw != NULL && raw->material_icons != NULL) {
 						buffer_t *bytes_icon = raw->material_icons->buffer[0];
-						buffer_t *buf = lz4_decode(bytes_icon, 256 * 256 * 8);
-						icon = gpu_create_texture_from_bytes(buf, 256, 256, GPU_TEXTURE_FORMAT_RGBA64);
+						buffer_t *buf        = lz4_decode(bytes_icon, 256 * 256 * 8);
+						icon                 = gpu_create_texture_from_bytes(buf, 256, 256, GPU_TEXTURE_FORMAT_RGBA64);
 						array_free(buf);
 						free(buf);
 					}

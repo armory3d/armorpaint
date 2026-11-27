@@ -32,7 +32,7 @@ render_pass_t *render_pass_create(char *frag, render_pass_stage_t stage) {
 
 	shader_context_t *scon =
 	    ALLOC_INIT(shader_context_t,
-	               {
+		           {
 	                   .name                    = "pass",
 	                   .depth_write             = false,
 	                   .compare_mode            = "always",

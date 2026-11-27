@@ -753,11 +753,10 @@ static void import_arm_init_nodes_mapped(project_t *project, ui_node_t_array_t *
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *node = nodes->buffer[i];
 		if (string_equals(node->type, "TEX_IMAGE") && node->buttons->length > 0) {
-			i32 src_idx = import_arm_find_project_asset(project, node->buttons->buffer[0]);
-			i32 dest_idx =
-			    (src_to_dest_asset != NULL && src_idx >= 0 && src_idx < src_to_dest_asset->length && src_to_dest_asset->buffer[src_idx] >= 0)
-			        ? src_to_dest_asset->buffer[src_idx]
-			        : import_arm_image_asset_index(node->buttons->buffer[0]);
+			i32 src_idx  = import_arm_find_project_asset(project, node->buttons->buffer[0]);
+			i32 dest_idx = (src_to_dest_asset != NULL && src_idx >= 0 && src_idx < src_to_dest_asset->length && src_to_dest_asset->buffer[src_idx] >= 0)
+			                   ? src_to_dest_asset->buffer[src_idx]
+			                   : import_arm_image_asset_index(node->buttons->buffer[0]);
 			node->buttons->buffer[0]->default_value = f32_array_create_x(dest_idx);
 			node->buttons->buffer[0]->data          = u8_array_create_from_string("");
 		}
@@ -768,11 +767,10 @@ static void import_arm_remap_mesh_object_nodes(ui_node_t_array_t *nodes, i32_arr
 	for (i32 i = 0; i < nodes->length; ++i) {
 		ui_node_t *n = nodes->buffer[i];
 		if ((string_equals(n->type, "MESH_OBJECT") || string_equals(n->type, "MESH_SCATTER")) && n->buttons->length > 0) {
-			ui_node_button_t *b       = n->buttons->buffer[0];
-			i32               src_idx = b->default_value != NULL && b->default_value->length > 0 ? (i32)b->default_value->buffer[0] : -1;
-			i32               dest_idx =
-			    (src_to_dest_obj != NULL && src_idx >= 0 && src_idx < src_to_dest_obj->length) ? src_to_dest_obj->buffer[src_idx] : -1;
-			b->default_value = f32_array_create_xyz(dest_idx, -1, dest_idx);
+			ui_node_button_t *b        = n->buttons->buffer[0];
+			i32               src_idx  = b->default_value != NULL && b->default_value->length > 0 ? (i32)b->default_value->buffer[0] : -1;
+			i32               dest_idx = (src_to_dest_obj != NULL && src_idx >= 0 && src_idx < src_to_dest_obj->length) ? src_to_dest_obj->buffer[src_idx] : -1;
+			b->default_value           = f32_array_create_xyz(dest_idx, -1, dest_idx);
 		}
 	}
 }
@@ -1325,10 +1323,10 @@ void import_arm_run_project(char *path) {
 	transform_build_matrix(g_context->paint_object->base->transform);
 	g_context->paint_object->base->name = mesh_names->buffer[0];
 	g_project->_->paint_objects         = any_array_create_from_raw(
-        (void *[]){
-            g_context->paint_object,
-        },
-        1);
+	    (void *[]){
+	        g_context->paint_object,
+	    },
+	    1);
 
 	for (i32 i = 1; i < mesh_datas->length; ++i) {
 		mesh_object_t *object = scene_add_mesh_object(mesh_datas->buffer[i], g_context->paint_object->material, g_context->paint_object->base);
@@ -1380,7 +1378,7 @@ void import_arm_run_project(char *path) {
 		any_array_push(g_project->_->layers, l);
 		if (!is_group) {
 			if (is_mask) {
-				u32 sz                 = (u32)ld->res * ld->res * 4;
+				u32 sz                  = (u32)ld->res * ld->res * 4;
 				layer_jobs[job_count++] = (import_arm_layer_job_t){
 				    .compressed = ld->texpaint, .target = l->texpaint, .res = ld->res, .size = sz, .format = GPU_TEXTURE_FORMAT_RGBA32};
 				if (sz > max_size)
@@ -1390,10 +1388,10 @@ void import_arm_run_project(char *path) {
 				u32 sz                  = (u32)ld->res * ld->res * 4 * bytes_per_pixel;
 				layer_jobs[job_count++] = (import_arm_layer_job_t){
 				    .compressed = ld->texpaint, .target = l->texpaint, .res = ld->res, .size = sz, .format = format, .check_alpha = i == 0};
-				layer_jobs[job_count++] = (import_arm_layer_job_t){
-				    .compressed = ld->texpaint_nor, .target = l->texpaint_nor, .res = ld->res, .size = sz, .format = format};
-				layer_jobs[job_count++] = (import_arm_layer_job_t){
-				    .compressed = ld->texpaint_pack, .target = l->texpaint_pack, .res = ld->res, .size = sz, .format = format};
+				layer_jobs[job_count++] =
+				    (import_arm_layer_job_t){.compressed = ld->texpaint_nor, .target = l->texpaint_nor, .res = ld->res, .size = sz, .format = format};
+				layer_jobs[job_count++] =
+				    (import_arm_layer_job_t){.compressed = ld->texpaint_pack, .target = l->texpaint_pack, .res = ld->res, .size = sz, .format = format};
 				if (sz > max_size)
 					max_size = sz;
 
@@ -1406,8 +1404,12 @@ void import_arm_run_project(char *path) {
 					l->texpaint_sculpt = render_path_create_render_target(t)->_image;
 
 					u32 ssz                 = (u32)ld->res * ld->res * 4 * 4;
-					layer_jobs[job_count++] = (import_arm_layer_job_t){
-					    .compressed = ld->texpaint_sculpt, .target = l->texpaint_sculpt, .res = ld->res, .size = ssz, .format = GPU_TEXTURE_FORMAT_RGBA128, .is_sculpt = true};
+					layer_jobs[job_count++] = (import_arm_layer_job_t){.compressed = ld->texpaint_sculpt,
+					                                                   .target     = l->texpaint_sculpt,
+					                                                   .res        = ld->res,
+					                                                   .size       = ssz,
+					                                                   .format     = GPU_TEXTURE_FORMAT_RGBA128,
+					                                                   .is_sculpt  = true};
 					if (ssz > max_size)
 						max_size = ssz;
 				}

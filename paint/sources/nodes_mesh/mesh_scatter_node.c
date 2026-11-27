@@ -120,10 +120,10 @@ static void mesh_scatter_sync(mesh_scatter_t *s, mesh_object_t *host, mesh_objec
 	mat4_t nm = mat4_transpose3(mat4_inv(hw));
 
 	for (i32 i = 0; i < s->count; ++i) {
-		f32   *pl = s->pos_local + i * 3;
-		f32   *nl = s->nor_local + i * 3;
-		vec4_t pw = vec4_apply_mat4((vec4_t){pl[0], pl[1], pl[2], 1.0f}, hw);
-		vec4_t nw = vec4_apply_mat4((vec4_t){nl[0], nl[1], nl[2], 0.0f}, nm);
+		f32   *pl     = s->pos_local + i * 3;
+		f32   *nl     = s->nor_local + i * 3;
+		vec4_t pw     = vec4_apply_mat4((vec4_t){pl[0], pl[1], pl[2], 1.0f}, hw);
+		vec4_t nw     = vec4_apply_mat4((vec4_t){nl[0], nl[1], nl[2], 0.0f}, nm);
 		f32    nl_len = sqrtf(nw.x * nw.x + nw.y * nw.y + nw.z * nw.z);
 		if (nl_len > 1e-6f) {
 			nw.x /= nl_len;
@@ -140,9 +140,9 @@ static void mesh_scatter_sync(mesh_scatter_t *s, mesh_object_t *host, mesh_objec
 			f32 ang = acosf(dot) * s->align;
 			if (ang > 1e-5f) {
 				// cross((0, 0, 1), nw) = (-nw.y, nw.x, 0)
-				f32 ax   = -nw.y;
-				f32 ay   = nw.x;
-				f32 alen = sqrtf(ax * ax + ay * ay);
+				f32    ax   = -nw.y;
+				f32    ay   = nw.x;
+				f32    alen = sqrtf(ax * ax + ay * ay);
 				vec4_t axis = alen > 1e-5f ? (vec4_t){ax / alen, ay / alen, 0.0f, 0.0f} : (vec4_t){1.0f, 0.0f, 0.0f, 0.0f};
 				quat_t qt   = quat_from_axis_angle(axis, ang);
 				q           = quat_mult(qt, q);
@@ -197,7 +197,7 @@ void mesh_scatter_draw(shader_context_t *scon, bool own) {
 		bool         saved_vis    = target->base->visible;
 		f32          saved_rand   = target->base->urandom;
 
-		t->dirty             = false;
+		t->dirty              = false;
 		target->base->visible = true;
 		for (i32 k = 0; k < s->count; ++k) {
 			t->world              = s->world[k];
@@ -234,8 +234,8 @@ void mesh_scatter_raytrace_add(i32 (*override_slot_fn)(mesh_data_t *), gpu_textu
 
 		mesh_scatter_sync(s, host, target);
 
-		i32            slot = override_slot_fn(target->data);
-		gpu_texture_t *textures[3];
+		i32             slot = override_slot_fn(target->data);
+		gpu_texture_t  *textures[3];
 		gpu_texture_t **tex_ptr = NULL;
 		if (slot >= 0) {
 			gpu_texture_t *a = override_tex_fn(slot, 'a');
@@ -277,16 +277,16 @@ mesh_geo_t *mesh_scatter_node_eval(ui_node_t *node) {
 		return g;
 	}
 
-	i32  count      = (i32)math_floor(nodes_mesh_value(node, 1));
-	i32  seed       = (i32)math_floor(nodes_mesh_value(node, 2));
-	f32  scale      = nodes_mesh_value(node, 3);
-	f32  scale_var  = nodes_mesh_value(node, 4);
-	f32  align      = nodes_mesh_value(node, 5);
-	f32  max_slope  = nodes_mesh_value(node, 6);
-	f32  min_dist   = nodes_mesh_value(node, 7);
-	f32  offset_z   = nodes_mesh_value(node, 8);
-	f32  density    = nodes_mesh_value(node, 9);
-	bool inv_mask   = node->buttons->length > 1 && nodes_mesh_button(node, 1) > 0;
+	i32  count     = (i32)math_floor(nodes_mesh_value(node, 1));
+	i32  seed      = (i32)math_floor(nodes_mesh_value(node, 2));
+	f32  scale     = nodes_mesh_value(node, 3);
+	f32  scale_var = nodes_mesh_value(node, 4);
+	f32  align     = nodes_mesh_value(node, 5);
+	f32  max_slope = nodes_mesh_value(node, 6);
+	f32  min_dist  = nodes_mesh_value(node, 7);
+	f32  offset_z  = nodes_mesh_value(node, 8);
+	f32  density   = nodes_mesh_value(node, 9);
+	bool inv_mask  = node->buttons->length > 1 && nodes_mesh_button(node, 1) > 0;
 
 	count     = count < 0 ? 0 : (count > MESH_SCATTER_MAX ? MESH_SCATTER_MAX : count);
 	scale     = scale < 0.001f ? 0.001f : scale;
@@ -317,12 +317,12 @@ mesh_geo_t *mesh_scatter_node_eval(ui_node_t *node) {
 	f64    acc_area = 0.0;
 
 	for (i32 t = 0; t < nt; ++t) {
-		u32  i0 = g->ind[t * 3];
-		u32  i1 = g->ind[t * 3 + 1];
-		u32  i2 = g->ind[t * 3 + 2];
-		f32 *a  = g->pos + i0 * 3;
-		f32 *b  = g->pos + i1 * 3;
-		f32 *c  = g->pos + i2 * 3;
+		u32  i0    = g->ind[t * 3];
+		u32  i1    = g->ind[t * 3 + 1];
+		u32  i2    = g->ind[t * 3 + 2];
+		f32 *a     = g->pos + i0 * 3;
+		f32 *b     = g->pos + i1 * 3;
+		f32 *c     = g->pos + i2 * 3;
 		f32  e1[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
 		f32  e2[3] = {c[0] - a[0], c[1] - a[1], c[2] - a[2]};
 		f32  cx    = e1[1] * e2[2] - e1[2] * e2[1];
