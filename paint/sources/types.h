@@ -60,6 +60,28 @@ typedef struct mesh_volume {
 	u32                 sparks_version;
 } mesh_volume_t;
 
+typedef struct mesh_scatter {
+	i32               host_uid;
+	i32               target_uid;
+	i32               count;
+	f32               align;
+	f32               offset_z;
+	f32              *pos_local;
+	f32              *nor_local;
+	f32              *yaw;
+	f32              *scale_mult;
+	f32              *urandom;
+	mat4_t           *world;
+	mat4_t           *world_unpack;
+	bool              matrices_valid;
+	mat4_t            host_world;
+	mat4_t            target_world;
+	struct mesh_data *target_data;
+	f32               target_scale_pos;
+	u32               target_topology;
+	f32               target_min_z;
+} mesh_scatter_t;
+
 typedef struct mesh_geo_image {
 	i32 width;
 	i32 height;

@@ -122,6 +122,7 @@
 #include "nodes_mesh/mesh_mirror_node.c"
 #include "nodes_mesh/mesh_object_node.c"
 #include "nodes_mesh/mesh_output_node.c"
+#include "nodes_mesh/mesh_scatter_node.c"
 #include "nodes_mesh/mesh_script_node.c"
 #include "nodes_mesh/mesh_shape_node.c"
 #include "nodes_mesh/mesh_smoke_node.c"

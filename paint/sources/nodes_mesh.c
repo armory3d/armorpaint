@@ -81,6 +81,7 @@ void nodes_mesh_init() {
 	nodes_mesh_modifier = any_array_create(0);
 	mesh_transform_node_init();
 	mesh_array_node_init();
+	mesh_scatter_node_init();
 	mesh_mirror_node_init();
 	mesh_subdivide_node_init();
 	mesh_smooth_node_init();
@@ -500,7 +501,7 @@ static void nodes_mesh_sync_objects(ui_node_canvas_t *c) {
 	mesh_object_t_array_t *objects = g_project->_->paint_objects;
 	for (i32 i = 0; i < c->nodes->length; ++i) {
 		ui_node_t *n = c->nodes->buffer[i];
-		if (!string_equals(n->type, "MESH_OBJECT")) {
+		if (!string_equals(n->type, "MESH_OBJECT") && !string_equals(n->type, "MESH_SCATTER")) {
 			continue;
 		}
 		ui_node_button_t *b = n->buttons->buffer[0];
@@ -641,6 +642,7 @@ static mesh_geo_t *nodes_mesh_eval_node(ui_node_t *node) {
 
 // Returns NULL when the original mesh is used as is
 static mesh_data_t *nodes_mesh_eval(mesh_nodes_t *slot, mesh_object_t *o) {
+	mesh_scatter_clear(o->base->uid);
 	ui_node_t *output = NULL;
 	for (i32 i = 0; i < slot->canvas->nodes->length; ++i) {
 		ui_node_t *n = slot->canvas->nodes->buffer[i];
@@ -718,6 +720,17 @@ static u32 nodes_mesh_hash_canvas(u32 hash, ui_node_canvas_t *c, mesh_object_t *
 			}
 			hash = nodes_mesh_hash_bytes(hash, &ref, sizeof(ref));
 			continue;
+		}
+		if (string_equals(n->type, "MESH_SCATTER")) {
+			mesh_object_t *ref = nodes_mesh_node_object(n);
+			if (ref != NULL) {
+				i32 count = ref->data->index_array->length;
+				hash      = nodes_mesh_hash_bytes(hash, &ref->data, sizeof(ref->data));
+				hash      = nodes_mesh_hash_bytes(hash, &count, sizeof(count));
+				hash      = nodes_mesh_hash_bytes(hash, ref->base->transform->world.m, sizeof(f32) * 16);
+			}
+			hash = nodes_mesh_hash_bytes(hash, &ref, sizeof(ref));
+			hash = nodes_mesh_hash_bytes(hash, o->base->transform->world.m, sizeof(f32) * 16);
 		}
 		if (string_equals(n->type, "TEX_IMAGE") || string_equals(n->type, "LAYER_MASK")) {
 			gpu_texture_t *texture = mesh_image_node_texture(n); // Reimported, replaced or swapped by undo
@@ -896,13 +909,18 @@ void nodes_mesh_update(mesh_object_t *o, bool force) {
 	}
 	slot->hash = hash;
 
-	mesh_data_t *out = nodes_mesh_eval(slot, o);
+	bool         had_scatter = mesh_scatter_has(o->base->uid);
+	mesh_data_t *out         = nodes_mesh_eval(slot, o);
 	if (out == NULL) {
 		out               = slot->input;
 		slot->reads_frame = false;
 	}
 	mesh_data_t *old = o->data;
 	if (out == old) {
+		if (had_scatter || mesh_scatter_has(o->base->uid)) {
+			render_path_raytrace_ready = false;
+			g_context->ddirty          = 2;
+		}
 		return;
 	}
 
@@ -926,6 +944,11 @@ void nodes_mesh_remove(mesh_object_t *o) {
 		}
 		array_splice(nodes_mesh_slots, i, 1);
 		mesh_script_node_state_free(slot->uid);
+		if (mesh_scatter_has(slot->uid)) {
+			mesh_scatter_clear(slot->uid);
+			render_path_raytrace_ready = false;
+			g_context->ddirty          = 2;
+		}
 		sim_world_invalidate();
 		mesh_data_t *input = slot->output != slot->input ? slot->input : NULL;
 		if (input != NULL && util_mesh_data_owner(input) == -1 && !nodes_mesh_holds(input)) {
@@ -1075,8 +1098,8 @@ void nodes_mesh_refresh() {
 		mesh_nodes_t  *slot = nodes_mesh_slots->buffer[i];
 		mesh_object_t *o    = nodes_mesh_object(slot->uid);
 		// Undo swaps the textures of layers, which changes the hash of layer mask nodes
-		if (o != NULL && (slot->dirty || nodes_mesh_has_node(slot->canvas, "MESH_OBJECT") || nodes_mesh_has_node(slot->canvas, "LAYER_MASK") ||
-		                  nodes_mesh_has_node(slot->canvas, "MESH_DISPLACE"))) {
+		if (o != NULL && (slot->dirty || nodes_mesh_has_node(slot->canvas, "MESH_OBJECT") || nodes_mesh_has_node(slot->canvas, "MESH_SCATTER") ||
+		                  nodes_mesh_has_node(slot->canvas, "LAYER_MASK") || nodes_mesh_has_node(slot->canvas, "MESH_DISPLACE"))) {
 			nodes_mesh_update(o, false);
 		}
 	}
@@ -1097,6 +1120,7 @@ void nodes_mesh_frame_changed() {
 
 void nodes_mesh_reset() {
 	mesh_script_node_state_free(-1);
+	mesh_scatter_clear(-1);
 	sim_world_invalidate();
 	if (nodes_mesh_slots == NULL) {
 		return;
@@ -1170,7 +1194,7 @@ static ui_node_canvas_t *nodes_mesh_import_canvas(ui_node_canvas_t *c) {
 	import_arm_init_nodes(c->nodes);
 	for (i32 j = 0; j < c->nodes->length; ++j) {
 		ui_node_t *n = c->nodes->buffer[j];
-		if (string_equals(n->type, "MESH_OBJECT") && n->buttons->buffer[0]->default_value->length > 2) {
+		if ((string_equals(n->type, "MESH_OBJECT") || string_equals(n->type, "MESH_SCATTER")) && n->buttons->buffer[0]->default_value->length > 2) {
 			n->buttons->buffer[0]->default_value->buffer[1] = -1; // Object uids are not kept in files
 		}
 	}
