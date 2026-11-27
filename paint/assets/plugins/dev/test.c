@@ -1838,7 +1838,7 @@ void step_font_sound() {
 
 void step_mesh_geo() {
 	mesh_geo_t *box   = mesh_geo_shape(0, 1.0, 1.0, 1.0, 8);
-	mesh_geo_t *plane = mesh_geo_shape(5, 1.0, 1.0, 1.0, 8);
+	mesh_geo_t *plane = mesh_geo_shape(5, 1.0, 1.0, 1.0, 1);
 	mesh_geo_t *ball  = mesh_geo_shape(1, 1.0, 1.0, 1.0, 24);
 	int         ok    = box->index_count == 36 && plane->index_count == 6 && ball->index_count > 1000;
 	check(ok, string("mesh geo shapes (%d, %d, %d indices)", box->index_count, plane->index_count, ball->index_count));
