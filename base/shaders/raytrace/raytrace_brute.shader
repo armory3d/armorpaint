@@ -5,16 +5,13 @@
 #define _TRANSLUCENCY
 #define _ROULETTE
 #define _GRAINS
-#define _GRAIN_BOUNCE_LIMIT // Faster sand
 #define _VOLUMES
 #define _FOG
 #endif
 #define _ENV_SAMPLING
-
-#ifndef _EMISSION
-#ifndef _SUBSURFACE
+// #define _FAST
+#ifndef _FULL
 #define _INDIRECT_SKIP_NORMAL
-#endif
 #endif
 
 cbuffer constant_buffer {
@@ -47,7 +44,11 @@ const int SAMPLES = 64;
 #ifdef _LOW_SAMPLES
 const int SAMPLES = 4;
 #else
+#ifdef _FAST
+const int SAMPLES = 16;
+#else
 const int SAMPLES = 32;
+#endif
 #endif
 #endif
 
@@ -57,7 +58,11 @@ const int DEPTH = 32;
 #ifdef _TRANSLUCENCY
 const int DEPTH = 16;
 #else
+#ifdef _FAST
+const int DEPTH = 2; // Opaque hits
+#else
 const int DEPTH = 3; // Opaque hits
+#endif
 #endif
 #endif
 
@@ -498,9 +503,9 @@ bool occluded(float3 origin, float3 dir) {
 const float GRAIN_CELL   = 0.004; // Grain spacing in world units
 const float GRAIN_TOP    = 0.002; // Highest grain point above the plane, half a cell
 const int   GRAIN_STEPS  = 64;    // Half cells walked before a ray is lost in the packing
-#ifdef _GRAIN_BOUNCE_LIMIT
+// Fast grain
 const int GRAIN_BOUNCES = 3; // Grains a path scatters off, the last one only gathers direct light
-#endif
+//
 const float GRAIN_BOTTOM = 0.04;  // Rays this far below the plane are lost
 
 struct grain_hit {
@@ -1042,9 +1047,36 @@ void raytrace() {
 	int           frame = int(constant_buffer.eye.w);
 	sampler_cache cache = init_sampler(id.xy, frame);
 
+#ifndef _FULL
+#ifdef _FAST
+	int samples      = SAMPLES;
+	int prev_samples = frame * SAMPLES;
+	if (SAMPLES > 4) {
+		int first_samples = 4;
+		if (frame == 0) {
+			samples      = first_samples;
+			prev_samples = 0;
+		}
+		else {
+			prev_samples = first_samples + (frame - 1) * SAMPLES;
+		}
+	}
+#endif
+#endif
+
 	float3 accum = float3(0.0, 0.0, 0.0);
+#ifndef _FULL
+#ifdef _FAST
+	for (int j = 0; j < samples; j += 1) {
+		int sample_index = prev_samples + j;
+#else
 	for (int j = 0; j < SAMPLES; j += 1) {
 		int sample_index = frame * SAMPLES + j;
+#endif
+#else
+	for (int j = 0; j < SAMPLES; j += 1) {
+		int sample_index = frame * SAMPLES + j;
+#endif
 
 		// AA
 		float2 xy = float2(id.xy);
@@ -1081,9 +1113,9 @@ void raytrace() {
 		float  grain_metal = 0.0;
 #endif
 		int lead = 0; // Iterations the camera ray spent crossing into the grains, before it met anything
-#ifdef _GRAIN_BOUNCE_LIMIT
+		// Fast grain
 		int grain_bounces = 0;
-#endif
+		//
 
 		for (int i = 0; i < DEPTH; i += 1) {
 			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
@@ -1613,12 +1645,18 @@ void raytrace() {
 			}
 #endif
 
-#ifdef _GRAIN_BOUNCE_LIMIT
+			// Fast grain
 			if (grain_shade) {
 				grain_bounces += 1;
 				if (grain_bounces >= GRAIN_BOUNCES) {
 					break;
 				}
+			}
+			//
+
+#ifndef _FULL
+			if (i + 1 >= DEPTH) {
+				break;
 			}
 #endif
 
@@ -1662,12 +1700,32 @@ void raytrace() {
 		}
 	}
 
+#ifndef _FULL
+#ifdef _FAST
+	accum        = accum / float(samples);
+	float3 color = accum;
+	if (frame > 0) {
+		float4 target = render_target[id.xy];
+		float  a      = float(samples) / float(prev_samples + samples);
+		color         = lerp(target.xyz, accum, a);
+	}
+#else
+	accum        = accum / float(SAMPLES);
+	float3 color = accum;
+	if (frame > 0) {
+		float4 target = render_target[id.xy];
+		float  a      = 1.0 / (constant_buffer.eye.w + 1.0);
+		color         = lerp(target.xyz, accum, a);
+	}
+#endif
+#else
 	float4 target = render_target[id.xy];
 	float3 color  = target.xyz;
 	accum         = accum / float(SAMPLES);
 
 	float a = 1.0 / (constant_buffer.eye.w + 1.0);
 	color   = lerp(color, accum, a);
+#endif
 
 	render_target[id.xy] = float4(color, 1.0);
 }
