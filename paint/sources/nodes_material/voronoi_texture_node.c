@@ -9,6 +9,10 @@ float3 voronoi_hash3(float3 p) { \
     h.z = frac(sin(dot(p, float3(113.5, 271.9, 124.6))) * 43758.5453); \
     return h; \
 } \
+float3 voronoi_pos_unscale(float3 p, float s) { \
+    if (s == 0.0) { return float3(0.0, 0.0, 0.0); } \
+    return p / s; \
+} \
 float4 voronoi_2d_f1(float px, float py, float r) { \
     float cx0 = floor(px); float cy0 = floor(py); \
     float lx = px - cx0; float ly = py - cy0; \
@@ -253,10 +257,10 @@ char *voronoi_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 	else {              // Position
 		if (dim == 0) { // 2D
-			return string_tmp("voronoi_2d_%s_pos((%s).x, (%s).y, %s)", fn, p3s, p3s, randomness);
+			return string_tmp("voronoi_pos_unscale(voronoi_2d_%s_pos((%s).x, (%s).y, %s), %s)", fn, p3s, p3s, randomness, scale);
 		}
 		else { // 3D
-			return string_tmp("voronoi_3d_%s_pos(%s, %s)", fn, p3s, randomness);
+			return string_tmp("voronoi_pos_unscale(voronoi_3d_%s_pos(%s, %s), %s)", fn, p3s, randomness, scale);
 		}
 	}
 }
