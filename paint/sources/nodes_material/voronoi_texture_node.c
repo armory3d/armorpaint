@@ -42,7 +42,7 @@ float3 voronoi_2d_f1_pos(float px, float py, float r) { \
     } \
     float bcx = cx0 + float(bi); float bcy = cy0 + float(bj); \
     float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    return float3(bcx + float(bi) + bh.x * r, bcy + float(bj) + bh.y * r, 0.0); \
+    return float3(bcx + bh.x * r, bcy + bh.y * r, 0.0); \
 } \
 float4 voronoi_2d_f2(float px, float py, float r) { \
     float cx0 = floor(px); float cy0 = floor(py); \
@@ -79,7 +79,7 @@ float3 voronoi_2d_f2_pos(float px, float py, float r) { \
     } \
     float bcx = cx0 + float(b2i); float bcy = cy0 + float(b2j); \
     float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    return float3(bcx + float(b2i) + bh.x * r, bcy + float(b2j) + bh.y * r, 0.0); \
+    return float3(bcx + bh.x * r, bcy + bh.y * r, 0.0); \
 } \
 float voronoi_2d_f1_fbm(float px, float py, float detail, float roughness, float lacunarity, float r) { \
     float sum = 0.0; float max_amp = 0.0; \
@@ -145,7 +145,7 @@ float3 voronoi_3d_f1_pos(float3 p, float r) { \
     } \
     float3 off = float3(float(bi), float(bj), float(bk)); \
     float3 bpt = off + voronoi_hash3(cell + off) * r; \
-    return cell + off + bpt; \
+    return cell + bpt; \
 } \
 float4 voronoi_3d_f2(float3 p, float r) { \
     float3 cell = floor(p); \
@@ -193,7 +193,7 @@ float3 voronoi_3d_f2_pos(float3 p, float r) { \
     } \
     float3 off2 = float3(float(b2i), float(b2j), float(b2k)); \
     float3 bpt2 = off2 + voronoi_hash3(cell + off2) * r; \
-    return cell + off2 + bpt2; \
+    return cell + bpt2; \
 } \
 float voronoi_3d_f1_fbm(float3 p, float detail, float roughness, float lacunarity, float r) { \
     float sum = 0.0; float max_amp = 0.0; \
