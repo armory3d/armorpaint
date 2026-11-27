@@ -2490,7 +2490,7 @@ void render_path_load_shader(char *handle) {
 }
 
 void render_path_resize(void) {
-	if (iron_window_width() == 0 || iron_window_height() == 0) {
+	if (iron_window_width() == 0 || iron_window_height() == 0 || render_path_render_targets == NULL) {
 		return;
 	}
 	any_array_t *render_targets_keys = map_keys(render_path_render_targets);
