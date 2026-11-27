@@ -24,8 +24,7 @@ float4 voronoi_2d_f1(float px, float py, float r) { \
     } \
     float bcx = cx0 + float(bi); float bcy = cy0 + float(bj); \
     float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    float bptx = float(bi) + bh.x * r; float bpty = float(bj) + bh.y * r; \
-    float3 col = voronoi_hash3(float3(cx0 + float(bi) + bptx * (1.0 - r), cy0 + float(bj) + bpty * (1.0 - r), 0.0)); \
+    float3 col = bh; \
     return float4(min_dist, col.x, col.y, col.z); \
 } \
 float3 voronoi_2d_f1_pos(float px, float py, float r) { \
@@ -61,8 +60,7 @@ float4 voronoi_2d_f2(float px, float py, float r) { \
     } \
     float bcx = cx0 + float(b2i); float bcy = cy0 + float(b2j); \
     float3 bh = voronoi_hash3(float3(bcx, bcy, 0.0)); \
-    float bptx = float(b2i) + bh.x * r; float bpty = float(b2j) + bh.y * r; \
-    float3 col = voronoi_hash3(float3(cx0 + float(b2i) + bptx * (1.0 - r), cy0 + float(b2j) + bpty * (1.0 - r), 0.0)); \
+    float3 col = bh; \
     return float4(dist2, col.x, col.y, col.z); \
 } \
 float3 voronoi_2d_f2_pos(float px, float py, float r) { \
@@ -128,8 +126,7 @@ float4 voronoi_3d_f1(float3 p, float r) { \
         if (d < min_dist) { min_dist = d; bi = i; bj = j; bk = k; } \
     } \
     float3 off = float3(float(bi), float(bj), float(bk)); \
-    float3 bpt = off + voronoi_hash3(cell + off) * r; \
-    float3 col = voronoi_hash3(cell + off + bpt * (1.0 - r)); \
+    float3 col = voronoi_hash3(cell + off); \
     return float4(min_dist, col.x, col.y, col.z); \
 } \
 float3 voronoi_3d_f1_pos(float3 p, float r) { \
@@ -171,8 +168,7 @@ float4 voronoi_3d_f2(float3 p, float r) { \
         } \
     } \
     float3 off2 = float3(float(b2i), float(b2j), float(b2k)); \
-    float3 bpt2 = off2 + voronoi_hash3(cell + off2) * r; \
-    float3 col = voronoi_hash3(cell + off2 + bpt2 * (1.0 - r)); \
+    float3 col = voronoi_hash3(cell + off2); \
     return float4(dist2, col.x, col.y, col.z); \
 } \
 float3 voronoi_3d_f2_pos(float3 p, float r) { \
