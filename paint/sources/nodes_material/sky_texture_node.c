@@ -109,12 +109,34 @@ static void sky_node_dispatch(i32 pipe, gpu_texture_t *target, gpu_texture_t *a,
 	gpu_compute_dispatch(target->width, target->height);
 }
 
-gpu_texture_t *sky_texture_node_preview_image(ui_node_t *node, ui_node_t_array_t *parents) {
-	if (g_context->node_previews == NULL) {
-		return NULL;
+static ui_node_t        *sky_node_pending_node  = NULL;
+static ui_node_canvas_t *sky_node_pending_group = NULL;
+static char             *sky_node_pending_id    = NULL;
+
+static void sky_texture_node_bake_on_next_frame(void *_) {
+	ui_node_t        *node  = sky_node_pending_node;
+	ui_node_canvas_t *group = sky_node_pending_group;
+	char             *id    = sky_node_pending_id;
+	sky_node_pending_node   = NULL;
+	sky_node_pending_group  = NULL;
+	sky_node_pending_id     = NULL;
+	if (node != NULL && g_context->material != NULL) {
+		sky_texture_node_bake(node, group, NULL, id);
 	}
-	char *id = make_material_node_preview_id(node, parents);
-	return any_map_get(g_context->node_previews, id);
+	free(id);
+}
+
+gpu_texture_t *sky_texture_node_preview_image(ui_node_t *node, ui_node_t_array_t *parents) {
+	char          *id  = make_material_node_preview_id(node, parents);
+	gpu_texture_t *img = g_context->node_previews != NULL ? any_map_get(g_context->node_previews, id) : NULL;
+	if (img == NULL && sky_node_pending_node == NULL) {
+		ui_node_canvas_t *canvas = ui_nodes_get_canvas(true);
+		sky_node_pending_node    = node;
+		sky_node_pending_group   = canvas != g_context->material->canvas ? canvas : NULL;
+		sky_node_pending_id      = string_copy(id);
+		sys_notify_on_next_frame(&sky_texture_node_bake_on_next_frame, NULL);
+	}
+	return img;
 }
 
 void sky_texture_node_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents, char *id) {
