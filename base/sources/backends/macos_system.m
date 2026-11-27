@@ -617,7 +617,7 @@ const char *iron_get_resource_path(void) {
 - (void)terminate:(id)sender;
 @end
 
-@interface IronAppDelegate : NSObject <NSWindowDelegate> {
+@interface IronAppDelegate : NSObject <NSWindowDelegate, NSApplicationDelegate> {
 }
 - (void)windowWillClose:(NSNotification *)notification;
 - (void)windowDidResize:(NSNotification *)notification;
@@ -628,6 +628,7 @@ const char *iron_get_resource_path(void) {
 @end
 
 static IronAppDelegate *delegate;
+static NSMutableArray  *opened_files = nil; // Opened via finder
 
 CAMetalLayer *get_metal_layer(void) {
 	return [view metalLayer];
@@ -655,6 +656,14 @@ bool iron_internal_handle_messages(void) {
 	}
 	[myapp updateWindows];
 
+	if (opened_files != nil && [opened_files count] > 0) {
+		NSArray *files = [opened_files copy];
+		[opened_files removeAllObjects];
+		for (NSString *file in files) {
+			iron_internal_drop_files_callback((char *)[file fileSystemRepresentation]);
+		}
+	}
+
 	if (trackpad_lift > 0.0 && [[NSProcessInfo processInfo] systemUptime] - trackpad_lift > 0.1) {
 		trackpad_release();
 	}
@@ -680,7 +689,6 @@ static void create_window(iron_window_options_t *options) {
 	view = [[BasicMTKView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
 	[view registerForDraggedTypes:[NSArray arrayWithObjects:NSURLPboardType, nil]];
 	window   = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, width, height) styleMask:styleMask backing:NSBackingStoreBuffered defer:TRUE];
-	delegate = [IronAppDelegate alloc];
 	[window setDelegate:delegate];
 	[window setTitle:[NSString stringWithCString:options->title encoding:NSUTF8StringEncoding]];
 	[window setAcceptsMouseMovedEvents:YES];
@@ -743,7 +751,10 @@ static void add_menubar(void) {
 void iron_init(iron_window_options_t *win) {
 	init_key_translation();
 	@autoreleasepool {
-		myapp = [IronApplication sharedApplication];
+		myapp        = [IronApplication sharedApplication];
+		delegate     = [[IronAppDelegate alloc] init];
+		opened_files = [[NSMutableArray alloc] init];
+		[myapp setDelegate:delegate];
 		[myapp finishLaunching];
 		[[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 		NSApp.activationPolicy = NSApplicationActivationPolicyRegular;
@@ -822,6 +833,11 @@ int main(int argc, char **argv) {
 @end
 
 @implementation IronAppDelegate
+- (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
+	[opened_files addObjectsFromArray:filenames];
+	[sender replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
+}
+
 - (BOOL)windowShouldClose:(NSWindow *)sender {
 	if (windows[0].close_callback != NULL) {
 		if (windows[0].close_callback(windows[0].close_callback_data)) {
