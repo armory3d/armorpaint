@@ -93,8 +93,8 @@ int count_lines(char *data) {
 int main() {
 	char *dir            = "./paint/assets/locale";
 	char *source_paths[] = {
-	    "paint/sources",    "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/nodes_mesh",
-	    "paint/sources/io", "paint/sources/render",         "paint/sources/slots",       "paint/sources/traits",       "paint/sources/ui",
+	    "paint/sources",     "paint/sources/nodes_material", "paint/sources/nodes_brush", "paint/sources/nodes_neural", "paint/sources/nodes_mesh",
+	    "paint/sources/io",  "paint/sources/render",         "paint/sources/slots",       "paint/sources/traits",       "paint/sources/ui",
 	    "paint/sources/util"};
 
 	// Collect the source strings
@@ -222,7 +222,7 @@ int main() {
 		if (fs_exists(locale_path)) {
 			char *data   = fs_readfile(locale_path);
 			int   en_pos = 0;
-			int pos    = 0;
+			int   pos    = 0;
 			for (int j = 0; j < old_size; ++j) {
 				int en_end = line_end(old_en, en_pos);
 				int end    = line_end(data, pos);

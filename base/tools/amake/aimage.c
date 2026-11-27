@@ -200,11 +200,11 @@ void export_k(const char *from, const char *to) {
 
 	// Single channel source, store one channel only (loaded as r8)
 	// Gray+alpha source, store luminance and alpha only
-	int  x, y, n;
-	bool has_info = !img.is_hdr && stbi_info(from, &x, &y, &n);
-	bool is_r8    = has_info && n == 1;
-	bool is_gray  = has_info && n == 2;
-	unsigned char *rgba = (unsigned char *)img.data;
+	int            x, y, n;
+	bool           has_info = !img.is_hdr && stbi_info(from, &x, &y, &n);
+	bool           is_r8    = has_info && n == 1;
+	bool           is_gray  = has_info && n == 2;
+	unsigned char *rgba     = (unsigned char *)img.data;
 	if (is_r8) {
 		for (int i = 0; i < img.width * img.height; ++i) {
 			rgba[i] = rgba[i * 4];

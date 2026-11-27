@@ -30,39 +30,40 @@
 //    ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║
 //    ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝
 
-#define MINIC_TOK_LIST                                                                                                                                         \
-	X(TOK_INT, "'int'")                                                                                                                                        \
-	X(TOK_FLOAT, "'float'")                                                                                                                                    \
-	X(TOK_CHAR, "'char'")                                                                                                                                      \
-	X(TOK_DOUBLE, "'double'")                                                                                                                                  \
-	X(TOK_BOOL, "'bool'")                                                                                                                                      \
-	X(TOK_INT16, "'int16_t'")                                                                                                                                  \
-	X(TOK_UINT16, "'uint16_t'")                                                                                                                                \
-	X(TOK_VOID, "'void'")                                                                                                                                      \
-	X(TOK_RETURN, "'return'")                                                                                                                                  \
-	X(TOK_IF, "'if'")                                                                                                                                          \
-	X(TOK_ELSE, "'else'")                                                                                                                                      \
-	X(TOK_WHILE, "'while'")                                                                                                                                    \
-	X(TOK_FOR, "'for'")                                                                                                                                        \
-	X(TOK_BREAK, "'break'")                                                                                                                                    \
-	X(TOK_CONTINUE, "'continue'")                                                                                                                              \
-	X(TOK_STRUCT, "'struct'")                                                                                                                                  \
-	X(TOK_TYPEDEF, "'typedef'")                                                                                                                                \
-	X(TOK_ENUM, "'enum'")                                                                                                                                      \
-	X(TOK_IDENT, "identifier")                                                                                                                                 \
-	X(TOK_NUMBER, "number")                                                                                                                                    \
-	X(TOK_CHAR_LIT, "char literal")                                                                                                                            \
-	X(TOK_STR_LIT, "string literal")                                                                                                                           \
-	X(TOK_LPAREN, "'('")                                                                                                                                       \
-	X(TOK_RPAREN, "')'")                                                                                                                                       \
-	X(TOK_LBRACE, "'{'")                                                                                                                                       \
-	X(TOK_RBRACE, "'}'")                                                                                                                                       \
-	X(TOK_LBRACKET, "'['") X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='")                  \
-	    X(TOK_MINUS_ASSIGN, "'-='") X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='")                   \
-	        X(TOK_SHR_ASSIGN, "'>>='") X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='")       \
-	            X(TOK_LT, "'<'") X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'") \
-	                X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'")  \
-	                    X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'")                     \
+#define MINIC_TOK_LIST                                                                                                                                        \
+	X(TOK_INT, "'int'")                                                                                                                                       \
+	X(TOK_FLOAT, "'float'")                                                                                                                                   \
+	X(TOK_CHAR, "'char'")                                                                                                                                     \
+	X(TOK_DOUBLE, "'double'")                                                                                                                                 \
+	X(TOK_BOOL, "'bool'")                                                                                                                                     \
+	X(TOK_INT16, "'int16_t'")                                                                                                                                 \
+	X(TOK_UINT16, "'uint16_t'")                                                                                                                               \
+	X(TOK_VOID, "'void'")                                                                                                                                     \
+	X(TOK_RETURN, "'return'")                                                                                                                                 \
+	X(TOK_IF, "'if'")                                                                                                                                         \
+	X(TOK_ELSE, "'else'")                                                                                                                                     \
+	X(TOK_WHILE, "'while'")                                                                                                                                   \
+	X(TOK_FOR, "'for'")                                                                                                                                       \
+	X(TOK_BREAK, "'break'")                                                                                                                                   \
+	X(TOK_CONTINUE, "'continue'")                                                                                                                             \
+	X(TOK_STRUCT, "'struct'")                                                                                                                                 \
+	X(TOK_TYPEDEF, "'typedef'")                                                                                                                               \
+	X(TOK_ENUM, "'enum'")                                                                                                                                     \
+	X(TOK_IDENT, "identifier")                                                                                                                                \
+	X(TOK_NUMBER, "number")                                                                                                                                   \
+	X(TOK_CHAR_LIT, "char literal")                                                                                                                           \
+	X(TOK_STR_LIT, "string literal")                                                                                                                          \
+	X(TOK_LPAREN, "'('")                                                                                                                                      \
+	X(TOK_RPAREN, "')'")                                                                                                                                      \
+	X(TOK_LBRACE, "'{'")                                                                                                                                      \
+	X(TOK_RBRACE, "'}'")                                                                                                                                      \
+	X(TOK_LBRACKET, "'['")                                                                                                                                    \
+	X(TOK_RBRACKET, "']'") X(TOK_SEMICOLON, "';'") X(TOK_COMMA, "','") X(TOK_ASSIGN, "'='") X(TOK_PLUS_ASSIGN, "'+='") X(TOK_MINUS_ASSIGN, "'-='")            \
+	    X(TOK_MUL_ASSIGN, "'*='") X(TOK_DIV_ASSIGN, "'/='") X(TOK_MOD_ASSIGN, "'%='") X(TOK_SHL_ASSIGN, "'<<='") X(TOK_SHR_ASSIGN, "'>>='")                   \
+	        X(TOK_AND_ASSIGN, "'&='") X(TOK_OR_ASSIGN, "'|='") X(TOK_XOR_ASSIGN, "'^='") X(TOK_EQ, "'=='") X(TOK_NEQ, "'!='") X(TOK_LT, "'<'")                \
+	            X(TOK_GT, "'>'") X(TOK_LE, "'<='") X(TOK_GE, "'>='") X(TOK_AND, "'&&'") X(TOK_OR, "'||'") X(TOK_NOT, "'!'") X(TOK_AMP, "'&'")                 \
+	                X(TOK_PLUS, "'+'") X(TOK_MINUS, "'-'") X(TOK_INC, "'++'") X(TOK_DEC, "'--'") X(TOK_STAR, "'*'") X(TOK_SLASH, "'/'") X(TOK_PERCENT, "'%'") \
+	                    X(TOK_SHL, "'<<'") X(TOK_SHR, "'>>'") X(TOK_BITOR, "'|'") X(TOK_XOR, "'^'") X(TOK_BITNOT, "'~'") X(TOK_DOT, "'.'")                    \
 	                        X(TOK_ARROW, "'->'") X(TOK_QUESTION, "'?'") X(TOK_COLON, "':'") X(TOK_EOF, "end of file")
 
 typedef enum {
@@ -3129,106 +3130,112 @@ static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int
 			ip += 5;
 			MINIC_NEXT;
 		case OP_INIT_EMBED:
-		L_INIT_EMBED: {
-			void       *p = minic_alloc_aligned(ip[3], ip[4]);
-			minic_val_t v = *REG(ip[2]);
-			if (p == NULL) {
-				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
+		L_INIT_EMBED:
+			{
+				void       *p = minic_alloc_aligned(ip[3], ip[4]);
+				minic_val_t v = *REG(ip[2]);
+				if (p == NULL) {
+					MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
+				}
+				if (v.type == MINIC_T_PTR && v.p != NULL) {
+					memmove(p, v.p, ip[3]);
+				}
+				else {
+					memset(p, 0, ip[3]);
+				}
+				*REG(ip[1]) = minic_val_typed_ptr(p, MINIC_T_EMBED);
+				ip += 5;
+				MINIC_NEXT;
 			}
-			if (v.type == MINIC_T_PTR && v.p != NULL) {
-				memmove(p, v.p, ip[3]);
-			}
-			else {
-				memset(p, 0, ip[3]);
-			}
-			*REG(ip[1]) = minic_val_typed_ptr(p, MINIC_T_EMBED);
-			ip += 5;
-			MINIC_NEXT;
-		}
 		case OP_INIT_ARR:
-		L_INIT_ARR: {
-			int count = minic_val_to_i(*REG(ip[3]));
-			int size  = ip[5];
-			if (count < 0 || count > MINIC_MEM_SIZE / size) {
-				MINIC_FAIL("invalid array size %d", count);
+		L_INIT_ARR:
+			{
+				int count = minic_val_to_i(*REG(ip[3]));
+				int size  = ip[5];
+				if (count < 0 || count > MINIC_MEM_SIZE / size) {
+					MINIC_FAIL("invalid array size %d", count);
+				}
+				void *p = minic_alloc_aligned(count * size, ip[6]);
+				if (p == NULL) {
+					MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
+				}
+				memset(p, 0, count * size);
+				*REG(ip[1]) = minic_val_typed_ptr(p, ip[4]);
+				*REG(ip[2]) = minic_val_int(count);
+				ip += 7;
+				MINIC_NEXT;
 			}
-			void *p = minic_alloc_aligned(count * size, ip[6]);
-			if (p == NULL) {
-				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
-			}
-			memset(p, 0, count * size);
-			*REG(ip[1]) = minic_val_typed_ptr(p, ip[4]);
-			*REG(ip[2]) = minic_val_int(count);
-			ip += 7;
-			MINIC_NEXT;
-		}
 		case OP_ADDRV:
 		L_ADDRV:
 			*REG(ip[1]) = minic_val_typed_ptr(&REG(ip[2])->i, ip[3]);
 			ip += 4;
 			MINIC_NEXT;
 		case OP_LD:
-		L_LD: {
-			MINIC_ADDR(2, p);
-			minic_type_t kind = ip[10] & 0xff;
-			minic_val_t *d    = REG(ip[1]);
-			if (p != NULL && (kind == MINIC_T_FLOAT || kind == MINIC_T_INT)) {
-				minic_val_t v = kind == MINIC_T_FLOAT ? minic_val_float(0.0f) : minic_val_int(0);
-				memcpy(&v.i, p, 4); // A float or an int32
-				*d = v;
+		L_LD:
+			{
+				MINIC_ADDR(2, p);
+				minic_type_t kind = ip[10] & 0xff;
+				minic_val_t *d    = REG(ip[1]);
+				if (p != NULL && (kind == MINIC_T_FLOAT || kind == MINIC_T_INT)) {
+					minic_val_t v = kind == MINIC_T_FLOAT ? minic_val_float(0.0f) : minic_val_int(0);
+					memcpy(&v.i, p, 4); // A float or an int32
+					*d = v;
+				}
+				else {
+					*d = minic_mem_load(p, kind, ip[10] >> 8);
+				}
+				ip += 11;
+				MINIC_NEXT;
 			}
-			else {
-				*d = minic_mem_load(p, kind, ip[10] >> 8);
-			}
-			ip += 11;
-			MINIC_NEXT;
-		}
 		case OP_LEA:
-		L_LEA: {
-			MINIC_ADDR(2, p);
-			*REG(ip[1]) = minic_val_ptr(p);
-			ip += 10;
-			MINIC_NEXT;
-		}
+		L_LEA:
+			{
+				MINIC_ADDR(2, p);
+				*REG(ip[1]) = minic_val_ptr(p);
+				ip += 10;
+				MINIC_NEXT;
+			}
 		case OP_BIN:
 		L_BIN:
 			*REG(ip[1]) = minic_binop(ip[4], *REG(ip[2]), *REG(ip[3]));
 			ip += 5;
 			MINIC_NEXT;
 		case OP_MIX:
-		L_MIX: {
-			minic_val_t *a = REG(ip[2]);
-			minic_val_t *b = REG(ip[3]);
-			double       x = ip[4] & 16 ? (double)a->i : (double)a->f;
-			double       y = ip[4] & 32 ? (double)b->i : (double)b->f;
-			minic_val_t *d = REG(ip[1]);
-			switch (ip[4] & 15) {
-			case BIN_ADD:
-				*d = minic_val_float((float)(x + y));
-				break;
-			case BIN_SUB:
-				*d = minic_val_float((float)(x - y));
-				break;
-			case BIN_MUL:
-				*d = minic_val_float((float)(x * y));
-				break;
-			case BIN_DIV:
-				*d = minic_val_float(y != 0.0 ? (float)(x / y) : 0.0f);
-				break;
-			default:
-				*d = minic_binop(ip[4] & 15, minic_val_double(x), minic_val_double(y));
-				break;
+		L_MIX:
+			{
+				minic_val_t *a = REG(ip[2]);
+				minic_val_t *b = REG(ip[3]);
+				double       x = ip[4] & 16 ? (double)a->i : (double)a->f;
+				double       y = ip[4] & 32 ? (double)b->i : (double)b->f;
+				minic_val_t *d = REG(ip[1]);
+				switch (ip[4] & 15) {
+				case BIN_ADD:
+					*d = minic_val_float((float)(x + y));
+					break;
+				case BIN_SUB:
+					*d = minic_val_float((float)(x - y));
+					break;
+				case BIN_MUL:
+					*d = minic_val_float((float)(x * y));
+					break;
+				case BIN_DIV:
+					*d = minic_val_float(y != 0.0 ? (float)(x / y) : 0.0f);
+					break;
+				default:
+					*d = minic_binop(ip[4] & 15, minic_val_double(x), minic_val_double(y));
+					break;
+				}
+				ip += 5;
+				MINIC_NEXT;
 			}
-			ip += 5;
-			MINIC_NEXT;
-		}
 		case OP_NEG:
-		L_NEG: {
-			minic_val_t v = *REG(ip[2]);
-			*REG(ip[1])   = v.type == MINIC_T_INT ? minic_val_int((int)(0u - (unsigned int)v.i)) : minic_val_coerce(-minic_val_to_d(v), v.type);
-			ip += 3;
-			MINIC_NEXT;
-		}
+		L_NEG:
+			{
+				minic_val_t v = *REG(ip[2]);
+				*REG(ip[1])   = v.type == MINIC_T_INT ? minic_val_int((int)(0u - (unsigned int)v.i)) : minic_val_coerce(-minic_val_to_d(v), v.type);
+				ip += 3;
+				MINIC_NEXT;
+			}
 		case OP_CAST:
 		L_CAST:
 			*REG(ip[1]) = minic_cast(*REG(ip[2]), ip[3]);
@@ -3252,45 +3259,49 @@ static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int
 			MINIC_TYPED(EQ_I, int, i, minic_val_int, x == y)
 			MINIC_TYPED(NE_I, int, i, minic_val_int, x != y)
 		case OP_MADD_F:
-		L_MADD_F: {
-			float m     = REG(ip[3])->f * REG(ip[4])->f; // Rounded before the add, no fused multiply-add
-			*REG(ip[1]) = minic_val_float(REG(ip[2])->f + m);
-			ip += 5;
-			MINIC_NEXT;
-		}
+		L_MADD_F:
+			{
+				float m     = REG(ip[3])->f * REG(ip[4])->f; // Rounded before the add, no fused multiply-add
+				*REG(ip[1]) = minic_val_float(REG(ip[2])->f + m);
+				ip += 5;
+				MINIC_NEXT;
+			}
 		case OP_MADD_I:
-		L_MADD_I: {
-			unsigned int m = (unsigned int)REG(ip[3])->i * (unsigned int)REG(ip[4])->i;
-			*REG(ip[1])    = minic_val_int((int)((unsigned int)REG(ip[2])->i + m));
-			ip += 5;
-			MINIC_NEXT;
-		}
+		L_MADD_I:
+			{
+				unsigned int m = (unsigned int)REG(ip[3])->i * (unsigned int)REG(ip[4])->i;
+				*REG(ip[1])    = minic_val_int((int)((unsigned int)REG(ip[2])->i + m));
+				ip += 5;
+				MINIC_NEXT;
+			}
 		case OP_STV:
-		L_STV: {
-			minic_val_t *s = REG(ip[1]);
-			minic_val_t  v = *REG(ip[2]);
-			if (v.type == s->type && (v.type == MINIC_T_FLOAT || (v.type == MINIC_T_INT && ip[3] == MINIC_T_INT))) {
-				s->d = v.d; // Same representation, copy the bits
+		L_STV:
+			{
+				minic_val_t *s = REG(ip[1]);
+				minic_val_t  v = *REG(ip[2]);
+				if (v.type == s->type && (v.type == MINIC_T_FLOAT || (v.type == MINIC_T_INT && ip[3] == MINIC_T_INT))) {
+					s->d = v.d; // Same representation, copy the bits
+				}
+				else {
+					minic_slot_store(s, v, ip[3], ip[4]);
+				}
+				ip += 5;
+				MINIC_NEXT;
 			}
-			else {
-				minic_slot_store(s, v, ip[3], ip[4]);
-			}
-			ip += 5;
-			MINIC_NEXT;
-		}
 		case OP_ST:
-		L_ST: {
-			MINIC_ADDR(1, p);
-			minic_val_t v = *REG(ip[9]);
-			if (p != NULL && v.type == (minic_type_t)ip[10] && (v.type == MINIC_T_FLOAT || v.type == MINIC_T_INT)) {
-				memcpy(p, &v.i, 4); // A float or an int32
+		L_ST:
+			{
+				MINIC_ADDR(1, p);
+				minic_val_t v = *REG(ip[9]);
+				if (p != NULL && v.type == (minic_type_t)ip[10] && (v.type == MINIC_T_FLOAT || v.type == MINIC_T_INT)) {
+					memcpy(p, &v.i, 4); // A float or an int32
+				}
+				else {
+					minic_mem_store(p, v, ip[10], ip[11]);
+				}
+				ip += 12;
+				MINIC_NEXT;
 			}
-			else {
-				minic_mem_store(p, v, ip[10], ip[11]);
-			}
-			ip += 12;
-			MINIC_NEXT;
-		}
 		case OP_JMP:
 		L_JMP:
 			ip = code + ip[1];
@@ -3298,12 +3309,13 @@ static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int
 		case OP_JZ:
 		L_JZ:
 		case OP_JNZ:
-		L_JNZ: {
-			minic_val_t *v = REG(ip[2]);
-			bool         t = v->type == MINIC_T_INT ? v->i != 0 : minic_val_is_true(*v);
-			ip             = t == (*ip == OP_JNZ) ? code + ip[1] : ip + 3;
-			MINIC_NEXT;
-		}
+		L_JNZ:
+			{
+				minic_val_t *v = REG(ip[2]);
+				bool         t = v->type == MINIC_T_INT ? v->i != 0 : minic_val_is_true(*v);
+				ip             = t == (*ip == OP_JNZ) ? code + ip[1] : ip + 3;
+				MINIC_NEXT;
+			}
 			MINIC_JUMP(JLT_F, float, f, x < y)
 			MINIC_JUMP(JLE_F, float, f, x <= y)
 			MINIC_JUMP(JEQ_F, float, f, x == y)
@@ -3317,61 +3329,65 @@ static bool minic_run(minic_ctx_t *ctx, minic_func_t *fn, minic_val_t *args, int
 		case OP_LOOP_LT:
 		L_LOOP_LT:
 		case OP_LOOP_LE:
-		L_LOOP_LE: {
-			minic_val_t *a = REG(ip[2]);
-			a->i           = (int)((unsigned int)a->i + (unsigned int)ip[3]);
-			int x          = a->i;
-			int y          = REG(ip[4])->i;
-			ip             = (*ip == OP_LOOP_LT ? x < y : x <= y) ? code + ip[1] : ip + 5;
-			MINIC_NEXT;
-		}
+		L_LOOP_LE:
+			{
+				minic_val_t *a = REG(ip[2]);
+				a->i           = (int)((unsigned int)a->i + (unsigned int)ip[3]);
+				int x          = a->i;
+				int y          = REG(ip[4])->i;
+				ip             = (*ip == OP_LOOP_LT ? x < y : x <= y) ? code + ip[1] : ip + 5;
+				MINIC_NEXT;
+			}
 		case OP_CALL:
-		L_CALL: {
-			minic_func_t *f   = &ctx->funcs[ip[1]];
-			minic_val_t  *nfp = REG(ip[2]);
-			if (nfp + f->slot_count > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
-				MINIC_FAIL("out of script memory calling '%s', recursion too deep", f->name);
+		L_CALL:
+			{
+				minic_func_t *f   = &ctx->funcs[ip[1]];
+				minic_val_t  *nfp = REG(ip[2]);
+				if (nfp + f->slot_count > ctx->stack_end || ctx->depth >= MINIC_MAX_FRAMES) {
+					MINIC_FAIL("out of script memory calling '%s', recursion too deep", f->name);
+				}
+				ctx->frames[ctx->depth++] = (minic_frame_t){ip + 3, fp, cur};
+				fp                        = nfp;
+				cur                       = f;
+				ip                        = code + f->entry;
+				MINIC_NEXT;
 			}
-			ctx->frames[ctx->depth++] = (minic_frame_t){ip + 3, fp, cur};
-			fp                        = nfp;
-			cur                       = f;
-			ip                        = code + f->entry;
-			MINIC_NEXT;
-		}
 		case OP_CALLN:
-		L_CALLN: {
-			minic_val_t *a = REG(ip[2]);
-			ctx->sp        = fp + cur->slot_count; // A native may call back into this context
-			minic_val_t r  = minic_dispatch(&minic_ext_funcs[ip[1]], a, ip[3]);
-			*a             = r;
-			if (minic_mem_oom) {
-				MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
+		L_CALLN:
+			{
+				minic_val_t *a = REG(ip[2]);
+				ctx->sp        = fp + cur->slot_count; // A native may call back into this context
+				minic_val_t r  = minic_dispatch(&minic_ext_funcs[ip[1]], a, ip[3]);
+				*a             = r;
+				if (minic_mem_oom) {
+					MINIC_FAIL("out of script memory (%d KB)", MINIC_MEM_SIZE / 1024);
+				}
+				ip += 4;
+				MINIC_NEXT;
 			}
-			ip += 4;
-			MINIC_NEXT;
-		}
 		case OP_RET:
-		L_RET: {
-			minic_val_t  v    = *REG(ip[1]);
-			minic_type_t kind = ip[2];
-			if (kind == MINIC_T_PTR) {
-				v = minic_val_typed_ptr(minic_val_to_ptr(v), ip[3]);
+		L_RET:
+			{
+				minic_val_t  v    = *REG(ip[1]);
+				minic_type_t kind = ip[2];
+				if (kind == MINIC_T_PTR) {
+					v = minic_val_typed_ptr(minic_val_to_ptr(v), ip[3]);
+				}
+				else if (kind != MINIC_T_VOID && kind != MINIC_T_EMBED && v.type != kind) {
+					v = minic_cast(v, kind);
+				}
+				minic_frame_t *frame = &ctx->frames[--ctx->depth];
+				if (ctx->depth == base_depth) {
+					*ret    = v;
+					ctx->sp = base;
+					return true;
+				}
+				*fp = v; // The caller's register base
+				ip  = frame->ip;
+				fp  = frame->fp;
+				cur = frame->fn;
+				MINIC_NEXT;
 			}
-			else if (kind != MINIC_T_VOID && kind != MINIC_T_EMBED && v.type != kind) {
-				v = minic_cast(v, kind);
-			}
-			minic_frame_t *frame = &ctx->frames[--ctx->depth];
-			if (ctx->depth == base_depth) {
-				*ret    = v;
-				ctx->sp = base;
-				return true;
-			}
-			*fp = v; // The caller's register base
-			ip  = frame->ip;
-			fp  = frame->fp;
-			cur = frame->fn;
-			MINIC_NEXT;
-		}
 		}
 	}
 

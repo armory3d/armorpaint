@@ -120,7 +120,7 @@ typedef struct physics_sim {
 	int            collider_version;
 
 	// Particles
-	float         *pos;    // xyz per particle
+	float         *pos; // xyz per particle
 	unsigned char *material;
 	unsigned char *owner;
 	int            count;

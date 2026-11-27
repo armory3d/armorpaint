@@ -4052,7 +4052,10 @@ static void tokens_add(tokens *tokens, token token) {
 
 // Keywords are only compared against identifiers of their length
 static int keyword_kind(tokenizer_buffer *buffer) {
-#define KEYWORD(text, kind) {text, sizeof(text) - 1, kind}
+#define KEYWORD(text, kind)          \
+	{                                \
+		text, sizeof(text) - 1, kind \
+	}
 	static const struct {
 		const char *text;
 		size_t      length;
@@ -4468,17 +4471,17 @@ void transform(uint32_t flags) {
 						            .to               = from,
 						            .access_list_size = 1,
 						            .access_list      = {{
-						                     .type = from_base_type,
-						                     .kind = ACCESS_SWIZZLE,
-						                     .access_swizzle =
-							                {
-						                             .swizzle =
-                                                    {
-						                                     .size    = 1,
-						                                     .indices = {swizzle_index},
-                                                    },
-							                },
-                                    }},
+						                .type = from_base_type,
+						                .kind = ACCESS_SWIZZLE,
+						                .access_swizzle =
+						                    {
+						                        .swizzle =
+						                            {
+						                                .size    = 1,
+						                                .indices = {swizzle_index},
+						                            },
+						                    },
+						            }},
 						        },
 						};
 						from_opcode.size = OP_SIZE(from_opcode, op_load_access_list);
@@ -5492,7 +5495,7 @@ void resolve_types_in_block(statement *parent, statement *block) {
 			type_id return_type = resolve_types_function->return_type.type;
 			type_id value_type  = s->expression->type.type;
 			bool    mismatch    = !types_compatible(value_type, return_type) ||
-			                (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
+			                      (is_vector_or_scalar(value_type) && is_vector_or_scalar(return_type) && vector_size(value_type) != vector_size(return_type));
 			if (value_type != NO_TYPE && return_type != NO_TYPE && mismatch) {
 				debug_context context = {0};
 				error(context, "Return type mismatch %s vs %s in %s", get_name(get_type(value_type)->name), get_name(get_type(return_type)->name),

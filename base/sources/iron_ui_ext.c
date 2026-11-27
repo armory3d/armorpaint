@@ -48,12 +48,12 @@ static const float ky = 2.0 / 3.0;
 static const float kz = 1.0 / 3.0;
 static const float kw = 3.0;
 void               ui_hsv_to_rgb(float cr, float cg, float cb, float *out) {
-    float px = fabs(ui_fract(cr + kx) * 6.0 - kw);
-    float py = fabs(ui_fract(cr + ky) * 6.0 - kw);
-    float pz = fabs(ui_fract(cr + kz) * 6.0 - kw);
-    out[0]   = cb * ui_mix(kx, ui_clamp(px - kx, 0.0, 1.0), cg);
-    out[1]   = cb * ui_mix(kx, ui_clamp(py - kx, 0.0, 1.0), cg);
-    out[2]   = cb * ui_mix(kx, ui_clamp(pz - kx, 0.0, 1.0), cg);
+	float px = fabs(ui_fract(cr + kx) * 6.0 - kw);
+	float py = fabs(ui_fract(cr + ky) * 6.0 - kw);
+	float pz = fabs(ui_fract(cr + kz) * 6.0 - kw);
+	out[0]   = cb * ui_mix(kx, ui_clamp(px - kx, 0.0, 1.0), cg);
+	out[1]   = cb * ui_mix(kx, ui_clamp(py - kx, 0.0, 1.0), cg);
+	out[2]   = cb * ui_mix(kx, ui_clamp(pz - kx, 0.0, 1.0), cg);
 }
 
 static const float Kx = 0.0;
@@ -62,18 +62,18 @@ static const float Kz = 2.0 / 3.0;
 static const float Kw = -1.0;
 static const float e  = 1.0e-10;
 void               ui_rgb_to_hsv(float cr, float cg, float cb, float *out) {
-    float px = ui_mix(cb, cg, ui_step(cb, cg));
-    float py = ui_mix(cg, cb, ui_step(cb, cg));
-    float pz = ui_mix(Kw, Kx, ui_step(cb, cg));
-    float pw = ui_mix(Kz, Ky, ui_step(cb, cg));
-    float qx = ui_mix(px, cr, ui_step(px, cr));
-    float qy = ui_mix(py, py, ui_step(px, cr));
-    float qz = ui_mix(pw, pz, ui_step(px, cr));
-    float qw = ui_mix(cr, px, ui_step(px, cr));
-    float d  = qx - fmin(qw, qy);
-    out[0]   = fabs(qz + (qw - qy) / (6.0 * d + e));
-    out[1]   = d / (qx + e);
-    out[2]   = qx;
+	float px = ui_mix(cb, cg, ui_step(cb, cg));
+	float py = ui_mix(cg, cb, ui_step(cb, cg));
+	float pz = ui_mix(Kw, Kx, ui_step(cb, cg));
+	float pw = ui_mix(Kz, Ky, ui_step(cb, cg));
+	float qx = ui_mix(px, cr, ui_step(px, cr));
+	float qy = ui_mix(py, py, ui_step(px, cr));
+	float qz = ui_mix(pw, pz, ui_step(px, cr));
+	float qw = ui_mix(cr, px, ui_step(px, cr));
+	float d  = qx - fmin(qw, qy);
+	out[0]   = fabs(qz + (qw - qy) / (6.0 * d + e));
+	out[1]   = d / (qx + e);
+	out[2]   = qx;
 }
 
 float ui_float_input(float *value, char *label, int align, float precision) {

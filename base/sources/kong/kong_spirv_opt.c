@@ -6,124 +6,124 @@
 #include <string.h>
 
 enum {
-	OP_UNDEF                   = 1,
-	OP_SOURCE                  = 3,
-	OP_NAME                    = 5,
-	OP_MEMBER_NAME             = 6,
-	OP_EXTENSION               = 10,
-	OP_EXT_INST_IMPORT         = 11,
-	OP_EXT_INST                = 12,
-	OP_MEMORY_MODEL            = 14,
-	OP_ENTRY_POINT             = 15,
-	OP_EXECUTION_MODE          = 16,
-	OP_CAPABILITY              = 17,
-	OP_TYPE_VOID               = 19,
-	OP_TYPE_BOOL               = 20,
-	OP_TYPE_INT                = 21,
-	OP_TYPE_FLOAT              = 22,
-	OP_TYPE_VECTOR             = 23,
-	OP_TYPE_MATRIX             = 24,
-	OP_TYPE_IMAGE              = 25,
-	OP_TYPE_SAMPLER            = 26,
-	OP_TYPE_SAMPLED_IMAGE      = 27,
-	OP_TYPE_ARRAY              = 28,
-	OP_TYPE_RUNTIME_ARRAY      = 29,
-	OP_TYPE_STRUCT             = 30,
-	OP_TYPE_POINTER            = 32,
-	OP_TYPE_FUNCTION           = 33,
-	OP_CONSTANT_TRUE           = 41,
-	OP_CONSTANT_FALSE          = 42,
-	OP_CONSTANT                = 43,
-	OP_CONSTANT_COMPOSITE      = 44,
-	OP_FUNCTION                = 54,
-	OP_FUNCTION_PARAMETER      = 55,
-	OP_FUNCTION_END            = 56,
-	OP_FUNCTION_CALL           = 57,
-	OP_VARIABLE                = 59,
-	OP_LOAD                    = 61,
-	OP_STORE                   = 62,
-	OP_ACCESS_CHAIN            = 65,
-	OP_DECORATE                = 71,
-	OP_MEMBER_DECORATE         = 72,
-	OP_VECTOR_SHUFFLE          = 79,
-	OP_COMPOSITE_CONSTRUCT     = 80,
-	OP_COMPOSITE_EXTRACT       = 81,
-	OP_COMPOSITE_INSERT        = 82,
-	OP_COPY_OBJECT             = 83,
-	OP_TRANSPOSE               = 84,
-	OP_SAMPLED_IMAGE           = 86,
-	OP_IMAGE_SAMPLE_IMPLICIT   = 87,
-	OP_IMAGE_SAMPLE_EXPLICIT   = 88,
-	OP_IMAGE_FETCH             = 95,
-	OP_IMAGE_READ              = 98,
-	OP_IMAGE_WRITE             = 99,
-	OP_IMAGE_QUERY_SIZE_LOD    = 103,
-	OP_IMAGE_QUERY_SIZE        = 104,
-	OP_CONVERT_F_TO_U          = 109,
-	OP_CONVERT_U_TO_F          = 112,
-	OP_BITCAST                 = 124,
-	OP_S_NEGATE                = 126,
-	OP_F_NEGATE                = 127,
-	OP_I_ADD                   = 128,
-	OP_F_ADD                   = 129,
-	OP_F_SUB                   = 131,
-	OP_I_MUL                   = 132,
-	OP_F_MUL                   = 133,
-	OP_F_DIV                   = 136,
-	OP_F_REM                   = 140,
-	OP_F_MOD                   = 141,
-	OP_VECTOR_TIMES_SCALAR     = 142,
-	OP_MATRIX_TIMES_SCALAR     = 143,
-	OP_VECTOR_TIMES_MATRIX     = 144,
-	OP_MATRIX_TIMES_VECTOR     = 145,
-	OP_MATRIX_TIMES_MATRIX     = 146,
-	OP_DOT                     = 148,
-	OP_LOGICAL_EQUAL           = 164,
-	OP_LOGICAL_NOT_EQUAL       = 165,
-	OP_LOGICAL_OR              = 166,
-	OP_LOGICAL_AND             = 167,
-	OP_LOGICAL_NOT             = 168,
-	OP_SELECT                  = 169,
-	OP_I_EQUAL                 = 170,
-	OP_I_NOT_EQUAL             = 171,
-	OP_F_ORD_EQUAL             = 180,
-	OP_F_ORD_NOT_EQUAL         = 182,
-	OP_F_UNORD_GREATER_EQUAL   = 191,
-	OP_SHIFT_RIGHT_LOGICAL     = 194,
-	OP_BITWISE_OR              = 197,
-	OP_BITWISE_XOR             = 198,
-	OP_BITWISE_AND             = 199,
-	OP_NOT                     = 200,
-	OP_DPDX                    = 207,
-	OP_FWIDTH                  = 209,
-	OP_PHI                     = 245,
-	OP_LOOP_MERGE              = 246,
-	OP_SELECTION_MERGE         = 247,
-	OP_LABEL                   = 248,
-	OP_BRANCH                  = 249,
-	OP_BRANCH_CONDITIONAL      = 250,
-	OP_KILL                    = 252,
-	OP_RETURN                  = 253,
-	OP_RETURN_VALUE            = 254,
-	OP_UNREACHABLE             = 255,
-	OP_TYPE_RAY_QUERY          = 4472,
-	OP_RAY_QUERY_INITIALIZE    = 4473,
-	OP_RAY_QUERY_PROCEED       = 4477,
-	OP_RAY_QUERY_GET_TYPE      = 4479,
-	OP_TYPE_ACCELERATION       = 5341,
-	OP_RAY_QUERY_GET_FIRST     = 6018,
-	OP_RAY_QUERY_GET_LAST      = 6031,
-	STORAGE_UNIFORM_CONSTANT   = 0,
-	STORAGE_INPUT              = 1,
-	STORAGE_UNIFORM            = 2,
-	STORAGE_FUNCTION           = 7,
-	STORAGE_PUSH_CONSTANT      = 9,
-	GLSL_MODF                  = 35,
-	GLSL_FREXP                 = 51,
-	GLSL_INTERPOLATE_CENTROID  = 76,
-	GLSL_INTERPOLATE_OFFSET    = 78,
-	MAX_IDS_PER_INSTRUCTION    = 1024,
-	MAX_COMPOSITE_INDICES      = 16,
+	OP_UNDEF                  = 1,
+	OP_SOURCE                 = 3,
+	OP_NAME                   = 5,
+	OP_MEMBER_NAME            = 6,
+	OP_EXTENSION              = 10,
+	OP_EXT_INST_IMPORT        = 11,
+	OP_EXT_INST               = 12,
+	OP_MEMORY_MODEL           = 14,
+	OP_ENTRY_POINT            = 15,
+	OP_EXECUTION_MODE         = 16,
+	OP_CAPABILITY             = 17,
+	OP_TYPE_VOID              = 19,
+	OP_TYPE_BOOL              = 20,
+	OP_TYPE_INT               = 21,
+	OP_TYPE_FLOAT             = 22,
+	OP_TYPE_VECTOR            = 23,
+	OP_TYPE_MATRIX            = 24,
+	OP_TYPE_IMAGE             = 25,
+	OP_TYPE_SAMPLER           = 26,
+	OP_TYPE_SAMPLED_IMAGE     = 27,
+	OP_TYPE_ARRAY             = 28,
+	OP_TYPE_RUNTIME_ARRAY     = 29,
+	OP_TYPE_STRUCT            = 30,
+	OP_TYPE_POINTER           = 32,
+	OP_TYPE_FUNCTION          = 33,
+	OP_CONSTANT_TRUE          = 41,
+	OP_CONSTANT_FALSE         = 42,
+	OP_CONSTANT               = 43,
+	OP_CONSTANT_COMPOSITE     = 44,
+	OP_FUNCTION               = 54,
+	OP_FUNCTION_PARAMETER     = 55,
+	OP_FUNCTION_END           = 56,
+	OP_FUNCTION_CALL          = 57,
+	OP_VARIABLE               = 59,
+	OP_LOAD                   = 61,
+	OP_STORE                  = 62,
+	OP_ACCESS_CHAIN           = 65,
+	OP_DECORATE               = 71,
+	OP_MEMBER_DECORATE        = 72,
+	OP_VECTOR_SHUFFLE         = 79,
+	OP_COMPOSITE_CONSTRUCT    = 80,
+	OP_COMPOSITE_EXTRACT      = 81,
+	OP_COMPOSITE_INSERT       = 82,
+	OP_COPY_OBJECT            = 83,
+	OP_TRANSPOSE              = 84,
+	OP_SAMPLED_IMAGE          = 86,
+	OP_IMAGE_SAMPLE_IMPLICIT  = 87,
+	OP_IMAGE_SAMPLE_EXPLICIT  = 88,
+	OP_IMAGE_FETCH            = 95,
+	OP_IMAGE_READ             = 98,
+	OP_IMAGE_WRITE            = 99,
+	OP_IMAGE_QUERY_SIZE_LOD   = 103,
+	OP_IMAGE_QUERY_SIZE       = 104,
+	OP_CONVERT_F_TO_U         = 109,
+	OP_CONVERT_U_TO_F         = 112,
+	OP_BITCAST                = 124,
+	OP_S_NEGATE               = 126,
+	OP_F_NEGATE               = 127,
+	OP_I_ADD                  = 128,
+	OP_F_ADD                  = 129,
+	OP_F_SUB                  = 131,
+	OP_I_MUL                  = 132,
+	OP_F_MUL                  = 133,
+	OP_F_DIV                  = 136,
+	OP_F_REM                  = 140,
+	OP_F_MOD                  = 141,
+	OP_VECTOR_TIMES_SCALAR    = 142,
+	OP_MATRIX_TIMES_SCALAR    = 143,
+	OP_VECTOR_TIMES_MATRIX    = 144,
+	OP_MATRIX_TIMES_VECTOR    = 145,
+	OP_MATRIX_TIMES_MATRIX    = 146,
+	OP_DOT                    = 148,
+	OP_LOGICAL_EQUAL          = 164,
+	OP_LOGICAL_NOT_EQUAL      = 165,
+	OP_LOGICAL_OR             = 166,
+	OP_LOGICAL_AND            = 167,
+	OP_LOGICAL_NOT            = 168,
+	OP_SELECT                 = 169,
+	OP_I_EQUAL                = 170,
+	OP_I_NOT_EQUAL            = 171,
+	OP_F_ORD_EQUAL            = 180,
+	OP_F_ORD_NOT_EQUAL        = 182,
+	OP_F_UNORD_GREATER_EQUAL  = 191,
+	OP_SHIFT_RIGHT_LOGICAL    = 194,
+	OP_BITWISE_OR             = 197,
+	OP_BITWISE_XOR            = 198,
+	OP_BITWISE_AND            = 199,
+	OP_NOT                    = 200,
+	OP_DPDX                   = 207,
+	OP_FWIDTH                 = 209,
+	OP_PHI                    = 245,
+	OP_LOOP_MERGE             = 246,
+	OP_SELECTION_MERGE        = 247,
+	OP_LABEL                  = 248,
+	OP_BRANCH                 = 249,
+	OP_BRANCH_CONDITIONAL     = 250,
+	OP_KILL                   = 252,
+	OP_RETURN                 = 253,
+	OP_RETURN_VALUE           = 254,
+	OP_UNREACHABLE            = 255,
+	OP_TYPE_RAY_QUERY         = 4472,
+	OP_RAY_QUERY_INITIALIZE   = 4473,
+	OP_RAY_QUERY_PROCEED      = 4477,
+	OP_RAY_QUERY_GET_TYPE     = 4479,
+	OP_TYPE_ACCELERATION      = 5341,
+	OP_RAY_QUERY_GET_FIRST    = 6018,
+	OP_RAY_QUERY_GET_LAST     = 6031,
+	STORAGE_UNIFORM_CONSTANT  = 0,
+	STORAGE_INPUT             = 1,
+	STORAGE_UNIFORM           = 2,
+	STORAGE_FUNCTION          = 7,
+	STORAGE_PUSH_CONSTANT     = 9,
+	GLSL_MODF                 = 35,
+	GLSL_FREXP                = 51,
+	GLSL_INTERPOLATE_CENTROID = 76,
+	GLSL_INTERPOLATE_OFFSET   = 78,
+	MAX_IDS_PER_INSTRUCTION   = 1024,
+	MAX_COMPOSITE_INDICES     = 16,
 };
 
 typedef struct inst {
@@ -317,13 +317,13 @@ static int inst_ids(inst *in, uint32_t **ids) {
 	uint32_t *w = in->w;
 	int       n = in->n;
 	int       c = 0;
-#define ID(i)                \
-	if ((i) < n) {           \
-		ids[c++] = &w[(i)];  \
+#define ID(i)               \
+	if ((i) < n) {          \
+		ids[c++] = &w[(i)]; \
 	}
-#define IDS_FROM(s)                         \
-	for (int i_ = (s); i_ < n; ++i_) {      \
-		ids[c++] = &w[i_];                  \
+#define IDS_FROM(s)                    \
+	for (int i_ = (s); i_ < n; ++i_) { \
+		ids[c++] = &w[i_];             \
 	}
 	switch (in->op) {
 	case OP_SOURCE:
@@ -718,7 +718,7 @@ static bool parse(uint32_t *words, size_t count) {
 			}
 			b = &f->blocks[f->blocks_count++];
 			memset(b, 0, sizeof(block));
-			b->label = in;
+			b->label  = in;
 			in->block = f->blocks_count - 1;
 		}
 		else if (op == OP_FUNCTION_END) {
@@ -827,14 +827,14 @@ static bool build_cfg(func *f) {
 	}
 
 	// Reverse post order of the reachable blocks
-	int *stack   = malloc(f->blocks_count * sizeof(int));
-	int *next    = calloc(f->blocks_count, sizeof(int));
-	int *order   = malloc(f->blocks_count * sizeof(int));
-	bool *seen   = calloc(f->blocks_count, sizeof(bool));
-	int  top     = 0;
-	int  ordered = 0;
-	stack[top++] = 0;
-	seen[0]      = true;
+	int  *stack   = malloc(f->blocks_count * sizeof(int));
+	int  *next    = calloc(f->blocks_count, sizeof(int));
+	int  *order   = malloc(f->blocks_count * sizeof(int));
+	bool *seen    = calloc(f->blocks_count, sizeof(bool));
+	int   top     = 0;
+	int   ordered = 0;
+	stack[top++]  = 0;
+	seen[0]       = true;
 	while (top > 0) {
 		int    current = stack[top - 1];
 		block *b       = &f->blocks[current];
@@ -962,13 +962,13 @@ static void build_dominators(func *f) {
 // Promotion of function variables to SSA values
 
 typedef struct {
-	func     *f;
-	int       vars_count;
-	uint32_t *var_ids;
-	uint32_t *var_types;  // Pointee types
-	uint32_t *local_last; // [var * blocks + block], last value stored in the block
-	uint32_t *entry;      // [var * blocks + block], value on block entry
-	inst_list *phis;      // Per block
+	func      *f;
+	int        vars_count;
+	uint32_t  *var_ids;
+	uint32_t  *var_types;  // Pointee types
+	uint32_t  *local_last; // [var * blocks + block], last value stored in the block
+	uint32_t  *entry;      // [var * blocks + block], value on block entry
+	inst_list *phis;       // Per block
 } ssa_state;
 
 static uint32_t entry_value(ssa_state *s, int var, int b);
@@ -1000,8 +1000,8 @@ static uint32_t entry_value(ssa_state *s, int var, int b) {
 		list_push(&s->phis[b], phi);
 		*memo = phi->w[2];
 		for (int p = 0; p < blk->pred_count; ++p) {
-			uint32_t value       = end_value(s, var, blk->pred[p]);
-			phi->w[3 + 2 * p]    = value;
+			uint32_t value        = end_value(s, var, blk->pred[p]);
+			phi->w[3 + 2 * p]     = value;
 			phi->w[3 + 2 * p + 1] = s->f->blocks[blk->pred[p]].label->w[1];
 		}
 	}
@@ -1012,9 +1012,9 @@ static void promote_variables(func *f) {
 	block *entry = &f->blocks[0];
 
 	// Candidates: plain function variables in the entry block
-	int      *var_index  = NULL; // id -> candidate index, built lazily
-	uint32_t  capacity   = m.capacity;
-	var_index            = malloc(capacity * sizeof(int));
+	int     *var_index = NULL; // id -> candidate index, built lazily
+	uint32_t capacity  = m.capacity;
+	var_index          = malloc(capacity * sizeof(int));
 	for (uint32_t i = 0; i < capacity; ++i) {
 		var_index[i] = -1;
 	}
@@ -1102,13 +1102,13 @@ static void promote_variables(func *f) {
 				}
 				continue;
 			}
-			uint32_t var          = chain->w[3];
-			uint32_t var_type     = pointee_type(type_of(var));
-			int      index_count  = chain->n - 4;
-			inst    *whole        = new_inst(OP_LOAD, 4, bi);
-			whole->w[1]           = var_type;
-			whole->w[2]           = new_id();
-			whole->w[3]           = var;
+			uint32_t var         = chain->w[3];
+			uint32_t var_type    = pointee_type(type_of(var));
+			int      index_count = chain->n - 4;
+			inst    *whole       = new_inst(OP_LOAD, 4, bi);
+			whole->w[1]          = var_type;
+			whole->w[2]          = new_id();
+			whole->w[3]          = var;
 			set_def(whole);
 			list_push(&result, whole);
 			if (in->op == OP_LOAD) {
@@ -1503,8 +1503,8 @@ static void fold_insert(inst *in) {
 	// A component taken from one of the vectors of the shuffle it is inserted into folds into that shuffle
 	inst *shuffle = def(in->w[4]);
 	inst *object  = def(in->w[3]);
-	if (shuffle != NULL && shuffle->op == OP_VECTOR_SHUFFLE && shuffle->w[1] == type && !m.pinned[in->w[4]] && object != NULL && object->op == OP_COMPOSITE_EXTRACT &&
-	    object->n == 5 && (object->w[3] == shuffle->w[3] || object->w[3] == shuffle->w[4]) && in->w[5] < (uint32_t)size) {
+	if (shuffle != NULL && shuffle->op == OP_VECTOR_SHUFFLE && shuffle->w[1] == type && !m.pinned[in->w[4]] && object != NULL &&
+	    object->op == OP_COMPOSITE_EXTRACT && object->n == 5 && (object->w[3] == shuffle->w[3] || object->w[3] == shuffle->w[4]) && in->w[5] < (uint32_t)size) {
 		uint32_t components[4];
 		memcpy(components, &shuffle->w[5], size * sizeof(uint32_t));
 		components[in->w[5]] = object->w[3] == shuffle->w[3] ? object->w[4] : (uint32_t)vector_size(type_of(shuffle->w[3])) + object->w[4];
@@ -1782,10 +1782,10 @@ static void number_values(func *f, vn_table *table, int b, int **children, int *
 			table->capacity = table->capacity == 0 ? 256 : table->capacity * 2;
 			table->entries  = realloc(table->entries, table->capacity * sizeof(vn_entry));
 		}
-		int index                           = table->count++;
-		table->entries[index].hash          = hash;
-		table->entries[index].in            = in;
-		table->entries[index].next          = table->buckets[hash & table->bucket_mask];
+		int index                                 = table->count++;
+		table->entries[index].hash                = hash;
+		table->entries[index].in                  = in;
+		table->entries[index].next                = table->buckets[hash & table->bucket_mask];
 		table->buckets[hash & table->bucket_mask] = index;
 	}
 	for (int c = 0; c < children_count[b]; ++c) {
@@ -1793,7 +1793,7 @@ static void number_values(func *f, vn_table *table, int b, int **children, int *
 	}
 	// Leave the dominator subtree, entries are popped in reverse
 	while (table->count > mark) {
-		vn_entry *entry                           = &table->entries[--table->count];
+		vn_entry *entry                                  = &table->entries[--table->count];
 		table->buckets[entry->hash & table->bucket_mask] = entry->next;
 	}
 }
@@ -1817,8 +1817,8 @@ static void simplify(func *f) {
 	for (int i = 0; i < f->blocks_count; ++i) {
 		instructions += f->blocks[i].insts.count;
 	}
-	vn_table table    = {0};
-	int      buckets  = 64;
+	vn_table table   = {0};
+	int      buckets = 64;
 	while (buckets < instructions * 2) {
 		buckets *= 2;
 	}
@@ -2004,7 +2004,7 @@ static size_t write_module(uint32_t *out, size_t capacity) {
 	bool *live = calloc(m.capacity, sizeof(bool));
 
 	for (int fi = 0; fi < m.funcs_count; ++fi) {
-		func *f = &m.funcs[fi];
+		func *f               = &m.funcs[fi];
 		live[f->header->w[2]] = true;
 		mark_ids(f->header, live);
 		for (int i = 0; i < f->params.count; ++i) {

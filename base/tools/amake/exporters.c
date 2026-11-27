@@ -1580,8 +1580,9 @@ void export_solution(project_t *project) {
 			linker_flags   = string("%s -flto", linker_flags);
 		}
 		if (!goptions.debug) {
-			compiler_flags = string("%s -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-unroll-loops", compiler_flags);
-			linker_flags   = string("%s -Wl,--gc-sections -Wl,-s", linker_flags);
+			compiler_flags =
+			    string("%s -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-unroll-loops", compiler_flags);
+			linker_flags = string("%s -Wl,--gc-sections -Wl,-s", linker_flags);
 		}
 		make_export(project, goptions.ccompiler, compiler_flags, linker_flags, "");
 		compile_commands_export(project);

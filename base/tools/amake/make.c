@@ -811,7 +811,6 @@ static void compile_shader(char *file, char *name, char *defines, char *to_dir, 
 	ashader(type, file, to, names, names_count);
 }
 
-
 static any_array_t *export_shaders(project_t *project, char *to_dir, char *temp) {
 	any_array_t *shaders = list_create();
 	char        *type    = shader_type();

@@ -1213,7 +1213,7 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 					variable coord   = o->op_call.parameters[2];
 					*offset +=
 					    sprintf(&code[*offset], "var %s: %s = textureSample(%s, %s, %s);\n", get_var(o->op_call.var, f, main).str,
-					            type_string(o->op_call.var.type.type), get_var(tex, f, main).str, get_var(sampler, f, main).str, get_var(coord, f, main).str);
+						        type_string(o->op_call.var.type.type), get_var(tex, f, main).str, get_var(sampler, f, main).str, get_var(coord, f, main).str);
 				}
 				else if (o->op_call.func == add_name("sample_lod")) {
 					check(o->op_call.parameters_size == 4, context, "sample_lod requires four arguments");
@@ -1305,7 +1305,8 @@ static void write_functions(char *code, size_t *offset, shader_stage stage, func
 						*offset += sprintf(&code[*offset], "%s(", func_name);
 					}
 					else {
-						*offset += sprintf(&code[*offset], "var _%" PRIu64 ": %s = %s(", o->op_call.var.index, type_string(o->op_call.var.type.type), func_name);
+						*offset +=
+						    sprintf(&code[*offset], "var _%" PRIu64 ": %s = %s(", o->op_call.var.index, type_string(o->op_call.var.type.type), func_name);
 					}
 					if (o->op_call.parameters_size > 0) {
 						*offset += sprintf(&code[*offset], "_%" PRIu64, o->op_call.parameters[0].index);

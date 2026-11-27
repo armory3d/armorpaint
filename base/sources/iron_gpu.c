@@ -302,13 +302,12 @@ void gpu_set_pipeline(gpu_pipeline_t *pipeline) {
 	if (pipeline->impl.pipeline == NULL) {
 		return;
 	}
-	bool pipeline_fb = pipeline->color_attachment[0] == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
-	bool target_fb   = current_render_targets_count > 0 && current_render_targets[0]->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
-	static bool reported = false;
+	bool        pipeline_fb = pipeline->color_attachment[0] == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	bool        target_fb   = current_render_targets_count > 0 && current_render_targets[0]->format == GPU_TEXTURE_FORMAT_FRAMEBUFFER;
+	static bool reported    = false;
 	if (gpu_in_use && pipeline_fb != target_fb && !reported) {
 		reported = true;
-		iron_error(target_fb ? "Pipeline without a framebuffer attachment bound to the framebuffer"
-		                     : "Framebuffer pipeline bound to a render target");
+		iron_error(target_fb ? "Pipeline without a framebuffer attachment bound to the framebuffer" : "Framebuffer pipeline bound to a render target");
 	}
 	gpu_set_pipeline_internal(pipeline);
 }
@@ -481,14 +480,14 @@ void *gpu_bc7_compress(void *data, int width, int height) {
 	}
 	volatile int32_t    next_block = 0;
 	bc7_thread_params_t tp         = {
-	            .src          = (uint8_t *)data,
-	            .dst          = (uint8_t *)bc7_data,
-	            .width        = width,
-	            .height       = height,
-	            .blocks_x     = blocks_x,
-	            .total_blocks = blocks_x * blocks_y,
-	            .next_block   = &next_block,
-    };
+	    .src          = (uint8_t *)data,
+	    .dst          = (uint8_t *)bc7_data,
+	    .width        = width,
+	    .height       = height,
+	    .blocks_x     = blocks_x,
+	    .total_blocks = blocks_x * blocks_y,
+	    .next_block   = &next_block,
+	};
 	bc7enc_compress_block_params_init(&tp.params);
 	tp.params.m_max_partitions_mode = 0;
 	tp.params.m_try_least_squares   = false;

@@ -10,11 +10,11 @@
 
 #define SIM_PARTICLE_MASS    0.125f // 8 per cell
 #define SIM_MAX_SUBSTEPS     16
-#define SIM_CFL              2.0f   // Cells moved per substep
+#define SIM_CFL              2.0f // Cells moved per substep
 #define SIM_PCG_TOLERANCE    1e-4f
 #define SIM_PRESSURE_EPS     1e-4f
 #define SIM_MAX_THREADS      16
-#define SIM_CHUNKS           32     // Per thread
+#define SIM_CHUNKS           32 // Per thread
 #define SIM_POISSON          0.3f
 #define SIM_ELASTIC_CFL      0.4f
 #define SIM_ELASTIC_SUBSTEPS 128
@@ -388,7 +388,6 @@ float *physics_sim_particle_field(float *pos, int count, float spacing, float vo
 	return field;
 }
 
-
 // The sim steps on the gpu, kernels of shaders/compute/gpu_sim.shader over one storage buffer. Collider queries stay on the cpu, once per
 // frame into the cells: solids, and for the particles the distance to the colliders. Bodies get the summed pushes after each
 // substep.
@@ -493,8 +492,8 @@ enum {
 #define SIM_GPU_BODY_FIXED 1024.0f
 #define SIM_GPU_MAX_BODIES 256
 #define SIM_GPU_PCG_ITERS  200
-#define SIM_GPU_LEVELS     6 // Multigrid
-#define SIM_GPU_COARSEST   2 // Sweeps on the coarsest level
+#define SIM_GPU_LEVELS     6    // Multigrid
+#define SIM_GPU_COARSEST   2    // Sweeps on the coarsest level
 #define SIM_GPU_SDF_RADIUS 3.0f // Cells, the colliders particles see
 
 // Where reading back is slow, the substeps are sized on the gpu (gpu_sim.shader built with _QUEUE_AHEAD, see base/project.c). A frame's
@@ -560,18 +559,18 @@ static void sim_gpu_run(physics_sim_t *s, sim_gpu_constants_t *k, int kernel, in
 	if (items <= 0) {
 		return;
 	}
-	sim_gpu_t *g    = s->gpu;
-	uint32_t groups = (uint32_t)(items + 63) / 64;
-	uint32_t gx     = groups < 32768 ? groups : 32768;
-	k->op[0]        = (uint32_t)kernel;
-	k->op[1]        = (uint32_t)items;
-	k->op[2]        = gx * 64;
-	k->op[3]        = (uint32_t)axis;
-	k->u3[2]        = (uint32_t)g->guard;
-	k->dims[0]      = (uint32_t)s->nx;
-	k->dims[1]      = (uint32_t)s->ny;
-	k->dims[2]      = (uint32_t)s->nz;
-	k->dims[3]      = (uint32_t)(s->nx * s->ny * s->nz);
+	sim_gpu_t *g      = s->gpu;
+	uint32_t   groups = (uint32_t)(items + 63) / 64;
+	uint32_t   gx     = groups < 32768 ? groups : 32768;
+	k->op[0]          = (uint32_t)kernel;
+	k->op[1]          = (uint32_t)items;
+	k->op[2]          = gx * 64;
+	k->op[3]          = (uint32_t)axis;
+	k->u3[2]          = (uint32_t)g->guard;
+	k->dims[0]        = (uint32_t)s->nx;
+	k->dims[1]        = (uint32_t)s->ny;
+	k->dims[2]        = (uint32_t)s->nz;
+	k->dims[3]        = (uint32_t)(s->nx * s->ny * s->nz);
 	memcpy(k->grid, s->min, sizeof(float) * 3);
 	k->grid[3] = s->cell;
 	gpu_kernel_dispatch(sim_gpu_kernel, g->buffer, k, sizeof(*k), gx, (groups + gx - 1) / gx);
@@ -791,9 +790,9 @@ static void sim_gpu_body_motion(physics_sim_t *s) {
 	for (int i = 0; i < g->bodies; i++) {
 		vec4_t c, v, vx, vy;
 		physics_body_get_pos(g->body[i], &c);
-		v      = physics_body_velocity_at(g->body[i], c);
-		vx     = vec4_sub(physics_body_velocity_at(g->body[i], vec4_add(c, (vec4_t){1.0f, 0.0f, 0.0f, 0.0f})), v); // w x (1, 0, 0)
-		vy     = vec4_sub(physics_body_velocity_at(g->body[i], vec4_add(c, (vec4_t){0.0f, 1.0f, 0.0f, 0.0f})), v); // w x (0, 1, 0)
+		v          = physics_body_velocity_at(g->body[i], c);
+		vx         = vec4_sub(physics_body_velocity_at(g->body[i], vec4_add(c, (vec4_t){1.0f, 0.0f, 0.0f, 0.0f})), v); // w x (1, 0, 0)
+		vy         = vec4_sub(physics_body_velocity_at(g->body[i], vec4_add(c, (vec4_t){0.0f, 1.0f, 0.0f, 0.0f})), v); // w x (0, 1, 0)
 		float b[9] = {c.x, c.y, c.z, v.x, v.y, v.z, vy.z, -vx.z, vx.y};
 		memcpy(&m[i * 9], b, sizeof(b));
 	}
@@ -812,7 +811,7 @@ static void sim_gpu_sdf_layers(sim_job_t *job, int begin, int end) {
 		physics_hit_t hit;
 		sdf[c]     = radius;
 		sdf[c + n] = sdf[c + 2 * n] = sdf[c + 3 * n] = 0.0f;
-		job->bodies[c] = NULL;
+		job->bodies[c]                               = NULL;
 		if (physics_collide_point(&q, radius, &hit)) {
 			float d[3] = {q.x - p.x, q.y - p.y, q.z - p.z};
 			float l    = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
@@ -849,14 +848,14 @@ static int sim_gpu_body_index(sim_gpu_t *g, void *body) {
 
 // After the colliders moved: solids, the bodies and their cells, and the colliders the particles see
 static void sim_gpu_mark(physics_sim_t *s) {
-	sim_gpu_t *g = s->gpu;
-	int        n = s->nx * s->ny * s->nz;
+	sim_gpu_t *g   = s->gpu;
+	int        n   = s->nx * s->ny * s->nz;
 	sim_job_t  job = {.s = s};
 	sim_parallel(sim_mark_solid_layers, &job, s->nz, 1);
 
-	uint32_t *body  = calloc(n, sizeof(uint32_t));
-	float    *cvel  = calloc(3 * n, sizeof(float));
-	g->bodies       = 0;
+	uint32_t *body = calloc(n, sizeof(uint32_t));
+	float    *cvel = calloc(3 * n, sizeof(float));
+	g->bodies      = 0;
 	if (g->capacity > 0) {
 		float *sdf    = malloc(sizeof(float) * 4 * n);
 		void **bodies = malloc(sizeof(void *) * n);
@@ -882,7 +881,7 @@ static void sim_gpu_mark(physics_sim_t *s) {
 			body[c] = (uint32_t)sim_gpu_body_index(g, s->solid_base_body[c]);
 		}
 		if (s->solid_base[c] && s->solid_base_body[c] != NULL) {
-			vec4_t        q  = sim_cell_center(s, c);
+			vec4_t        q = sim_cell_center(s, c);
 			physics_hit_t hit;
 			if (body[c] > 0 && physics_collide_point(&q, 1e-4f, &hit) && hit.body == s->solid_base_body[c]) {
 				cells[g->body_cells++] = (uint32_t)c;
@@ -999,9 +998,9 @@ static void sim_gpu_mg_setup(physics_sim_t *s) {
 		sim_gpu_constants_t k = sim_gpu_levels(g, l, g->level[l].fixed, g->level[l + 1].fixed, 0);
 		sim_gpu_run(s, &k, SIM_K_MG_FIXED, sim_gpu_level_cells(g, l + 1), 0);
 		for (int a = 0; a < 3; a++) {
-			int *n    = g->level[l + 1].n;
-			int faces = n[0] * n[1] * n[2] / n[a] * (n[a] + 1);
-			k         = sim_gpu_levels(g, l, g->level[l].coef[a], g->level[l + 1].coef[a], 0);
+			int *n     = g->level[l + 1].n;
+			int  faces = n[0] * n[1] * n[2] / n[a] * (n[a] + 1);
+			k          = sim_gpu_levels(g, l, g->level[l].coef[a], g->level[l + 1].coef[a], 0);
 			sim_gpu_run(s, &k, SIM_K_MG_FACES, faces, a);
 		}
 		eps *= 8.0f;
@@ -1048,10 +1047,10 @@ static void sim_gpu_vcycle(physics_sim_t *s) {
 
 // Iterations in chunks, reading after each whether the solve is done. Or a budget of them queued ahead, the ones past done skip
 static void sim_gpu_project(physics_sim_t *s, int gas, int budget) {
-	sim_gpu_t          *g    = s->gpu;
-	int                 n    = s->nx * s->ny * s->nz;
+	sim_gpu_t          *g            = s->gpu;
+	int                 n            = s->nx * s->ny * s->nz;
 	uint32_t            free_surface = gas ? 0 : 1;
-	sim_gpu_constants_t k    = {.u0 = {free_surface}};
+	sim_gpu_constants_t k            = {.u0 = {free_surface}};
 	sim_gpu_run(s, &k, SIM_K_FIXED, n, 0);
 	if (!gas) {
 		sim_gpu_run(s, &k, SIM_K_FIXED_LIQ, g->capacity, 0);
@@ -1287,7 +1286,7 @@ static void sim_gpu_stats(physics_sim_t *s) {
 	sim_gpu_t          *g     = s->gpu;
 	int                 n     = s->nx * s->ny * s->nz;
 	int                 faces = (int)(g->faces[0] + g->faces[1] + g->faces[2]);
-	sim_gpu_constants_t k = {.u0 = {(uint32_t)faces, (uint32_t)g->capacity, (uint32_t)(s->gas_count > 0 ? (1 + 2 * s->gas_count) * n : 0)}};
+	sim_gpu_constants_t k     = {.u0 = {(uint32_t)faces, (uint32_t)g->capacity, (uint32_t)(s->gas_count > 0 ? (1 + 2 * s->gas_count) * n : 0)}};
 	sim_gpu_fill(s, g->slots[SIM_GPU_SCAL] + SIM_GPU_SPEED, 2, 0);
 	sim_gpu_run(s, &k, SIM_K_STATS, SIM_GPU_REDUCE, 0);
 }
@@ -1349,10 +1348,10 @@ void physics_sim_step(physics_sim_t *s, float dt, unsigned emit) {
 
 	// Sized on the gpu. Without bodies, which take the pushes after each substep, as many substeps as the last frame are queued at once,
 	// more if they fall short, with the gas of the last frame: it only fades within this one. Else one at a time, reading after each
-	bool  ahead = g->bodies == 0 && g->last_steps > 0;
-	int   gas   = emit != 0 || g->gas > 0.0f;
-	int   queue = ahead ? g->last_steps : max_steps;
-	float *read = g->read;
+	bool   ahead = g->bodies == 0 && g->last_steps > 0;
+	int    gas   = emit != 0 || g->gas > 0.0f;
+	int    queue = ahead ? g->last_steps : max_steps;
+	float *read  = g->read;
 	sim_gpu_fill(s, g->slots[SIM_GPU_SCAL] + SIM_GPU_T, SIM_GPU_FRAME, 0);
 	g->guard = 1;
 	for (bool done = false; !done; queue = 1) {

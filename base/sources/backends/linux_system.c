@@ -1501,11 +1501,11 @@ extern void (*iron_save_and_quit)(bool);
 #include "../libs/nfd_gtk.h"
 static bool iron_gtk_setlocale_disabled = false;
 void        iron_gtk_disable_setlocale() {
-    if (iron_gtk_setlocale_disabled || !iron_gtk_load()) {
-        return;
-    }
-    gtk_disable_setlocale();
-    iron_gtk_setlocale_disabled = true;
+	if (iron_gtk_setlocale_disabled || !iron_gtk_load()) {
+		return;
+	}
+	gtk_disable_setlocale();
+	iron_gtk_setlocale_disabled = true;
 }
 #endif
 
