@@ -1,0 +1,88 @@
+name: ArmorPaint Windows Release (All 4 Variants)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    name: ${{ matrix.artifact }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: vulkan
+            embed: "true"
+            flag: "--embed"
+            artifact: ArmorPaint-Win64-Vulkan-Embedded
+          - backend: vulkan
+            embed: "false"
+            flag: ""
+            artifact: ArmorPaint-Win64-Vulkan-Portable
+          - backend: direct3d12
+            embed: "true"
+            flag: "--embed"
+            artifact: ArmorPaint-Win64-D3D12-Embedded
+          - backend: direct3d12
+            embed: "false"
+            flag: ""
+            artifact: ArmorPaint-Win64-D3D12-Portable
+
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v4
+
+      - name: Install Vulkan SDK
+        if: matrix.backend == 'vulkan'
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: latest
+          install_runtime: false
+          cache: false
+          stripdown: true
+
+      - name: Compile Optimized Release (${{ matrix.artifact }})
+        shell: pwsh
+        run: |
+          cd paint
+          ../base/make --graphics ${{ matrix.backend }} ${{ matrix.flag }} --compile
+
+      - name: Package Release Build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+
+          $exe = Get-ChildItem -Path paint\build -Filter *.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "Build failed: ArmorPaint.exe was not generated." }
+          Copy-Item -Path $exe.FullName -Destination "dist\ArmorPaint.exe" -Force
+
+          if ("${{ matrix.embed }}" -eq "false") {
+            New-Item -ItemType Directory -Force -Path dist\data | Out-Null
+
+            # Copy base and paint assets if present
+            if (Test-Path base\assets)  { Copy-Item -Path base\assets\*  -Destination dist\data\ -Recurse -Force }
+            if (Test-Path paint\assets) { Copy-Item -Path paint\assets\* -Destination dist\data\ -Recurse -Force }
+
+            # Copy generated data directories preserving exact folder structure
+            Get-ChildItem -Path paint\build -Filter data -Directory -Recurse | ForEach-Object {
+              Copy-Item -Path "$($_.FullName)\*" -Destination dist\data\ -Recurse -Force
+            }
+
+            # Fallback: copy any standalone compiled shaders if not inside a data folder
+            Get-ChildItem -Path paint\build -Include *.spirv,*.cso -Recurse | ForEach-Object {
+              Copy-Item -Path $_.FullName -Destination dist\data\ -Force
+            }
+          }
+
+          Write-Host "=== Packaged Files for ${{ matrix.artifact }} ==="
+          Get-ChildItem -Path dist -Recurse | Select-Object FullName, Length
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/
+          if-no-files-found: error
