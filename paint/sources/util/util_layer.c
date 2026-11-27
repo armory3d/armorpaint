@@ -1250,14 +1250,22 @@ void layers_merge_layer(slot_layer_t *l0, slot_layer_t *l1, bool use_mask) {
 }
 
 void layers_draw_mesh_materials() {
-	bool any = false;
+	bool any_uv = false;
+	bool any_3d = false;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
-		if (tab_meshes_get_override(g_project->_->paint_objects->buffer[i]) >= 0) {
-			any = true;
-			break;
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if (!o->base->visible || make_material_is_default(o->material) || o->material->contexts->length <= 1 || o->material->contexts->buffer[1] == NULL) {
+			continue;
+		}
+		shader_context_t *scon = o->material->contexts->buffer[1];
+		if (scon->depth_attachment != NULL) {
+			any_3d = true;
+		}
+		else {
+			any_uv = true;
 		}
 	}
-	if (!any) {
+	if (!any_uv && !any_3d) {
 		return;
 	}
 
@@ -1268,10 +1276,20 @@ void layers_draw_mesh_materials() {
 	        "texpaint_blend0",
 	    },
 	    3);
-	render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
-	render_path_bind_target("main", "gbufferD");
-	render_path_bind_target("texpaint_blend1", "paintmask");
-	render_path_base_draw_overrides(NULL);
+	if (any_uv) {
+		render_path_set_target("expa", additional, NULL, GPU_CLEAR_NONE, 0, 0.0);
+		render_path_bind_target("main", "gbufferD");
+		render_path_bind_target("texpaint_blend1", "paintmask");
+		render_path_base_draw_overrides(NULL, false);
+	}
+	if (any_3d) {
+		char *depth = render_path_raytrace_override_depth(config_get_texture_res_x(), config_get_texture_res_y());
+		render_path_set_target("expa", additional, depth, GPU_CLEAR_DEPTH, 0, 1.0);
+		render_path_bind_target("main", "gbufferD");
+		render_path_bind_target("texpaint_blend1", "paintmask");
+		render_path_base_draw_overrides(NULL, true);
+	}
+	array_delete(additional);
 }
 
 static gpu_texture_t *layers_udim_a    = NULL;

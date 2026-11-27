@@ -333,6 +333,11 @@ static bool render_path_raytrace_override_targets(i32 count) {
 			gpu_delete_texture(mask->_image);
 			map_delete(render_path_render_targets, "raytrace_override_mask");
 		}
+		render_target_t *depth = any_map_get(render_path_render_targets, "raytrace_override_depth");
+		if (depth != NULL) {
+			gpu_delete_texture(depth->_image);
+			map_delete(render_path_render_targets, "raytrace_override_depth");
+		}
 		render_path_raytrace_override_allocated = 0;
 		recreated                               = true;
 	}
@@ -367,7 +372,43 @@ static gpu_texture_t *render_path_raytrace_override_texture(i32 slot, char chann
 	return rt->_image;
 }
 
+char *render_path_raytrace_override_depth(i32 width, i32 height) {
+	render_target_t *rt = any_map_get(render_path_render_targets, "raytrace_override_depth");
+	if (rt != NULL && (rt->width != width || rt->height != height)) {
+		gpu_delete_texture(rt->_image);
+		map_delete(render_path_render_targets, "raytrace_override_depth");
+		rt = NULL;
+	}
+	if (rt == NULL) {
+		render_target_t *t = render_target_create();
+		t->name            = "raytrace_override_depth";
+		t->width           = width;
+		t->height          = height;
+		t->format          = "D32";
+		render_path_create_render_target(t);
+	}
+	return "raytrace_override_depth";
+}
+
+static shader_context_t *render_path_raytrace_override_scon(mesh_data_t *data) {
+	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
+		mesh_object_t *o = g_project->_->paint_objects->buffer[i];
+		if ((o->base->visible || mesh_scatter_uses(o)) && o->data == data && !make_material_is_default(o->material) && o->material->contexts->length > 1) {
+			return o->material->contexts->buffer[1];
+		}
+	}
+	return NULL;
+}
+
 static void render_path_raytrace_draw_override(i32 slot) {
+	shader_context_t *scon = render_path_raytrace_override_scon(render_path_raytrace_override_data[slot]);
+	if (scon == NULL) {
+		render_path_raytrace_override_dirty[slot] = false;
+		return;
+	}
+	bool            use_depth  = scon->depth_attachment != NULL;
+	char           *depth      = use_depth ? render_path_raytrace_override_depth(render_path_raytrace_override_width, render_path_raytrace_override_height) : NULL;
+	gpu_clear_t     clear      = use_depth ? (GPU_CLEAR_COLOR | GPU_CLEAR_DEPTH) : GPU_CLEAR_COLOR;
 	string_array_t *additional = any_array_create_from_raw(
 	    (void *[]){
 	        render_path_raytrace_override_target(slot, 'b'),
@@ -376,10 +417,10 @@ static void render_path_raytrace_draw_override(i32 slot) {
 	    },
 	    3);
 	render_path_raytrace_override_pass = true;
-	render_path_set_target(render_path_raytrace_override_target(slot, 'a'), additional, NULL, GPU_CLEAR_COLOR, 0x00000000, 0.0);
+	render_path_set_target(render_path_raytrace_override_target(slot, 'a'), additional, depth, clear, 0x00000000, 1.0);
 	render_path_bind_target("main", "gbufferD");
 	render_path_bind_target("texpaint_blend1", "paintmask");
-	render_path_base_draw_overrides(render_path_raytrace_override_data[slot]);
+	render_path_base_draw_overrides(render_path_raytrace_override_data[slot], use_depth);
 	render_path_raytrace_override_pass = false;
 	array_delete(additional);
 	render_path_raytrace_override_dirty[slot] = false;
@@ -400,7 +441,7 @@ static void render_path_raytrace_update_overrides() {
 	for (i32 i = 0; i < g_project->_->paint_objects->length && count < OVERRIDE_MAX; ++i) {
 		mesh_object_t *po  = g_project->_->paint_objects->buffer[i];
 		i32            mat = tab_meshes_get_linked_override(po);
-		if (!po->base->visible || mat < 0) {
+		if ((!po->base->visible && !mesh_scatter_uses(po)) || mat < 0) {
 			continue;
 		}
 		bool seen = false;
@@ -418,8 +459,9 @@ static void render_path_raytrace_update_overrides() {
 	for (i32 i = 0; i < count; ++i) {
 		// New topology brings new uvs, as for the simulated meshes rebuilt every frame
 		u32  topology = data[i]->_->index_buffer->version;
-		bool changed  = recreated || i >= allocated || i >= render_path_raytrace_override_count || render_path_raytrace_override_data[i] != data[i] ||
-		                render_path_raytrace_override_material[i] != material[i] || render_path_raytrace_override_topology[i] != topology;
+		bool changed  = (g_context->rtdirty > 0 && !render_path_raytrace_is_bake) || recreated || i >= allocated || i >= render_path_raytrace_override_count ||
+		                render_path_raytrace_override_data[i] != data[i] || render_path_raytrace_override_material[i] != material[i] ||
+		                render_path_raytrace_override_topology[i] != topology;
 		render_path_raytrace_override_data[i]     = data[i];
 		render_path_raytrace_override_material[i] = material[i];
 		render_path_raytrace_override_topology[i] = topology;
@@ -431,7 +473,7 @@ static void render_path_raytrace_update_overrides() {
 static bool render_path_raytrace_overrides_visible() {
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
-		if (po->base->visible && tab_meshes_get_linked_override(po) >= 0) {
+		if ((po->base->visible || mesh_scatter_uses(po)) && tab_meshes_get_linked_override(po) >= 0) {
 			return true;
 		}
 	}
@@ -552,8 +594,11 @@ static bool render_path_raytrace_add_volume(mesh_object_t *po, i32 g) {
 	return true;
 }
 
-// Sand and fire, the shader tells them apart by geometry
+// Sand, fire, and scattered instances, the shader or TLAS needs per-object geometries
 static bool render_path_raytrace_special_visible() {
+	if (mesh_scatter_has_visible()) {
+		return true;
+	}
 	if (render_path_raytrace_is_bake) {
 		return false;
 	}
@@ -572,7 +617,7 @@ static bool render_path_raytrace_overrides_changed() {
 	}
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *po = g_project->_->paint_objects->buffer[i];
-		if (!po->base->visible) {
+		if (!po->base->visible && !mesh_scatter_uses(po)) {
 			continue;
 		}
 		i32 mat  = tab_meshes_get_linked_override(po);
@@ -588,7 +633,8 @@ void render_path_raytrace_commands(bool use_live_layer) {
 	if (render_path_raytrace_ready && !render_path_raytrace_is_bake && render_path_raytrace_overrides_changed()) {
 		render_path_raytrace_ready = false;
 	}
-	if (!render_path_raytrace_ready || render_path_raytrace_is_bake) {
+	bool rebuilt = !render_path_raytrace_ready || render_path_raytrace_is_bake;
+	if (rebuilt) {
 		render_path_raytrace_ready = true;
 		if (render_path_raytrace_is_bake) {
 			render_path_raytrace_is_bake     = false;
@@ -644,7 +690,7 @@ void render_path_raytrace_commands(bool use_live_layer) {
 			layer->texpaint_nor  = _texpaint_nor;
 			layer->texpaint_pack = _texpaint_pack;
 		}
-		if (g_context->rtdirty > 0) {
+		if (g_context->rtdirty > 0 && !rebuilt) {
 			render_path_raytrace_draw_overrides(true);
 		}
 		g_context->rtdirty = 0;
@@ -772,6 +818,7 @@ void render_path_raytrace_raytrace_init(char *shader_name, bool build) {
 			}
 			_gpu_raytrace_as_add(po->data->_->vertex_buffer, po->data->_->index_buffer, po->base->transform->world_unpack, textures);
 		}
+		mesh_scatter_raytrace_add(render_path_raytrace_override_slot, render_path_raytrace_override_texture, render_path_raytrace_is_bake);
 	}
 
 	_gpu_raytrace_as_build();

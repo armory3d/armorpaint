@@ -3,11 +3,41 @@
 
 f32                      render_path_base_super_sample = 1.0;
 render_target_t_array_t *render_path_base_bloom_mipmaps;
+static gpu_buffer_t     *render_path_base_uv_quad_vb = NULL;
+static gpu_buffer_t     *render_path_base_uv_quad_ib = NULL;
+
+static void render_path_base_init_uv_quad() {
+	if (render_path_base_uv_quad_vb != NULL) {
+		return;
+	}
+	gpu_vertex_structure_t structure = {0};
+	gpu_vertex_structure_add(&structure, "pos", GPU_VERTEX_DATA_I16_4X_NORM);
+	gpu_vertex_structure_add(&structure, "nor", GPU_VERTEX_DATA_I16_2X_NORM);
+	gpu_vertex_structure_add(&structure, "tex", GPU_VERTEX_DATA_I16_2X_NORM);
+	render_path_base_uv_quad_vb = gpu_create_vertex_buffer(4, &structure);
+	i16 *v                      = gpu_vertex_buffer_lock(render_path_base_uv_quad_vb);
+	// pos (4), nor (2), tex (2)
+	i16 data[32] = {
+	    0, 0, 0, 32767, 0, 0, 0,     0,
+	    0, 0, 0, 32767, 0, 0, 32767, 0,
+	    0, 0, 0, 32767, 0, 0, 32767, 32767,
+	    0, 0, 0, 32767, 0, 0, 0,     32767,
+	};
+	memcpy(v, data, sizeof(data));
+	gpu_vertex_buffer_unlock(render_path_base_uv_quad_vb);
+
+	render_path_base_uv_quad_ib = gpu_create_index_buffer(6);
+	u32 *ind                    = gpu_index_buffer_lock(render_path_base_uv_quad_ib);
+	u32  indices[6]             = {0, 1, 2, 0, 2, 3};
+	memcpy(ind, indices, sizeof(indices));
+	gpu_index_buffer_unlock(render_path_base_uv_quad_ib);
+}
 
 void render_path_base_init() {
 	pipes_init();
 	const_data_create_screen_aligned_data();
 	const_data_create_skydome_data();
+	render_path_base_init_uv_quad();
 	render_path_base_super_sample = g_config->rp_supersample;
 
 	{
@@ -251,10 +281,15 @@ void render_path_base_commands(void (*draw_commands)(void)) {
 	render_path_base_begin();
 	render_path_paint_begin();
 	render_path_base_draw_split(draw_commands);
-	render_path_base_draw_gbuffer();
+	bool path_trace   = render_path_base_path_trace();
+	bool skip_gbuffer = path_trace && render_path_raytrace_frame > 0 && g_context->ddirty <= 0 && g_context->pdirty <= 0 && !g_context->foreground_event &&
+	                    !base_player && !tab_timeline_playing && !g_config->brush_live && !base_is_split();
+	if (!skip_gbuffer) {
+		render_path_base_draw_gbuffer();
+	}
 	render_path_paint_draw();
 
-	if (render_path_base_path_trace()) {
+	if (path_trace) {
 		bool use_live_layer = g_context->tool == TOOL_TYPE_MATERIAL;
 		render_path_raytrace_draw(use_live_layer);
 		render_path_base_draw_outline();
@@ -539,19 +574,48 @@ void render_path_base_draw_meshes(shader_context_t *scon, bool own) {
 			mesh_object_render(mesh, s, _render_path_bind_params);
 		}
 	}
+	mesh_scatter_draw(scon, own);
 	render_path_end();
 }
 
+static void render_path_base_draw_uv_quad(mesh_object_t *o, shader_context_t *scontext, string_array_t *bind_params) {
+	uniforms_pos_unpack = 1.0;
+	uniforms_tex_unpack = 1.0;
+	transform_update(o->base->transform);
+	if (scontext->_->pipe != _mesh_object_last_pipeline) {
+		gpu_set_pipeline(scontext->_->pipe);
+		_mesh_object_last_pipeline = scontext->_->pipe;
+	}
+	uniforms_set_context_consts(scontext, bind_params);
+	uniforms_set_obj_consts(scontext, o->base);
+	gpu_set_vertex_buffer(render_path_base_uv_quad_vb);
+	gpu_set_index_buffer(render_path_base_uv_quad_ib);
+	gpu_draw();
+}
+
 // Texture space atlas pass of the override material objects, all visible ones or the ones sharing data
-void render_path_base_draw_overrides(mesh_data_t *data) {
+void render_path_base_draw_overrides(mesh_data_t *data, bool use_depth) {
 	_mesh_object_last_pipeline = NULL;
 	for (i32 i = 0; i < g_project->_->paint_objects->length; ++i) {
 		mesh_object_t *o     = g_project->_->paint_objects->buffer[i];
 		any_array_t   *scons = o->material->contexts;
-		bool           draw  = data != NULL ? o->data == data : o->base->visible;
+		bool           vis   = o->base->visible || mesh_scatter_uses(o);
+		bool           draw  = data != NULL ? (vis && o->data == data) : vis;
 		// The atlas shader follows the mesh shader
 		if (draw && !make_material_is_default(o->material) && scons->length > 1 && scons->buffer[1] != NULL) {
-			mesh_object_draw(o, scons->buffer[1], _render_path_bind_params);
+			shader_context_t *scon = scons->buffer[1];
+			if ((scon->depth_attachment != NULL) != use_depth) {
+				continue;
+			}
+			if (render_path_raytrace_override_pass && string_equals(scon->name, "atlas_uv")) {
+				render_path_base_draw_uv_quad(o, scon, _render_path_bind_params);
+			}
+			else {
+				mesh_object_draw(o, scon, _render_path_bind_params);
+			}
+			if (data != NULL) {
+				break;
+			}
 		}
 	}
 	render_path_end();

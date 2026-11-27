@@ -250,7 +250,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	}
 	node_shader_write_vert(kong, string_tmp("float2 tpos = float2(%s.x * 2.0 - 1.0, (1.0 - %s.y) * 2.0 - 1.0);", tuv, tuv));
 
-	node_shader_write_vert(kong, "output.pos = float4(tpos, 0.0, 1.0);");
+	node_shader_write_vert(kong, is_atlas ? "output.pos = float4(tpos, 0.5, 1.0);" : "output.pos = float4(tpos, 0.0, 1.0);");
 
 	if (g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_out(kong, "float2 blur_uv");
@@ -392,6 +392,7 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_attrib_frag(kong, "float2 tex_coord_atlas = input.tex_coord_atlas;");
 	}
 
+	bool atlas_opaque = false;
 	if (g_context->tool == TOOL_TYPE_CLONE || g_context->tool == TOOL_TYPE_BLUR) {
 		node_shader_add_texture(kong, "gbuffer2", NULL);
 		node_shader_add_constant(kong, "float2 gbuffer_size", "_gbuffer_size");
@@ -446,6 +447,13 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		node_shader_write_frag(kong, string_tmp("float height = %s;", height));
 		node_shader_write_frag(kong, string_tmp("float mat_opacity = %s;", opac));
 		node_shader_write_frag(kong, "float opacity = mat_opacity;");
+		if (is_atlas) {
+			char *end;
+			f32   v = strtof(opac, &end);
+			if (end != opac && *end == '\0' && v > g_config->brush_alpha_discard) {
+				atlas_opaque = true;
+			}
+		}
 
 		// Fill layers write the material opacity directly, anything but a constant 1.0 on the bottom layer makes it see-through
 		if (g_context->layer->fill_material != NULL && g_context->layer == g_project->_->layers->buffer[0] && g_context->material->paint_opac) {
@@ -569,7 +577,9 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 		}
 	}
 
-	node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(g_config->brush_alpha_discard)));
+	if (!atlas_opaque) {
+		node_shader_write_frag(kong, string_tmp("if (opacity <= float(%s)) { discard; }", f32_to_string(g_config->brush_alpha_discard)));
+	}
 
 	if (g_context->tool == TOOL_TYPE_PARTICLE) { // Particle mask
 		make_particle_mask(kong);
@@ -714,6 +724,21 @@ node_shader_context_t *make_paint_run_context(material_t *data, char *context_id
 	parser_material_finalize(con_paint);
 	parser_material_triplanar          = false;
 	parser_material_sample_keep_aspect = false;
+
+	if (is_atlas) {
+		// UV-only override materials can be baked with a single UV quad; 3D-dependent ones use early-Z to avoid UV overdraw
+		bool uv_only = !kong->frag_bposition && !kong->frag_wposition && !kong->frag_mposition && !kong->frag_vposition && !kong->frag_ndcpos &&
+		               !kong->frag_wtangent && !kong->frag_vvec && !kong->frag_vvec_cam && !kong->frag_n && !kong->vert_n && !kong->frag_nattr &&
+		               !kong->frag_dotnv && !node_shader_context_is_elem(con_paint, "tex1");
+		if (uv_only) {
+			con_paint->data->name = "atlas_uv";
+		}
+		else {
+			con_paint->data->depth_write      = true;
+			con_paint->data->compare_mode     = "less";
+			con_paint->data->depth_attachment = "D32";
+		}
+	}
 
 	if (!g_context->material_preview) {
 		sculpt_make_paint_run(kong);

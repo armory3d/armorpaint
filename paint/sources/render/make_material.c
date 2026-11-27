@@ -171,7 +171,22 @@ gpu_texture_t *make_material_node_preview_target(char *id, i32 res_x, i32 res_y,
 	return image;
 }
 
+static bool make_material_node_has_output_link(ui_node_canvas_t *canvas, ui_node_t *node) {
+	for (i32 i = 0; i < canvas->links->length; ++i) {
+		if (canvas->links->buffer[i]->from_id == node->id) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void make_material_bake_node_preview(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array_t *parents) {
+	ui_node_canvas_t *canvas = group != NULL ? group : g_context->material->canvas;
+	if (!make_material_node_has_output_link(canvas, node) &&
+	    (!string_equals(node->type, "TEX_SKY") || g_context->node_previews == NULL ||
+	     any_map_get(g_context->node_previews, make_material_node_preview_id(node, parents)) == NULL)) {
+		return;
+	}
 	if (string_equals(node->type, "BLUR")) {
 		char *id     = make_material_node_preview_id(node, parents);
 		i32   passes = blur_node_seamless_passes(node);
