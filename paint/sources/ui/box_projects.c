@@ -448,11 +448,13 @@ void box_projects_show() {
 	ui_box_show_custom(&box_projects_show_box, 600, box_h, NULL, draggable, "");
 }
 
-void box_projects_recent_load(char *path) {
+bool box_projects_recent_load(char *path) {
 	if (!iron_file_exists(path)) {
-		return;
+		console_error(string("%s: %s", tr("File not found"), path));
+		return false;
 	}
 	box_projects_load(path);
+	return true;
 }
 
 void box_projects_recent_tab() {
@@ -465,6 +467,8 @@ void box_projects_recent_tab() {
 		box_projects_search = string_copy(ui_text_input(&box_projects_search, tr("Search"), UI_ALIGN_LEFT, true, true));
 		g_ui->enabled       = true;
 		char *first_path    = NULL; // Most recent project that passes the search filter
+		i32   first_i       = -1;
+		i32   missing_i     = -1;
 		for (i32 i = 0; i < g_config->recent_projects->length; ++i) {
 			char *path = g_config->recent_projects->buffer[i];
 #ifdef IRON_WINDOWS
@@ -479,9 +483,10 @@ void box_projects_recent_tab() {
 			}
 			if (first_path == NULL) {
 				first_path = path;
+				first_i    = i;
 			}
-			if (ui_button(file, UI_ALIGN_LEFT, "")) {
-				box_projects_recent_load(path);
+			if (ui_button(file, UI_ALIGN_LEFT, "") && !box_projects_recent_load(path)) {
+				missing_i = i;
 			}
 			if (g_ui->is_hovered) {
 				ui_tooltip(path);
@@ -489,7 +494,14 @@ void box_projects_recent_tab() {
 		}
 
 		if (first_path != NULL && !was_typing && g_ui->is_key_pressed && g_ui->key_code == KEY_CODE_RETURN) {
-			box_projects_recent_load(first_path);
+			if (!box_projects_recent_load(first_path)) {
+				missing_i = first_i;
+			}
+		}
+
+		if (missing_i >= 0) {
+			array_splice(g_config->recent_projects, missing_i, 1);
+			config_save();
 		}
 
 		g_ui->enabled = g_config->recent_projects->length > 0;
