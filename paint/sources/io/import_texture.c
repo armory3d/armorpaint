@@ -27,6 +27,11 @@ void import_texture_run(char *path, bool hdr_as_envmap) {
 		asset_t *a = g_project->_->assets->buffer[i];
 		// Already imported
 		if (string_equals(a->file, path)) {
+			// File was missing and got a 1x1 pink placeholder, load the real texture now
+			if (a->image != NULL && a->image->width == 1 && a->image->height == 1 && iron_file_exists(path)) {
+				project_reimport_texture_load(path, a);
+				return;
+			}
 			// Set as envmap
 			if (hdr_as_envmap && path_has_ext(path, "hdr")) {
 				gpu_texture_t         *image = data_get_texture(path);
