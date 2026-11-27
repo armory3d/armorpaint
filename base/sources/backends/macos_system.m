@@ -755,6 +755,7 @@ void iron_init(iron_window_options_t *win) {
 		delegate     = [[IronAppDelegate alloc] init];
 		opened_files = [[NSMutableArray alloc] init];
 		[myapp setDelegate:delegate];
+		[[NSUserDefaults standardUserDefaults] registerDefaults:@{@"NSTreatUnknownArgumentsAsOpen" : @"NO"}];
 		[myapp finishLaunching];
 		[[NSRunningApplication currentApplication] activateWithOptions:(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)];
 		NSApp.activationPolicy = NSApplicationActivationPolicyRegular;
@@ -836,6 +837,7 @@ int main(int argc, char **argv) {
 - (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
 	[opened_files addObjectsFromArray:filenames];
 	[sender replyToOpenOrPrint:NSApplicationDelegateReplySuccess];
+	[window makeKeyAndOrderFront:nil];
 }
 
 - (BOOL)windowShouldClose:(NSWindow *)sender {
