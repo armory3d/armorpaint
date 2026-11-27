@@ -132,9 +132,6 @@ void terrain_node_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array
 
 	gpu_texture_t *previous = any_map_get(g_context->node_previews, id);
 	gpu_texture_t *out      = make_material_node_preview_target(id, res, res, GPU_TEXTURE_FORMAT_RGBA64);
-	gpu_texture_t *src      = make_material_node_preview_target(string_tmp("%s_src", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
-	gpu_texture_t *a        = make_material_node_preview_target(string_tmp("%s_a", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
-	gpu_texture_t *b        = make_material_node_preview_target(string_tmp("%s_b", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
 	if (terrain_node_baked == NULL) {
 		terrain_node_baked = any_map_create();
 	}
@@ -147,6 +144,35 @@ void terrain_node_bake(ui_node_t *node, ui_node_canvas_t *group, ui_node_t_array
 		return;
 	}
 	baked->buffer[0] = hash;
+
+	// Reuse an identical terrain bake from another material
+	if (!gpu_in_use) {
+		string_array_t *keys = map_keys(terrain_node_baked);
+		for (i32 i = 0; i < keys->length; ++i) {
+			char *other_id = keys->buffer[i];
+			if (string_equals(other_id, id)) {
+				continue;
+			}
+			u32_array_t   *other_baked = any_map_get(terrain_node_baked, other_id);
+			gpu_texture_t *other_tex   = other_baked != NULL && other_baked->buffer[0] == hash ? any_map_get(g_context->node_previews, other_id) : NULL;
+			if (other_tex != NULL && other_tex != out && other_tex->width == res && other_tex->height == res && other_tex->format == GPU_TEXTURE_FORMAT_RGBA64) {
+				draw_begin(out, false, 0);
+				draw_set_pipeline(pipes_copy64);
+				draw_image(other_tex, 0, 0);
+				draw_set_pipeline(NULL);
+				draw_end();
+				array_free(keys);
+				free(keys);
+				return;
+			}
+		}
+		array_free(keys);
+		free(keys);
+	}
+
+	gpu_texture_t *src = make_material_node_preview_target(string_tmp("%s_src", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *a   = make_material_node_preview_target(string_tmp("%s_a", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
+	gpu_texture_t *b   = make_material_node_preview_target(string_tmp("%s_b", id), res, res, GPU_TEXTURE_FORMAT_RGBA128);
 
 	parser_material_terrain_passthrough = true;
 	util_render_make_node_preview(canvas, node, src, group, parents);
