@@ -49,7 +49,10 @@ void util_encode_mesh_datas(mesh_data_t_array_t *datas) {
 
 buffer_t *util_encode_scene(scene_t *raw) {
 	i32       size    = 8 * 1024 * 1024 + util_encode_mesh_data_size(raw->mesh_datas);
-	buffer_t *encoded = buffer_create(size);
+	buffer_t *encoded = malloc(sizeof(buffer_t));
+	encoded->buffer   = malloc(size);
+	encoded->length   = size;
+	encoded->capacity = size;
 	armpack_encode_start(encoded->buffer);
 	armpack_encode_map(9);
 	armpack_encode_string("name");
@@ -204,7 +207,10 @@ buffer_t *util_encode_project(project_t *raw) {
 	           util_encode_buffers_size(raw->mesh_icons) + util_encode_buffers_size(raw->mesh_skins) + util_encode_f32_arrays_size(raw->mesh_transforms) +
 	           util_encode_f32_arrays_size(raw->mesh_paths) + util_encode_timeline_layers_size(raw->timeline_layers) +
 	           util_encode_timeline_meshes_size(raw->timeline_meshes);
-	buffer_t *encoded = buffer_create(size);
+	buffer_t *encoded = malloc(sizeof(buffer_t));
+	encoded->buffer   = malloc(size);
+	encoded->length   = size;
+	encoded->capacity = size;
 
 	armpack_encode_start(encoded->buffer);
 	armpack_encode_map(46);
