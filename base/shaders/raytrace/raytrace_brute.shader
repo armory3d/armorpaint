@@ -1113,9 +1113,10 @@ void raytrace() {
 		float  grain_metal = 0.0;
 #endif
 		int lead = 0; // Iterations the camera ray spent crossing into the grains, before it met anything
+#ifdef _GRAINS
 		// Fast grain
 		int grain_bounces = 0;
-		//
+#endif
 
 		for (int i = 0; i < DEPTH; i += 1) {
 			int dim_base = DIM_BOUNCE + i * DIM_PER_BOUNCE;
@@ -1645,6 +1646,7 @@ void raytrace() {
 			}
 #endif
 
+#ifdef _GRAINS
 			// Fast grain
 			if (grain_shade) {
 				grain_bounces += 1;
@@ -1652,7 +1654,7 @@ void raytrace() {
 					break;
 				}
 			}
-			//
+#endif
 
 #ifndef _FULL
 			if (i + 1 >= DEPTH) {
