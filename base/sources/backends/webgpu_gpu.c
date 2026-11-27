@@ -1111,7 +1111,7 @@ static int                      rt_blas_count = 0;
 static struct {
 	int    geometry;
 	mat4_t transform;
-} rt_instances[1024];
+} rt_instances[16384];
 static int        rt_instances_count = 0;
 static WGPUBuffer rt_buffers[4]; // nodes, indices, vertices, instances
 static uint32_t   rt_buffer_sizes[4];

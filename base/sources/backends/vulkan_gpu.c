@@ -2555,7 +2555,7 @@ static gpu_buffer_t                 *ib[GPU_RAYTRACE_MAX_OBJECTS];
 static uint32_t                      ib_version_last[GPU_RAYTRACE_MAX_OBJECTS];
 static int                           vb_count      = 0;
 static int                           vb_count_last = 0;
-static inst_t                        instances[1024];
+static inst_t                        instances[16384];
 static int                           instances_count   = 0;
 static VkBuffer                      instance_data_buf = VK_NULL_HANDLE;
 static VkDeviceMemory                instance_data_mem = VK_NULL_HANDLE;
