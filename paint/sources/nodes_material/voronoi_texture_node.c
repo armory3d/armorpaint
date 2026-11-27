@@ -227,12 +227,8 @@ float voronoi_3d_f2_fbm(float3 p, float detail, float roughness, float lacunarit
 } \
 ";
 
-// Euclidean normalization constants per dimension (sqrt(N)/2, approximate F1 max distance)
-static const char *voronoi_norm_const(i32 dim) {
-	if (dim == 0) // 2D: sqrt(2)/2
-		return "0.7071";
-	else // 3D: sqrt(3)/2
-		return "0.8660";
+static char *voronoi_norm_max_distance(i32 dim, bool is_f2, char *randomness) {
+	return string_tmp("(%s * (0.5 + 0.5 * %s) * %s)", dim == 0 ? "1.41421356" : "1.73205081", randomness, is_f2 ? "2.0" : "1.0");
 }
 
 char *voronoi_texture_node_vector(ui_node_t *node, ui_node_socket_t *socket) {
@@ -292,7 +288,7 @@ char *voronoi_texture_node_value(ui_node_t *node, ui_node_socket_t *socket) {
 	}
 
 	if (normalize) {
-		dist = string_tmp("clamp(%s / (%s * max(%s, 0.0001)), 0.0, 1.0)", dist, voronoi_norm_const(dim), randomness);
+		dist = string_tmp("clamp(%s / %s, 0.0, 1.0)", dist, voronoi_norm_max_distance(dim, is_f2, randomness));
 	}
 
 	return dist;
