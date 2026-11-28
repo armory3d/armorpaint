@@ -183,13 +183,14 @@ project_t *main() {
 	if (flags->with_raytrace) {
 		add_define(project, "WITH_RAYTRACE");
 		add_assets(project, "assets/raytrace/*", "data/{name}", 0);
-		char *low = graphics == GRAPHICS_VULKAN ? "" : "_LOW_SAMPLES";
+		char *low      = graphics == GRAPHICS_VULKAN ? "" : "_LOW_SAMPLES";
+		char *bake_low = graphics == GRAPHICS_VULKAN || graphics == GRAPHICS_METAL ? "" : "_LOW_SAMPLES";
 		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_core", low);
 		add_shader(project, "shaders/raytrace/raytrace_brute.shader", "raytrace_brute_full", string("%s _FULL", low));
-		add_shader(project, "shaders/raytrace/raytrace_bake_ao.shader", "raytrace_bake_ao", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_ao.shader", "raytrace_bake_ao", bake_low);
 		add_shader(project, "shaders/raytrace/raytrace_bake_light.shader", "raytrace_bake_light", low);
-		add_shader(project, "shaders/raytrace/raytrace_bake_bent.shader", "raytrace_bake_bent", low);
-		add_shader(project, "shaders/raytrace/raytrace_bake_thick.shader", "raytrace_bake_thick", low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_bent.shader", "raytrace_bake_bent", bake_low);
+		add_shader(project, "shaders/raytrace/raytrace_bake_thick.shader", "raytrace_bake_thick", bake_low);
 	}
 
 	if (flags->export_version_info) {
