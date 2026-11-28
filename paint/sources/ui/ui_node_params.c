@@ -444,6 +444,14 @@ static void ui_node_params_draw_inputs(i32 canvas_type, ui_node_t *node) {
 	}
 }
 
+// Buttons and inputs, the values have the decimals of the node body
+static void ui_node_params_draw_values(i32 canvas_type, ui_node_t *node) {
+	g_ui->slider_decimals = ui_nodes_value_decimals;
+	ui_node_params_draw_buttons(node);
+	ui_node_params_draw_inputs(canvas_type, node);
+	g_ui->slider_decimals = 0;
+}
+
 // Clear background from y down to the bottom of the tab, the meshes tab draws alternating lines
 static void ui_node_params_clear(f32 y) {
 	if (y < g_ui->_window_h) {
@@ -465,8 +473,7 @@ static f32 ui_node_params_measure(i32 canvas_type, ui_node_t *node) {
 		ui_node_params_draw_brush_preview();
 	}
 	g_ui->_w -= ui_node_params_socket_w();
-	ui_node_params_draw_buttons(node);
-	ui_node_params_draw_inputs(canvas_type, node);
+	ui_node_params_draw_values(canvas_type, node);
 	f32 h    = g_ui->_y - y;
 	g_ui->_x = _x;
 	g_ui->_y = _y;
@@ -518,8 +525,7 @@ void ui_node_params_draw(i32 canvas_type, bool *show) {
 			ui_node_params_draw_brush_preview();
 		}
 		g_ui->_w -= ui_node_params_socket_w();
-		ui_node_params_draw_buttons(node);
-		ui_node_params_draw_inputs(canvas_type, node);
+		ui_node_params_draw_values(canvas_type, node);
 		g_ui->_w += ui_node_params_socket_w();
 		ui_node_params_end(canvas_type);
 		if (g_ui->_y - params_y != params_h) {

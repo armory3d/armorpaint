@@ -40,6 +40,7 @@ void (*ui_nodes_on_node_remove)(ui_node_t *)             = NULL;
 void (*ui_nodes_on_node_changed)(ui_node_t *)            = NULL;
 bool ui_nodes_grid_snap                                  = true;
 int  ui_nodes_grid_snap_w                                = 40;
+int  ui_nodes_value_decimals                             = 3; // Decimals of the values in nodes
 
 int ui_popup_x                                    = 0;
 int ui_popup_y                                    = 0;
@@ -822,9 +823,11 @@ void ui_node_draw(ui_node_t *node, ui_node_canvas_t *canvas) {
 	ny += lineh * 0.5;
 
 	if (!(node->flags & UI_NODE_FLAG_COLLAPSED)) {
-		bool _changed    = current->changed;
-		current->changed = false;
+		bool _changed            = current->changed;
+		current->changed         = false;
+		current->slider_decimals = ui_nodes_value_decimals;
 		ui_node_draw_body(node, canvas, nx, ny);
+		current->slider_decimals = 0;
 		if (ui_nodes_on_node_changed != NULL && current->changed) {
 			ui_nodes_on_node_changed(node);
 		}

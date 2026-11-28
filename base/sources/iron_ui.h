@@ -152,6 +152,7 @@ typedef struct ui {
 	bool                highlight_on_select; // Highlight text edit contents on selection
 	bool                tab_switch_enabled;  // Allow switching focus to the next element by pressing tab
 	ui_text_coloring_t *text_coloring;       // Set coloring scheme for ui_draw_string() calls
+	int                 slider_decimals;     // Decimals of ui_slider() values, 0: up to 2
 	int                 window_border_top;
 	int                 window_border_bottom;
 	int                 window_border_left;
@@ -597,6 +598,7 @@ extern void (*ui_nodes_on_link_drag)(int, bool);
 extern void (*ui_nodes_on_node_remove)(ui_node_t *);
 extern void (*ui_nodes_on_node_changed)(ui_node_t *);
 extern bool ui_nodes_grid_snap;
+extern int  ui_nodes_value_decimals;
 
 void     ui_node_canvas_encode(ui_node_canvas_t *canvas);
 uint32_t ui_node_canvas_encoded_size(ui_node_canvas_t *canvas);
